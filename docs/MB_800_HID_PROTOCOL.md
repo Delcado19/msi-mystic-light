@@ -44,10 +44,17 @@ by 13 bytes, not a real protocol quirk.
 | 15 | `Cycle_Num` | e.g. `30` (default) |
 
 18 records = `Enum_LedArea`: `JARGB1,JARGB2,JARGB3,JAF,JPIPE1-5,JRGB1,JRGB2,
-Onboard1-6,SelectAll` (index 0-17). **These names are the internal vendor
-labels** — how they map onto the board labels observed by the user (IO
-Cover, EZ Conn, JARGB_V2_1/2/3) has **not yet been verified field by
-field** (plausible but unverified: name similarity ≠ index match).
+Onboard1-6,SelectAll` (index 0-17). These are the internal vendor labels;
+for the MS-7E62 board specifically, the mapping to the labels shown in MSI
+Center (IO Cover, EZ Conn, JARGB_V2_1/2/3) is now **confirmed, not
+inferred** — MSI's own `Mystic Light Online Data.dat` catalog ships a
+per-board zone list with this exact mapping (`JARGB_V2_1=0, JARGB_V2_2=1,
+JARGB_V2_3=2, EZ Conn=3, IO COVER=4, JRGB1=9, SELECT ALL=11`), which matches
+`OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md`'s independently
+capture-derived Record-Index table exactly. See
+[`ONLINE_DATA_CATALOG.md`](ONLINE_DATA_CATALOG.md). Note index 11 is
+`Onboard1` in the generic enum but relabeled `SELECT ALL` in this board's
+own catalog entry — a board-specific repurposing, not a separate area.
 
 ### Verification against the existing capture template
 

@@ -73,13 +73,25 @@ code, superseded by the `API_Mystic Light.dll` plugin architecture — see
 
 ## SyncData.dll
 
-Pure data model (7 types, negligible logic: enums for style/cycle/device
-name/chipset, a `DataBase` class). `C_Encrypt.cs` implements AES encryption
-for local configuration files (profiles/monitor configs) — **the IV is
-derived via MD5 from the same key used for AES** (cryptographically unsound,
-since IV and key are derivable from each other), but only used to obfuscate
-local files, not a network secret. No further action needed for the
-standalone-app goal.
+Small data-model library (7 types: enums for style/cycle/device name/chipset,
+a `DataBase` class, `C_Encrypt`). `C_Encrypt.cs` implements AES encryption
+for local files — **the IV is derived via MD5 from the same key used for
+AES** (cryptographically unsound, since IV and key are derivable from each
+other).
+
+**`DataBase` is not dead code** — initially looked unused (no direct
+`SyncData.DataBase`/`new DataBase` references anywhere), but
+`MLModule.dll`'s `CLEDParser.GetListData()` calls `DataBase.ListData`/
+`DataBase.GetListData()` by unqualified name. It loads and decrypts
+`Mystic Light Online Data.dat` (a real file shipped with the install, same
+`C_Encrypt` format, static key `"DD94FFF"`) — MSI's own online device/zone
+catalog covering every supported motherboard, with a hardcoded fallback
+(`ListData_Backup`) if the file is missing. See
+[`ONLINE_DATA_CATALOG.md`](ONLINE_DATA_CATALOG.md) for the decryption
+recipe and what it contains for our board — including an **officially
+confirmed** zone-name-to-index mapping that independently validates
+`OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md`'s capture-based Record-Index
+table.
 
 ## HID password mechanism (`HID_Basic.init`)
 
