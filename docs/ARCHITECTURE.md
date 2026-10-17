@@ -92,10 +92,15 @@ native `MsiHid_GameSync.dll` before actual HID access.
 `MysticLight_AllDevice.dll`) actually call `init(...)`.** Dead/vestigial
 feature. This matches the observation already documented in
 `OpenRGBResearch/msi-b850` that real `hidapi` sends succeeded without any
-init call — for a standalone app this step is very likely **not** required,
-at least not for the device classes checked here. (Not checked:
-`HID_Basic_KB.cs`, `HID_Basic_Mouse.cs`, `HID_Basic_MNT.cs`,
-`HID_Basic_PSU.cs` — the grep ran across the whole directory, but none of
-these files themselves contains an `init(` call to another instance; if
-some keyboard/mouse-specific path does need the password, that was not
-individually traced here.)
+init call — for a standalone app this step is very likely **not** required, at least not
+for the device classes checked here.
+
+**Checked and closed (2026-10-17)**: `HID_Basic_KB.cs`, `HID_Basic_Mouse.cs`,
+`HID_Basic_MNT.cs`, `HID_Basic_PSU.cs` (each a P/Invoke wrapper around its
+own native DLL — `MsiHid_KB.dll`, `MsiHid_300.dll`, `MsiHid_MNT.dll`,
+`MsiHid_PSU.dll` respectively) don't define an `init`/password method at
+all — read in full, not just grepped. The 7-byte password handshake is
+exclusive to the generic `HID_Basic`/`HID_Basic_GM41W` pair (both backed by
+`MsiHid_GameSync.dll`), and neither is ever called. The HID password
+mechanism is confirmed dead/non-existent across every device class checked
+in this codebase.
