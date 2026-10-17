@@ -142,16 +142,31 @@ tested (zone select, color change, profile switch) never needed this
 channel at all, since they don't match anything in `DataResponse.Receive`'s
 command list.
 
-**`Transfer_Command`'s actual transport is still not located** — `API_Mystic
-Light.dll`'s `PluginClass : IPlugin_SDK` is a plugin interface
-(`ComponentID`/`MainEntry`/`Transfer_Command`/`Transfer_ToAPI`) that some
-host process loads and calls directly. Given `MSI.TerminalServer.exe`'s own
-code is entirely about the system-utility role above (no `IPlugin_SDK`
-reference anywhere in it), the actual plugin host is most likely a
-**different** MSI Center process (plausibly the main GUI/App host) calling
-into the loaded `API_Mystic_Light.dll` as in-process method calls — which
-would need no network transport at all, consistent with the zero-packet
-result.
+**Resolved: the real plugin host is `MSI.CentralServer.exe`**, not
+`MSI.TerminalServer.exe` — found by decompiling it and reading
+`C_DynLoad_SDK.cs`:
+
+```csharp
+Assembly assembly = Assembly.LoadFile(Path_SDK_Root + "Mystic Light\\API_Mystic Light.dll");
+IPlugin_SDK plugin_SDK = (IPlugin_SDK)assembly.CreateInstance("API_Mystic_Light.PluginClass");
+plugin_SDK.Transfer_StructData(PlatformInfo);
+plugin_SDK.Transfer_ToAPI(FeedBackHandler);
+plugin_SDK.MainEntry();
+// later, per command:
+struct_IPlugin_SDK._IPlugin.Transfer_Command(CommandData);
+```
+
+`Assembly.LoadFile` loads `API_Mystic Light.dll` directly into
+`MSI.CentralServer.exe`'s own process/AppDomain, and `Transfer_Command` is
+a plain in-process virtual method call on the loaded plugin object — no
+network, no IPC, no sockets at all. This fully explains the earlier
+zero-packet capture result: there was never anything to capture, by
+design, not because the test missed it. `MSI.CentralServer.exe` dynamically
+loads/unloads each MSI Center component this way based on registry
+version keys (`C_DynLoad_SDK.LoadComponent`); it wasn't holding
+`API_Mystic Light.dll` loaded at the time this was checked (no running
+process had it loaded), consistent with on-demand loading rather than an
+error.
 
 **Practical takeaway for the standalone-app goal**: this network layer
 (dead or not) was never the path to actual hardware control anyway — every
