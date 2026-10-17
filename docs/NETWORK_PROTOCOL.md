@@ -118,16 +118,25 @@ simple 2-byte-command dispatcher (`CMD_UI_Get_List_PartItem = {1,1}`,
 and various registry keys under `Component\Mystic Light\...`. This is the
 real, current GUI-to-backend channel — not MLModule's HTTP/UDP servers.
 
-**Hypothesis, not verified**: that TCP 26822 is the actual transport
-carrying `Transfer_Command` calls from the MSI Center GUI to
-`MSI.TerminalServer`. Plausible (same port, same process), but not
-confirmed — could equally be .NET Remoting, a named pipe, or something else
-entirely, with 26822 serving an unrelated purpose (telemetry, update
-checks, etc.). Not pursued further; would need either a live packet
-capture on 26822 or decompiling whatever hosts `IPlugin_SDK` on the
-`MSI.TerminalServer` side (not available in this installation directory —
-`MSI.TerminalServer.exe` lives elsewhere under the main MSI Center
-install, not under `Mystic Light\`).
+**Hypothesis tested and not supported (2026-10-17, live capture)**: that
+TCP 26822 is the transport for `Transfer_Command` calls from the MSI
+Center GUI to `MSI.TerminalServer`. A `pktmon` capture filtered to port
+26822 (full packet size, admin elevation) was run while actively using the
+Mystic Light page in MSI Center (selecting a zone, changing color,
+switching profile) — **zero packets captured** (confirmed both by
+`pktmon`'s own count and by reading the resulting `.pcapng` with `tshark
+-r`). `Get-NetTCPConnection -OwningProcess <MSI.TerminalServer PID>` also
+showed only the one listening socket on 26822, no established connections,
+before or after. `MSI.TerminalServer.exe` has no other TCP ports open
+either.
+
+**Conclusion**: whatever carries `Transfer_Command` for ordinary GUI
+actions, it is not TCP port 26822 (or any other TCP port on this process).
+Most likely a named pipe, `WM_COPYDATA`, shared memory, or .NET Remoting
+over a non-TCP channel — not yet identified. Port 26822 remains unexplained
+(open, but silent during normal use); possibly used only for some other,
+not-yet-triggered feature (e.g. the SmartRGB/router-discovery path seen in
+`RouterAPI`), or a leftover/diagnostic listener.
 
 **Practical takeaway for the standalone-app goal**: this network layer
 (dead or not) was never the path to actual hardware control anyway — every
