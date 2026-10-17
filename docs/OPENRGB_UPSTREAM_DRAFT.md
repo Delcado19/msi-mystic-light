@@ -44,11 +44,35 @@ strips × 180 LEDs per port) that may be what boards with "JARGB_V2" headers
 actually use instead of the `0x50`/`0x51` pair above — not yet confirmed
 which path this specific board takes.
 
-**Safety note for anyone testing against real hardware**: the vendor's own
-`0x50` payloads set the "store to NVRAM" trailer byte to `1` on every write.
-A controller that re-sends a captured template at high frequency (e.g. a
-continuous effect) will hit flash on every write unless that byte is
-explicitly zeroed for non-persistent updates.
+**This isn't a one-board finding.** The vendor driver's internal zone
+list (`JARGB_V2_1/2/3`, `EZ Conn`, `IO COVER`, `JRGB1`, `SELECT ALL`) with
+byte-identical per-zone parameters shows up, unchanged, across roughly 135
+distinct MSI motherboard models of this generation (every board whose
+vendor software reports that same zone set) — not just the one board this
+was tested on. A `0x51`/`Gen1_Adv` controller for this family would add
+per-LED addressing for all of them at once, not a single-board fix.
+
+**Two concrete bugs in the existing `MSIMotherboardController` code**,
+found independently of the protocol work above, both still unfixed
+upstream as far as I can tell:
+
+1. `FeaturePacket_PerLED_761` (`MSIMotherboardCommon.h`) is actually 727
+   bytes (`sizeof()`), not 761 — the name is a carry-over from a different
+   board family's community writeup. `MSIMotherboard761Controller::Update()`
+   already uses `sizeof(FeaturePacket_PerLED_761)` correctly, but the
+   detection probe in `MSIMotherboardControllerDetect.cpp` sends a
+   hardcoded `761`. Since `HidD_SetFeature` requires an exact length match
+   with the device's HID report, that probe can fail outright regardless
+   of whether a given board actually supports the report — worth checking
+   if this explains any of the "detected but `761Controller` doesn't do
+   anything" reports out there.
+2. Any `MSIMotherboard*Controller`/custom controller for this family that
+   copies a captured `0x50` template verbatim should double-check its
+   trailing byte: it's a "persist this to the board's NVRAM" flag, and
+   genuine captures have it set to `1`. A controller that re-sends that
+   template at high frequency (e.g. a continuous software effect) will
+   hit flash on every single write unless that byte is explicitly zeroed
+   for non-persistent updates.
 
 Happy to answer questions on this; haven't tested the `0x51`/Gen2 paths
 against real hardware yet.
