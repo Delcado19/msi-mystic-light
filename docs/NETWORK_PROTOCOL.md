@@ -89,19 +89,53 @@ This independently confirms, outside of raw-USB reverse engineering:
 **MSI's own software actively uses the per-LED report**, not just as an
 untested protocol variant.
 
-## Live verification (2026-10-17, passive netstat only, nothing sent)
+## Live verification (2026-10-17): the whole MLModule network layer is dead code
 
-None of the three servers above are actually bound on this system right
-now: a full `netstat -ano` (TCP and UDP) shows nothing at all on 26820 or
-26823, and the only activity on 26822 is a **TCP** listener owned by
-`MSI.TerminalServer` — a completely unrelated MSI Center component, not
-`CBaseServer`'s UDP socket (confirmed by process name/PID, not just the
-port number). The `WebAPI` registry key that `CWebAPI.StartHostServer()`
-creates on first run (see `ARCHITECTURE.md`) also doesn't exist on this
-system, confirming it has never run. The Mystic Light network layer is
-simply dormant here — consistent with all protocol verification in
-`OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md` having gone through raw USB
-HID and visual confirmation, never through this network layer.
+A full `netstat -ano` (TCP and UDP) shows nothing at all on 26820 or 26823,
+and the only activity on 26822 is a **TCP** listener owned by a process
+called `MSI.TerminalServer`. Tracing why led to the real explanation, not
+just "unrelated process by coincidence":
+
+**`CBaseServer.Start()`, `CWebAPI.StartHostServer()`, and `CSyncServer.Start()`
+have no call site anywhere** — not in `LEDKeeper2.exe`, not in
+`Mystic_Light_Service.exe`, not in `MysticLight_AllDevice.dll`, and not in
+`API_Mystic Light.dll` (see below), which is the one other assembly that
+actually does `using MLModule;`. The `WebAPI` registry key that
+`CWebAPI.StartHostServer()` creates on first run doesn't exist on this
+system either, confirming it has never run. All three servers in
+`MLModule.dll` are dead/superseded code, same pattern as the unused
+`HID_Basic.init` password and `StartProcessByUserUAC` found earlier.
+
+**What's actually live instead**: `API_Mystic Light.dll`
+(`C:\Program Files (x86)\MSI\MSI Center\Mystic Light\API_Mystic Light.dll`,
+alongside sibling plugins `API_Nanoleaf.dll`, `API_PhilipsHue.dll`,
+`API_PSUMonitor.dll`) implements `PluginClass : IPlugin_SDK` — this is a
+plugin hosted in-process by MSI Center's current `MSI.TerminalServer.exe`
+(the process actually bound to TCP 26822). `IPlugin_SDK.Transfer_Command
+(byte[] SourceData)` forwards to `C_Feedback.DataResponse(byte[])`, a
+simple 2-byte-command dispatcher (`CMD_UI_Get_List_PartItem = {1,1}`,
+`CMD_UI_Set_RegKey = {2,1}`, etc.) that reads/writes `CLEDParser.List_PartItem`
+and various registry keys under `Component\Mystic Light\...`. This is the
+real, current GUI-to-backend channel — not MLModule's HTTP/UDP servers.
+
+**Hypothesis, not verified**: that TCP 26822 is the actual transport
+carrying `Transfer_Command` calls from the MSI Center GUI to
+`MSI.TerminalServer`. Plausible (same port, same process), but not
+confirmed — could equally be .NET Remoting, a named pipe, or something else
+entirely, with 26822 serving an unrelated purpose (telemetry, update
+checks, etc.). Not pursued further; would need either a live packet
+capture on 26822 or decompiling whatever hosts `IPlugin_SDK` on the
+`MSI.TerminalServer` side (not available in this installation directory —
+`MSI.TerminalServer.exe` lives elsewhere under the main MSI Center
+install, not under `Mystic Light\`).
+
+**Practical takeaway for the standalone-app goal**: this network layer
+(dead or not) was never the path to actual hardware control anyway — every
+real color change happens through `MysticLight_AllDevice.dll`/`MSI_LED`'s
+device driver classes writing raw USB HID reports (see
+`MB_800_HID_PROTOCOL.md`). The HTTP SDK on 26820 would have been a
+convenient *existing* entry point if it were alive; since it isn't, raw
+HID is the only real option regardless.
 
 ## Still open
 

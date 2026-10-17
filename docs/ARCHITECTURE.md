@@ -15,6 +15,7 @@ this repo) — for traceability, not as a copy.
 | `MLModule.dll` | .NET library (**managed** despite the name, not native) | Network core: HTTP SDK, UDP pairing, UDP party sync |
 | `SyncData.dll` | .NET library | Profile data model + simple AES encryption for local config files |
 | `Lib\MsiHid_GameSync.dll` | native DLL | Generic USB HID access (P/Invoke target of `HID_Basic`) |
+| `API_Mystic Light.dll` | .NET library, MSI Center plugin | Current, live GUI-to-backend bridge (`IPlugin_SDK`), hosted in-process by `MSI.TerminalServer.exe` (part of the main MSI Center install, not `Mystic Light\`) — see `NETWORK_PROTOCOL.md` |
 
 ## Mystic_Light_Service.exe
 
@@ -62,13 +63,13 @@ target for this reason). Contains three independent servers, see
 2. UDP 26822 — mobile app pairing (`CBaseServer.cs`/`CBaseFN.cs`).
 3. UDP 26823 — multi-PC "Party Sync" (`CSyncServer.cs`/`CSyncFN.cs`).
 
-Open question: `CWebAPI.StartHostServer()` has no found call site within
-`MLModule.dll` itself — presumably called from `LEDKeeper2.exe` or
-`Mystic_Light_Service.exe` (cross-assembly call, not visible via plain text
-search across the decompiled `.cs` files since `ilspycmd` decompiles each
-assembly separately). Not conclusively verified — confirm with
-`dotnet-trace`/process monitor on the real system before relying on it for
-a production reimplementation.
+Resolved (2026-10-17): `CWebAPI.StartHostServer()` has **no call site
+anywhere** — checked across `LEDKeeper2.exe`, `Mystic_Light_Service.exe`,
+`MysticLight_AllDevice.dll`, and `API_Mystic Light.dll` (the one other
+assembly that references the `MLModule` namespace at all). All three
+`MLModule.dll` servers (`CWebAPI`, `CBaseServer`, `CSyncServer`) are dead
+code, superseded by the `API_Mystic Light.dll` plugin architecture — see
+`NETWORK_PROTOCOL.md` for the full explanation.
 
 ## SyncData.dll
 
