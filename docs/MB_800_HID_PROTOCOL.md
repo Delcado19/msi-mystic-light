@@ -71,10 +71,13 @@ Plugin render loop (up to 20 flash writes/second while an effect runs
 continuously). This is specifically the kind of flash wear the safety rule
 in `PROTOCOL_NOTES.md` is meant to avoid, and a plausible (previously
 unidentified) contributor to the hang bug documented there
-(`hid_send_feature_report` blocking indefinitely). **Not fixed yet** — the
-fix would be to set byte 289 to `0x00` for direct-mode writes (store only on
-an explicit "apply"/save click). Not implemented without asking, per the
-safety rule in `PROTOCOL_NOTES.md`.
+(`hid_send_feature_report` blocking indefinitely). **Fixed** (2026-10-17):
+the controller's constructor now explicitly zeroes byte 289 right after
+copying the template, since this controller is Direct-mode only and never
+needs the persist-to-flash path. See `OpenRGB/Controllers/
+MSIMysticLightController/MSIMysticLight290Controller/
+MSIMysticLight290Controller.cpp` (`MSI290_STORE_OFFSET`). Not re-tested
+against real hardware yet.
 
 ## Report `0x51` ("Gen1_Adv"), 727 bytes — per-LED addressing of individual segments
 
@@ -134,6 +137,31 @@ ranges).
 uses Gen1 or Gen2 in practice — the call site that switches between the two
 paths during device detection is missing (likely based on the firmware
 version from `Get_FwVersion`/`CheckConnectedDevice`, not traced further).
+
+## Upstream OpenRGB bug found while cross-checking: `FeaturePacket_PerLED_761` is 727 bytes, not 761
+
+Independent of this repo's own findings, reading OpenRGB's existing (not
+our fork's) `MSIMotherboardController` code against the vendor-confirmed
+727-byte `Gen1_Adv` report above turned up a genuine bug in upstream:
+
+- `MSIMotherboardCommon.h`: `FeaturePacket_PerLED_761` is named "761" but
+  its actual `sizeof()` is 727 bytes (7-byte header + `NUM_LEDS_761=720`
+  color bytes) — the name is a historical carry-over from the
+  `nmelo/msi-mystic-light-x870e` reference (761 bytes, different board),
+  not the real size of this struct.
+- `MSIMotherboard761Controller::Update()` already uses
+  `sizeof(FeaturePacket_PerLED_761)` (727, correct) for its real writes.
+- `MSIMotherboardControllerDetect.cpp`'s detection probe instead sent a
+  hardcoded `761` — a real length mismatch against the same report, not
+  just a cosmetic naming issue. Windows' `HidD_SetFeature` requires an
+  exact length match with the device's HID report descriptor, so the probe
+  could fail outright independent of whether the board actually supports
+  report `0x51`.
+
+**Fixed** (2026-10-17, local fix, not upstreamed): the probe now sends
+`sizeof(FeaturePacket_PerLED_761)` instead of the literal `761`. The struct
+is still named "761" — renaming it would touch class/file names across
+multiple files and wasn't done as part of this fix.
 
 ## Why Mystic Light appears "softer" than OpenRGB (context for the user's observation)
 
