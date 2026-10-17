@@ -1,12 +1,16 @@
 # Entwurf: Kommentar für GitLab-Issues #4935 / #5429
 
-**Status: NICHT gepostet.** Nur lokaler Entwurf zur Freigabe. Enthält keinen
-Vendor-Code (nur Byte-Layout-Tabellen/Fakten, aus dem decompilierten Treiber
-abgeleitet). Vor dem Posten: mit Nutzer abstimmen, ob überhaupt (siehe
-CONTRIBUTING.md-Hinweis in `OpenRGBResearch/CONTINUE.md`: "kein eigener PR" —
-ein reiner Issue-Kommentar mit Reverse-Engineering-Infos könnte trotzdem
-gewünscht sein, aber das ist eine externe, sichtbare Aktion und wird hier nur
-vorbereitet, nicht ausgeführt).
+**Status (2026-10-17): vom Nutzer freigegeben zum Posten auf beide Issues,
+aber noch nicht gepostet** — kein GitLab-API-Zugriff verfügbar (gecachtes
+Credential hat nur `write_repository`-Scope, kein `api`-Scope). Enthält
+keinen Vendor-Code, nur Byte-Layout-Tabellen/Fakten. Kein eigener PR (siehe
+`CONTRIBUTING.md`s "AI Guidelines" — PR nur, wenn der Nutzer den Diff selbst
+versteht/verantwortet); der 761-Byte-Fix liegt stattdessen als Branch auf
+dem Fork (`fix/motherboard-761-probe-length`, bereits gepusht), auf den
+dieser Kommentar verlinkt.
+
+Text unterhalb der Trennlinie ist 1:1 zum Posten gedacht (Markdown, GitLab-
+kompatibel). Alles darüber ist nur interne Notiz, nicht Teil des Kommentars.
 
 ---
 
@@ -65,7 +69,16 @@ upstream as far as I can tell:
    with the device's HID report, that probe can fail outright regardless
    of whether a given board actually supports the report — worth checking
    if this explains any of the "detected but `761Controller` doesn't do
-   anything" reports out there.
+   anything" reports out there. One-line fix, pushed to a branch here in
+   case it's useful as a starting point (not submitted as a merge request
+   myself — happy to leave that to whoever picks this up, or point me at
+   the right process if a MR is wanted):
+   https://gitlab.com/Delcado19/OpenRGB/-/tree/fix/motherboard-761-probe-length
+
+   ```diff
+   -           size_t packet_length_new_attempt = hid_send_feature_report(dev, second_buffer, 761);
+   +           size_t packet_length_new_attempt = hid_send_feature_report(dev, second_buffer, sizeof(FeaturePacket_PerLED_761));
+   ```
 2. Any `MSIMotherboard*Controller`/custom controller for this family that
    copies a captured `0x50` template verbatim should double-check its
    trailing byte: it's a "persist this to the board's NVRAM" flag, and
