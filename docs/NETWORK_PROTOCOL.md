@@ -89,10 +89,22 @@ This independently confirms, outside of raw-USB reverse engineering:
 **MSI's own software actively uses the per-LED report**, not just as an
 untested protocol variant.
 
+## Live verification (2026-10-17, passive netstat only, nothing sent)
+
+None of the three servers above are actually bound on this system right
+now: a full `netstat -ano` (TCP and UDP) shows nothing at all on 26820 or
+26823, and the only activity on 26822 is a **TCP** listener owned by
+`MSI.TerminalServer` — a completely unrelated MSI Center component, not
+`CBaseServer`'s UDP socket (confirmed by process name/PID, not just the
+port number). The `WebAPI` registry key that `CWebAPI.StartHostServer()`
+creates on first run (see `ARCHITECTURE.md`) also doesn't exist on this
+system, confirming it has never run. The Mystic Light network layer is
+simply dormant here — consistent with all protocol verification in
+`OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md` having gone through raw USB
+HID and visual confirmation, never through this network layer.
+
 ## Still open
 
 - Exact caller of `CWebAPI.StartHostServer()` (see `ARCHITECTURE.md`).
 - IPC path for `"SignalRGB_On"`/`"MSIMLSDK_On"` (likely a named pipe or
   window message from the MSI Center GUI process to `LEDKeeper2.exe`).
-- Passive verification (netstat) on this system of whether
-  26820/26822/26823 are actually bound — not yet performed.
