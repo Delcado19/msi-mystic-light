@@ -1,59 +1,57 @@
-# Mystic Light — lokale Netzwerk-Schnittstellen
+# Mystic Light — local network interfaces
 
-Alle Befunde per statischer Dekompilierung (`ilspycmd`), keine
-Laufzeitbeobachtung durchgeführt, sofern nicht anders vermerkt. Quelle:
-`MLModule.dll` (Netzwerk-Kern) und `LEDKeeper2.exe\MSI_LED\RGBControlClass.cs`
-(SignalRGB-Brücke).
+All findings from static decompilation (`ilspycmd`), no runtime observation
+unless noted otherwise. Source: `MLModule.dll` (network core) and
+`LEDKeeper2.exe\MSI_LED\RGBControlClass.cs` (SignalRGB bridge).
 
-## 1. TCP 26820 — lokale HTTP "Web API" (`MLModule.dll:CWebAPI.cs`)
+## 1. TCP 26820 — local HTTP "Web API" (`MLModule.dll:CWebAPI.cs`)
 
 ```
 HostServer.Prefixes.Add("http://localhost:" + ServerPort + "/");
 HostServer.AuthenticationSchemes = AuthenticationSchemes.Anonymous;
 ```
 
-Anfrageformat: `GET /DeviceType=MSI_KEYBOARD&SetColor=255,0,0` (Query-String
-als Pseudo-Pfad, `&`-getrennt). Aktionen: `DeviceType`, `DeviceIndex`,
-`GetDeviceInfo`, `GetStyleInfo`, `SetStyleID`, `SetColor`, `SetBright`,
-`SetSpeed`, `SetPW`, `SetServerPort`.
+Request format: `GET /DeviceType=MSI_KEYBOARD&SetColor=255,0,0`
+(query-string-as-pseudo-path, `&`-separated). Actions: `DeviceType`,
+`DeviceIndex`, `GetDeviceInfo`, `GetStyleInfo`, `SetStyleID`, `SetColor`,
+`SetBright`, `SetSpeed`, `SetPW`, `SetServerPort`.
 
-**Keine Authentifizierung** — `SetPW` ist zwar als gültiger Parametername
-registriert, hat aber **keinen** `case`-Handler im Switch-Statement der
-Request-Parser-Methode (totes/unvollendetes Feature). Jeder lokale Prozess
-kann ohne Weiteres alle Geräte steuern. Port ist über die Registry
-(`WebAPI\ServerPort`) konfigurierbar.
+**No authentication** — `SetPW` is registered as a valid parameter name but
+has **no** `case` handler in the request parser's switch statement
+(dead/unfinished feature). Any local process can control all devices
+without restriction. Port is configurable via the registry
+(`WebAPI\ServerPort`).
 
-**Für eine eigenständige App: das ist der primäre, stabilste Einstiegspunkt**
-— dokumentiertes, SDK-artiges Protokoll, kein Reverse-Engineering des
-rohen USB-Verkehrs nötig, solange MSI Center/der Dienst im Hintergrund läuft.
+**For a standalone app: this is the primary, most stable entry point** —
+a documented, SDK-like protocol, no need to reverse-engineer raw USB traffic
+as long as MSI Center/the service runs in the background.
 
-## 2. UDP 26822 — Mobile-App-Pairing (`CBaseServer.cs`/`CBaseFN.cs`)
+## 2. UDP 26822 — mobile app pairing (`CBaseServer.cs`/`CBaseFN.cs`)
 
-Pairing-Protokoll für die MSI-Mobile-App. Nachrichtenformat:
-`<Code>#<Feld1>#<Feld2>#...` (`#`-getrennt, UTF-8, Klartext).
+Pairing protocol for the MSI mobile app. Message format:
+`<Code>#<Field1>#<Field2>#...` (`#`-separated, UTF-8, plaintext).
 
-- `A201` → Server vergibt Sitzungs-ID `CAPI.GetMD5(DateTime.Now.Ticks.ToString())`.
-  **Kein Geheimnis** — nur ein Zeitstempel-Hash, im Klartext übertragen.
-- `A202`/`A301` nutzen diese ID zur "Authentifizierung" nachfolgender Befehle.
-- Jeder im gleichen Broadcast-Segment, der mitschneidet oder schneller als
-  die echte App antwortet, kann sich als Mobilgerät ausgeben.
+- `A201` → server assigns a session ID `CAPI.GetMD5(DateTime.Now.Ticks.ToString())`.
+  **Not a secret** — just a timestamp hash, transmitted in plaintext.
+- `A202`/`A301` use this ID to "authenticate" subsequent commands.
+- Anyone on the same broadcast segment who sniffs traffic or responds
+  faster than the real app can impersonate a mobile device.
 
-## 3. UDP 26823 — "Party Sync" zwischen mehreren PCs (`CSyncServer.cs`/`CSyncFN.cs`)
+## 3. UDP 26823 — "party sync" between multiple PCs (`CSyncServer.cs`/`CSyncFN.cs`)
 
-Analog zu (2), synchronisiert RGB-Effekte zwischen PCs im selben Netz.
-Ebenfalls Klartext, keine Authentifizierung über mehr als eine lokal
-generierte `CSyncData.ID`.
+Analogous to (2), synchronizes RGB effects between PCs on the same network.
+Also plaintext, no authentication beyond a locally generated `CSyncData.ID`.
 
-Alle drei Server öffnen beim Start automatisch eine `netsh advfirewall`-Regel
-(`CNetwork.cs`) für eingehenden Traffic — stilles Firewall-Opening.
+All three servers automatically open a `netsh advfirewall` rule
+(`CNetwork.cs`) for inbound traffic on startup — a silent firewall opening.
 
-## 4. UDP 61337 — SignalRGB-Brücke ("LEDKeeper 2" Dienst)
+## 4. UDP 61337 — SignalRGB bridge ("LEDKeeper 2" service)
 
-**Dies war in `OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md` als Sackgasse
-eingestuft** ("kein Listener auf Port 61337, trotz mehrfacher Neustarts").
-Der Code existiert tatsächlich — `LEDKeeper2.exe\MSI_LED\RGBControlClass.cs`,
-`UdpListener` bindet `IPAddress.Any:61337`. Grund für den vorherigen
-Negativbefund, mit hoher Sicherheit:
+**This was classified as a dead end in
+`OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md`** ("no listener on port 61337,
+despite multiple restarts"). The code does in fact exist —
+`LEDKeeper2.exe\MSI_LED\RGBControlClass.cs`, `UdpListener` binds
+`IPAddress.Any:61337`. Most likely reason for the earlier negative result:
 
 ```
 App.cs: if (RGBCtrlObj != null) {
@@ -63,39 +61,38 @@ App.cs: if (RGBCtrlObj != null) {
         }
 ```
 
-`StartServer()` wird **nur einmal beim Programmstart von `LEDKeeper2.exe`**
-aufgerufen (plus über zwei interne String-Kommandos `"SignalRGB_On"` /
-`"MSIMLSDK_On"`, deren Aufrufweg — vermutlich IPC vom MSI-Center-GUI-Prozess
-— hier nicht weiter verfolgt wurde). Der Registry-Schalter wird also nur
-beim **Prozessstart** von `LEDKeeper2.exe` gelesen. Ein Neustart von MSI
-Center (GUI) oder des `Mystic_Light_Service`-Windows-Dienstes startet den
-bereits laufenden `LEDKeeper2.exe`-Prozess selbst nicht neu (der läuft als
-eigener Scheduled-Task-Prozess, nicht als Kindprozess des Dienstes) —
-exakt das Verhalten, das in PROTOCOL_NOTES.md bereits beobachtet wurde
-("GUI-Neustart startet den eigentlichen Dienst nicht neu").
+`StartServer()` is only called **once, at process startup of
+`LEDKeeper2.exe`** (plus via two internal string commands `"SignalRGB_On"` /
+`"MSIMLSDK_On"`, whose call path — likely IPC from the MSI Center GUI
+process — was not traced further here). So the registry switch is only read
+at **process start**. Restarting MSI Center (GUI) or the
+`Mystic_Light_Service` Windows service does not restart the already-running
+`LEDKeeper2.exe` process itself (it runs as its own scheduled-task process,
+not a child process of the service) — exactly the behavior already observed
+in PROTOCOL_NOTES.md ("restarting the GUI does not restart the actual
+service").
 
-**Nächster sinnvoller Test** (noch nicht durchgeführt, reine Prozess-
-Verwaltung, kein Geräte-Zugriff): `SignalRGB_Switch=ON` setzen, dann
-`LEDKeeper2.exe` **per Taskkill beenden** (nicht nur MSI Center/den Dienst)
-und den Scheduled Task neu anlaufen lassen — danach sollte Port 61337
-gebunden sein.
+**Next reasonable test** (not yet performed, pure process management, no
+device access): set `SignalRGB_Switch=ON`, then **kill `LEDKeeper2.exe` via
+taskkill** (not just MSI Center/the service) and let the scheduled task
+restart it — port 61337 should then be bound.
 
-### Protokoll (bestätigt durch Code, ergänzt gegenüber der `Msi.js`-Rekonstruktion)
+### Protocol (confirmed via code, extends the `Msi.js` reconstruction)
 
-`RGBControlClass.cs` verarbeitet eingehende Pakete und routet sie u.a. auf
-`MSI_800sLed.Gen1_Adv_ApplyArea_Byte(Enum_Gen1AdvArea Area, byte[] Colors)`
-für `JARGB1`, `JARGB2`, `JARGB3`, `JAF`, `SelectAll` — das ist derselbe
-**Per-LED-Report** (`0x51`/727 Byte, siehe
-[`MB_800_HID_PROTOCOL.md`](MB_800_HID_PROTOCOL.md)), den die
-Community-Referenz `nmelo/msi-mystic-light-x870e` für eine andere Platine
-dokumentiert hat. Das bestätigt unabhängig vom rohen-USB-Reverse-Engineering:
-**MSIs eigene Software benutzt den Per-LED-Report produktiv**, nicht nur
-als ungetestete Protokoll-Variante.
+`RGBControlClass.cs` processes incoming packets and routes them, among
+others, to `MSI_800sLed.Gen1_Adv_ApplyArea_Byte(Enum_Gen1AdvArea Area, byte[]
+Colors)` for `JARGB1`, `JARGB2`, `JARGB3`, `JAF`, `SelectAll` — this is the
+same **per-LED report** (`0x51`/727 bytes, see
+[`MB_800_HID_PROTOCOL.md`](MB_800_HID_PROTOCOL.md)) that the community
+reference `nmelo/msi-mystic-light-x870e` documents for a different board.
+This independently confirms, outside of raw-USB reverse engineering:
+**MSI's own software actively uses the per-LED report**, not just as an
+untested protocol variant.
 
-## Noch offen
+## Still open
 
-- Exakter Aufrufer von `CWebAPI.StartHostServer()` (siehe `ARCHITECTURE.md`).
-- IPC-Weg für `"SignalRGB_On"`/`"MSIMLSDK_On"` (vermutlich Named Pipe oder
-  Fenster-Message vom MSI-Center-GUI-Prozess an `LEDKeeper2.exe`).
-- Passive Verifikation (netstat) auf diesem System, ob 26820/26822/26823
-  tatsächlich gebunden sind — noch nicht durchgeführt.
+- Exact caller of `CWebAPI.StartHostServer()` (see `ARCHITECTURE.md`).
+- IPC path for `"SignalRGB_On"`/`"MSIMLSDK_On"` (likely a named pipe or
+  window message from the MSI Center GUI process to `LEDKeeper2.exe`).
+- Passive verification (netstat) on this system of whether
+  26820/26822/26823 are actually bound — not yet performed.

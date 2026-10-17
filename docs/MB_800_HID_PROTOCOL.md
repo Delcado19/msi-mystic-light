@@ -1,165 +1,160 @@
-# MSI Mainboard-LED-Protokoll, "800er"-Generation (VID `0x0DB0`/PID `0x0076`)
+# MSI mainboard LED protocol, "800-series" generation (VID `0x0DB0`/PID `0x0076`)
 
-Betrifft u.a. das in `OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md`
-analysierte MSI MPG B850 Edge TI WiFi. Quelle: `MSI_800sLed.cs`, identisch
-(bis auf kleine Abweichungen) in `LEDKeeper2.exe\MSI_LED\` und
-`MysticLight_AllDevice.dll\Device\MB_800\`. Treiberauswahl bestätigt über
+Covers, among others, the MSI MPG B850 Edge TI WiFi analyzed in
+`OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md`. Source: `MSI_800sLed.cs`,
+identical (aside from minor differences) in `LEDKeeper2.exe\MSI_LED\` and
+`MysticLight_AllDevice.dll\Device\MB_800\`. Driver selection confirmed via
 `VID_MSI_Common = 3504` (`0x0DB0`), `PID_MSI_Common = 118` (`0x0076`) —
-exakt die VID:PID des B850-Boards.
+exactly the VID:PID of the B850 board.
 
-**Diese Datei ist eine Korrektur** zu einem Teil von
-`OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md` (dort als "Offener Kernbefund"/
-"Bestätigtes Muster" markiert) — siehe die "Korrektur 2026-10-17"-Sektion,
-die in jener Datei direkt eingefügt wurde. Alles hier ist **rein aus dem
-decompilierten Vendor-Code abgeleitet, nichts davon wurde ans Board
-gesendet.**
+**This file is a correction** to part of
+`OpenRGBResearch/msi-b850/PROTOCOL_NOTES.md` (there marked as "Open core
+finding"/"Confirmed pattern") — see the "Correction 2026-10-17" section
+inserted directly into that file. Everything here is **derived purely from
+the decompiled vendor code; nothing was sent to the board.**
 
-## Report `0x50` ("Gen1"), 290 Byte — Status- und Default-Konfiguration
+## Report `0x50` ("Gen1"), 290 bytes — status and default configuration
 
 ```
-Byte 0:        Report-ID (0x50 / 80)
-Byte 1-288:    18 Records à 16 Byte (siehe unten), lückenlos ab Byte 1
-Byte 289:      "Store"-Flag (1 = dauerhaft ins Board-NVRAM schreiben, 0 = nur Sitzung)
+Byte 0:        Report ID (0x50 / 80)
+Byte 1-288:    18 records of 16 bytes each (see below), contiguous from byte 1
+Byte 289:      "Store" flag (1 = persist to board NVRAM, 0 = session only)
 ```
 
-**Korrektur gegenüber der ursprünglichen Capture-Analyse**: Es gibt
-**keinen separaten 13-Byte-Header** vor den Records — Record 0 beginnt
-direkt bei Byte 1. Was die ursprüngliche Analyse als "Header" (Byte 1-13)
-gelesen hat, sind tatsächlich die ersten 13 der 16 Bytes von Record 0
-(`LightingMode` + `Color_1..4`, ohne die letzten 3 Felder). Das erklärt
-rückwirkend sowohl die beobachtete "Farb-Record = Auswahl-Record − 1"-Formel
-als auch den Sonderfall "Header = JARGB1-Farbe": beide Beobachtungen sind
-Artefakte einer um 13 Byte verschobenen Record-Grenze, keine echte
-Protokoll-Eigenheit.
+**Correction to the original capture analysis**: there is **no separate
+13-byte header** before the records — record 0 starts directly at byte 1.
+What the original analysis read as a "header" (bytes 1-13) is actually the
+first 13 of the 16 bytes of record 0 (`LightingMode` + `Color_1..4`, minus
+the last 3 fields). This retroactively explains both the observed
+"color record = selection record − 1" formula and the special case "header =
+JARGB1 color": both observations are artifacts of a record boundary shifted
+by 13 bytes, not a real protocol quirk.
 
-### Record-Layout (16 Byte, pro Zone/"Area")
+### Record layout (16 bytes, per zone/"area")
 
-| Offset im Record | Feld | Bedeutung |
+| Offset in record | Field | Meaning |
 |---|---|---|
 | 0 | `LightingMode` | `Off=0,Wave=1,Steady=2,Flame=3,Breathing=4,ColorRing=5,Lightning=6,Recreation=7,Meteor=8,Advanced=9,GodLike=10` |
 | 1-3 | `Color_1` (R,G,B) | |
 | 4-6 | `Color_2` (R,G,B) | |
 | 7-9 | `Color_3` (R,G,B) | |
 | 10-12 | `Color_4` (R,G,B) | |
-| 13 | `Option1` | Bits 0-1: `ColorCount` (1-4 aktive Farben) |
+| 13 | `Option1` | Bits 0-1: `ColorCount` (1-4 active colors) |
 | 14 | `Option2` | Bit 7: `SelectAll` · Bit 6: `Direction` · Bit 5: `ColorSelection` (0=Rainbow,1=User) · Bits 4-2: `Brightness` (0-5 → 0/20/40/60/80/100%) · Bits 1-0: `Speed` (0-2) |
-| 15 | `Cycle_Num` | z.B. `30` (Standard) |
+| 15 | `Cycle_Num` | e.g. `30` (default) |
 
-18 Records = `Enum_LedArea`: `JARGB1,JARGB2,JARGB3,JAF,JPIPE1-5,JRGB1,JRGB2,
-Onboard1-6,SelectAll` (Index 0-17). **Diese Namen sind die internen
-Vendor-Bezeichnungen** — wie sie sich auf die vom Nutzer beobachteten
-Board-Labels (IO Cover, EZ Conn, JARGB_V2_1/2/3) abbilden, ist **noch nicht
-feldweise nachgewiesen** (nur plausibel, nicht verifiziert: Namensähnlichkeit
-≠ Index-Übereinstimmung).
+18 records = `Enum_LedArea`: `JARGB1,JARGB2,JARGB3,JAF,JPIPE1-5,JRGB1,JRGB2,
+Onboard1-6,SelectAll` (index 0-17). **These names are the internal vendor
+labels** — how they map onto the board labels observed by the user (IO
+Cover, EZ Conn, JARGB_V2_1/2/3) has **not yet been verified field by
+field** (plausible but unverified: name similarity ≠ index match).
 
-### Verifikation anhand des bestehenden Capture-Templates
+### Verification against the existing capture template
 
-Der 290-Byte-Rohwert aus `MSIMysticLight290Controller.cpp`
-(`MSI290_TEMPLATE`, eine echte, vom Board akzeptierte Capture) deckt sich
-exakt mit obigem Layout, u.a.:
+The 290-byte raw payload from `MSIMysticLight290Controller.cpp`
+(`MSI290_TEMPLATE`, a real capture already accepted by the board) matches
+this layout exactly, e.g.:
 
-- `Cycle_Num` an der vorhergesagten Position = `0x1E` = 30 (Standardwert) ✓
-- `Option2` = `0xB5` an der vorhergesagten Position → dekodiert als
+- `Cycle_Num` at the predicted position = `0x1E` = 30 (default value) ✓
+- `Option2` = `0xB5` at the predicted position → decodes to
   `SelectAll=true, ColorSelection=User, Brightness=100%, Speed=Medium` —
-  der beobachtete Wertewechsel `0xB5↔0x35` in den Captures ist also **nur
-  das `SelectAll`-Bit**, kein eigenständiges "Zonen-Auswahl-Marker-Byte".
+  the observed `0xB5↔0x35` toggle seen in captures is thus **only the
+  `SelectAll` bit**, not a standalone "zone selection marker byte".
 
-### ⚠️ Sicherheitsrelevanter Befund: `Store`-Flag wird bei jedem Schreibvorgang gesetzt
+### ⚠️ Safety-relevant finding: the `Store` flag is set on every write
 
-`MSI290_TEMPLATE` (und damit jeder Schreibvorgang von
-`MSIMysticLight290Controller::Update()`, der dieses Template unverändert als
-Basis kopiert) hat Byte 289 = `0x01` — **persistiert bei jedem einzelnen
-`SET_REPORT` ins Board-NVRAM**, auch während des mit 50ms gedrosselten
-Effects-Plugin-Render-Loops (bis zu 20 Flash-Schreibvorgänge/Sekunde bei
-Dauerbetrieb eines Effekts). Das ist spezifisch der Flash-Verschleiß, den
-die Sicherheitsregel in `PROTOCOL_NOTES.md` vermeiden soll, und ein
-plausibler (bisher nicht als solcher identifizierter) Mitverursacher des
-dort dokumentierten Hänger-Bugs (`hid_send_feature_report` blockierte
-dauerhaft). **Noch nicht behoben** — Fix wäre, Byte 289 für
-Direct-Mode-Schreibvorgänge auf `0x00` zu setzen (Store nur bei einem
-expliziten "Anwenden"/Speichern-Klick). Nicht ungefragt umgesetzt, siehe
-Sicherheitsregel in `PROTOCOL_NOTES.md`.
+`MSI290_TEMPLATE` (and thus every write performed by
+`MSIMysticLight290Controller::Update()`, which copies this template
+unchanged as its base) has byte 289 = `0x01` — **persists to board NVRAM on
+every single `SET_REPORT`**, including during the 50ms-throttled Effects
+Plugin render loop (up to 20 flash writes/second while an effect runs
+continuously). This is specifically the kind of flash wear the safety rule
+in `PROTOCOL_NOTES.md` is meant to avoid, and a plausible (previously
+unidentified) contributor to the hang bug documented there
+(`hid_send_feature_report` blocking indefinitely). **Not fixed yet** — the
+fix would be to set byte 289 to `0x00` for direct-mode writes (store only on
+an explicit "apply"/save click). Not implemented without asking, per the
+safety rule in `PROTOCOL_NOTES.md`.
 
-## Report `0x51` ("Gen1_Adv"), 727 Byte — Per-LED-Ansteuerung einzelner Segmente
+## Report `0x51` ("Gen1_Adv"), 727 bytes — per-LED addressing of individual segments
 
 ```
-Byte 0:   Report-ID (0x51 / 81)
-Byte 1:   fester Wert 0x09
-Byte 2-3: Area (big-endian uint16, siehe Enum_Gen1AdvArea)
-Byte 4-5: reserviert (0x00)
-Byte 6:   LED-Anzahl in diesem Paket
-Byte 7+:  LED-Farben, 3 Byte (R,G,B) je LED
+Byte 0:   Report ID (0x51 / 81)
+Byte 1:   fixed value 0x09
+Byte 2-3: Area (big-endian uint16, see Enum_Gen1AdvArea)
+Byte 4-5: reserved (0x00)
+Byte 6:   LED count in this packet
+Byte 7+:  LED colors, 3 bytes (R,G,B) per LED
 ```
 
 `Enum_Gen1AdvArea`: `JRGB1=512,JRGB2=513,JPIPE1=768,JPIPE2=769,JPIPE3=770,
 JPIPE4=771,JPIPE5=772,JARGB1=1024,JARGB2=1025,JARGB3=1026,
 OnBoard1-6=1792-1797,SelectAll=1536,JAF=2048`.
 
-**Das widerlegt die vorherige Schlussfolgerung in `PROTOCOL_NOTES.md`**
-("es gibt für unser konkretes Board aktuell keinen bekannten Mechanismus,
-um einzelne LEDs innerhalb eines JARGB-Headers separat anzusprechen"): Dieser
-Report existiert im offiziellen Treiber für genau diese VID:PID-Familie und
-wird **aktiv genutzt** — `RGBControlClass.cs` (die SignalRGB-UDP-Brücke,
-siehe `NETWORK_PROTOCOL.md`) ruft `Gen1_Adv_ApplyArea_Byte` für `JARGB1`,
-`JARGB2`, `JARGB3`, `JAF`, `SelectAll` auf, sobald ein Drittanbieter-Client
-individuelle LED-Farben schickt.
+**This overturns the previous conclusion in `PROTOCOL_NOTES.md`** ("there
+is currently no known mechanism for addressing individual LEDs within a
+JARGB header separately for our specific board"): this report exists in the
+official driver for exactly this VID:PID family and is **actively used** —
+`RGBControlClass.cs` (the SignalRGB UDP bridge, see
+`NETWORK_PROTOCOL.md`) calls `Gen1_Adv_ApplyArea_Byte` for `JARGB1`,
+`JARGB2`, `JARGB3`, `JAF`, `SelectAll` as soon as a third-party client sends
+individual LED colors.
 
-Der frühere Test (`probe_0x51.py`, `GET_FEATURE_REPORT(0x51, 761 Byte)`) ist
-damit kein Widerspruch: er testete die **falsche Richtung** (GET statt SET)
-mit der **falschen Länge** (761 Byte, aus einer anderen Boardfamilie
-übernommen, statt der hier korrekten 727 Byte). Ein `GET_FEATURE_REPORT`
-auf einen Report, den die Firmware nur als `SET` kennt, liefert plausibel
-einen Timeout, ohne dass der Report als solcher fehlt.
+The earlier test (`probe_0x51.py`, `GET_FEATURE_REPORT(0x51, 761 bytes)`) is
+not a contradiction: it tested the **wrong direction** (GET instead of SET)
+with the **wrong length** (761 bytes, carried over from a different board
+family, instead of the correct 727 bytes here). A `GET_FEATURE_REPORT` on a
+report the firmware only implements as `SET` plausibly times out without
+the report actually being absent.
 
-**Noch nicht getestet** (würde das Board tatsächlich ansprechen — nicht
-ohne explizite Freigabe gemäß Sicherheitsregel): `SetFeature` mit 727 Byte,
-`Area=JARGB1 (1024)`, kleiner `Colors`-Array. Bricht die bisherige
-"keine Einzel-LED-Ansteuerung"-Annahme auf Code-Ebene auf, ist aber am
-echten Board noch nicht verifiziert.
+**Not yet tested** (would actually address the board — not without
+explicit approval per the safety rule): `SetFeature` with 727 bytes,
+`Area=JARGB1 (1024)`, a small `Colors` array. Breaks open the previous
+"no individual LED addressing" assumption at the code level, but not yet
+verified against the real board.
 
-## Report `0x90`+Port / `0xB0`+Port ("Gen2"/"Gen2_Adv") — neueres Strip-Modell
+## Report `0x90`+port / `0xB0`+port ("Gen2"/"Gen2_Adv") — newer strip model
 
-Zusätzliches, neueres System für adressierbare Multi-Strip-Header
-(`Enum_TargetPort`: `JARGB1,JARGB2,JARGB3,JAF`), bis zu 6 physische Strips
-pro Port à 180 LEDs (`Gen2_PortMaxStripCount=6`, `Gen2_StripMaxLedCount=180`).
-Reports `0x90+Port` (Konfiguration/Erkennung, `Gen2_Detect`) und
-`0xB0+Port` (761 Byte, tatsächliche Farben, `Gen2_Adv_ApplyPort`) — die
-761-Byte-Länge deckt sich mit der von der Community
-(`nmelo/msi-mystic-light-x870e`) für eine andere Boardfamilie dokumentierten
-Struktur, dort allerdings unter Report-ID `0x51` vermutet. Plausibelste
-Erklärung: **unterschiedliche Board-/Firmware-Generationen nutzen
-unterschiedliche Reports für dasselbe Konzept** — das macht eine pauschale
-"Report X = Feature Y"-Zuordnung über Boardfamilien hinweg unsicher, auch
-innerhalb von MSIs eigenem Code (Gen1 vs. Gen2 sind zwei komplett getrennte
-Codepfade mit eigenen Report-ID-Bereichen).
+An additional, newer system for addressable multi-strip headers
+(`Enum_TargetPort`: `JARGB1,JARGB2,JARGB3,JAF`), up to 6 physical strips per
+port at 180 LEDs each (`Gen2_PortMaxStripCount=6`,
+`Gen2_StripMaxLedCount=180`). Reports `0x90+port` (configuration/detection,
+`Gen2_Detect`) and `0xB0+port` (761 bytes, actual colors,
+`Gen2_Adv_ApplyPort`) — the 761-byte length matches the structure documented
+by the community (`nmelo/msi-mystic-light-x870e`) for a different board
+family, though there assumed to be report ID `0x51`. Most plausible
+explanation: **different board/firmware generations use different reports
+for the same concept** — this makes a blanket "report X = feature Y"
+mapping across board families unreliable, even within MSI's own code (Gen1
+vs. Gen2 are two entirely separate code paths with their own report ID
+ranges).
 
-**Nicht geklärt**: ob das B850-Board (laut `PROTOCOL_NOTES.md` mit
-"JARGB_V2"-Headern, was auf das neuere "Gen2"-System hindeuten könnte) in
-der Praxis Gen1 oder Gen2 verwendet — dafür fehlt die Aufrufstelle, die bei
-Geräte-Erkennung zwischen beiden Pfaden umschaltet (wahrscheinlich über die
-Firmware-Version aus `Get_FwVersion`/`CheckConnectedDevice`, nicht weiter
-verfolgt).
+**Not resolved**: whether the B850 board (per `PROTOCOL_NOTES.md`, with
+"JARGB_V2" headers, which could hint at the newer "Gen2" system) actually
+uses Gen1 or Gen2 in practice — the call site that switches between the two
+paths during device detection is missing (likely based on the firmware
+version from `Get_FwVersion`/`CheckConnectedDevice`, not traced further).
 
-## Warum Mystic Light "weicher" wirkt als OpenRGB (Einordnung der Nutzerbeobachtung)
+## Why Mystic Light appears "softer" than OpenRGB (context for the user's observation)
 
-Zwei unabhängige, im Code belegte Gründe — **keine zusätzliche
-Interpolations-/Smoothing-Logik auf Software-Seite gefunden** (weder in
-`MSI_800sLed.cs` noch in `SyncStyleControl.cs`/`CControl.cs` — dort werden
-Farben direkt weitergereicht, kein Easing/Blending-Code):
+Two independent, code-backed reasons — **no additional interpolation/
+smoothing logic found on the software side** (neither in `MSI_800sLed.cs`
+nor in `SyncStyleControl.cs`/`CControl.cs` — colors are passed through
+directly there, no easing/blending code):
 
-1. **MSI Center benutzt die firmware-eigenen Animationsmodi** (`Wave`,
-   `Breathing`, `ColorRing`, `Meteor`, `GodLike`, …) — diese Übergänge laufen
-   komplett in der Mikrocontroller-Firmware des Boards, inklusive deren
-   eigener (uns nicht bekannter) Interpolation. OpenRGBs generischer
-   `RGBController`/Direct-Mode-Ansatz setzt dagegen praktisch immer
-   `LightingMode=Steady` und pusht einzelne, diskrete Farben vom Host aus,
-   typischerweise ohne diese Modi überhaupt zu nutzen.
-2. **Per-LED-Ansteuerung existiert** (siehe `0x51`/`0x90+`/`0xB0+` oben) und
-   wird von MSI selbst für Drittanbieter-Integration genutzt — ein
-   eigenständiger Treiber, der diese Reports nutzt statt nur `0x50`, könnte
-   dieselbe Granularität erreichen wie MSI Center.
+1. **MSI Center uses the firmware's own animation modes** (`Wave`,
+   `Breathing`, `ColorRing`, `Meteor`, `GodLike`, …) — these transitions run
+   entirely inside the board's microcontroller firmware, including its own
+   (to us unknown) interpolation. OpenRGB's generic `RGBController`/Direct
+   mode approach, by contrast, practically always sets `LightingMode=Steady`
+   and pushes individual, discrete colors from the host, typically never
+   using these modes at all.
+2. **Per-LED addressing exists** (see `0x51`/`0x90+`/`0xB0+` above) and is
+   used by MSI itself for third-party integration — a standalone driver
+   that uses these reports instead of only `0x50` could achieve the same
+   granularity as MSI Center.
 
-Für eine eigenständige App bedeutet das: **die Smoothness ist eine
-Protokoll-/Feature-Wahl, kein Hardware-Vorteil von MSI.** Die relevante
-Arbeit ist, `LightingMode` korrekt zu setzen bzw. die Per-LED-Reports zu
-nutzen, nicht eigene Übergangs-Mathematik zu bauen.
+For a standalone app this means: **the smoothness is a protocol/feature
+choice, not a hardware advantage of MSI's.** The relevant work is setting
+`LightingMode` correctly, or using the per-LED reports, not building custom
+transition math.

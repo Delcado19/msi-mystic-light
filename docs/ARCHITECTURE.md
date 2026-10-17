@@ -1,102 +1,100 @@
-# Mystic Light — Gesamtarchitektur
+# Mystic Light — Overall Architecture
 
-Stand: 2026-10-17. Alle Angaben per statischer Analyse (ILSpy-Dekompilat,
-.NET 4.8, keine Laufzeitbeobachtung) ermittelt. Pfade im Format `Datei:Zeile`
-verweisen auf die decompilierte Quelle im Scratchpad der jeweiligen Session
-(nicht Teil dieses Repos) — zur Nachvollziehbarkeit, nicht als Kopie.
+As of 2026-10-17. All findings from static analysis (ILSpy decompilation,
+.NET 4.8, no runtime observation). Paths in `File:Line` format refer to the
+decompiled source in the scratchpad of the respective session (not part of
+this repo) — for traceability, not as a copy.
 
-## Komponenten
+## Components
 
-| Datei | Typ | Rolle |
+| File | Type | Role |
 |---|---|---|
-| `Mystic_Light_Service.exe` | Windows-Dienst (.NET 4.8) | Startet/überwacht `LEDKeeper2.exe` und `muachost.exe` über den Task Scheduler |
-| `LEDKeeper2.exe` | WPF/WinForms-App (.NET 4.8) | Haupt-App: Geräte-Treiberlogik, Netzwerk-Server, Profile |
-| `MysticLight_AllDevice.dll` | .NET-Bibliothek | Eigenständige Geräte-Treiber-SDK, teilweise Code-Duplikat von LEDKeeper2s `MSI_LED`-Namespace |
-| `MLModule.dll` | .NET-Bibliothek (trotz Namens **managed**, nicht nativ) | Netzwerk-Kern: HTTP-SDK, UDP-Pairing, UDP-Party-Sync |
-| `SyncData.dll` | .NET-Bibliothek | Profil-Datenmodell + einfache AES-Verschlüsselung für lokale Config-Dateien |
-| `Lib\MsiHid_GameSync.dll` | native DLL | Generischer USB-HID-Zugriff (P/Invoke-Ziel von `HID_Basic`) |
+| `Mystic_Light_Service.exe` | Windows service (.NET 4.8) | Starts/monitors `LEDKeeper2.exe` and `muachost.exe` via Task Scheduler |
+| `LEDKeeper2.exe` | WPF/WinForms app (.NET 4.8) | Main app: device driver logic, network servers, profiles |
+| `MysticLight_AllDevice.dll` | .NET library | Standalone device driver SDK, partially a code duplicate of LEDKeeper2's `MSI_LED` namespace |
+| `MLModule.dll` | .NET library (**managed** despite the name, not native) | Network core: HTTP SDK, UDP pairing, UDP party sync |
+| `SyncData.dll` | .NET library | Profile data model + simple AES encryption for local config files |
+| `Lib\MsiHid_GameSync.dll` | native DLL | Generic USB HID access (P/Invoke target of `HID_Basic`) |
 
 ## Mystic_Light_Service.exe
 
-Läuft als `LocalSystem`-Dienst. Umgeht die Windows-Session-0-Isolation nicht
-per Token-Duplizierung, sondern über die Windows-Task-Scheduler-COM-API
-(`ITaskService`/`ITaskDefinition`, `TASK_LOGON_S4U`), um `LEDKeeper2.exe` im
-Desktop des angemeldeten Nutzers zu starten:
+Runs as a `LocalSystem` service. Does not bypass Windows Session-0 isolation
+via token duplication, but via the Windows Task Scheduler COM API
+(`ITaskService`/`ITaskDefinition`, `TASK_LOGON_S4U`) to start `LEDKeeper2.exe`
+in the logged-in user's desktop session:
 
-- `CreateTask_Keeper` registriert den Task "MSI Task Host - LEDKeeper2_Host",
-  `Path = AppDomain.CurrentDomain.BaseDirectory + "LEDKeeper2.exe"` (fest,
-  aus dem eigenen Installationsverzeichnis — keine externe Eingabe).
-- Ein zweiter Task ("MSISW_Host") startet `muachost.exe` aus
+- `CreateTask_Keeper` registers the task "MSI Task Host - LEDKeeper2_Host",
+  `Path = AppDomain.CurrentDomain.BaseDirectory + "LEDKeeper2.exe"` (fixed,
+  from the service's own install directory — no external input).
+- A second task ("MSISW_Host") starts `muachost.exe` from
   `Environment.GetFolderPath(SpecialFolder.SystemX86)`.
-- `OnCustomCommand(int Value)` (Werte 201–204) steuert Start/Stop/Monitor
-  der Tasks — angesprochen vom MSI-Center-GUI-Prozess.
+- `OnCustomCommand(int Value)` (values 201-204) controls start/stop/monitor
+  of these tasks — driven by the MSI Center GUI process.
 
-**Geprüft und verworfen**: `Class_CallExternal.StartProcessByUserUAC`
-(klassische `OpenProcessToken`/`DuplicateTokenEx`/`CreateProcessAsUser`-Kette
-mit `lpApplicationName=null`, `applicationName` als rohe `lpCommandLine`) ist
-im Dienst definiert, aber **ohne Aufrufstelle** — toter Code in diesem Build.
-Kein aktiver Angriffsvektor über diesen Pfad.
+**Checked and dismissed**: `Class_CallExternal.StartProcessByUserUAC`
+(classic `OpenProcessToken`/`DuplicateTokenEx`/`CreateProcessAsUser` chain
+with `lpApplicationName=null`, `applicationName` used as raw
+`lpCommandLine`) is defined in the service, but **has no call site** — dead
+code in this build. No active attack vector through this path.
 
 ## LEDKeeper2.exe
 
-Enthält den eigentlichen Geräte-Treiberbaum (`MSI_LED`-Namespace, ~80
-Gerätetreiber-Klassen: Tastaturen, Mäuse, Headsets, Mainboards, DRAM,
-Monitore, Netzteile, Lüfter) sowie Drittanbieter-Protokoll-Implementierungen
-(SteelSeries, Corsair Vengeance DRAM, GALAX, G.Skill, Patriot, Kingston,
-Apacer, Micron). Details zum Mainboard-Protokoll der "800er"-Serie (betrifft
-u.a. das B850-Board aus `OpenRGBResearch/msi-b850`) in
+Contains the actual device driver tree (`MSI_LED` namespace, ~80 device
+driver classes: keyboards, mice, headsets, mainboards, DRAM, monitors, PSUs,
+fans) plus third-party protocol implementations (SteelSeries, Corsair
+Vengeance DRAM, GALAX, G.Skill, Patriot, Kingston, Apacer, Micron). Details
+on the "800-series" mainboard protocol (affects the B850 board in
+`OpenRGBResearch/msi-b850`, among others) are in
 [`MB_800_HID_PROTOCOL.md`](MB_800_HID_PROTOCOL.md).
 
-Netzwerk-Funktionen in LEDKeeper2.exe (`RGBControlClass.cs`): siehe
-[`NETWORK_PROTOCOL.md`](NETWORK_PROTOCOL.md) — das ist die SignalRGB-Brücke,
-die intern per-LED-Reports an die Board-Treiber weiterleitet.
+Network functions in LEDKeeper2.exe (`RGBControlClass.cs`): see
+[`NETWORK_PROTOCOL.md`](NETWORK_PROTOCOL.md) — this is the SignalRGB bridge
+that internally forwards per-LED reports to the board drivers.
 
-## MLModule.dll — Netzwerk-Kern
+## MLModule.dll — network core
 
-Trotz `.dll`-Namenskonvention keine native Bibliothek, sondern eine
-gewöhnliche .NET-Assembly (`"managed": true`, Ghidra lehnt sie deshalb
-korrekt als Ziel ab). Enthält drei unabhängige Server, siehe
-[`NETWORK_PROTOCOL.md`](NETWORK_PROTOCOL.md) für Details:
+Despite the `.dll` naming convention, this is not a native library but an
+ordinary .NET assembly (`"managed": true`, Ghidra correctly rejects it as a
+target for this reason). Contains three independent servers, see
+[`NETWORK_PROTOCOL.md`](NETWORK_PROTOCOL.md) for details:
 
-1. TCP 26820 — lokale HTTP-"Web API" (`CWebAPI.cs`), **keine Authentifizierung**.
-2. UDP 26822 — Mobile-App-Pairing (`CBaseServer.cs`/`CBaseFN.cs`).
-3. UDP 26823 — Mehr-PC-"Party Sync" (`CSyncServer.cs`/`CSyncFN.cs`).
+1. TCP 26820 — local HTTP "Web API" (`CWebAPI.cs`), **no authentication**.
+2. UDP 26822 — mobile app pairing (`CBaseServer.cs`/`CBaseFN.cs`).
+3. UDP 26823 — multi-PC "Party Sync" (`CSyncServer.cs`/`CSyncFN.cs`).
 
-Offen: `CWebAPI.StartHostServer()` hat innerhalb von `MLModule.dll` selbst
-keine gefundene Aufrufstelle — wird vermutlich aus `LEDKeeper2.exe` oder
-`Mystic_Light_Service.exe` heraus aufgerufen (Cross-Assembly-Aufruf, mit
-reiner Textsuche in den decompilierten `.cs`-Dateien nicht sichtbar, da
-`ilspycmd` je Assembly separat decompiliert). Nicht abschließend verifiziert
-— vor einem produktiven Nachbau mit `dotnet-trace`/Prozessmonitor am
-echten System bestätigen.
+Open question: `CWebAPI.StartHostServer()` has no found call site within
+`MLModule.dll` itself — presumably called from `LEDKeeper2.exe` or
+`Mystic_Light_Service.exe` (cross-assembly call, not visible via plain text
+search across the decompiled `.cs` files since `ilspycmd` decompiles each
+assembly separately). Not conclusively verified — confirm with
+`dotnet-trace`/process monitor on the real system before relying on it for
+a production reimplementation.
 
 ## SyncData.dll
 
-Reines Datenmodell (7 Typen, kein nennenswerter Logikanteil: Enums für
-Stil/Zyklus/Gerätenamen/Chipsätze, `DataBase`-Klasse). `C_Encrypt.cs`
-implementiert AES-Verschlüsselung für lokale Konfigurationsdateien
-(Profile/Monitor-Configs) — **IV wird per MD5 aus demselben Schlüssel
-abgeleitet wie der AES-Key selbst** (kryptographisch unsauber, da IV und Key
-voneinander ableitbar sind), aber nur zur Obfuskation lokaler Dateien
-verwendet, kein Netzwerk-Geheimnis. Kein weiterer Handlungsbedarf für das
-eigenständige-App-Vorhaben.
+Pure data model (7 types, negligible logic: enums for style/cycle/device
+name/chipset, a `DataBase` class). `C_Encrypt.cs` implements AES encryption
+for local configuration files (profiles/monitor configs) — **the IV is
+derived via MD5 from the same key used for AES** (cryptographically unsound,
+since IV and key are derivable from each other), but only used to obfuscate
+local files, not a network secret. No further action needed for the
+standalone-app goal.
 
-## HID-Passwort-Mechanismus (`HID_Basic.init`)
+## HID password mechanism (`HID_Basic.init`)
 
-`MysticLight_AllDevice.dll` und mehrere `HID_Basic`-Varianten in
-`LEDKeeper2.exe` (`MsiHid/HID_Basic.cs`, `MsiHid_GM41W/HID_Basic.cs`, u.a.)
-definieren `init(string psw)` — ein 7-Byte-"Passwort", das vor dem eigentlichen
-HID-Zugriff an die native `MsiHid_GameSync.dll` übergeben werden kann.
+`MysticLight_AllDevice.dll` and several `HID_Basic` variants in
+`LEDKeeper2.exe` (`MsiHid/HID_Basic.cs`, `MsiHid_GM41W/HID_Basic.cs`, etc.)
+define `init(string psw)` — a 7-byte "password" that can be passed to the
+native `MsiHid_GameSync.dll` before actual HID access.
 
-**Befund: in keiner der geprüften Aufrufer-Dateien (gesamtes `LEDKeeper2.exe`
-und `MysticLight_AllDevice.dll`) wird `init(...)` tatsächlich aufgerufen.**
-Totes/vestigiales Feature. Deckt sich mit der bereits in
-`OpenRGBResearch/msi-b850` dokumentierten Beobachtung, dass echte
-`hidapi`-Sends ohne jeden Init-Aufruf erfolgreich waren — für eine
-eigenständige App ist dieser Schritt mit hoher Sicherheit **nicht**
-erforderlich, zumindest nicht für die hier geprüften Geräteklassen.
-(Nicht geprüft: `HID_Basic_KB.cs`, `HID_Basic_Mouse.cs`, `HID_Basic_MNT.cs`,
-`HID_Basic_PSU.cs` — Grep lief über das ganze Verzeichnis, aber keine dieser
-Dateien selbst enthält einen `init(`-Aufruf an eine andere Instanz; falls doch
-irgendwo ein Keyboard/Maus-spezifischer Pfad das Passwort braucht, wurde das
-hier nicht einzeln nachvollzogen.)
+**Finding: none of the checked caller files (all of `LEDKeeper2.exe` and
+`MysticLight_AllDevice.dll`) actually call `init(...)`.** Dead/vestigial
+feature. This matches the observation already documented in
+`OpenRGBResearch/msi-b850` that real `hidapi` sends succeeded without any
+init call — for a standalone app this step is very likely **not** required,
+at least not for the device classes checked here. (Not checked:
+`HID_Basic_KB.cs`, `HID_Basic_Mouse.cs`, `HID_Basic_MNT.cs`,
+`HID_Basic_PSU.cs` — the grep ran across the whole directory, but none of
+these files themselves contains an `init(` call to another instance; if
+some keyboard/mouse-specific path does need the password, that was not
+individually traced here.)
