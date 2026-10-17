@@ -118,25 +118,40 @@ simple 2-byte-command dispatcher (`CMD_UI_Get_List_PartItem = {1,1}`,
 and various registry keys under `Component\Mystic Light\...`. This is the
 real, current GUI-to-backend channel — not MLModule's HTTP/UDP servers.
 
-**Hypothesis tested and not supported (2026-10-17, live capture)**: that
-TCP 26822 is the transport for `Transfer_Command` calls from the MSI
-Center GUI to `MSI.TerminalServer`. A `pktmon` capture filtered to port
-26822 (full packet size, admin elevation) was run while actively using the
-Mystic Light page in MSI Center (selecting a zone, changing color,
-switching profile) — **zero packets captured** (confirmed both by
-`pktmon`'s own count and by reading the resulting `.pcapng` with `tshark
--r`). `Get-NetTCPConnection -OwningProcess <MSI.TerminalServer PID>` also
-showed only the one listening socket on 26822, no established connections,
-before or after. `MSI.TerminalServer.exe` has no other TCP ports open
-either.
+**Resolved (2026-10-17)**: decompiled `MSI.TerminalServer.exe` and its
+shared library `CS_CommonAPI.dll` (both outside `Mystic Light\`, under the
+main MSI Center install) to find the real transport. Port 26822 **is**
+real and MSI-defined — `CS_CommonAPI.EX_TerminalServer.CommunicationPort
+= 26822` — but it is **not** the transport for `Transfer_Command`/RGB
+actions. It's a small custom TCP RPC protocol for MSI Center's own
+"Terminal Server" role: software module download/install,
+`ProcessWatcher` start/stop, display-settings/platform-info sync, toast
+notifications (see `CS_CommonAPI.DataResponse.Receive`'s command list in
+`MSI.TerminalServer.exe`: `ClearCache`, `ReleaseServer`, `DownloadModule`,
+`RunSetupModule`, `ProcessWatcher_Start/Stop`, `UpdatePlatformInfo`, etc.)
+— a generic system-utility channel, unrelated to Mystic Light specifically.
 
-**Conclusion**: whatever carries `Transfer_Command` for ordinary GUI
-actions, it is not TCP port 26822 (or any other TCP port on this process).
-Most likely a named pipe, `WM_COPYDATA`, shared memory, or .NET Remoting
-over a non-TCP channel — not yet identified. Port 26822 remains unexplained
-(open, but silent during normal use); possibly used only for some other,
-not-yet-triggered feature (e.g. the SmartRGB/router-discovery path seen in
-`RouterAPI`), or a leftover/diagnostic listener.
+Protocol shape: each call is a **new, short-lived TCP connection** —
+connect, send a framed message (`[0x10 fixed verify header][4-byte
+SourceID][4-byte DestID][payload]` when routed through a `SourceID`, or
+just `[4-byte DestID][payload]` otherwise), read the full response, then
+immediately `Shutdown()`/`Close()`. No persistent connection, no
+keep-alive — explaining why the earlier live `pktmon` capture caught
+**zero packets**: it wasn't a capture failure, the specific GUI actions
+tested (zone select, color change, profile switch) never needed this
+channel at all, since they don't match anything in `DataResponse.Receive`'s
+command list.
+
+**`Transfer_Command`'s actual transport is still not located** — `API_Mystic
+Light.dll`'s `PluginClass : IPlugin_SDK` is a plugin interface
+(`ComponentID`/`MainEntry`/`Transfer_Command`/`Transfer_ToAPI`) that some
+host process loads and calls directly. Given `MSI.TerminalServer.exe`'s own
+code is entirely about the system-utility role above (no `IPlugin_SDK`
+reference anywhere in it), the actual plugin host is most likely a
+**different** MSI Center process (plausibly the main GUI/App host) calling
+into the loaded `API_Mystic_Light.dll` as in-process method calls — which
+would need no network transport at all, consistent with the zero-packet
+result.
 
 **Practical takeaway for the standalone-app goal**: this network layer
 (dead or not) was never the path to actual hardware control anyway — every
