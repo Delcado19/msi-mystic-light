@@ -1,16 +1,19 @@
 # Entwurf: Kommentar für GitLab-Issues #4935 / #5429
 
-**Status (2026-10-17): vom Nutzer freigegeben zum Posten auf beide Issues,
-aber noch nicht gepostet** — kein GitLab-API-Zugriff verfügbar (gecachtes
-Credential hat nur `write_repository`-Scope, kein `api`-Scope). Enthält
-keinen Vendor-Code, nur Byte-Layout-Tabellen/Fakten. Kein eigener PR (siehe
-`CONTRIBUTING.md`s "AI Guidelines" — PR nur, wenn der Nutzer den Diff selbst
-versteht/verantwortet); der 761-Byte-Fix liegt stattdessen als Branch auf
-dem Fork (`fix/motherboard-761-probe-length`, bereits gepusht), auf den
-dieser Kommentar verlinkt.
+**Status: gepostet (2026-10-18, 03:23 UTC)**, via GitLab API mit einem
+`api`-Scope-Token (CodexVault, `CODEX_GITLAB_TOKEN`), authentifiziert als
+`Delcado19`. Beide Kommentare live und verifiziert:
 
-Text unterhalb der Trennlinie ist 1:1 zum Posten gedacht (Markdown, GitLab-
-kompatibel). Alles darüber ist nur interne Notiz, nicht Teil des Kommentars.
+- https://gitlab.com/CalcProgrammer1/OpenRGB/-/issues/4935#note_4036717676
+- https://gitlab.com/CalcProgrammer1/OpenRGB/-/issues/5429#note_4036717691
+
+Kein eigener PR (siehe `CONTRIBUTING.md`s "AI Guidelines" — PR nur, wenn
+der Nutzer den Diff selbst versteht/verantwortet); der 761-Byte-Fix liegt
+als Branch auf dem Fork (`fix/motherboard-761-probe-length`, bereits
+gepusht), auf den der Kommentar verlinkt.
+
+Text unterhalb der Trennlinie ist der tatsächlich gepostete Kommentar
+(identisch auf beiden Issues).
 
 ---
 
