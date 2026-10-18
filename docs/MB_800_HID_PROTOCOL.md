@@ -117,11 +117,32 @@ family, instead of the correct 727 bytes here). A `GET_FEATURE_REPORT` on a
 report the firmware only implements as `SET` plausibly times out without
 the report actually being absent.
 
-**Not yet tested** (would actually address the board — not without
-explicit approval per the safety rule): `SetFeature` with 727 bytes,
-`Area=JARGB1 (1024)`, a small `Colors` array. Breaks open the previous
-"no individual LED addressing" assumption at the code level, but not yet
-verified against the real board.
+**Confirmed working via a third-party production app (2026-10-18)**:
+SignalRGB (installed locally, v2.5.80, officially signed by WhirlwindFX)
+ships a maintained plugin for this exact VID (`0x0DB0`, file
+`185 Byte Motherboard Controller/MSI_185Byte_Controller_0x0DB0.js`) with
+an explicit entry for `MPG B850 EDGE TI WIFI (MS-7E62)`. It detects this
+report with `device.send_report([0x51], 761)` — a **SET**, not the GET
+our earlier probe used — and on success sends real per-header color data
+as `[0x51, 0x09, 0x04, HeaderIndex, 0x00, 0x00, LedCount, ...RGB]` at
+**727 bytes**, matching our derivation exactly (761 is only the probe's
+declared length, not the real packet size — same naming artifact we
+found in OpenRGB's own code, apparently inherited from the same
+community lineage). No "Store" flag equivalent for this report; it's
+purely transient, sent every render frame with no explicit per-packet
+delay in this code path (global frame-rate capping happens elsewhere in
+the app). This closes the "not yet tested" gap without touching the
+board ourselves — static analysis of already-running, signed vendor
+software.
+
+**Exact LED topology for `MPG B850 EDGE TI WIFI (MS-7E62)`**, per that
+plugin's own device table: 3 ARGB headers (`JARGB1/2/3`, up to 120 LEDs
+each), 1 EZ Connector (120 LEDs), `JPIPE1` ("IO Shield", 11 LEDs,
+vertical), `JRGB1` (1 non-addressable LED). Other `MS-7E62`-coded SKUs in
+the same table (e.g. `MAG B850 TOMAHAWK MAX WIFI`) omit the IO Shield
+zone — confirms board SKUs sharing a chip ID can still differ in which
+optional zones are physically present, as already suspected from the
+MSI online catalog.
 
 ## Report `0x90`+port / `0xB0`+port ("Gen2"/"Gen2_Adv") — newer strip model
 
@@ -139,11 +160,15 @@ mapping across board families unreliable, even within MSI's own code (Gen1
 vs. Gen2 are two entirely separate code paths with their own report ID
 ranges).
 
-**Not resolved**: whether the B850 board (per `PROTOCOL_NOTES.md`, with
-"JARGB_V2" headers, which could hint at the newer "Gen2" system) actually
-uses Gen1 or Gen2 in practice — the call site that switches between the two
-paths during device detection is missing (likely based on the firmware
-version from `Get_FwVersion`/`CheckConnectedDevice`, not traced further).
+**Resolved (2026-10-18)**: this board uses Gen1 only, confirmed from three
+independent sources now — `LEDKeeper2.exe`'s `Class_MB_800.cs` never calls
+any `Gen2_*` method, neither does the official redistributable SDK
+(`MysticLight_AllDevice.dll`), and SignalRGB's own plugin for VID `0x0DB0`
+(the `MysticLight761` class) only ever uses the `0x50`/`0x51` pair. Gen2 is
+real tech, but only for a *different* VID (`0x1462`, an older/different
+chip generation) — that plugin's code explicitly disables Gen2 support on
+its own boards via a dedicated write, something never exercised anywhere
+for `0x0DB0`.
 
 ## Upstream OpenRGB bug found while cross-checking: `FeaturePacket_PerLED_761` is 727 bytes, not 761
 
