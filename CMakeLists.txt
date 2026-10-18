@@ -1,13 +1,11 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.22)
 project(MsiMysticLightApp LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Qt's CMake integration needs these on for moc/uic/rcc to run automatically.
+# Needed for Qt's Q_OBJECT/moc code generation (used by the scaffold test).
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 COMPONENTS Core Widgets Test REQUIRED)
 find_package(hidapi CONFIG REQUIRED)
