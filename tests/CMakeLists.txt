@@ -75,3 +75,14 @@ add_test(NAME test_canvas COMMAND test_canvas)
 # aren't app-local copied next to this test binary either.
 set_tests_properties(test_canvas PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+add_executable(test_settings settings/test_settings.cpp ${CMAKE_SOURCE_DIR}/src/settings/Settings.cpp ${CMAKE_SOURCE_DIR}/src/device/MsiMotherboardDriver.cpp ${CMAKE_SOURCE_DIR}/src/device/Channel.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp ${CMAKE_SOURCE_DIR}/src/protocol/MsiProtocol.cpp)
+target_include_directories(test_settings PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_settings PRIVATE Qt6::Test)
+
+add_test(NAME test_settings COMMAND test_settings)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_settings PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
