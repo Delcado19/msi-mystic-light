@@ -1,0 +1,144 @@
+#include "device/MsiMotherboardDriver.h"
+
+#include <optional>
+
+namespace {
+
+// Per-channel zone-index / Gen1Adv-area / LED-limit mapping for this exact
+// board (MPG B850 Edge TI WiFi / MS-7E62). This mapping is NOT part of
+// Channel's public interface (Channel only knows name+ledLimit) - it is
+// private to the driver, which is the sole owner of the board's fixed HID
+// topology. Confirmed zone-index assignment per docs/MB_800_HID_PROTOCOL.md:
+// JARGB_V2_1=0, JARGB_V2_2=1, JARGB_V2_3=2, EZ Conn=3, IO COVER=4, JRGB1=9.
+// JRGB1 has no Gen1Adv area: it is a single non-addressable LED, native-mode
+// only, so report 0x51 (per-LED Canvas push) never applies to it.
+struct ChannelInfo {
+    int zoneIndex;
+    std::optional<MsiGen1AdvArea> gen1AdvArea;
+    int ledLimit;
+};
+
+const std::map<std::string, ChannelInfo>& channelTable()
+{
+    static const std::map<std::string, ChannelInfo> table = {
+        {"JARGB1",      {0, MsiGen1AdvArea::JARGB1, 120}},
+        {"JARGB2",      {1, MsiGen1AdvArea::JARGB2, 120}},
+        {"JARGB3",      {2, MsiGen1AdvArea::JARGB3, 120}},
+        {"EZConnector", {3, MsiGen1AdvArea::JAF,    120}},
+        {"IOShield",    {4, MsiGen1AdvArea::JPIPE1, 11}},
+        {"JRGB1",       {9, std::nullopt,           1}},
+    };
+    return table;
+}
+
+} // namespace
+
+MsiMotherboardDriver::MsiMotherboardDriver(IHidDevice& hid) : hid_(hid)
+{
+    // Brief's ruling: default channelModes_ to Native for every channel.
+    for (const auto& [name, info] : channelTable()) {
+        channelModes_[name] = ChannelMode::Native;
+    }
+}
+
+std::vector<Channel> MsiMotherboardDriver::createDefaultChannels()
+{
+    // Fixed, documented order (not the alphabetical std::map order above).
+    static const std::vector<std::string> order = {
+        "JARGB1", "JARGB2", "JARGB3", "EZConnector", "IOShield", "JRGB1"
+    };
+    std::vector<Channel> channels;
+    channels.reserve(order.size());
+    for (const auto& name : order) {
+        channels.emplace_back(name, channelTable().at(name).ledLimit);
+    }
+    return channels;
+}
+
+bool MsiMotherboardDriver::setChannelMode(const std::string& channelName, ChannelMode mode)
+{
+    auto it = channelTable().find(channelName);
+    if (it == channelTable().end()) {
+        return false;
+    }
+    // Canvas mode needs a Gen1Adv area for per-LED addressing; JRGB1 has
+    // none (single non-addressable LED), so it is native-mode only.
+    if (mode == ChannelMode::Canvas && !it->second.gen1AdvArea.has_value()) {
+        return false;
+    }
+    channelModes_[channelName] = mode;
+    return true;
+}
+
+ChannelMode MsiMotherboardDriver::channelMode(const std::string& channelName) const
+{
+    auto it = channelModes_.find(channelName);
+    return it != channelModes_.end() ? it->second : ChannelMode::Native;
+}
+
+bool MsiMotherboardDriver::setNativeMode(const std::string& channelName, const NativeModeSettings& settings)
+{
+    if (!hid_.isOpen()) {
+        return false;
+    }
+    auto it = channelTable().find(channelName);
+    if (it == channelTable().end()) {
+        return false;
+    }
+    if (channelMode(channelName) != ChannelMode::Native) {
+        return false;
+    }
+
+    // NativeModeSettings mirrors MsiZoneSettings field-for-field (see the
+    // header comment on NativeModeSettings), so this is a plain copy.
+    MsiZoneSettings& zone = zoneState_[it->second.zoneIndex];
+    zone.lightingMode = settings.lightingMode;
+    zone.color1 = settings.color1;
+    zone.color2 = settings.color2;
+    zone.color3 = settings.color3;
+    zone.color4 = settings.color4;
+    zone.colorCount = settings.colorCount;
+    zone.selectAll = settings.selectAll;
+    zone.directionInward = settings.directionInward;
+    zone.colorSelectionUser = settings.colorSelectionUser;
+    zone.brightness = settings.brightness;
+    zone.speed = settings.speed;
+    zone.cycleNum = settings.cycleNum;
+
+    // zoneState_ holds the last-sent settings for ALL 18 zones, so this
+    // send carries every other zone's most recent state forward unchanged.
+    const std::array<uint8_t, 290> report = BuildReport0x50(zoneState_);
+    return hid_.sendFeatureReport(report.data(), report.size());
+}
+
+bool MsiMotherboardDriver::pushCanvasColors(const std::string& channelName, const std::vector<MsiColor>& colors)
+{
+    if (!hid_.isOpen()) {
+        return false;
+    }
+    auto it = channelTable().find(channelName);
+    if (it == channelTable().end()) {
+        return false;
+    }
+    if (channelMode(channelName) != ChannelMode::Canvas) {
+        return false;
+    }
+    // Unreachable in practice: setChannelMode already refuses Canvas for a
+    // channel with no Gen1Adv area. Guarded anyway so this method can never
+    // dereference an empty optional if that invariant is ever broken.
+    if (!it->second.gen1AdvArea.has_value()) {
+        return false;
+    }
+    // Contract addition beyond the brief: BuildReport0x51 throws
+    // std::invalid_argument above 240 colors, and the Review Focus item for
+    // this driver requires every call to fail gracefully rather than throw
+    // or crash. Rejecting anything over this channel's own LED limit (always
+    // <=120, so always under the 240 cap) also stops overdriving a
+    // short chain, e.g. 11-LED IOShield.
+    if (colors.size() > static_cast<size_t>(it->second.ledLimit)) {
+        return false;
+    }
+
+    const std::array<uint8_t, 727> report = BuildReport0x51(*it->second.gen1AdvArea, colors);
+    return hid_.sendFeatureReport(report.data(), report.size());
+}
