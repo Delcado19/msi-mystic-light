@@ -20,3 +20,14 @@ add_test(NAME test_msi_protocol COMMAND test_msi_protocol)
 # aren't app-local copied next to this test binary either.
 set_tests_properties(test_msi_protocol PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+add_executable(test_component device/test_component.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp)
+target_include_directories(test_component PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_component PRIVATE Qt6::Test)
+
+add_test(NAME test_component COMMAND test_component)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_component PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
