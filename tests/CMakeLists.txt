@@ -53,3 +53,14 @@ add_test(NAME test_msi_motherboard_driver COMMAND test_msi_motherboard_driver)
 # aren't app-local copied next to this test binary either.
 set_tests_properties(test_msi_motherboard_driver PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+add_executable(test_effects effects/test_effects.cpp ${CMAKE_SOURCE_DIR}/src/effects/StaticColorEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/RainbowWaveEffect.cpp)
+target_include_directories(test_effects PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_effects PRIVATE Qt6::Test)
+
+add_test(NAME test_effects COMMAND test_effects)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_effects PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
