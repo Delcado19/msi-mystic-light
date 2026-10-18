@@ -12,6 +12,7 @@ private slots:
     void testFromJson_roundTrip();
     void testFromJson_tooShortArrayThrows();
     void testFromJson_tooLongArrayTruncates();
+    void testFromJson_negativeLedCountThrows();
     void testMakeGenericPlaceholder();
 };
 
@@ -63,6 +64,21 @@ void ComponentTest::testFromJson_tooLongArrayTruncates()
     QCOMPARE(static_cast<int>(c.ledMapping.size()), 2);
     QCOMPARE(c.ledCoordinates[1].first, 1);
     QCOMPARE(QString::fromStdString(c.ledNames[1]), QString("B"));
+}
+
+// Review-mandated addition: fromJson rejects a negative LedCount with
+// std::invalid_argument (added beyond the brief's literal text to keep the
+// documented exception contract honest — see Component.h/.cpp). Without this
+// test, that guard had zero coverage.
+void ComponentTest::testFromJson_negativeLedCountThrows()
+{
+    QJsonObject obj;
+    obj["ProductName"] = "Broken";
+    obj["LedCount"] = -1;
+    obj["LedCoordinates"] = QJsonArray{};
+    obj["LedNames"] = QJsonArray{};
+    obj["LedMapping"] = QJsonArray{};
+    QVERIFY_EXCEPTION_THROWN(Component::fromJson(obj), std::invalid_argument);
 }
 
 void ComponentTest::testMakeGenericPlaceholder()

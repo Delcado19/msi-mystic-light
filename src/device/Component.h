@@ -21,7 +21,10 @@ struct Component {
     // Throws std::invalid_argument if ledCoordinates, ledNames, or ledMapping
     // is shorter than ledCount (can't safely synthesize missing per-LED
     // data). If any is LONGER than ledCount, truncates it to ledCount
-    // (tolerates trailing junk in a hand-edited file).
+    // (tolerates trailing junk in a hand-edited file). Also throws
+    // std::invalid_argument if ledCount itself is negative (otherwise the
+    // truncate step's vector::resize(negative) would throw std::length_error
+    // instead, breaking this contract).
     static Component fromJson(const QJsonObject& obj);
     QJsonObject toJson() const;
 
