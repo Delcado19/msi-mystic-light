@@ -90,3 +90,17 @@ add_test(NAME test_settings COMMAND test_settings)
 # aren't app-local copied next to this test binary either.
 set_tests_properties(test_settings PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+# TrayApp wraps QSystemTrayIcon/QMenu, so this target needs Qt6::Widgets in
+# addition to Qt6::Test (unlike the other test targets above, which are
+# Core-only).
+add_executable(test_tray_app ui/test_tray_app.cpp ${CMAKE_SOURCE_DIR}/src/ui/TrayApp.cpp)
+target_include_directories(test_tray_app PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_tray_app PRIVATE Qt6::Test Qt6::Widgets)
+
+add_test(NAME test_tray_app COMMAND test_tray_app)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_tray_app PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
