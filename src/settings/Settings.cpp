@@ -1,5 +1,7 @@
 #include "settings/Settings.h"
 
+#include <algorithm>
+
 #include <QFile>
 #include <QIODevice>
 #include <QJsonArray>
@@ -74,22 +76,37 @@ QJsonObject nativeSettingsToJson(const NativeModeSettings& s)
     return o;
 }
 
+// A hand-edited settings.json reaches the real board within ~16ms of
+// launch (Canvas sends any pending native-mode channel on the first
+// tick), so out-of-range values here are "unconfirmed bytes to hardware"
+// in exactly the sense the project's safety rule exists to prevent. Each
+// field is clamped/rejected to the range MsiProtocol.cpp's bit-packing
+// assumes (see docs/MB_800_HID_PROTOCOL.md / Task 2's MsiZoneSettings
+// comments): lightingMode must be a real enum value or it falls back to
+// the default rather than encoding garbage into report 0x50's first byte.
+MsiLightingMode clampLightingMode(int raw, MsiLightingMode fallback)
+{
+    return (raw >= static_cast<int>(MsiLightingMode::Off) && raw <= static_cast<int>(MsiLightingMode::GodLike))
+        ? static_cast<MsiLightingMode>(raw)
+        : fallback;
+}
+
 NativeModeSettings nativeSettingsFromJson(const QJsonValue& v)
 {
     NativeModeSettings s{}; // defaults used for any field missing below
     if (!v.isObject()) return s;
     QJsonObject o = v.toObject();
-    s.lightingMode = static_cast<MsiLightingMode>(o.value("lightingMode").toInt(static_cast<int>(s.lightingMode)));
+    s.lightingMode = clampLightingMode(o.value("lightingMode").toInt(static_cast<int>(s.lightingMode)), s.lightingMode);
     s.color1 = colorFromJson(o.value("color1"), s.color1);
     s.color2 = colorFromJson(o.value("color2"), s.color2);
     s.color3 = colorFromJson(o.value("color3"), s.color3);
     s.color4 = colorFromJson(o.value("color4"), s.color4);
-    s.colorCount = static_cast<uint8_t>(o.value("colorCount").toInt(s.colorCount));
+    s.colorCount = static_cast<uint8_t>(std::clamp(o.value("colorCount").toInt(s.colorCount), 1, 4));
     s.selectAll = o.value("selectAll").toBool(s.selectAll);
     s.directionInward = o.value("directionInward").toBool(s.directionInward);
     s.colorSelectionUser = o.value("colorSelectionUser").toBool(s.colorSelectionUser);
-    s.brightness = static_cast<uint8_t>(o.value("brightness").toInt(s.brightness));
-    s.speed = static_cast<uint8_t>(o.value("speed").toInt(s.speed));
+    s.brightness = static_cast<uint8_t>(std::clamp(o.value("brightness").toInt(s.brightness), 0, 5));
+    s.speed = static_cast<uint8_t>(std::clamp(o.value("speed").toInt(s.speed), 0, 2));
     s.cycleNum = static_cast<uint8_t>(o.value("cycleNum").toInt(s.cycleNum));
     return s;
 }

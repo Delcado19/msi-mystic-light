@@ -17,6 +17,7 @@ private slots:
     void testLoadFromFile_corruptedJsonLeavesSettingsUnchanged();
     void testLoadFromFile_validJsonMissingFieldsUsesDefaults();
     void testLoadFromFile_wrongFieldTypesUseDefaults();
+    void testLoadFromFile_outOfRangeNativeValuesAreClamped();
     void testLoadFromFile_structurallyInvalidJsonLeavesSettingsUnchanged();
     void testSaveToFile_unwritablePathFails();
 };
@@ -99,6 +100,30 @@ void SettingsTest::testLoadFromFile_wrongFieldTypesUseDefaults()
     QVERIFY(s.loadFromFile(path.toStdString()));
     QCOMPARE(static_cast<int>(s.channelSettings.size()), 1);
     QVERIFY((s.channelSettings[0] == ChannelSettings{"JARGB2", ChannelMode::Native, "", {}, {}}));
+    QFile::remove(path);
+}
+
+// An out-of-range value in a hand-edited settings.json must be clamped to
+// what MsiProtocol.cpp's bit-packing can safely encode, not passed through
+// -- these values reach the real board within one render tick, so a wild
+// value here is exactly the "unconfirmed bytes to hardware" case the
+// project's safety rule exists to prevent (whole-branch review finding).
+void SettingsTest::testLoadFromFile_outOfRangeNativeValuesAreClamped()
+{
+    QString path = QDir::temp().filePath("msi_app_settings_outofrange_test.json");
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(R"({"channels":[{"channelName":"JARGB2","nativeSettings":{"lightingMode":999,"colorCount":0,"brightness":42,"speed":-5}}]})");
+    f.close();
+
+    Settings s;
+    QVERIFY(s.loadFromFile(path.toStdString()));
+    QCOMPARE(static_cast<int>(s.channelSettings.size()), 1);
+    const NativeModeSettings& n = s.channelSettings[0].nativeSettings;
+    QCOMPARE(n.lightingMode, MsiLightingMode::Steady); // 999 is invalid -> falls back to the default
+    QCOMPARE(n.colorCount, static_cast<uint8_t>(1));   // 0 clamped up to the documented 1-4 range
+    QCOMPARE(n.brightness, static_cast<uint8_t>(5));   // 42 clamped down to the documented 0-5 range
+    QCOMPARE(n.speed, static_cast<uint8_t>(0));         // -5 clamped up to the documented 0-2 range
     QFile::remove(path);
 }
 
