@@ -5,6 +5,8 @@
 // hardware involved.
 #include <QtTest/QtTest>
 
+#include <map>
+
 #include "device/MsiMotherboardDriver.h"
 #include "hid/FakeHidDevice.h"
 
@@ -23,6 +25,8 @@ private slots:
     void testPushCanvasColors_rejectsMoreColorsThanLedLimit();
     void testSetNativeMode_unknownChannelFailsGracefully();
     void testSetNativeMode_wrongModeFailsGracefully();
+    void testSetNativeMode_jargb3UsesZoneTwoAndAreaFour02();
+    void testCreateDefaultChannels_returnsAllSixChannelsWithDocumentedLedLimits();
 };
 
 void MsiMotherboardDriverTest::testSetNativeMode_sendsExpectedBytesAndPreservesOtherZones()
@@ -43,6 +47,13 @@ void MsiMotherboardDriverTest::testSetNativeMode_sendsExpectedBytesAndPreservesO
     // JARGB1's record (bytes 1-16) must still reflect s1, unchanged by the JARGB2 update.
     QCOMPARE(hid.sentReports[1][1], static_cast<uint8_t>(1));
     QCOMPARE(hid.sentReports[1][2], static_cast<uint8_t>(255));
+    // The above only proves zone 0 is untouched; it does NOT prove JARGB2
+    // landed in zone 1 (bytes 17-32) rather than nowhere/elsewhere. Pin that
+    // directly: zone 1's own record must reflect s2's values.
+    QCOMPARE(hid.sentReports[1][17], static_cast<uint8_t>(2));  // record 1 lightingMode = Steady (2)
+    QCOMPARE(hid.sentReports[1][18], static_cast<uint8_t>(10)); // record 1 color1.r
+    QCOMPARE(hid.sentReports[1][19], static_cast<uint8_t>(20)); // record 1 color1.g
+    QCOMPARE(hid.sentReports[1][20], static_cast<uint8_t>(30)); // record 1 color1.b
 }
 
 void MsiMotherboardDriverTest::testSetNativeMode_deviceNotOpenFailsGracefully()
@@ -119,6 +130,19 @@ void MsiMotherboardDriverTest::testGen1AdvAreaMapping_pinsEachChannelToItsDocume
     FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
     MsiMotherboardDriver driver(hid);
 
+    // JARGB1/JARGB2 use the areas of the same name (0x0400/0x0401) - unlike
+    // EZConnector/IOShield below, which use a DIFFERENT area than their own
+    // name would suggest. Neither was asserted anywhere before this test.
+    QVERIFY(driver.setChannelMode("JARGB1", ChannelMode::Canvas));
+    QVERIFY(driver.pushCanvasColors("JARGB1", {{1,2,3}}));
+    QCOMPARE(hid.sentReports.back()[2], static_cast<uint8_t>(0x04));
+    QCOMPARE(hid.sentReports.back()[3], static_cast<uint8_t>(0x00));
+
+    QVERIFY(driver.setChannelMode("JARGB2", ChannelMode::Canvas));
+    QVERIFY(driver.pushCanvasColors("JARGB2", {{1,2,3}}));
+    QCOMPARE(hid.sentReports.back()[2], static_cast<uint8_t>(0x04));
+    QCOMPARE(hid.sentReports.back()[3], static_cast<uint8_t>(0x01));
+
     QVERIFY(driver.setChannelMode("EZConnector", ChannelMode::Canvas));
     QVERIFY(driver.pushCanvasColors("EZConnector", {{1,2,3}}));
     QCOMPARE(hid.sentReports.back()[2], static_cast<uint8_t>(0x08)); // JAF high byte
@@ -161,6 +185,50 @@ void MsiMotherboardDriverTest::testSetNativeMode_wrongModeFailsGracefully()
     QVERIFY(driver.setChannelMode("JARGB1", ChannelMode::Canvas));
     QVERIFY(!driver.setNativeMode("JARGB1", NativeModeSettings{}));
     QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
+}
+
+// Finding from review: JARGB3's zone index (2) and Gen1Adv area (0x0402)
+// were asserted by zero tests before this one - every other test only ever
+// exercised JARGB1/JARGB2/EZConnector/IOShield/JRGB1.
+void MsiMotherboardDriverTest::testSetNativeMode_jargb3UsesZoneTwoAndAreaFour02()
+{
+    FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
+    MsiMotherboardDriver driver(hid);
+
+    NativeModeSettings s{MsiLightingMode::Wave, {7,8,9},{},{},{}, 1, false,false,true,5,0,30};
+    QVERIFY(driver.setNativeMode("JARGB3", s));
+    const auto& report = hid.sentReports.back();
+    QCOMPARE(report[1 + 2 * 16], static_cast<uint8_t>(1)); // zone 2 lightingMode = Wave (1)
+    QCOMPARE(report[2 + 2 * 16], static_cast<uint8_t>(7));  // zone 2 color1.r
+    QCOMPARE(report[3 + 2 * 16], static_cast<uint8_t>(8));  // zone 2 color1.g
+    QCOMPARE(report[4 + 2 * 16], static_cast<uint8_t>(9));  // zone 2 color1.b
+
+    QVERIFY(driver.setChannelMode("JARGB3", ChannelMode::Canvas));
+    QVERIFY(driver.pushCanvasColors("JARGB3", {{1,2,3}}));
+    QCOMPARE(hid.sentReports.back()[2], static_cast<uint8_t>(0x04));
+    QCOMPARE(hid.sentReports.back()[3], static_cast<uint8_t>(0x02));
+}
+
+// Finding from review: createDefaultChannels()'s return value is an
+// explicit brief requirement ("Fixed channel topology ... createDefaultChannels")
+// but was only ever called and discarded in other tests - zero assertions
+// on its result.
+void MsiMotherboardDriverTest::testCreateDefaultChannels_returnsAllSixChannelsWithDocumentedLedLimits()
+{
+    auto channels = MsiMotherboardDriver::createDefaultChannels();
+    QCOMPARE(static_cast<int>(channels.size()), 6);
+
+    std::map<std::string, int> ledLimitByName;
+    for (const auto& ch : channels) {
+        ledLimitByName[ch.name()] = ch.ledLimit();
+    }
+    QCOMPARE(static_cast<int>(ledLimitByName.size()), 6); // no duplicate/missing names
+    QCOMPARE(ledLimitByName.at("JARGB1"), 120);
+    QCOMPARE(ledLimitByName.at("JARGB2"), 120);
+    QCOMPARE(ledLimitByName.at("JARGB3"), 120);
+    QCOMPARE(ledLimitByName.at("EZConnector"), 120);
+    QCOMPARE(ledLimitByName.at("IOShield"), 11);
+    QCOMPARE(ledLimitByName.at("JRGB1"), 1);
 }
 
 QTEST_MAIN(MsiMotherboardDriverTest)
