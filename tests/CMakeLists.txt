@@ -76,7 +76,11 @@ add_test(NAME test_canvas COMMAND test_canvas)
 set_tests_properties(test_canvas PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
 
-add_executable(test_settings settings/test_settings.cpp ${CMAKE_SOURCE_DIR}/src/settings/Settings.cpp ${CMAKE_SOURCE_DIR}/src/device/MsiMotherboardDriver.cpp ${CMAKE_SOURCE_DIR}/src/device/Channel.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp ${CMAKE_SOURCE_DIR}/src/protocol/MsiProtocol.cpp)
+# Settings.cpp only uses ChannelMode/NativeModeSettings/MsiColor as plain
+# header-defined types (no calls into MsiMotherboardDriver/Channel/
+# Component/MsiProtocol's own .cpp files), so unlike test_msi_motherboard_driver
+# and test_canvas above, this target doesn't need those sources linked in.
+add_executable(test_settings settings/test_settings.cpp ${CMAKE_SOURCE_DIR}/src/settings/Settings.cpp)
 target_include_directories(test_settings PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_settings PRIVATE Qt6::Test)
 
