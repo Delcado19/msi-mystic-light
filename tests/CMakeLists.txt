@@ -104,3 +104,16 @@ add_test(NAME test_tray_app COMMAND test_tray_app)
 # aren't app-local copied next to this test binary either.
 set_tests_properties(test_tray_app PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+# AutostartWin only touches the Win32 registry API, no Widgets dependency,
+# so like test_settings this target is Core-only Qt.
+add_executable(test_autostart platform/test_autostart.cpp ${CMAKE_SOURCE_DIR}/src/platform/win/AutostartWin.cpp)
+target_include_directories(test_autostart PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_autostart PRIVATE Qt6::Test)
+
+add_test(NAME test_autostart COMMAND test_autostart)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_autostart PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
