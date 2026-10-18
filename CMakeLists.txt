@@ -10,7 +10,7 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 COMPONENTS Core Widgets Test REQUIRED)
 find_package(hidapi CONFIG REQUIRED)
 
-add_executable(MsiMysticLightApp src/main.cpp src/hid/HidApiDevice.cpp src/protocol/MsiProtocol.cpp src/device/Component.cpp)
+add_executable(MsiMysticLightApp src/main.cpp src/hid/HidApiDevice.cpp src/protocol/MsiProtocol.cpp src/device/Component.cpp src/device/Channel.cpp)
 target_include_directories(MsiMysticLightApp PRIVATE src)
 target_link_libraries(MsiMysticLightApp PRIVATE Qt6::Core Qt6::Widgets hidapi::hidapi)
 

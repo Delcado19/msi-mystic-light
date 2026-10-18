@@ -31,3 +31,14 @@ add_test(NAME test_component COMMAND test_component)
 # aren't app-local copied next to this test binary either.
 set_tests_properties(test_component PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+add_executable(test_channel device/test_channel.cpp ${CMAKE_SOURCE_DIR}/src/device/Channel.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp)
+target_include_directories(test_channel PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_channel PRIVATE Qt6::Test)
+
+add_test(NAME test_channel COMMAND test_channel)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_channel PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
