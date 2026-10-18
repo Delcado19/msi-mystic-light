@@ -96,8 +96,16 @@ int main(int argc, char** argv)
     }
 
     // Step 5: canvas + per-channel assignments from the loaded/default settings.
+    // setChannelMode must run before setAssignment: the driver defaults every
+    // channel to Native (Task 6), so without this a persisted Canvas-mode
+    // channel would silently never push (pushCanvasColors refuses to send
+    // outside Canvas mode) -- a real bug caught by the final whole-branch
+    // review, since it broke the "restores last-applied config" goal. The
+    // return value is ignored: an unknown channel name or JRGB1-to-Canvas is
+    // already handled safely by setChannelMode's own documented contract.
     Canvas canvas(driver, channels);
     for (const auto& cs : settings.channelSettings) {
+        driver.setChannelMode(cs.channelName, cs.mode);
         canvas.setAssignment(cs.channelName, buildAssignment(cs));
     }
 
