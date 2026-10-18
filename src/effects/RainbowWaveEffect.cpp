@@ -2,7 +2,10 @@
 
 #include <cmath>
 
-RainbowWaveEffect::RainbowWaveEffect(int64_t periodMs) : periodMs_(periodMs) {}
+// Clamp to >=1: periodMs_ is a divisor in colorAt below, so a caller-
+// supplied 0 or negative period (e.g. from Task 8's config) would otherwise
+// be integer division by zero (SIGFPE), not just a nonsensical hue.
+RainbowWaveEffect::RainbowWaveEffect(int64_t periodMs) : periodMs_(periodMs > 0 ? periodMs : 1) {}
 
 MsiColor RainbowWaveEffect::colorAt(int x, int /*y*/, int64_t elapsedMs) const
 {

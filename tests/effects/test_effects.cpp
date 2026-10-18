@@ -16,6 +16,7 @@ private slots:
     void testRainbowWaveEffect_hueWrapsWithoutCrashing();
     void testRainbowWaveEffect_hue120IsGreen();
     void testRainbowWaveEffect_hue240IsBlue();
+    void testRainbowWaveEffect_zeroOrNegativePeriodDoesNotCrash();
 };
 
 void EffectsTest::testStaticColorEffect_ignoresInputs()
@@ -77,6 +78,23 @@ void EffectsTest::testRainbowWaveEffect_hue240IsBlue()
     QCOMPARE(c.r, static_cast<uint8_t>(0));
     QCOMPARE(c.g, static_cast<uint8_t>(0));
     QCOMPARE(c.b, static_cast<uint8_t>(255));
+}
+
+// Review-mandated addition: periodMs_ is a divisor in colorAt, so a caller
+// passing 0 or a negative period (reachable from Task 8's config) would be
+// integer division by zero (SIGFPE) without the constructor's clamp. Confirms
+// the clamp holds for both a zero and a negative period.
+void EffectsTest::testRainbowWaveEffect_zeroOrNegativePeriodDoesNotCrash()
+{
+    RainbowWaveEffect zero(0);
+    MsiColor a = zero.colorAt(0, 0, 500);
+    Q_UNUSED(a);
+
+    RainbowWaveEffect negative(-3000);
+    MsiColor b = negative.colorAt(5, 0, 500);
+    Q_UNUSED(b);
+
+    QVERIFY(true);
 }
 
 QTEST_MAIN(EffectsTest)
