@@ -13,6 +13,7 @@ class AutostartTest : public QObject
 
 private slots:
     void testEnableDisableRoundTrip();
+    void cleanup(); // QtTest runs this after every test, pass or fail
 };
 
 void AutostartTest::testEnableDisableRoundTrip()
@@ -23,6 +24,16 @@ void AutostartTest::testEnableDisableRoundTrip()
     QVERIFY(autostart.isEnabled());
     QVERIFY(autostart.setEnabled(false));
     QVERIFY(!autostart.isEnabled());
+}
+
+// QVERIFY returns early on failure, so without this the throwaway value
+// could be left behind in the real Run key after a failed assertion above,
+// making every subsequent run fail too. This guarantees removal regardless
+// of how the test above exits.
+void AutostartTest::cleanup()
+{
+    AutostartWin autostart(L"MsiMysticLightAppTest_DoNotKeep", L"");
+    autostart.setEnabled(false);
 }
 
 QTEST_MAIN(AutostartTest)

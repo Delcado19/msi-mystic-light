@@ -1,5 +1,7 @@
 #include "platform/win/AutostartWin.h"
 
+#include <utility>
+
 #include <windows.h>
 
 namespace {
