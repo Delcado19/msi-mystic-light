@@ -167,9 +167,15 @@ Audio-reactive effects (`AudioBubbles`, `AudioSync`, `AudioVisualizer`,
   process/autostart/quit surface — unchanged in role.
   A new menu entry opens the main window.
 - New main window, "Lighting Studio": canvas + per-region effect/assignment
-  panel. Canvas rendering uses Qt Quick/QML (not Widgets) for smooth
-  per-frame animation and drag interaction; this is an implementation
-  choice made here, not something the user was asked to pick.
+  panel, built in Qt **Widgets** (not Qt Quick/QML). Revised from an
+  earlier draft of this doc that proposed QML: the canvas's actual
+  requirements — gradient brushes, per-frame repaint, mouse-drag handling
+  — are all native `QPainter`/`QWidget` features already used by this
+  project (`Canvas::tick()` already drives a 60Hz timer loop), so a
+  custom `QWidget` with `paintEvent`/`mousePressEvent`/`mouseMoveEvent`
+  covers it without adding a second UI framework, a QML engine, and a
+  `.qml` file set to the build. This is an implementation choice made
+  here, not something the user was asked to pick.
 - Visual/motion design for the new window follows the project's existing
   skill guidance (`emil-design-eng`, `apple-design`, the `animate` skills)
   at implementation time — e.g. spring-based drag release instead of
