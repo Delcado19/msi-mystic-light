@@ -1,8 +1,9 @@
 // Unit tests for the IEffect implementations (StaticColorEffect,
-// RainbowWaveEffect, RadialRainbowEffect). Pure render-time color
-// computation, no HID/device I/O.
+// RainbowWaveEffect, RadialRainbowEffect, BreathingEffect). Pure render-time
+// color computation, no HID/device I/O.
 #include <QtTest/QtTest>
 
+#include "effects/BreathingEffect.h"
 #include "effects/RadialRainbowEffect.h"
 #include "effects/RainbowWaveEffect.h"
 #include "effects/StaticColorEffect.h"
@@ -25,6 +26,9 @@ private slots:
     void testRadialRainbowEffect_setReferencePointMovesTheCenter();
     void testRadialRainbowEffect_zeroOrNegativePeriodDoesNotCrash();
     void testRadialRainbowEffect_offsetCenterExactHueAtTwoTimes();
+    void testBreathingEffect_quarterPeriodIsFullBrightness();
+    void testBreathingEffect_threeQuarterPeriodIsOff();
+    void testBreathingEffect_zeroOrNegativePeriodDoesNotCrash();
 };
 
 void EffectsTest::testStaticColorEffect_ignoresInputs()
@@ -195,6 +199,42 @@ void EffectsTest::testRadialRainbowEffect_offsetCenterExactHueAtTwoTimes()
     QCOMPARE(t1.r, static_cast<uint8_t>(0));
     QCOMPARE(t1.g, static_cast<uint8_t>(255));
     QCOMPARE(t1.b, static_cast<uint8_t>(0));
+}
+
+// brightness(t) = (sin(2*pi*t/period) + 1) / 2: a quarter period is the sine
+// peak (full brightness), so the configured color comes back unchanged.
+void EffectsTest::testBreathingEffect_quarterPeriodIsFullBrightness()
+{
+    BreathingEffect e(MsiColor{200, 100, 50}, 4000);
+    MsiColor c = e.colorAt(0, 0, 1000);
+    QCOMPARE(c.r, static_cast<uint8_t>(200));
+    QCOMPARE(c.g, static_cast<uint8_t>(100));
+    QCOMPARE(c.b, static_cast<uint8_t>(50));
+}
+
+// Three quarters of a period is the sine trough (brightness 0), so the output
+// is black.
+void EffectsTest::testBreathingEffect_threeQuarterPeriodIsOff()
+{
+    BreathingEffect e(MsiColor{200, 100, 50}, 4000);
+    MsiColor c = e.colorAt(0, 0, 3000);
+    QCOMPARE(c.r, static_cast<uint8_t>(0));
+    QCOMPARE(c.g, static_cast<uint8_t>(0));
+    QCOMPARE(c.b, static_cast<uint8_t>(0));
+}
+
+// Same divisor-clamp reasoning as the RainbowWaveEffect test above.
+void EffectsTest::testBreathingEffect_zeroOrNegativePeriodDoesNotCrash()
+{
+    BreathingEffect zero(MsiColor{200, 100, 50}, 0);
+    MsiColor a = zero.colorAt(0, 0, 500);
+    Q_UNUSED(a);
+
+    BreathingEffect negative(MsiColor{200, 100, 50}, -3000);
+    MsiColor b = negative.colorAt(0, 0, 500);
+    Q_UNUSED(b);
+
+    QVERIFY(true);
 }
 
 QTEST_MAIN(EffectsTest)
