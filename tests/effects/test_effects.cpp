@@ -24,6 +24,7 @@ private slots:
     void testRadialRainbowEffect_zeroDistanceDoesNotCrash();
     void testRadialRainbowEffect_setReferencePointMovesTheCenter();
     void testRadialRainbowEffect_zeroOrNegativePeriodDoesNotCrash();
+    void testRadialRainbowEffect_offsetCenterExactHueAtTwoTimes();
 };
 
 void EffectsTest::testStaticColorEffect_ignoresInputs()
@@ -171,6 +172,29 @@ void EffectsTest::testRadialRainbowEffect_zeroOrNegativePeriodDoesNotCrash()
     Q_UNUSED(b);
 
     QVERIFY(true);
+}
+
+// Controller-ruling addition (not in the brief's 4 given tests), mirroring
+// this file's existing hue120/hue240 additions for RainbowWaveEffect: the
+// other RadialRainbowEffect tests above all use a (0,0) center and/or
+// compare samples at t=0, so a center that's silently ignored, a dropped
+// elapsedMs term, or swapped atan2(y,x) arguments would still pass them.
+// Pin two exact RGB values against an *offset* center at two different
+// times to catch all three: (60,50) is due east of center (50,50) (angle
+// 0deg), giving hue 0 (red) at t=0 and hue 120 (green) at t=1000 (a third
+// of a 3000ms period).
+void EffectsTest::testRadialRainbowEffect_offsetCenterExactHueAtTwoTimes()
+{
+    RadialRainbowEffect e(50, 50, 3000);
+    MsiColor t0 = e.colorAt(60, 50, 0);
+    QCOMPARE(t0.r, static_cast<uint8_t>(255));
+    QCOMPARE(t0.g, static_cast<uint8_t>(0));
+    QCOMPARE(t0.b, static_cast<uint8_t>(0));
+
+    MsiColor t1 = e.colorAt(60, 50, 1000);
+    QCOMPARE(t1.r, static_cast<uint8_t>(0));
+    QCOMPARE(t1.g, static_cast<uint8_t>(255));
+    QCOMPARE(t1.b, static_cast<uint8_t>(0));
 }
 
 QTEST_MAIN(EffectsTest)

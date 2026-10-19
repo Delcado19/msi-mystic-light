@@ -17,7 +17,8 @@ public:
     // 360, full-saturation/value HSV->RGB (shared HsvToRgb.h, same
     // conversion as RainbowWaveEffect). angleDegrees is
     // atan2(y-centerY_, x-centerX_) converted from radians to degrees in
-    // [0,360).
+    // [0,360). Screen y grows downward, so on screen this hue sweep runs
+    // clockwise from the east: east=0, south=90, west=180, north=270.
     MsiColor colorAt(int x, int y, int64_t elapsedMs) const override;
     void setReferencePoint(int x, int y) override;
     std::pair<int,int> referencePoint() const override;
