@@ -2,6 +2,12 @@
 
 namespace {
 const char* kChannelName = "RoccatVulcan";
+// Physical key-matrix dimensions, RoccatVulcanKeyboardLayouts.h:45/55
+// (`ROCCAT_VULCAN_120_AIMO_LAYOUT_KEYS_104/105[6][24]`) - 6 rows, 24
+// columns. Deliberately distinct from VULCAN_COLUMN_LENGTH (12), which is
+// the wire-protocol's addressing stride, not the keyboard's shape.
+constexpr int kPhysicalRows = 6;
+constexpr int kPhysicalCols = 24;
 } // namespace
 
 RoccatVulcanDriver::RoccatVulcanDriver(IHidDevice& controlHid, IHidDevice& ledHid)
@@ -13,23 +19,23 @@ Channel RoccatVulcanDriver::createDefaultChannel()
 {
     Channel channel(kChannelName, VULCAN_MAX_LEDS);
 
-    // 12x12 row/column grid (x=column, y=row), matching
-    // BuildVulcanColorPackets' column/row derivation
-    // (VULCAN_COLUMN_LENGTH=12 rows per column). Per the task brief's
-    // ponytail note: an approximation of the physical key matrix, not
-    // exact keycap pixel positions - protocol correctness doesn't depend
-    // on this, only the canvas preview's visual layout.
+    // 24x6 row/column grid (x=column, y=row) matching the real physical
+    // key-matrix dimensions (see kPhysicalRows/kPhysicalCols above), not
+    // VULCAN_COLUMN_LENGTH's 12 (a wire-protocol stride, unrelated to key
+    // placement). Column-major fill: see header doc comment for the
+    // ponytail-scoped simplification this makes vs. the real per-key
+    // lookup table.
     Component component;
     component.productName = "Roccat Vulcan 100/120 Aimo";
     component.displayName = "Roccat Vulcan 100/120 Aimo";
     component.brand = "Roccat";
     component.type = "Keyboard";
     component.ledCount = VULCAN_MAX_LEDS;
-    component.width = VULCAN_COLUMN_LENGTH;
-    component.height = VULCAN_COLUMN_LENGTH;
+    component.width = kPhysicalCols;
+    component.height = kPhysicalRows;
     for (int i = 0; i < VULCAN_MAX_LEDS; ++i) {
-        const int column = i / VULCAN_COLUMN_LENGTH;
-        const int row = i % VULCAN_COLUMN_LENGTH;
+        const int column = i / kPhysicalRows;
+        const int row = i % kPhysicalRows;
         component.ledMapping.push_back(i);
         component.ledCoordinates.emplace_back(column, row);
         component.ledNames.push_back("Key " + std::to_string(i + 1));
@@ -46,7 +52,18 @@ bool RoccatVulcanDriver::setChannelMode(const std::string& channelName, ChannelM
     if (channelName != kChannelName || mode != ChannelMode::Canvas) {
         return false;
     }
-    return true;
+    if (!controlHid_.isOpen()) {
+        return false;
+    }
+
+    // RGBController_RoccatVulcanKeyboard::DeviceUpdateMode (.cpp:314) only
+    // calls EnableDirect(true) once, when entering Direct mode - not on
+    // every color push (RoccatVulcanProtocol.h's BuildVulcanEnableDirectReport
+    // doc comment). setChannelMode(Canvas) is this driver's "entering
+    // direct mode" moment, so the report goes here, to controlHid_, never
+    // to ledHid_. This keeps pushCanvasColors() LED-interface-only.
+    const auto report = BuildVulcanEnableDirectReport(true);
+    return controlHid_.sendFeatureReport(report.data(), report.size());
 }
 
 ChannelMode RoccatVulcanDriver::channelMode(const std::string& channelName) const
@@ -79,9 +96,9 @@ bool RoccatVulcanDriver::pushCanvasColors(const std::string& channelName, const 
 
     // RoccatVulcanKeyboardController.cpp:388-394: hid_write(dev_led, ...)
     // loop, one output-report write per packet, LED interface only. The
-    // control interface is never touched by a color push (this driver
-    // doesn't implement SendMode/EnableDirect's control-interface
-    // handshake - see RoccatVulcanDriver.h).
+    // control interface is never touched by a color push - EnableDirect
+    // is sent once from setChannelMode(Canvas) instead (see above), not
+    // resent on every push.
     const auto packets = BuildVulcanColorPackets(colors);
     bool allSent = true;
     for (const auto& packet : packets) {

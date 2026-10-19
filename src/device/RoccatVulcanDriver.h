@@ -8,11 +8,13 @@
 // under one VID/PID: a control interface (mode/brightness/init, feature
 // reports - RoccatVulcanKeyboardController.cpp's dev_ctrl) and a separate
 // LED interface (per-key color data, output reports via hid_write -
-// dev_led). Only the LED interface is used here: this task ports
-// SendColors (the per-key direct-mode color push) only, not
-// SendMode/EnableDirect (which write to the control interface to
-// activate/configure a device-side mode - out of scope per the task
-// brief).
+// dev_led). The control interface is used for exactly one thing here:
+// EnableDirect's one-time "enter direct mode" report, sent from
+// setChannelMode(Canvas) (mirroring RGBController_RoccatVulcanKeyboard::
+// DeviceUpdateMode calling EnableDirect(true) once, not per push - see
+// protocol/RoccatVulcanProtocol.h). SendMode (the much larger mode/speed/
+// brightness/static-color control report, for non-Direct modes this
+// Canvas-only driver never uses) is out of scope.
 #pragma once
 
 #include <string>
@@ -29,18 +31,28 @@ public:
     RoccatVulcanDriver(IHidDevice& controlHid, IHidDevice& ledHid);
 
     // One Channel named "RoccatVulcan" with VULCAN_MAX_LEDS (144) LED
-    // slots, one Component approximating the key matrix as a 12x12
-    // row/column grid (x=column, y=row - matching BuildVulcanColorPackets'
-    // column/row derivation, VULCAN_COLUMN_LENGTH=12).
-    // ponytail: this is the physical key-matrix shape, not exact keycap
-    // pixel positions - refine later only if the canvas preview's visual
-    // accuracy demands it, per the task brief's note; protocol correctness
-    // does not depend on this.
+    // slots, one Component approximating the key matrix as a 24x6
+    // row/column grid - the real physical matrix dimensions from
+    // RoccatVulcanKeyboardLayouts.h:45/55 (`[6][24]`: 6 rows, 24 columns),
+    // not VULCAN_COLUMN_LENGTH's 12, which is a wire-protocol addressing
+    // stride unrelated to physical key placement.
+    // ponytail: key index -> (column,row) uses a simple column-major fill
+    // (idx/6, idx%6), not the real per-key id->position lookup table (which
+    // has NA gaps the simple fill doesn't model) - per the task brief's
+    // explicit note, a grid matching the matrix *dimensions* is enough for
+    // v1, exact keycap identity is not required; protocol correctness does
+    // not depend on this. Refine later (port the real lookup table) only
+    // if the canvas preview's visual accuracy demands it.
     static Channel createDefaultChannel();
 
     // True only for ChannelMode::Canvas on "RoccatVulcan"; Native always
     // returns false (Global Constraint: this peripheral is direct-mode
-    // only, it has no native lighting mode of its own).
+    // only, it has no native lighting mode of its own). On success for
+    // Canvas, also sends BuildVulcanEnableDirectReport(true) to
+    // controlHid_ (RoccatVulcanProtocol.h's EnableDirect port) - the
+    // one-time "enter direct mode" report a real device needs before it
+    // will honor color pushes. Returns false, without sending, if
+    // controlHid_ is not open.
     bool setChannelMode(const std::string& channelName, ChannelMode mode) override;
     ChannelMode channelMode(const std::string& channelName) const override;
 
@@ -50,8 +62,8 @@ public:
     // Writes BuildVulcanColorPackets' packets to ledHid_ only via write()
     // (output report - RoccatVulcanKeyboardController.cpp:388-394's
     // hid_write(dev_led, ...) loop). controlHid_ is never touched by a
-    // color push: this driver does not implement the control-interface
-    // mode-activation handshake (SendMode/EnableDirect), see header note.
+    // color push: EnableDirect is sent once from setChannelMode(Canvas)
+    // instead (see above), not resent on every push.
     // Returns false without sending if either HID is not open, channelName
     // isn't "RoccatVulcan", or colors.size() exceeds VULCAN_MAX_LEDS.
     bool pushCanvasColors(const std::string& channelName, const std::vector<MsiColor>& colors) override;

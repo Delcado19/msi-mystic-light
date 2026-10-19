@@ -49,3 +49,11 @@ std::vector<std::array<uint8_t, VULCAN_PACKET_SIZE>> BuildVulcanColorPackets(
 
     return packets;
 }
+
+// Pinned to RoccatVulcanKeyboardController::EnableDirect's default case
+// (.cpp:185-187): `buf = {0x15, 0x00, on_off_switch}`. See header comment
+// for why this is sent once from setChannelMode(Canvas), not per push.
+std::array<uint8_t, VULCAN_ENABLE_DIRECT_REPORT_SIZE> BuildVulcanEnableDirectReport(bool enable)
+{
+    return {0x15, 0x00, static_cast<uint8_t>(enable ? 1 : 0)};
+}

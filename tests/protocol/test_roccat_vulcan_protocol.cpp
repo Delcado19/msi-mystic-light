@@ -15,7 +15,9 @@ class RoccatVulcanProtocolTest : public QObject
 private slots:
     void testBuildVulcanColorPackets_packetCountAndHeader();
     void testBuildVulcanColorPackets_layout();
+    void testBuildVulcanColorPackets_lastKeyLandsInLastPacket();
     void testBuildVulcanColorPackets_tooManyKeysThrows();
+    void testBuildVulcanEnableDirectReport_layout();
 };
 
 // Always builds exactly VULCAN_PACKET_COUNT (7) 65-byte packets, even for
@@ -87,12 +89,48 @@ void RoccatVulcanProtocolTest::testBuildVulcanColorPackets_layout()
     QCOMPARE(packets[1][1], static_cast<uint8_t>(0x99)); // crosses into packet 1
 }
 
+// The very last addressable key (idx=143, the top of VULCAN_MAX_LEDS)
+// must land fully inside packet 6 (the last of the VULCAN_PACKET_COUNT=7
+// packets), confirming the 144-key cap doesn't overflow BuildVulcanColorPackets'
+// fixed-size packet vector. Hand-traced from .cpp:361-371 same as the
+// other cases: column=143/12=11, row=143%12=11 ->
+// base=11*36+11+4=411 -> R@411,G@423,B@435.
+// 411/64=6 rem 27 -> packets[6][28]; 423/64=6 rem 39 -> packets[6][40];
+// 435/64=6 rem 51 -> packets[6][52].
+void RoccatVulcanProtocolTest::testBuildVulcanColorPackets_lastKeyLandsInLastPacket()
+{
+    std::vector<MsiColor> colors(VULCAN_MAX_LEDS, MsiColor{0, 0, 0});
+    colors[143] = {0xAA, 0xBB, 0xCC};
+
+    auto packets = BuildVulcanColorPackets(colors);
+    QCOMPARE(static_cast<int>(packets.size()), VULCAN_PACKET_COUNT);
+    QCOMPARE(packets[6][28], static_cast<uint8_t>(0xAA));
+    QCOMPARE(packets[6][40], static_cast<uint8_t>(0xBB));
+    QCOMPARE(packets[6][52], static_cast<uint8_t>(0xCC));
+}
+
 // VULCAN_MAX_LEDS is 144 ((436-4)/3); 145 keys must throw, matching
 // BuildBasiliskColorsReport/BuildKoneColorsReport's established style.
 void RoccatVulcanProtocolTest::testBuildVulcanColorPackets_tooManyKeysThrows()
 {
     std::vector<MsiColor> tooMany(VULCAN_MAX_LEDS + 1, MsiColor{1, 2, 3});
     QVERIFY_EXCEPTION_THROWN(BuildVulcanColorPackets(tooMany), std::invalid_argument);
+}
+
+// Pinned to RoccatVulcanKeyboardController::EnableDirect's default case
+// (.cpp:185-187): buf = {0x15, 0x00, on_off_switch}.
+void RoccatVulcanProtocolTest::testBuildVulcanEnableDirectReport_layout()
+{
+    auto enableReport = BuildVulcanEnableDirectReport(true);
+    QCOMPARE(static_cast<int>(enableReport.size()), static_cast<int>(VULCAN_ENABLE_DIRECT_REPORT_SIZE));
+    QCOMPARE(enableReport[0], static_cast<uint8_t>(0x15));
+    QCOMPARE(enableReport[1], static_cast<uint8_t>(0x00));
+    QCOMPARE(enableReport[2], static_cast<uint8_t>(0x01));
+
+    auto disableReport = BuildVulcanEnableDirectReport(false);
+    QCOMPARE(disableReport[0], static_cast<uint8_t>(0x15));
+    QCOMPARE(disableReport[1], static_cast<uint8_t>(0x00));
+    QCOMPARE(disableReport[2], static_cast<uint8_t>(0x00));
 }
 
 QTEST_MAIN(RoccatVulcanProtocolTest)
