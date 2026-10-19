@@ -204,6 +204,19 @@ add_test(NAME test_tray_app COMMAND test_tray_app)
 set_tests_properties(test_tray_app PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
 
+# LightingCanvasWidget wraps QWidget/QPainter, so this target needs
+# Qt6::Widgets in addition to Qt6::Test, same reason as test_tray_app above.
+add_executable(test_lighting_canvas_widget ui/test_lighting_canvas_widget.cpp ${CMAKE_SOURCE_DIR}/src/ui/LightingCanvasWidget.cpp)
+target_include_directories(test_lighting_canvas_widget PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_lighting_canvas_widget PRIVATE Qt6::Test Qt6::Widgets)
+
+add_test(NAME test_lighting_canvas_widget COMMAND test_lighting_canvas_widget)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_lighting_canvas_widget PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
 # AutostartWin only touches the Win32 registry API, no Widgets dependency,
 # so like test_settings this target is Core-only Qt.
 add_executable(test_autostart platform/test_autostart.cpp ${CMAKE_SOURCE_DIR}/src/platform/win/AutostartWin.cpp)
