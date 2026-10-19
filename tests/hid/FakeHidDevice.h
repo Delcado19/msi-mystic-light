@@ -10,16 +10,27 @@
 
 class FakeHidDevice : public IHidDevice {
 public:
-    bool open(uint16_t, uint16_t) override { opened_ = true; return openSucceeds; }
+    bool open(uint16_t, uint16_t, int interfaceNumber = -1) override {
+        opened_ = true;
+        openInterfaceNumber = interfaceNumber;
+        return openSucceeds;
+    }
     void close() override { opened_ = false; }
     bool isOpen() const override { return opened_; }
     bool sendFeatureReport(const uint8_t* report, size_t length) override {
         sentReports.emplace_back(report, report + length);
         return sendSucceeds;
     }
+    bool write(const uint8_t* report, size_t length) override {
+        writtenReports.emplace_back(report, report + length);
+        return writeSucceeds;
+    }
     bool openSucceeds = true;
     bool sendSucceeds = true;
-    std::vector<std::vector<uint8_t>> sentReports; // every report sent, in order
+    bool writeSucceeds = true;
+    int openInterfaceNumber = -1; // interfaceNumber last passed to open()
+    std::vector<std::vector<uint8_t>> sentReports;   // every report sent via sendFeatureReport, in order
+    std::vector<std::vector<uint8_t>> writtenReports; // every report sent via write, in order
 private:
     bool opened_ = false;
 };

@@ -30,9 +30,31 @@ HidApiDevice::~HidApiDevice() {
     }
 }
 
-bool HidApiDevice::open(uint16_t vendorId, uint16_t productId) {
+bool HidApiDevice::open(uint16_t vendorId, uint16_t productId, int interfaceNumber) {
     close();
-    handle_ = hid_open(vendorId, productId, nullptr);
+    if (interfaceNumber == -1) {
+        // Preserves v1's exact existing behavior: hid_open opens the first
+        // VID/PID match, with no way to target a specific interface.
+        handle_ = hid_open(vendorId, productId, nullptr);
+        return handle_ != nullptr;
+    }
+
+    // A device exposing several HID interfaces under one VID/PID (e.g. the
+    // Roccat Vulcan's separate control and LED interfaces) needs a specific
+    // interface_number, which plain hid_open can't target. Enumerate and
+    // match it, then open that exact path.
+    hid_device_info* devs = hid_enumerate(vendorId, productId);
+    hid_device_info* match = nullptr;
+    for (hid_device_info* cur = devs; cur != nullptr; cur = cur->next) {
+        if (cur->interface_number == interfaceNumber) {
+            match = cur;
+            break;
+        }
+    }
+    if (match != nullptr) {
+        handle_ = hid_open_path(match->path);
+    }
+    hid_free_enumeration(devs);
     return handle_ != nullptr;
 }
 
@@ -53,4 +75,17 @@ bool HidApiDevice::sendFeatureReport(const uint8_t* report, size_t length) {
     }
     int sent = hid_send_feature_report(handle_, report, length);
     return sent == static_cast<int>(length);
+}
+
+bool HidApiDevice::write(const uint8_t* report, size_t length) {
+    if (handle_ == nullptr) {
+        return false;
+    }
+    int sent = hid_write(handle_, report, length);
+    // Unlike hid_send_feature_report (which echoes back the caller's exact
+    // length), hidapi's Windows backend pads a report shorter than the
+    // device's output_report_length and returns the padded byte count
+    // (see windows/hid.c hid_write()). A strict == check would therefore
+    // report failure for a correctly-sent short report, so accept >=.
+    return sent >= static_cast<int>(length);
 }
