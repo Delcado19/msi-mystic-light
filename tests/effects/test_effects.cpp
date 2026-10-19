@@ -1,7 +1,9 @@
 // Unit tests for the IEffect implementations (StaticColorEffect,
-// RainbowWaveEffect). Pure render-time color computation, no HID/device I/O.
+// RainbowWaveEffect, RadialRainbowEffect). Pure render-time color
+// computation, no HID/device I/O.
 #include <QtTest/QtTest>
 
+#include "effects/RadialRainbowEffect.h"
 #include "effects/RainbowWaveEffect.h"
 #include "effects/StaticColorEffect.h"
 
@@ -17,6 +19,11 @@ private slots:
     void testRainbowWaveEffect_hue120IsGreen();
     void testRainbowWaveEffect_hue240IsBlue();
     void testRainbowWaveEffect_zeroOrNegativePeriodDoesNotCrash();
+    void testRadialRainbowEffect_sameAngleSameHueRegardlessOfDistance();
+    void testRadialRainbowEffect_angle90DiffersFromAngle0();
+    void testRadialRainbowEffect_zeroDistanceDoesNotCrash();
+    void testRadialRainbowEffect_setReferencePointMovesTheCenter();
+    void testRadialRainbowEffect_zeroOrNegativePeriodDoesNotCrash();
 };
 
 void EffectsTest::testStaticColorEffect_ignoresInputs()
@@ -92,6 +99,75 @@ void EffectsTest::testRainbowWaveEffect_zeroOrNegativePeriodDoesNotCrash()
 
     RainbowWaveEffect negative(-3000);
     MsiColor b = negative.colorAt(5, 0, 500);
+    Q_UNUSED(b);
+
+    QVERIFY(true);
+}
+
+// Due east of center (angle 0deg) at two different distances, at t=0:
+// hue depends only on angle, not on distance from the center.
+void EffectsTest::testRadialRainbowEffect_sameAngleSameHueRegardlessOfDistance()
+{
+    RadialRainbowEffect e(0, 0, 3000);
+    MsiColor near = e.colorAt(10, 0, 0);
+    MsiColor far = e.colorAt(100, 0, 0);
+    QCOMPARE(far.r, near.r);
+    QCOMPARE(far.g, near.g);
+    QCOMPARE(far.b, near.b);
+}
+
+// North of center (dx=0, dy=-10) vs. east of center (dx=10, dy=0), both at
+// t=0, must differ: atan2(-10,0) and atan2(0,10) are different angles (the
+// formula's atan2(y-cy, x-cx) convention puts "north" at 270deg on screen,
+// since screen y grows downward -- this test only needs the two to differ,
+// not which exact degree each one is).
+void EffectsTest::testRadialRainbowEffect_angle90DiffersFromAngle0()
+{
+    RadialRainbowEffect e(0, 0, 3000);
+    MsiColor north = e.colorAt(0, -10, 0);
+    MsiColor east = e.colorAt(10, 0, 0);
+    QVERIFY(north.r != east.r || north.g != east.g || north.b != east.b);
+}
+
+// Review Focus item: atan2(0,0) is well-defined in C++ (returns 0), so
+// sampling colorAt exactly at the center must not throw/crash. Pinned here
+// rather than just trusted by inspection.
+void EffectsTest::testRadialRainbowEffect_zeroDistanceDoesNotCrash()
+{
+    RadialRainbowEffect e(5, 5, 3000);
+    MsiColor c = e.colorAt(5, 5, 0);
+    Q_UNUSED(c);
+    QVERIFY(true);
+}
+
+void EffectsTest::testRadialRainbowEffect_setReferencePointMovesTheCenter()
+{
+    RadialRainbowEffect moved(0, 0, 3000);
+    moved.setReferencePoint(50, 50);
+    std::pair<int,int> p = moved.referencePoint();
+    QCOMPARE(p.first, 50);
+    QCOMPARE(p.second, 50);
+
+    RadialRainbowEffect constructedAtTarget(50, 50, 3000);
+    MsiColor a = moved.colorAt(60, 50, 0);
+    MsiColor b = constructedAtTarget.colorAt(60, 50, 0);
+    QCOMPARE(a.r, b.r);
+    QCOMPARE(a.g, b.g);
+    QCOMPARE(a.b, b.b);
+}
+
+// Same reasoning as RainbowWaveEffect's equivalent test: periodMs_ is a
+// divisor in colorAt, so a caller-supplied 0 or negative period would
+// otherwise be integer division by zero (SIGFPE) without the constructor's
+// clamp.
+void EffectsTest::testRadialRainbowEffect_zeroOrNegativePeriodDoesNotCrash()
+{
+    RadialRainbowEffect zero(0, 0, 0);
+    MsiColor a = zero.colorAt(10, 0, 500);
+    Q_UNUSED(a);
+
+    RadialRainbowEffect negative(0, 0, -3000);
+    MsiColor b = negative.colorAt(10, 0, 500);
     Q_UNUSED(b);
 
     QVERIFY(true);
