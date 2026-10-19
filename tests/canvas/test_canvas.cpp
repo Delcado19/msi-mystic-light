@@ -75,6 +75,8 @@ private slots:
     void testTick_globalFollowWithNoGlobalEffectDoesNotCrash();
     void testTick_extremePlacementDoesNotCrash();
     void testTick_multipleDriversEachReceiveOnlyTheirOwnChannel();
+    void testTick_canvasModeChannelWithNoRoutedDriverIsSkipped();
+    void testTick_nativeModeChannelWithNoRoutedDriverIsSkipped();
 };
 
 void CanvasTest::testTick_canvasModeSamplesEffectAndPushes()
@@ -255,6 +257,47 @@ void CanvasTest::testTick_multipleDriversEachReceiveOnlyTheirOwnChannel()
     QCOMPARE(driverA.pushedChannels[0], std::string("ChannelA"));
     QCOMPARE(static_cast<int>(driverB.pushedChannels.size()), 1);
     QCOMPARE(driverB.pushedChannels[0], std::string("ChannelB"));
+}
+
+// Covers the "no driver routed for this channel" skip path in tick()
+// (added by this task's map-based driver routing) for Canvas mode: the
+// channel has an assignment but no entry in driversByChannel_ at all.
+void CanvasTest::testTick_canvasModeChannelWithNoRoutedDriverIsSkipped()
+{
+    std::map<std::string, Channel> channels;
+    channels.emplace("Ghost", Channel("Ghost", 4));
+    channels.at("Ghost").addComponent(Component::makeGenericPlaceholder(1));
+
+    std::map<std::string, IDriver*> driversByChannel; // deliberately empty: "Ghost" has no routed driver
+    Canvas canvas(driversByChannel, channels);
+    canvas.setAssignment("Ghost", ChannelAssignment{ChannelMode::Canvas, CanvasSource::Independent, std::make_shared<FakeEffect>(MsiColor{9,9,9}), {}, {}});
+    canvas.tick(0); // must not throw/crash
+
+    // The skip must happen before any per-LED sampling, not just "nothing
+    // crashed": the effect is never consulted, so the LED stays at its
+    // component-default color (0,0,0), not FakeEffect's {9,9,9}.
+    QCOMPARE(channels.at("Ghost").colors()[0].r, static_cast<uint8_t>(0));
+}
+
+// Same skip path, for Native mode: confirms an unrouted channel's
+// setNativeMode is never called, while a routed sibling channel still goes
+// through normally (isolation, not just "no crash").
+void CanvasTest::testTick_nativeModeChannelWithNoRoutedDriverIsSkipped()
+{
+    std::map<std::string, Channel> channels;
+    channels.emplace("Real", Channel("Real", 4));
+    channels.emplace("Ghost", Channel("Ghost", 4));
+
+    FakeDriver driver;
+    std::map<std::string, IDriver*> driversByChannel{{"Real", &driver}}; // "Ghost" deliberately unrouted
+
+    Canvas canvas(driversByChannel, channels);
+    canvas.setAssignment("Real", ChannelAssignment{ChannelMode::Native, CanvasSource::Independent, nullptr, NativeModeSettings{}, {}});
+    canvas.setAssignment("Ghost", ChannelAssignment{ChannelMode::Native, CanvasSource::Independent, nullptr, NativeModeSettings{}, {}});
+    canvas.tick(0); // must not throw/crash
+
+    QCOMPARE(static_cast<int>(driver.nativeModeChannels.size()), 1);
+    QCOMPARE(driver.nativeModeChannels[0], std::string("Real"));
 }
 
 QTEST_MAIN(CanvasTest)
