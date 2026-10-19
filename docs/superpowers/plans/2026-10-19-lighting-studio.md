@@ -219,11 +219,11 @@ git commit -m "feat: add canvas-global placement and follow-global-effect mode"
 
 **Files:**
 - Create: `src/effects/IPositionableEffect.h`
-- Create: `src/effects/RadialRainbowEffect.h`, `src/effects/RadialRainbowEffect.cpp`
-- Modify: `tests/effects/test_effects.cpp`, `tests/CMakeLists.txt`
+- Create: `src/effects/RadialRainbowEffect.h`, `src/effects/RadialRainbowEffect.cpp`, `src/effects/HsvToRgb.h`
+- Modify: `src/effects/RainbowWaveEffect.cpp` (switch to the new shared `HsvToRgb.h`, no behavior change), `tests/effects/test_effects.cpp`, `tests/CMakeLists.txt`
 
 **Interfaces:**
-- Produces: `IPositionableEffect` (any later effect task with a draggable reference point implements this in addition to `IEffect`); `RadialRainbowEffect` constructor and `colorAt` formula, for the UI task (Task 16) to construct and reposition.
+- Produces: `IPositionableEffect` (any later effect task with a draggable reference point implements this in addition to `IEffect`); `HsvToRgb.h`'s `HsvFullToRgb` (reused by Tasks 6 and 8); `RadialRainbowEffect` constructor and `colorAt` formula, for the UI task (Task 14, `LightingCanvasWidget`) to construct and reposition.
 
 ```cpp
 // src/effects/IPositionableEffect.h
@@ -263,7 +263,7 @@ private:
 Run: `ctest -R test_effects --output-on-failure`
 Expected: FAIL to build.
 
-- [ ] **Step 3: Implement** `IPositionableEffect.h` and `RadialRainbowEffect` per the formula above, reusing the HSV→RGB conversion already written in `RainbowWaveEffect.cpp` (extract it to a shared free function `src/effects/HsvToRgb.h` if duplicating it a sixth time — by Task 9 — would otherwise violate DRY; a single header-only `inline MsiColor HsvFullToRgb(int hueDegrees)` is enough).
+- [ ] **Step 3: Implement** `IPositionableEffect.h` and `RadialRainbowEffect` per the formula above. Extract the HSV→RGB conversion already written inline in `RainbowWaveEffect.cpp` into a shared header-only free function `inline MsiColor HsvFullToRgb(int hueDegrees)` in a new `src/effects/HsvToRgb.h`, and update `RainbowWaveEffect.cpp` to call it instead of its own inline copy (its existing tests must still pass unchanged — this is a pure refactor of that file, not a behavior change). `RadialRainbowEffect` uses the same shared function; Tasks 6 and 8 will too (4 total callers by the end of this plan — the point of extracting it now, before a second copy exists, not after).
 - [ ] **Step 4: Run tests to verify they pass.**
 
 Run: `ctest -R test_effects --output-on-failure`
@@ -272,7 +272,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/effects/IPositionableEffect.h src/effects/RadialRainbowEffect.h src/effects/RadialRainbowEffect.cpp src/effects/HsvToRgb.h tests/effects/test_effects.cpp tests/CMakeLists.txt
+git add src/effects/IPositionableEffect.h src/effects/RadialRainbowEffect.h src/effects/RadialRainbowEffect.cpp src/effects/HsvToRgb.h src/effects/RainbowWaveEffect.cpp tests/effects/test_effects.cpp tests/CMakeLists.txt
 git commit -m "feat: add RadialRainbowEffect and IPositionableEffect"
 ```
 
@@ -633,7 +633,7 @@ Note on key placement (Step 5 of `createDefaultChannel`): `ponytail: approximate
 
 **Interfaces:**
 - Consumes: `CanvasSource`/`CanvasPlacement` (Task 3).
-- Produces: the extended `ChannelSettings`, `GlobalEffectSettings`, `Profile`, and `Settings`'s new profile-list shape — Task 16 (UI) and Task 18 (wire-up) read/write exactly these.
+- Produces: the extended `ChannelSettings`, `GlobalEffectSettings`, `Profile`, and `Settings`'s new profile-list shape — Task 15 (`LightingStudioWindow`) and Task 18 (wire-up) read/write exactly these.
 
 ```cpp
 // src/settings/Settings.h
