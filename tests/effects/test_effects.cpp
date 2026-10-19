@@ -6,6 +6,7 @@
 #include "effects/BreathingEffect.h"
 #include "effects/RadialRainbowEffect.h"
 #include "effects/RainbowWaveEffect.h"
+#include "effects/SpiralEffect.h"
 #include "effects/StaticColorEffect.h"
 
 class EffectsTest : public QObject
@@ -29,6 +30,9 @@ private slots:
     void testBreathingEffect_quarterPeriodIsFullBrightness();
     void testBreathingEffect_threeQuarterPeriodIsOff();
     void testBreathingEffect_zeroOrNegativePeriodDoesNotCrash();
+    void testSpiralEffect_zeroDistanceDoesNotCrashAndIsFinite();
+    void testSpiralEffect_sameAngleDifferentDistanceDiffersInHue();
+    void testSpiralEffect_setReferencePointMovesTheCenter();
 };
 
 void EffectsTest::testStaticColorEffect_ignoresInputs()
@@ -235,6 +239,48 @@ void EffectsTest::testBreathingEffect_zeroOrNegativePeriodDoesNotCrash()
     Q_UNUSED(b);
 
     QVERIFY(true);
+}
+
+// Review Focus item: distance 0 contributes 0 to the hue, so sampling exactly
+// at the center must give a deterministic color (no NaN from atan2(0,0) or
+// the distance term), repeatable across calls.
+void EffectsTest::testSpiralEffect_zeroDistanceDoesNotCrashAndIsFinite()
+{
+    SpiralEffect e(5, 5, 4.0, 3000);
+    MsiColor a = e.colorAt(5, 5, 0);
+    MsiColor b = e.colorAt(5, 5, 0);
+    QCOMPARE(a.r, b.r);
+    QCOMPARE(a.g, b.g);
+    QCOMPARE(a.b, b.b);
+}
+
+// Due east (same angle 0deg) at distance 10 vs. 100. Tightness is 1.0 so the
+// hue offsets are 10deg vs. 100deg; with the default 4.0 they would be 40deg
+// vs. 400 mod 360 = 40deg and collide, which would make this test meaningless.
+// Unlike RadialRainbowEffect, distance must change the hue.
+void EffectsTest::testSpiralEffect_sameAngleDifferentDistanceDiffersInHue()
+{
+    SpiralEffect e(0, 0, 1.0, 3000);
+    MsiColor near = e.colorAt(10, 0, 0);
+    MsiColor far = e.colorAt(100, 0, 0);
+    QVERIFY(near.r != far.r || near.g != far.g || near.b != far.b);
+}
+
+// Mirrors testRadialRainbowEffect_setReferencePointMovesTheCenter.
+void EffectsTest::testSpiralEffect_setReferencePointMovesTheCenter()
+{
+    SpiralEffect moved(0, 0, 4.0, 3000);
+    moved.setReferencePoint(50, 50);
+    std::pair<int,int> p = moved.referencePoint();
+    QCOMPARE(p.first, 50);
+    QCOMPARE(p.second, 50);
+
+    SpiralEffect constructedAtTarget(50, 50, 4.0, 3000);
+    MsiColor a = moved.colorAt(60, 50, 0);
+    MsiColor b = constructedAtTarget.colorAt(60, 50, 0);
+    QCOMPARE(a.r, b.r);
+    QCOMPARE(a.g, b.g);
+    QCOMPARE(a.b, b.b);
 }
 
 QTEST_MAIN(EffectsTest)
