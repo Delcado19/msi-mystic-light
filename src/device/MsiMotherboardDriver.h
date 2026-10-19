@@ -14,26 +14,12 @@
 #include <vector>
 
 #include "device/Channel.h"
+#include "device/DeviceTypes.h"
+#include "device/IDriver.h"
 #include "hid/IHidDevice.h"
 #include "protocol/MsiProtocol.h"
 
-enum class ChannelMode { Canvas, Native };
-
-// Mirrors MsiZoneSettings; kept separate so callers of the driver don't
-// need to know the Option1/Option2 bit-packing, only plain fields.
-struct NativeModeSettings {
-    MsiLightingMode lightingMode = MsiLightingMode::Steady;
-    MsiColor color1{}, color2{}, color3{}, color4{};
-    uint8_t colorCount = 1;
-    bool selectAll = false;
-    bool directionInward = false;
-    bool colorSelectionUser = true;
-    uint8_t brightness = 5;
-    uint8_t speed = 0;
-    uint8_t cycleNum = 30;
-};
-
-class MsiMotherboardDriver {
+class MsiMotherboardDriver : public IDriver {
 public:
     explicit MsiMotherboardDriver(IHidDevice& hid);
 
@@ -50,15 +36,15 @@ public:
     // Returns false (no-op) for an unknown channel name, or for a channel
     // that has no Gen1Adv area (currently only "JRGB1") when mode is
     // Canvas: that channel isn't per-LED addressable.
-    bool setChannelMode(const std::string& channelName, ChannelMode mode);
-    ChannelMode channelMode(const std::string& channelName) const;
+    bool setChannelMode(const std::string& channelName, ChannelMode mode) override;
+    ChannelMode channelMode(const std::string& channelName) const override;
 
     // Native mode only. Updates this channel's record in the internal
     // 18-zone state (so other zones' last-sent settings are preserved)
     // and sends the full report 0x50. Returns false without sending if
     // !hid.isOpen(), channelName is unknown, or channelMode(channelName)
     // != Native.
-    bool setNativeMode(const std::string& channelName, const NativeModeSettings& settings);
+    bool setNativeMode(const std::string& channelName, const NativeModeSettings& settings) override;
 
     // Canvas mode only. Sends report 0x51 for this channel's Gen1Adv area.
     // Returns false without sending if !hid.isOpen(), channelName is
@@ -67,7 +53,7 @@ public:
     // addition beyond the brief: BuildReport0x51 throws past 240 colors,
     // and this driver must fail gracefully, never throw, per the Review
     // Focus item on a disconnected/misused board).
-    bool pushCanvasColors(const std::string& channelName, const std::vector<MsiColor>& colors);
+    bool pushCanvasColors(const std::string& channelName, const std::vector<MsiColor>& colors) override;
 
 private:
     IHidDevice& hid_;
