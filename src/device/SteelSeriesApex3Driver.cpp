@@ -3,13 +3,15 @@
 namespace {
 const char* kChannelName = "SteelSeriesApex3";
 
-// OpenRGB's SteelSeriesApexTZoneController::SetColor always sends this
-// fixed brightness value (max on this device's 0-3 scale) alongside the
-// colors packet; it exposes no separate brightness control, so v1 doesn't
-// either. Keep this in sync with the "3" used in
-// tests/device/test_steelseries_apex3_driver.cpp and
-// tests/protocol/test_steelseries_apex3_protocol.cpp if it ever changes.
-constexpr uint8_t kFullBrightness = 3;
+// The brief (task-9-brief.md) pins the brightness *packet layout* but not
+// which value the driver should send; "3" is only the example argument in
+// its protocol-layout test. IDriver exposes no brightness control, so this
+// hardcodes a value for every push.
+// ponytail: hardcoded brightness, unverified against real hardware's actual
+// scale (could be 0-3, could be 0-100 - unknown without a device or the
+// cited OpenRGB source). Expose a real brightness setting, or confirm and
+// pin the correct max value, once hardware is available to test against.
+constexpr uint8_t kBrightness = 3;
 } // namespace
 
 SteelSeriesApex3Driver::SteelSeriesApex3Driver(IHidDevice& hid) : hid_(hid)
@@ -58,7 +60,7 @@ bool SteelSeriesApex3Driver::pushCanvasColors(const std::string& channelName, co
     // Order pinned to SteelSeriesApexTZoneController::SetColor: the
     // brightness packet (cmd 0x0A) is sent before the colors packet (cmd
     // 0x0B). Both are output reports (hid_write), not feature reports.
-    const std::array<uint8_t, STEELSERIES_APEX3_PACKET_SIZE> brightnessPacket = BuildApex3BrightnessPacket(kFullBrightness);
+    const std::array<uint8_t, STEELSERIES_APEX3_PACKET_SIZE> brightnessPacket = BuildApex3BrightnessPacket(kBrightness);
     const std::array<uint8_t, STEELSERIES_APEX3_PACKET_SIZE> colorsPacket = BuildApex3ColorsPacket(colors);
     const bool brightnessSent = hid_.write(brightnessPacket.data(), brightnessPacket.size());
     const bool colorsSent = hid_.write(colorsPacket.data(), colorsPacket.size());
