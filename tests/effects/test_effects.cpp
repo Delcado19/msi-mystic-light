@@ -10,6 +10,7 @@
 #include "effects/RainbowWaveEffect.h"
 #include "effects/SpiralEffect.h"
 #include "effects/StaticColorEffect.h"
+#include "effects/SwirlCirclesEffect.h"
 
 class EffectsTest : public QObject
 {
@@ -40,6 +41,9 @@ private slots:
     void testCometEffect_tinyTrackOrTailDoesNotCrash();
     void testMarqueeEffect_onInsideDashOffInsideGap();
     void testMarqueeEffect_scrollsWithTime();
+    void testSwirlCirclesEffect_sameRingSameHue();
+    void testSwirlCirclesEffect_adjacentRingsDiffer();
+    void testSwirlCirclesEffect_zeroRingWidthDoesNotCrash();
 };
 
 void EffectsTest::testStaticColorEffect_ignoresInputs()
@@ -352,6 +356,41 @@ void EffectsTest::testMarqueeEffect_scrollsWithTime()
     QCOMPARE(halfPeriodLater.r, static_cast<uint8_t>(0));
     QCOMPARE(halfPeriodLater.g, static_cast<uint8_t>(0));
     QCOMPARE(halfPeriodLater.b, static_cast<uint8_t>(0));
+}
+
+// Ring 0 is distance [0,15). (10,0) and (0,5) are at different angles but
+// both at distance <15 from center, so they share ring 0 and must match.
+void EffectsTest::testSwirlCirclesEffect_sameRingSameHue()
+{
+    SwirlCirclesEffect e(0, 0, 15, 3000);
+    MsiColor a = e.colorAt(10, 0, 500);
+    MsiColor b = e.colorAt(0, 5, 500);
+    QCOMPARE(a.r, b.r);
+    QCOMPARE(a.g, b.g);
+    QCOMPARE(a.b, b.b);
+}
+
+// (14,0) is distance 14 (ring 0, hue 0) and (15,0) is distance 15 (ring 1,
+// hue 60). Different hues must give different colors.
+void EffectsTest::testSwirlCirclesEffect_adjacentRingsDiffer()
+{
+    SwirlCirclesEffect e(0, 0, 15, 3000);
+    MsiColor inner = e.colorAt(14, 0, 0);
+    MsiColor outer = e.colorAt(15, 0, 0);
+    QVERIFY(inner.r != outer.r || inner.g != outer.g || inner.b != outer.b);
+}
+
+// ringWidthPx is clamped to >=1, so 0 behaves exactly like 1 (ring = distance)
+// and must not divide by zero.
+void EffectsTest::testSwirlCirclesEffect_zeroRingWidthDoesNotCrash()
+{
+    SwirlCirclesEffect zero(0, 0, 0, 3000);
+    SwirlCirclesEffect one(0, 0, 1, 3000);
+    MsiColor a = zero.colorAt(3, 0, 0);
+    MsiColor b = one.colorAt(3, 0, 0);
+    QCOMPARE(a.r, b.r);
+    QCOMPARE(a.g, b.g);
+    QCOMPARE(a.b, b.b);
 }
 
 QTEST_MAIN(EffectsTest)
