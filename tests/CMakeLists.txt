@@ -54,6 +54,28 @@ add_test(NAME test_steelseries_apex3_driver COMMAND test_steelseries_apex3_drive
 set_tests_properties(test_steelseries_apex3_driver PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
 
+add_executable(test_roccat_kone_protocol protocol/test_roccat_kone_protocol.cpp ${CMAKE_SOURCE_DIR}/src/protocol/RoccatKoneProtocol.cpp)
+target_include_directories(test_roccat_kone_protocol PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_roccat_kone_protocol PRIVATE Qt6::Test)
+
+add_test(NAME test_roccat_kone_protocol COMMAND test_roccat_kone_protocol)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_roccat_kone_protocol PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+add_executable(test_roccat_kone_driver device/test_roccat_kone_driver.cpp ${CMAKE_SOURCE_DIR}/src/device/RoccatKoneDriver.cpp ${CMAKE_SOURCE_DIR}/src/protocol/RoccatKoneProtocol.cpp ${CMAKE_SOURCE_DIR}/src/device/Channel.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp)
+target_include_directories(test_roccat_kone_driver PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests)
+target_link_libraries(test_roccat_kone_driver PRIVATE Qt6::Test)
+
+add_test(NAME test_roccat_kone_driver COMMAND test_roccat_kone_driver)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_roccat_kone_driver PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
 add_executable(test_component device/test_component.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp)
 target_include_directories(test_component PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_component PRIVATE Qt6::Test)
