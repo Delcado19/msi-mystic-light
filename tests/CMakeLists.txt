@@ -65,7 +65,7 @@ add_test(NAME test_msi_motherboard_driver COMMAND test_msi_motherboard_driver)
 set_tests_properties(test_msi_motherboard_driver PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
 
-add_executable(test_effects effects/test_effects.cpp ${CMAKE_SOURCE_DIR}/src/effects/StaticColorEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/RainbowWaveEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/RadialRainbowEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/BreathingEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/SpiralEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/CometEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/MarqueeEffect.cpp)
+add_executable(test_effects effects/test_effects.cpp ${CMAKE_SOURCE_DIR}/src/effects/StaticColorEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/RainbowWaveEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/RadialRainbowEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/BreathingEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/SpiralEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/CometEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/MarqueeEffect.cpp ${CMAKE_SOURCE_DIR}/src/effects/SwirlCirclesEffect.cpp)
 target_include_directories(test_effects PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_effects PRIVATE Qt6::Test)
 
