@@ -98,6 +98,28 @@ add_test(NAME test_razer_basilisk_driver COMMAND test_razer_basilisk_driver)
 set_tests_properties(test_razer_basilisk_driver PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
 
+add_executable(test_roccat_vulcan_protocol protocol/test_roccat_vulcan_protocol.cpp ${CMAKE_SOURCE_DIR}/src/protocol/RoccatVulcanProtocol.cpp)
+target_include_directories(test_roccat_vulcan_protocol PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_roccat_vulcan_protocol PRIVATE Qt6::Test)
+
+add_test(NAME test_roccat_vulcan_protocol COMMAND test_roccat_vulcan_protocol)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_roccat_vulcan_protocol PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+add_executable(test_roccat_vulcan_driver device/test_roccat_vulcan_driver.cpp ${CMAKE_SOURCE_DIR}/src/device/RoccatVulcanDriver.cpp ${CMAKE_SOURCE_DIR}/src/protocol/RoccatVulcanProtocol.cpp ${CMAKE_SOURCE_DIR}/src/device/Channel.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp)
+target_include_directories(test_roccat_vulcan_driver PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests)
+target_link_libraries(test_roccat_vulcan_driver PRIVATE Qt6::Test)
+
+add_test(NAME test_roccat_vulcan_driver COMMAND test_roccat_vulcan_driver)
+
+# Same PATH fix as test_scaffold above: Qt isn't vcpkg-managed, so its DLLs
+# aren't app-local copied next to this test binary either.
+set_tests_properties(test_roccat_vulcan_driver PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
 add_executable(test_component device/test_component.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp)
 target_include_directories(test_component PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_component PRIVATE Qt6::Test)
