@@ -4,6 +4,8 @@
 #include <QtTest/QtTest>
 
 #include "effects/BreathingEffect.h"
+#include "effects/CometEffect.h"
+#include "effects/MarqueeEffect.h"
 #include "effects/RadialRainbowEffect.h"
 #include "effects/RainbowWaveEffect.h"
 #include "effects/SpiralEffect.h"
@@ -33,6 +35,11 @@ private slots:
     void testSpiralEffect_zeroDistanceDoesNotCrashAndIsFinite();
     void testSpiralEffect_sameAngleDifferentDistanceDiffersInHue();
     void testSpiralEffect_setReferencePointMovesTheCenter();
+    void testCometEffect_headPositionIsBrightest();
+    void testCometEffect_farFromHeadIsDark();
+    void testCometEffect_tinyTrackOrTailDoesNotCrash();
+    void testMarqueeEffect_onInsideDashOffInsideGap();
+    void testMarqueeEffect_scrollsWithTime();
 };
 
 void EffectsTest::testStaticColorEffect_ignoresInputs()
@@ -281,6 +288,70 @@ void EffectsTest::testSpiralEffect_setReferencePointMovesTheCenter()
     QCOMPARE(a.r, b.r);
     QCOMPARE(a.g, b.g);
     QCOMPARE(a.b, b.b);
+}
+
+// headX(0) = 0, so x=0 sits exactly on the head: brightness 1.0, color unchanged.
+void EffectsTest::testCometEffect_headPositionIsBrightest()
+{
+    CometEffect e(MsiColor{200, 100, 50}, 100, 0.05, 20);
+    MsiColor c = e.colorAt(0, 0, 0);
+    QCOMPARE(c.r, static_cast<uint8_t>(200));
+    QCOMPARE(c.g, static_cast<uint8_t>(100));
+    QCOMPARE(c.b, static_cast<uint8_t>(50));
+}
+
+// Half a 100px track away from the head at x=0 is x=50, well beyond the 20px
+// tail, so brightness clamps to 0.
+void EffectsTest::testCometEffect_farFromHeadIsDark()
+{
+    CometEffect e(MsiColor{200, 100, 50}, 100, 0.05, 20);
+    MsiColor c = e.colorAt(50, 0, 0);
+    QCOMPARE(c.r, static_cast<uint8_t>(0));
+    QCOMPARE(c.g, static_cast<uint8_t>(0));
+    QCOMPARE(c.b, static_cast<uint8_t>(0));
+}
+
+// Zero track width and zero tail would divide by zero without the clamps.
+void EffectsTest::testCometEffect_tinyTrackOrTailDoesNotCrash()
+{
+    CometEffect zeroTrack(MsiColor{200, 100, 50}, 0, 0.05, 20);
+    MsiColor a = zeroTrack.colorAt(0, 0, 0);
+    Q_UNUSED(a);
+
+    CometEffect zeroTail(MsiColor{200, 100, 50}, 100, 0.05, 0);
+    MsiColor b = zeroTail.colorAt(0, 0, 0);
+    Q_UNUSED(b);
+
+    QVERIFY(true);
+}
+
+// Dash 5 / gap 5 gives period 10. x=2 is inside the dash (on), x=7 inside the
+// gap (off). At elapsedMs=0 the pattern is unshifted.
+void EffectsTest::testMarqueeEffect_onInsideDashOffInsideGap()
+{
+    MarqueeEffect e(MsiColor{200, 100, 50}, 5, 5, 0.05);
+    MsiColor on = e.colorAt(2, 0, 0);
+    QCOMPARE(on.r, static_cast<uint8_t>(200));
+    QCOMPARE(on.g, static_cast<uint8_t>(100));
+    QCOMPARE(on.b, static_cast<uint8_t>(50));
+
+    MsiColor off = e.colorAt(7, 0, 0);
+    QCOMPARE(off.r, static_cast<uint8_t>(0));
+    QCOMPARE(off.g, static_cast<uint8_t>(0));
+    QCOMPARE(off.b, static_cast<uint8_t>(0));
+}
+
+// At speed 0.05 px/ms, elapsedMs=100 shifts the pattern by 5px (half of the
+// period 10). x=2 goes from dash (t=0) to gap (t=100): pos = (2 - 5) mod 10 = 7.
+void EffectsTest::testMarqueeEffect_scrollsWithTime()
+{
+    MarqueeEffect e(MsiColor{200, 100, 50}, 5, 5, 0.05);
+    MsiColor atStart = e.colorAt(2, 0, 0);
+    MsiColor halfPeriodLater = e.colorAt(2, 0, 100);
+    QVERIFY(atStart.r != halfPeriodLater.r || atStart.g != halfPeriodLater.g || atStart.b != halfPeriodLater.b);
+    QCOMPARE(halfPeriodLater.r, static_cast<uint8_t>(0));
+    QCOMPARE(halfPeriodLater.g, static_cast<uint8_t>(0));
+    QCOMPARE(halfPeriodLater.b, static_cast<uint8_t>(0));
 }
 
 QTEST_MAIN(EffectsTest)
