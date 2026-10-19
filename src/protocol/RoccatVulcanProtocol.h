@@ -4,11 +4,16 @@
 // RoccatVulcanKeyboardController.cpp and .h). Pure data encoding: no
 // HID/device I/O, no Qt dependency.
 //
-// Scope: this only covers RoccatVulcanKeyboardController::SendColors
-// (.cpp:197-398), the hid_write(dev_led, ...) direct-mode color push. It
-// does NOT cover SendMode/EnableDirect (those write to the *control*
-// interface via feature reports to activate/configure a mode - out of
-// scope per the task brief, which only asks for the per-key color push).
+// Scope: covers RoccatVulcanKeyboardController::SendColors (.cpp:197-398,
+// the hid_write(dev_led, ...) direct-mode color push - the task brief's
+// primary target) AND EnableDirect (.cpp:166-195, the one-time "enter
+// direct mode" control-report, needed so a real device actually honors
+// the color packets - RGBController_RoccatVulcanKeyboard.cpp:314 only
+// calls EnableDirect(true) once, from DeviceUpdateMode(), not on every
+// color push). It does NOT cover SendMode (.cpp:400-ff, the much larger
+// mode/speed/brightness/static-color control report) - that configures
+// non-Direct modes (Wave, Static, Default) this app's Canvas-only driver
+// never uses, so porting it is out of scope here.
 //
 // PID identity (RoccatVulcanKeyboardController.h:23-24):
 //   ROCCAT_VULCAN_100_AIMO_PID = 0x307A, ROCCAT_VULCAN_120_AIMO_PID = 0x3098
@@ -44,34 +49,25 @@
 //   [3],[4] = packet_length (436 = 0x01B4) as a 16-bit value, byte order
 //             picked by IsBigEndianDirectMode() (.cpp:155-164):
 //             `dev_info.version_major >= 1 && dev_info.version_minor >= 16`
-//             for the default case (which both target PIDs hit). This is
-//             the keyboard's *firmware version*, read at runtime via
-//             InitDeviceInfo()'s feature-report round-trip
-//             (RoccatVulcanKeyboardController.cpp:72-ff) - a stateful
-//             handshake this task does not implement (out of scope; see
-//             the task brief, which only asks for the SendColors byte
-//             packing). Since dev_info is a freshly-constructed
-//             device_info with no explicit zero-initializer in this
-//             class, and OpenRGB's RGBController_RoccatVulcanKeyboard
-//             constructor (.cpp:37) calls InitDeviceInfo() before any
-//             color push can happen, version_major/minor are *always*
-//             populated by the time SendColors runs on a real device -
-//             this is not actually a "sometimes true" runtime fork on
-//               hardware, it is a fixed property of each physical unit's
-//             flashed firmware, just one this driver has no way to query
-//             without implementing the same handshake. We default to the
-//             little-endian branch (`bufs[0][3]=length&0xFF,
-//             bufs[0][4]=(length>>8)&0xFF`) because it is what
-//             IsBigEndianDirectMode() returns for an unqueried/zero
-//             dev_info, and because it is the only one of the two we can
-//             pin down without that handshake.
+//             for the default case (which both target PIDs hit), i.e.
+//             big-endian only for firmware >= v1.16 (version parsed from
+//             a single byte as major=buf[2]/100, minor=buf[2]%100 -
+//             InitDeviceInfo, .cpp:110-111). This is a genuine per-unit
+//             fact (each physical keyboard's flashed firmware either is
+//             or isn't >= v1.16), queried at runtime via a feature-report
+//             round-trip (InitDeviceInfo, .cpp:72-147) that this task does
+//             not implement (out of scope; the brief asks only for the
+//             SendColors byte packing). Without that handshake this
+//             encoder cannot know a specific unit's firmware version, so
+//             it hardcodes the little-endian branch (`bufs[0][3]=
+//             length&0xFF, bufs[0][4]=(length>>8)&0xFF`) - an arbitrary
+//             but necessary choice, not a derived default.
 //             ** CONCERN carried into the task report: this is the one
-//             byte pair in this encoder that may be wrong for a specific
-//             physical unit depending on its firmware version. It affects
-//             only packet 0, bytes 3-4 (a constant length field, not any
-//             per-key color byte) - confirm against real hardware in
-//             Task 18, and if it turns out wrong, the fix is a single
-//             two-byte swap, not a repacking. **
+//             byte pair in this encoder that may be wrong for a unit
+//             running firmware >= v1.16. It affects only packet 0, bytes
+//             3-4 (a constant length field, not any per-key color byte) -
+//             confirm against real hardware in Task 18; if wrong, the fix
+//             is a single two-byte swap, not a repacking. **
 //   [5..64] = color data starts here (byte index 5 = header_length_first+1)
 //
 // Packets 1..6: no header at all - bytes [1..64] are color data (.cpp:
@@ -120,3 +116,18 @@ constexpr int VULCAN_MAX_LEDS = 144;
 // Throws std::invalid_argument if keyColors.size() > VULCAN_MAX_LEDS.
 std::vector<std::array<uint8_t, VULCAN_PACKET_SIZE>> BuildVulcanColorPackets(
     const std::vector<MsiColor>& keyColors);
+
+constexpr size_t VULCAN_ENABLE_DIRECT_REPORT_SIZE = 3;
+
+// RoccatVulcanKeyboardController::EnableDirect's default-case report
+// (.cpp:166-195: `buf = {0x15, 0x00, on_off_switch}`, sent via
+// hid_send_feature_report(dev_ctrl, buf, 3) to the CONTROL interface, NOT
+// the LED interface SendColors/BuildVulcanColorPackets uses). Both target
+// PIDs hit this default case (neither is named in EnableDirect's switch
+// either). RGBController_RoccatVulcanKeyboard::DeviceUpdateMode (.cpp:
+// 314) calls `EnableDirect(modes[active_mode].value ==
+// ROCCAT_VULCAN_MODE_DIRECT)` - i.e. enable=true - once when entering
+// Direct mode, not on every color push; RoccatVulcanDriver mirrors that
+// by sending this from setChannelMode(Canvas), not from
+// pushCanvasColors().
+std::array<uint8_t, VULCAN_ENABLE_DIRECT_REPORT_SIZE> BuildVulcanEnableDirectReport(bool enable);

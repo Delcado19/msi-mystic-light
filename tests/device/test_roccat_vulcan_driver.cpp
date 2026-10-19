@@ -23,6 +23,7 @@ private slots:
     void testPushCanvasColors_sendsPacketsToLedHidNotControlHid();
     void testSetNativeMode_alwaysReturnsFalse();
     void testSetChannelMode_nativeReturnsFalseCanvasReturnsTrue();
+    void testSetChannelMode_canvasReturnsFalseWhenControlHidNotOpen();
     void testPushCanvasColors_returnsFalseWhenEitherHidNotOpen();
     void testPushCanvasColors_wrongChannelNameFailsGracefully();
     void testPushCanvasColors_rejectsMoreLedsThanMax();
@@ -62,14 +63,31 @@ void RoccatVulcanDriverTest::testSetNativeMode_alwaysReturnsFalse()
     QCOMPARE(static_cast<int>(ledHid.writtenReports.size()), 0);
 }
 
+// setChannelMode(Canvas) also sends EnableDirect(true)
+// (RoccatVulcanKeyboardController.cpp:314's one-time "entering Direct
+// mode" call) to controlHid_ as a feature report - never to ledHid_.
 void RoccatVulcanDriverTest::testSetChannelMode_nativeReturnsFalseCanvasReturnsTrue()
 {
     FakeHidDevice controlHid; controlHid.open(0x1E7D, 0x307A);
     FakeHidDevice ledHid; ledHid.open(0x1E7D, 0x307A);
     RoccatVulcanDriver driver(controlHid, ledHid);
     QVERIFY(!driver.setChannelMode("RoccatVulcan", ChannelMode::Native));
+    QCOMPARE(static_cast<int>(controlHid.sentReports.size()), 0);
+
     QVERIFY(driver.setChannelMode("RoccatVulcan", ChannelMode::Canvas));
     QCOMPARE(driver.channelMode("RoccatVulcan"), ChannelMode::Canvas);
+    QCOMPARE(static_cast<int>(controlHid.sentReports.size()), 1);
+    QCOMPARE(controlHid.sentReports[0], toVec(BuildVulcanEnableDirectReport(true)));
+    QCOMPARE(static_cast<int>(ledHid.writtenReports.size()), 0);
+}
+
+void RoccatVulcanDriverTest::testSetChannelMode_canvasReturnsFalseWhenControlHidNotOpen()
+{
+    FakeHidDevice controlHid; // not opened
+    FakeHidDevice ledHid; ledHid.open(0x1E7D, 0x307A);
+    RoccatVulcanDriver driver(controlHid, ledHid);
+    QVERIFY(!driver.setChannelMode("RoccatVulcan", ChannelMode::Canvas));
+    QCOMPARE(static_cast<int>(controlHid.sentReports.size()), 0);
 }
 
 // Both HIDs must be open for a color push to succeed (brief Step 6):
