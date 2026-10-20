@@ -175,20 +175,21 @@ int main(int argc, char** argv)
     // interfaceNumber=3 per RazerControllerDetect.cpp:361
     // (REGISTER_HID_DETECTOR_IPU("Razer Basilisk V3", ..., 0x03, 0x0C, 0x01):
     // interface_number=3, usage_page=0x0C, usage=0x01). IHidDevice::open()
-    // only filters on interface_number, not usage_page/usage, but a
+    // can filter on usage_page too (added for the Kone, see below), but a
     // read-only Get-PnpDevice enumeration on this machine (where this mouse
     // is actually connected) confirmed interface 3 is a single, unambiguous
     // collection for this device -- no other collection shares it -- so the
-    // interface-only filter is sufficient here.
+    // interface-only filter is sufficient here; usage_page isn't needed.
     basiliskHid.open(0x1532, 0x0099, 3);
 
     HidApiDevice apex3Hid;
     // interfaceNumber=3 per SteelSeriesControllerDetect.cpp:543
     // (REGISTER_HID_DETECTOR_I("SteelSeries Apex 3", ..., 3): this detector
-    // variant filters on interface_number only, no usage_page, matching
-    // exactly what IHidDevice::open() supports. Confirmed via a read-only
-    // Get-PnpDevice enumeration on this machine (where this keyboard is
-    // actually connected): interface 3 is a single, unambiguous collection.
+    // variant only ever specifies interface_number, no usage_page -- there
+    // is no more specific filter to apply even though IHidDevice::open()
+    // now supports one. Confirmed via a read-only Get-PnpDevice enumeration
+    // on this machine (where this keyboard is actually connected):
+    // interface 3 is a single, unambiguous collection.
     apex3Hid.open(0x1038, 0x161A, 3);
 
     // Roccat Vulcan 100/120 Aimo: one physical device, two HID interfaces
