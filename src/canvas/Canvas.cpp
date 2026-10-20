@@ -40,12 +40,17 @@ LocalExtent computeLocalExtent(const Channel& channel)
 // Rescales one local coordinate from this channel's own [lo, hi] extent
 // into [0, boxSize - 1], so the channel's extreme LEDs land exactly on the
 // shared GlobalFollow box's edges regardless of its raw coordinate range.
-// hi == lo (e.g. a single-LED channel, or a flat line's constant axis) maps
-// to 0 rather than dividing by zero.
+// hi <= lo (a single-LED channel, or a flat line's constant axis -- every
+// motherboard channel's y, plus every smaller peripheral's whole 1-row
+// placeholder) maps to the box's CENTER, not its corner/edge: per the
+// review's own symptom list, those channels should sample somewhere inside
+// the box, not hug its top-left corner or top edge the way a naive "0"
+// default would (indistinguishable from the pre-fix bug for a 1-LED
+// channel, and still an edge-hugging line for every flat-line channel).
 int scaleIntoBox(int local, int lo, int hi, int boxSize)
 {
     if (hi <= lo) {
-        return 0;
+        return (boxSize - 1) / 2;
     }
     return static_cast<int>(static_cast<int64_t>(local - lo) * (boxSize - 1) / (hi - lo));
 }
