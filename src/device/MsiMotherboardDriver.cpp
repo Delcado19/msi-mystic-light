@@ -114,9 +114,12 @@ bool MsiMotherboardDriver::setChannelMode(const std::string& channelName, Channe
     // supportsMode() has accepted the mode). As of main.cpp's Task 20 fix,
     // this is no longer reached on every canvas-drag pixel: main.cpp now
     // gates its own call to setChannelMode() on the channel's *mode* actually
-    // changing, so a placement-only drag never re-enters this function at
-    // all. It still fires on every real mode/settings change and once per
-    // profile switch, which is why no cache was added here either.
+    // changing (cached per channel name, not per profile), so a
+    // placement-only drag never re-enters this function at all, and a
+    // profile switch only re-enters it for channels whose mode actually
+    // differs from whatever was last applied under that same channel name --
+    // not unconditionally once per switch. Still no cache needed here
+    // either way, since every call that does arrive is a real mode change.
     if (mode == ChannelMode::Canvas && hid_.isOpen()) {
         MsiZoneSettings& zone = zoneState_[it->second.zoneIndex];
         zone.lightingMode = MsiLightingMode::Advanced;
