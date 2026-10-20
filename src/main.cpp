@@ -463,15 +463,18 @@ int main(int argc, char** argv)
     // Step 4b: construct the Studio window before the initial Canvas push,
     // not strictly after as the plan's step numbering reads. Its
     // constructor already calls the private ensureProfileAndEntries()
-    // (Task 15), which pushes a "Default" profile if settings.profiles was
-    // empty and fills in a default (Native/Steady/black, per
-    // ChannelSettings'/NativeModeSettings' own default member values) entry
-    // for any channel missing one -- exactly the "fall back to
-    // Native/Steady/black defaults for every channel" tolerance this task's
-    // brief asks main.cpp to implement. Reusing that existing, already-
-    // tested fallback instead of duplicating an equivalent default-filling
-    // loop here means settings.activeProfile() is guaranteed non-null and
-    // complete for every line below.
+    // (Task 15; Task 23 extended it), which pushes a "Default" profile if
+    // settings.profiles was empty and fills in a default entry for any
+    // channel missing one -- Native/Steady/black (ChannelSettings'/
+    // NativeModeSettings' own default member values) for a motherboard
+    // channel, but Canvas/StaticColor/white for a Canvas-only peripheral
+    // channel (Task 23: Native is a confirmed permanent no-op for all 4
+    // peripheral drivers, so the plain Native/black default would leave it
+    // invisible forever) -- plus clamping any EXISTING entry whose persisted
+    // mode this channel no longer supports. Reusing that existing,
+    // already-tested fallback instead of duplicating an equivalent
+    // default-filling loop here means settings.activeProfile() is
+    // guaranteed non-null and complete for every line below.
     LightingStudioWindow studio(settings, channelNames, availableModesByChannel);
 
     // Task 20, Bug A: last ChannelSettings actually pushed to the driver/
@@ -630,7 +633,13 @@ int main(int argc, char** argv)
         applyGlobalEffectToCanvas(canvas, profile->globalEffect);
     });
     // Updates the tray's profile submenu/checkmark whenever the active
-    // profile changes from inside the Studio window (profile combo box).
+    // profile changes from inside the Studio window -- not just the profile
+    // combo box anymore (Task 23): LightingStudioWindow::refreshFromSettings()
+    // fires this unconditionally after a profile switch AND after a
+    // create/rename/delete via its own createProfile()/renameActiveProfile()/
+    // deleteActiveProfile(), so a rename or delete of a non-last profile
+    // (which may leave "the active profile" pointing at the same slot,
+    // merely renamed, or reassign it to a neighbor) still reaches the tray.
     QObject::connect(&studio, &LightingStudioWindow::activeProfileChanged, [&tray, &settings](const std::string&) {
         refreshTrayProfiles(tray, settings);
     });

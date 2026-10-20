@@ -462,7 +462,17 @@ void LightingStudioWindow::updateRowEnabledState(const std::string& channelName)
     row.sourceCombo->setEnabled(isCanvas);
     const bool isIndependent = row.sourceCombo->currentIndex() == 0;
     row.effectCombo->setEnabled(isCanvas && isIndependent);
-    const bool colorMeaningful = isCanvas && isIndependent && effectUsesColor(row.effectCombo->currentText().toStdString());
+    // Gated on the STORED cs.effectName, not row.effectCombo->currentText():
+    // repopulateFromActiveProfile() sets this combo via findText(cs.effectName),
+    // which falls back to index 0 ("StaticColor") whenever cs.effectName is
+    // empty or unrecognized (e.g. every fresh profile's globalEffect-style
+    // empty default, or a hand-edited settings.json's Canvas-mode entry with
+    // no "effectName" field) -- that fallback is a DISPLAY choice only, and
+    // gating on it would enable this button while buildEffect(cs.effectName)
+    // still resolves to nullptr (an empty name), i.e. a swatch the user can
+    // click with no visible effect. onRowChanged() calls this AFTER writing
+    // cs, so this always reads the value that's actually about to be used.
+    const bool colorMeaningful = isCanvas && isIndependent && effectUsesColor(channelSettingsFor(channelName).effectName);
     row.colorButton->setEnabled(colorMeaningful);
 
     // Native-mode minimal editor (Part 2): only meaningful while the row
@@ -473,7 +483,16 @@ void LightingStudioWindow::updateRowEnabledState(const std::string& channelName)
 
 void LightingStudioWindow::updateGlobalColorButtonEnabledState()
 {
-    globalColorButton_->setEnabled(effectUsesColor(globalEffectCombo_->currentText().toStdString()));
+    // Same reasoning as updateRowEnabledState's colorMeaningful above: gate on
+    // the STORED globalEffect.effectName (every fresh profile's
+    // GlobalEffectSettings{} default-constructs this to "", which
+    // globalEffectCombo_'s own findText-with-fallback then silently displays
+    // as "StaticColor") rather than the combo's possibly-stale display text,
+    // so the swatch is never enabled for a selection that hasn't actually
+    // been written into Settings yet.
+    const Profile* profile = settings_.activeProfile();
+    const std::string effectName = profile ? profile->globalEffect.effectName : std::string();
+    globalColorButton_->setEnabled(effectUsesColor(effectName));
 }
 
 void LightingStudioWindow::repopulateFromActiveProfile()
@@ -543,8 +562,6 @@ void LightingStudioWindow::repopulateFromActiveProfile()
 
 void LightingStudioWindow::onRowChanged(const std::string& channelName)
 {
-    updateRowEnabledState(channelName);
-
     const ChannelRow& row = rows_.at(channelName);
     ChannelSettings& cs = channelSettingsFor(channelName);
     cs.mode = static_cast<ChannelMode>(row.modeCombo->currentData().toInt());
@@ -563,6 +580,11 @@ void LightingStudioWindow::onRowChanged(const std::string& channelName)
     // not from this row; staticColor/nativeSettings.color1 are edited via
     // their own dedicated swatch buttons (setChannelColor/
     // setChannelNativeColor), not this handler.
+
+    // Called AFTER cs is written, not before: updateRowEnabledState()'s
+    // colorMeaningful check now reads cs.effectName (see its own comment),
+    // so it needs the just-written value, not the previous one.
+    updateRowEnabledState(channelName);
 
     applyChannelToCanvas(channelName, cs);
     emit channelAssignmentChanged(channelName);
