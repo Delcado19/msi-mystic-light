@@ -36,3 +36,12 @@ Part of a repo cluster under `Software_Projects/` (see also
 
 - `../OpenRGB/OpenRGB` — our own OpenRGB fork with `MSIMysticLight290Controller`
 - `../OpenRGB/OpenRGBResearch` — raw packet captures, analysis scripts
+
+## License
+
+This project is licensed under GPL-2.0-or-later (see [`LICENSE`](LICENSE)) as of
+this change.
+
+The Roccat, Razer and SteelSeries peripheral drivers are adapted from
+[OpenRGB](https://openrgb.org), which is also licensed GPL-2.0-or-later and is
+the upstream source for those drivers.
