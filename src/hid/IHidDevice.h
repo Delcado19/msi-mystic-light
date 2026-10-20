@@ -16,7 +16,18 @@ public:
     // several HID interfaces under one VID/PID (e.g. Roccat Vulcan's
     // separate control and LED interfaces) is opened once per interface
     // by constructing a separate IHidDevice per interfaceNumber.
-    virtual bool open(uint16_t vendorId, uint16_t productId, int interfaceNumber = -1) = 0;
+    // usagePage == -1 (default) does not filter on it. Some devices
+    // enumerate several HID collections under the SAME interface_number,
+    // distinguished only by usage_page (e.g. Roccat Kone Aimo's
+    // interface 0 splits into 5 collections on Windows, confirmed via
+    // Get-PnpDevice; OpenRGB's own detector pins interface_number=0 AND
+    // usage_page=0x0B for this device, RoccatControllerDetect.cpp:414-415)
+    // -- pass usagePage too in that case. Without it, open() can silently
+    // land on the wrong collection: live-tested on a real Kone Aimo, both
+    // pure red and pure green writes produced the same fixed orange (the
+    // device's idle default, unaffected by our writes) until usagePage
+    // was added; confirmed fixed afterward.
+    virtual bool open(uint16_t vendorId, uint16_t productId, int interfaceNumber = -1, int usagePage = -1) = 0;
     virtual void close() = 0;
     virtual bool isOpen() const = 0;
     // report must already include the report ID as report[0].

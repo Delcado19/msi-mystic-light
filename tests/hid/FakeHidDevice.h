@@ -10,9 +10,10 @@
 
 class FakeHidDevice : public IHidDevice {
 public:
-    bool open(uint16_t, uint16_t, int interfaceNumber = -1) override {
+    bool open(uint16_t, uint16_t, int interfaceNumber = -1, int usagePage = -1) override {
         opened_ = true;
         openInterfaceNumber = interfaceNumber;
+        openUsagePage = usagePage;
         return openSucceeds;
     }
     void close() override { opened_ = false; }
@@ -29,6 +30,7 @@ public:
     bool sendSucceeds = true;
     bool writeSucceeds = true;
     int openInterfaceNumber = -1; // interfaceNumber last passed to open()
+    int openUsagePage = -1; // usagePage last passed to open()
     std::vector<std::vector<uint8_t>> sentReports;   // every report sent via sendFeatureReport, in order
     std::vector<std::vector<uint8_t>> writtenReports; // every report sent via write, in order
 private:

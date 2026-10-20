@@ -14,6 +14,8 @@ class FakeHidDeviceTest : public QObject
 private slots:
     void testOpen_defaultInterfaceNumberIsNegativeOne();
     void testOpen_capturesExplicitInterfaceNumber();
+    void testOpen_defaultUsagePageIsNegativeOne();
+    void testOpen_capturesExplicitUsagePage();
     void testWrite_appendsToWrittenReportsIndependentlyOfSentReports();
 };
 
@@ -29,6 +31,24 @@ void FakeHidDeviceTest::testOpen_capturesExplicitInterfaceNumber()
     FakeHidDevice hid;
     QVERIFY(hid.open(0x1234, 0x5678, 2));
     QCOMPARE(hid.openInterfaceNumber, 2);
+}
+
+void FakeHidDeviceTest::testOpen_defaultUsagePageIsNegativeOne()
+{
+    FakeHidDevice hid;
+    QVERIFY(hid.open(0x1234, 0x5678));
+    QCOMPARE(hid.openUsagePage, -1);
+}
+
+// Mirrors testOpen_capturesExplicitInterfaceNumber: pins that the fake
+// records usagePage independently, needed to distinguish HID collections
+// that share one interface_number (e.g. Roccat Kone Aimo interface 0,
+// disambiguated only by usage_page 0x0B).
+void FakeHidDeviceTest::testOpen_capturesExplicitUsagePage()
+{
+    FakeHidDevice hid;
+    QVERIFY(hid.open(0x1234, 0x5678, 0, 0x0B));
+    QCOMPARE(hid.openUsagePage, 0x0B);
 }
 
 void FakeHidDeviceTest::testWrite_appendsToWrittenReportsIndependentlyOfSentReports()

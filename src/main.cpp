@@ -167,8 +167,8 @@ int main(int argc, char** argv)
     // one. Unlike the Basilisk/Apex 3 fix below, this one is NOT confirmed
     // against a real device on this machine (no Kone is physically present
     // here) -- flag this explicitly to the user before trusting it in Step 7.
-    if (!koneHid.open(0x1E7D, 0x2E27, 0)) {
-        koneHid.open(0x1E7D, 0x2E2C, 0);
+    if (!koneHid.open(0x1E7D, 0x2E27, 0, 0x0B)) {
+        koneHid.open(0x1E7D, 0x2E2C, 0, 0x0B);
     }
 
     HidApiDevice basiliskHid;
@@ -200,15 +200,22 @@ int main(int argc, char** argv)
     // byte-for-byte identical on the wire (RoccatVulcanProtocol.h), so try
     // 100 Aimo first, then 120, opening both interfaces on whichever PID
     // matches.
+    // usage_page is also pinned here (0x000B control, 0x0001 LED; same
+    // task-12-report.md citation) as a precaution against the same
+    // collection-ambiguity bug confirmed live on the Kone Aimo above --
+    // unlike the Kone fix, this is NOT verified against a real Vulcan (none
+    // physically available), so treat it as plausible-but-unconfirmed.
     HidApiDevice vulcanControlHid;
     HidApiDevice vulcanLedHid;
     constexpr uint16_t kVulcanVid = 0x1E7D;
     constexpr uint16_t kVulcanPids[] = {0x307A, 0x3098}; // 100 Aimo, 120 Aimo
     constexpr int kVulcanCtrlIface = 1;
     constexpr int kVulcanLedIface = 3;
+    constexpr int kVulcanCtrlUsagePage = 0x000B;
+    constexpr int kVulcanLedUsagePage = 0x0001;
     for (uint16_t pid : kVulcanPids) {
-        if (vulcanControlHid.open(kVulcanVid, pid, kVulcanCtrlIface)) {
-            vulcanLedHid.open(kVulcanVid, pid, kVulcanLedIface);
+        if (vulcanControlHid.open(kVulcanVid, pid, kVulcanCtrlIface, kVulcanCtrlUsagePage)) {
+            vulcanLedHid.open(kVulcanVid, pid, kVulcanLedIface, kVulcanLedUsagePage);
             break;
         }
     }
