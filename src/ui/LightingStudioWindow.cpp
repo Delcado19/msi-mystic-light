@@ -627,6 +627,16 @@ void LightingStudioWindow::setGlobalEffectColor(const MsiColor& color)
 
 void LightingStudioWindow::createProfile(const std::string& name)
 {
+    // Review finding: a name collision fails silently here (addProfile()
+    // returns false, below). A QMessageBox::warning() was tried as a fix but
+    // reverted -- it's a MODAL dialog, and this method is called directly
+    // from tests (e.g. testCreateProfile_rejectsDuplicateNameAsNoOp) with no
+    // event loop to dismiss it, which hung and crashed the test suite rather
+    // than just failing a test. Left as a known, documented minor gap
+    // instead: a real fix needs the warning to not fire on the test's direct
+    // call path (e.g. only shown from the button's own click handler, not
+    // from this method), which is more invasive than this cleanup pass
+    // warrants.
     if (!settings_.addProfile(name)) return; // empty/duplicate name
     settings_.activeProfileName = name; // a newly created profile becomes the active one, as the user expects
     refreshFromSettings(); // ensureProfileAndEntries() fills in every channel's defaults for it
@@ -634,7 +644,7 @@ void LightingStudioWindow::createProfile(const std::string& name)
 
 void LightingStudioWindow::renameActiveProfile(const std::string& newName)
 {
-    if (!settings_.renameActiveProfile(newName)) return;
+    if (!settings_.renameActiveProfile(newName)) return; // empty name or collides with a different existing profile; see createProfile()'s comment above
     // The ACTIVE profile itself doesn't change identity here (just its
     // name), but profileCombo_'s items and main.cpp's tray submenu both
     // need to catch up -- refreshFromSettings() already rebuilds

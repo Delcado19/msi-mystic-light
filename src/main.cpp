@@ -5,10 +5,11 @@
 // docs/superpowers/plans/2026-10-19-lighting-studio.md -- see that plan's
 // Task 18 for the step list this file follows; .superpowers/sdd/
 // 2026-10-19-lighting-studio/task-18-report.md records the exact byte
-// tables derived for each device's first push (for Step 7's real-hardware
-// confirmation, not yet run) and the implementation decisions noted inline
-// below. No new public interface is produced; this file is consumed by
-// nothing else.
+// tables derived for each device's first push. Step 7 (real-hardware
+// confirmation) has since been run to completion for all five devices --
+// see the SDD ledger's Step 7 entries and the Advanced-mode-fix entries
+// for the full history. No new public interface is produced; this file is
+// consumed by nothing else.
 #include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
@@ -229,7 +230,24 @@ void refreshTrayProfiles(TrayApp& tray, const Settings& settings)
 {
     std::vector<std::string> names;
     for (const Profile& p : settings.profiles) names.push_back(p.name);
-    tray.setAvailableProfiles(names, settings.activeProfileName);
+    // Pass the real active profile's name, normalized the same way
+    // Settings::activeProfile() falls back to profiles.front() when
+    // activeProfileName doesn't match any profile (stale settings.json from
+    // a profile renamed/deleted elsewhere) -- not the raw, possibly-stale
+    // activeProfileName field itself. Without this, setAvailableProfiles()
+    // would find no submenu entry matching activeProfileName and leave the
+    // whole profile list unchecked instead of showing the one that's
+    // actually active (settings.activeProfile() can't be called here since
+    // it's non-const and this function only takes a const Settings&).
+    std::string activeName = settings.activeProfileName;
+    if (!settings.profiles.empty()) {
+        bool found = false;
+        for (const Profile& p : settings.profiles) {
+            if (p.name == settings.activeProfileName) { found = true; break; }
+        }
+        if (!found) activeName = settings.profiles.front().name;
+    }
+    tray.setAvailableProfiles(names, activeName);
 }
 
 // Task 21 (USB peripheral reconnect/retry): one entry per reconnectable USB
