@@ -39,6 +39,7 @@ private slots:
     void testMousePressDragRelease_onAChannelBox_emitsChannelPlacementChanged();
     void testMousePressDragRelease_onGlobalEffectHandle_emitsGlobalEffectReferencePointChanged();
     void testPaintEvent_doesNotCrashWithNoChannelsRegistered();
+    void testDragBoxFarPastWidgetEdge_clampsPlacementToVisibleBounds();
 };
 
 void LightingCanvasWidgetTest::testSetChannel_thenRemoveChannel_doesNotCrash()
@@ -112,6 +113,36 @@ void LightingCanvasWidgetTest::testPaintEvent_doesNotCrashWithNoChannelsRegister
     LightingCanvasWidget widget;
     widget.resize(300, 300);
     widget.grab(); // no channels, no global effect -- just the empty background/outline
+}
+
+// Regression test for the review finding that mouseMoveEvent did not clamp
+// drag-produced placements to the widget's own bounds: Qt keeps delivering
+// move/release events past rect() (including negative coordinates) while a
+// button is held, so dragging a box far past an edge and releasing there
+// used to persist an off-canvas placement with no way to click it again.
+void LightingCanvasWidgetTest::testDragBoxFarPastWidgetEdge_clampsPlacementToVisibleBounds()
+{
+    LightingCanvasWidget widget;
+    widget.resize(300, 300);
+    const CanvasPlacement originalPlacement{20.0, 20.0};
+    widget.setChannel("GPU", originalPlacement, CanvasSource::Independent, std::make_shared<FakeEffect>());
+    widget.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&widget));
+
+    const QPoint pressPos(static_cast<int>(originalPlacement.x) + LightingCanvasWidget::kBoxWidth / 2,
+                           static_cast<int>(originalPlacement.y) + LightingCanvasWidget::kBoxHeight / 2);
+    // Way past the widget's right/bottom edge (widget is 300x300).
+    const QPoint farOutsidePos(10000, 10000);
+
+    QSignalSpy spy(&widget, &LightingCanvasWidget::channelPlacementChanged);
+    QTest::mousePress(&widget, Qt::LeftButton, Qt::NoModifier, pressPos);
+    QTest::mouseMove(&widget, farOutsidePos);
+    QTest::mouseRelease(&widget, Qt::LeftButton, Qt::NoModifier, farOutsidePos);
+
+    QVERIFY(spy.count() >= 1);
+    const CanvasPlacement newPlacement = spy.last().at(1).value<CanvasPlacement>();
+    QVERIFY(newPlacement.x >= 0 && newPlacement.x <= widget.width() - LightingCanvasWidget::kBoxWidth);
+    QVERIFY(newPlacement.y >= 0 && newPlacement.y <= widget.height() - LightingCanvasWidget::kBoxHeight);
 }
 
 QTEST_MAIN(LightingCanvasWidgetTest)

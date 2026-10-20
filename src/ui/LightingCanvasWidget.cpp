@@ -154,13 +154,32 @@ void LightingCanvasWidget::mouseMoveEvent(QMouseEvent* event)
         auto it = channels_.find(draggedChannel_);
         if (it == channels_.end()) { dragKind_ = DragTarget::None; return; }
         const QPoint newTopLeft = pos - dragOffset_;
-        it->second.placement = CanvasPlacement{static_cast<double>(newTopLeft.x()), static_cast<double>(newTopLeft.y())};
+        // Qt keeps delivering move/release events past the widget's own
+        // rect() while a button is held (including negative coordinates),
+        // so an unclamped drag released past an edge would leave the box
+        // positioned off-canvas with no way to click it again -- and that
+        // off-canvas value is exactly what channelPlacementChanged persists.
+        // Clamp so the box stays fully visible within the widget.
+        const int maxX = qMax(0, width() - kBoxWidth);
+        const int maxY = qMax(0, height() - kBoxHeight);
+        const int clampedX = qBound(0, newTopLeft.x(), maxX);
+        const int clampedY = qBound(0, newTopLeft.y(), maxY);
+        it->second.placement = CanvasPlacement{static_cast<double>(clampedX), static_cast<double>(clampedY)};
         emit channelPlacementChanged(draggedChannel_, it->second.placement);
         update();
     } else if (dragKind_ == DragTarget::GlobalReferencePoint) {
         if (auto* positionable = globalEffectPositionable()) {
-            positionable->setReferencePoint(pos.x(), pos.y());
-            emit globalEffectReferencePointChanged(pos.x(), pos.y());
+            // Same off-canvas-drag issue as the channel-box branch above,
+            // but for the global effect's reference-point handle: clamp so
+            // the handle (drawn with radius kHandleHitRadius/2) stays fully
+            // visible and re-clickable afterward.
+            const int handleRadius = kHandleHitRadius / 2;
+            const int maxX = qMax(handleRadius, width() - handleRadius);
+            const int maxY = qMax(handleRadius, height() - handleRadius);
+            const int clampedX = qBound(handleRadius, pos.x(), maxX);
+            const int clampedY = qBound(handleRadius, pos.y(), maxY);
+            positionable->setReferencePoint(clampedX, clampedY);
+            emit globalEffectReferencePointChanged(clampedX, clampedY);
             update();
         }
     }
