@@ -73,6 +73,7 @@ private slots:
     void testConstruction_withEmptyProfiles_doesNotCrashAndShowsDefaults();
     void testChangingARowsModeInUi_emitsChannelAssignmentChanged();
     void testSwitchingActiveProfile_emitsActiveProfileChangedAndRepopulatesCanvas();
+    void testRefreshFromSettings_afterExternalProfileSwitch_repopulatesRowsAndCanvas();
 };
 
 void LightingStudioWindowTest::testConstruction_populatesCanvasForEveryChannelName()
@@ -185,6 +186,56 @@ void LightingStudioWindowTest::testSwitchingActiveProfile_emitsActiveProfileChan
     auto* gpuModeCombo = window.findChild<QComboBox*>(QStringLiteral("mode:GPU"));
     QVERIFY(gpuModeCombo != nullptr);
     QCOMPARE(gpuModeCombo->currentIndex(), 0); // Native, per nightProfile
+
+    // ...and the canvas: GPU's box moved to Night's placement.
+    QCOMPARE(dragBoxAt(window.canvas(), CanvasPlacement{300.0, 200.0}), std::string("GPU"));
+}
+
+// Same two-profile setup as the in-UI switch test above, but the switch is
+// triggered the way Task 18's tray profile-switch wiring will: by mutating
+// settings.activeProfileName directly (simulating an external caller that
+// holds the same Settings& reference) and calling the new public
+// refreshFromSettings(), not by touching profileCombo_ at all.
+void LightingStudioWindowTest::testRefreshFromSettings_afterExternalProfileSwitch_repopulatesRowsAndCanvas()
+{
+    Settings settings = makeSettingsWithOneProfile();
+
+    Profile nightProfile = *settings.activeProfile();
+    nightProfile.name = "Night";
+    for (auto& cs : nightProfile.channelSettings) {
+        if (cs.channelName == "GPU") {
+            cs.mode = ChannelMode::Native;
+            cs.placement = CanvasPlacement{300.0, 200.0};
+        }
+    }
+    settings.profiles.push_back(nightProfile);
+
+    LightingStudioWindow window(settings, kChannelNames);
+    window.resize(900, 600);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    QSignalSpy profileSpy(&window, &LightingStudioWindow::activeProfileChanged);
+    QSignalSpy globalSpy(&window, &LightingStudioWindow::globalEffectChanged);
+    QSignalSpy assignmentSpy(&window, &LightingStudioWindow::channelAssignmentChanged);
+
+    // External mutation: nothing in this window's UI touched yet.
+    settings.activeProfileName = "Night";
+    window.refreshFromSettings();
+
+    QCOMPARE(assignmentSpy.count(), static_cast<int>(kChannelNames.size()));
+    QCOMPARE(globalSpy.count(), 1);
+    QCOMPARE(profileSpy.count(), 1);
+    QCOMPARE(profileSpy.last().at(0).value<std::string>(), std::string("Night"));
+
+    // Row widgets and the profile selector itself caught up...
+    auto* gpuModeCombo = window.findChild<QComboBox*>(QStringLiteral("mode:GPU"));
+    QVERIFY(gpuModeCombo != nullptr);
+    QCOMPARE(gpuModeCombo->currentIndex(), 0); // Native, per nightProfile
+
+    auto* profileCombo = window.findChild<QComboBox*>(QStringLiteral("profileCombo"));
+    QVERIFY(profileCombo != nullptr);
+    QCOMPARE(profileCombo->currentText(), QStringLiteral("Night"));
 
     // ...and the canvas: GPU's box moved to Night's placement.
     QCOMPARE(dragBoxAt(window.canvas(), CanvasPlacement{300.0, 200.0}), std::string("GPU"));
