@@ -37,7 +37,10 @@ void SteelSeriesApex3DriverTest::testPushCanvasColors_sendsBothPacketsInOrder()
     QCOMPARE(static_cast<int>(hid.writtenReports.size()), 2);
     // Order pinned to SteelSeriesApexTZoneController::SetColor: brightness
     // packet (cmd 0x0A) is sent before the colors packet (cmd 0x0B).
-    QCOMPARE(hid.writtenReports[0], toVec(BuildApex3BrightnessPacket(3)));
+    // 100 (not 3) is the driver's hardcoded default - see kSteelSeriesApex3BrightnessMax
+    // in SteelSeriesApex3Driver.cpp, hardware-confirmed against OpenRGB's
+    // STEELSERIES_TZ_BRIGHTNESS_MAX (0x64).
+    QCOMPARE(hid.writtenReports[0], toVec(BuildApex3BrightnessPacket(100)));
     QCOMPARE(hid.writtenReports[1], toVec(BuildApex3ColorsPacket(colors)));
     QCOMPARE(static_cast<int>(hid.sentReports.size()), 0); // write(), never sendFeatureReport
 }
