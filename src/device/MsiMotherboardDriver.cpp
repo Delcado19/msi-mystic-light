@@ -106,11 +106,17 @@ bool MsiMotherboardDriver::setChannelMode(const std::string& channelName, Channe
     // black, so once Advanced is active, 0x51's own per-LED data is what
     // the firmware displays and the 0x50 record's color fields don't matter.
     //
-    // Resent unconditionally on every setChannelMode(Canvas) call, same as
-    // RoccatVulcanDriver::setChannelMode's EnableDirect send - this also
-    // fires on every canvas-drag placement change (LightingStudioWindow::
-    // onCanvasChannelPlacementChanged), not just the first. A 290-byte
-    // feature report is cheap and idempotent, so no "already armed" flag.
+    // No "already armed" flag here -- this send is unconditional on every
+    // setChannelMode(Canvas) call, same as RoccatVulcanDriver::setChannelMode's
+    // EnableDirect send has no enable-cache either (though the two differ in
+    // return-value semantics: Vulcan's setChannelMode propagates the actual
+    // sendFeatureReport result, this one always returns true once
+    // supportsMode() has accepted the mode). As of main.cpp's Task 20 fix,
+    // this is no longer reached on every canvas-drag pixel: main.cpp now
+    // gates its own call to setChannelMode() on the channel's *mode* actually
+    // changing, so a placement-only drag never re-enters this function at
+    // all. It still fires on every real mode/settings change and once per
+    // profile switch, which is why no cache was added here either.
     if (mode == ChannelMode::Canvas && hid_.isOpen()) {
         MsiZoneSettings& zone = zoneState_[it->second.zoneIndex];
         zone.lightingMode = MsiLightingMode::Advanced;

@@ -206,8 +206,15 @@ GlobalEffectSettings globalEffectSettingsFromJson(const QJsonValue& v)
     QJsonObject o = v.toObject();
     g.effectName = o.value("effectName").toString().toStdString();
     g.color = colorFromJson(o.value("color"), g.color);
-    g.referenceX = o.value("referenceX").toInt(g.referenceX);
-    g.referenceY = o.value("referenceY").toInt(g.referenceY);
+    // Same clamp class as placementFromJson's x/y above (and the same
+    // reasoning: a hand-edited settings.json can encode e.g. 2e9, which
+    // overflows int and is UB when Spiral/SwirlCircles/RadialRainbow compute
+    // `x - centerX_`). Read via toDouble() rather than toInt() so an
+    // out-of-int-range JSON number is clamped here instead of converted
+    // first, then clamped to kMaxPlacementCoord's range (same generous bound,
+    // reused rather than duplicated).
+    g.referenceX = static_cast<int>(clampPlacementCoord(o.value("referenceX").toDouble(g.referenceX), g.referenceX));
+    g.referenceY = static_cast<int>(clampPlacementCoord(o.value("referenceY").toDouble(g.referenceY), g.referenceY));
     return g;
 }
 
