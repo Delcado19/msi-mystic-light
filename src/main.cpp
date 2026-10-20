@@ -428,6 +428,23 @@ int main(int argc, char** argv)
         channelNames.push_back(name);
     }
 
+    // Task 23, Part 1: query each channel's own driver for which of
+    // {Native, Canvas} it actually supports (IDriver::supportsMode -- a
+    // non-mutating capability query mirroring each driver's own
+    // setChannelMode accept/reject rule) and hand the result to
+    // LightingStudioWindow, so its mode combo per row only ever offers a
+    // mode that channel's hardware will really honor -- e.g. the 4
+    // peripherals are Canvas-only, and the motherboard's JRGB1 is
+    // Native-only. This is the one place that owns the query; the UI layer
+    // never re-derives per-device-name rules of its own.
+    std::map<std::string, std::vector<ChannelMode>> availableModesByChannel;
+    for (const auto& [name, driver] : driversByChannel) {
+        std::vector<ChannelMode> modes;
+        if (driver && driver->supportsMode(name, ChannelMode::Native)) modes.push_back(ChannelMode::Native);
+        if (driver && driver->supportsMode(name, ChannelMode::Canvas)) modes.push_back(ChannelMode::Canvas);
+        availableModesByChannel[name] = std::move(modes);
+    }
+
     // Step 4a: load persisted settings. loadFromFile returns false on a
     // missing/corrupt file and leaves settings untouched (default-
     // constructed: no profiles) per its documented contract -- the return
@@ -455,7 +472,7 @@ int main(int argc, char** argv)
     // tested fallback instead of duplicating an equivalent default-filling
     // loop here means settings.activeProfile() is guaranteed non-null and
     // complete for every line below.
-    LightingStudioWindow studio(settings, channelNames);
+    LightingStudioWindow studio(settings, channelNames, availableModesByChannel);
 
     // Task 20, Bug A: last ChannelSettings actually pushed to the driver/
     // Canvas per channel, so the channelAssignmentChanged handler below can
