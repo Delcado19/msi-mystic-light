@@ -146,13 +146,15 @@ void applyChannelSettingsToCanvas(Canvas& canvas, const std::map<std::string, ID
 // Task 21 (USB peripheral reconnect/retry): re-applies every channel
 // currently routed to `driver` using its CURRENT ChannelSettings, read live
 // from `settings.activeProfile()` rather than the lastAppliedChannelSettings
-// cache -- the channelAssignmentChanged handler further down always writes
-// a channel's new ChannelSettings into both settings and that cache
-// together (even while the push to hardware was silently failing because
-// the device was down), so the two already agree here; Settings is simply
-// the unambiguous single source of truth (a channel that reconnects before
-// ever being touched by that handler -- e.g. right after startup -- would
-// have no cache entry at all yet).
+// cache. The two happen to agree in practice (the startup loop and the
+// channelAssignmentChanged handler both keep the cache in lockstep with
+// settings), but they answer different questions: `settings` is the user's
+// actual intent (what the lighting SHOULD be), while the cache is Task 20's
+// own bookkeeping for its placement-drag gate (what was last PUSHED,
+// regardless of whether the push reached real hardware). A reconnect needs
+// to restore intent, not replay the gate's bookkeeping -- reading `settings`
+// directly is correct by construction, not just correct because the two
+// currently happen to match.
 //
 // Matches channels by `driversByChannel`'s driver pointer rather than a
 // hardcoded channel name, so this works unchanged if a driver is ever
@@ -242,6 +244,7 @@ void refreshTrayProfiles(TrayApp& tray, const Settings& settings)
 // (relevant for the Vulcan, which needs two separate HID interfaces both
 // open before it counts as reconnected).
 struct ReconnectiblePeripheral {
+    std::string name; // for the reconnect-attempt log line only; not a channel-name lookup key
     IDriver* driver;
     std::function<bool()> isOpen;
     std::function<bool()> reopen;
@@ -480,10 +483,10 @@ int main(int argc, char** argv)
     // entry here -- see mbHid.setCloseOnIoError(false) above and this
     // task's report for why.
     std::vector<ReconnectiblePeripheral> reconnectPeripherals = {
-        {&vulcanDriver, [&vulcanControlHid, &vulcanLedHid]() { return vulcanControlHid.isOpen() && vulcanLedHid.isOpen(); }, openVulcanHid},
-        {&koneDriver, [&koneHid]() { return koneHid.isOpen(); }, openKoneHid},
-        {&basiliskDriver, [&basiliskHid]() { return basiliskHid.isOpen(); }, openBasiliskHid},
-        {&apex3Driver, [&apex3Hid]() { return apex3Hid.isOpen(); }, openApex3Hid},
+        {"RoccatVulcan", &vulcanDriver, [&vulcanControlHid, &vulcanLedHid]() { return vulcanControlHid.isOpen() && vulcanLedHid.isOpen(); }, openVulcanHid},
+        {"RoccatKone", &koneDriver, [&koneHid]() { return koneHid.isOpen(); }, openKoneHid},
+        {"RazerBasiliskV3", &basiliskDriver, [&basiliskHid]() { return basiliskHid.isOpen(); }, openBasiliskHid},
+        {"SteelSeriesApex3", &apex3Driver, [&apex3Hid]() { return apex3Hid.isOpen(); }, openApex3Hid},
     };
 
     // Interval: 5s. A failed hid_open() on an absent device is a cheap
@@ -500,7 +503,7 @@ int main(int argc, char** argv)
                 if (!peripheral.reopen()) {
                     continue; // still down (device not present); try again next tick
                 }
-                qInfo() << "Reconnected a USB peripheral; re-applying its current lighting settings";
+                qInfo() << "Reconnect: reopened" << QString::fromStdString(peripheral.name) << "-- re-applying its current lighting settings";
                 // Re-apply this device's channel(s) to their CURRENT
                 // settings: a freshly (re)plugged device resets to its own
                 // firmware-default lighting state. This intentionally
