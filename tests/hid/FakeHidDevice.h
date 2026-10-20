@@ -11,7 +11,12 @@
 class FakeHidDevice : public IHidDevice {
 public:
     bool open(uint16_t, uint16_t, int interfaceNumber = -1, int usagePage = -1) override {
-        opened_ = true;
+        // Task 21: opened_ tracks openSucceeds, matching HidApiDevice's real
+        // semantics (handle_ is only non-null when hid_open()/hid_open_path()
+        // actually succeeded) -- a failed open() must leave isOpen() false,
+        // otherwise a reconnect-retry loop gated on isOpen() could never be
+        // exercised against a simulated failed reopen.
+        opened_ = openSucceeds;
         openInterfaceNumber = interfaceNumber;
         openUsagePage = usagePage;
         return openSucceeds;
