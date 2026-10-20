@@ -28,6 +28,9 @@ private slots:
     void testSetNativeMode_jargb3UsesZoneTwoAndAreaFour02();
     void testCreateDefaultChannels_returnsAllSixChannelsWithDocumentedLedLimits();
     void testCreateDefaultChannels_channelsHavePlaceholderComponentsSoColorsAreNotEmpty();
+    void testSetChannelModeCanvas_armsZoneToAdvancedBefore0x51Push();
+    void testSetChannelModeNative_doesNotArmZone();
+    void testJRGB1_cannotBeSetToCanvasMode_sendsNothing();
 };
 
 void MsiMotherboardDriverTest::testSetNativeMode_sendsExpectedBytesAndPreservesOtherZones()
@@ -75,8 +78,12 @@ void MsiMotherboardDriverTest::testPushCanvasColors_onlyWorksInCanvasMode()
     QVERIFY(!driver.pushCanvasColors("JARGB1", colors)); // default mode is Native
     QVERIFY(driver.setChannelMode("JARGB1", ChannelMode::Canvas));
     QVERIFY(driver.pushCanvasColors("JARGB1", colors));
-    QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
-    QCOMPARE(hid.sentReports[0][0], static_cast<uint8_t>(0x51));
+    // setChannelMode(Canvas) also sends one arming 0x50 report (see
+    // testSetChannelModeCanvas_armsZoneToAdvancedBefore0x51Push below for
+    // the dedicated test), so two reports are sent in total: 0x50 then 0x51.
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 2);
+    QCOMPARE(hid.sentReports[0][0], static_cast<uint8_t>(0x50));
+    QCOMPARE(hid.sentReports[1][0], static_cast<uint8_t>(0x51));
 }
 
 void MsiMotherboardDriverTest::testJRGB1_cannotBeSetToCanvasMode()
@@ -165,10 +172,13 @@ void MsiMotherboardDriverTest::testPushCanvasColors_rejectsMoreColorsThanLedLimi
     FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
     MsiMotherboardDriver driver(hid);
     QVERIFY(driver.setChannelMode("IOShield", ChannelMode::Canvas));
+    // setChannelMode(Canvas) itself sends one arming 0x50 report; only the
+    // rejected pushCanvasColors call below must add nothing further.
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
 
     std::vector<MsiColor> tooMany(12, MsiColor{1, 2, 3});
     QVERIFY(!driver.pushCanvasColors("IOShield", tooMany));
-    QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
 }
 
 void MsiMotherboardDriverTest::testSetNativeMode_unknownChannelFailsGracefully()
@@ -184,8 +194,11 @@ void MsiMotherboardDriverTest::testSetNativeMode_wrongModeFailsGracefully()
     FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
     MsiMotherboardDriver driver(hid);
     QVERIFY(driver.setChannelMode("JARGB1", ChannelMode::Canvas));
+    // setChannelMode(Canvas) itself sends one arming 0x50 report; the
+    // rejected setNativeMode call below must add nothing further.
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
     QVERIFY(!driver.setNativeMode("JARGB1", NativeModeSettings{}));
-    QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
 }
 
 // Finding from review: JARGB3's zone index (2) and Gen1Adv area (0x0402)
@@ -256,6 +269,48 @@ void MsiMotherboardDriverTest::testCreateDefaultChannels_channelsHavePlaceholder
         QCOMPARE(ch.totalLedCount(), expected);
         QCOMPARE(static_cast<int>(ch.colors().size()), expected);
     }
+}
+
+// Live-hardware finding (2026-10-20, see MsiMotherboardDriver.cpp's
+// setChannelMode comment): the firmware only honors 0x51 per-LED data for a
+// zone whose 0x50 record has lightingMode=Advanced (9). Pins that
+// setChannelMode(Canvas) sends that arming 0x50 report itself, using the
+// same record-layout offset (1 + zoneIndex*16) as
+// testZoneIndexMapping_pinsEachChannelToItsDocumentedZone above.
+void MsiMotherboardDriverTest::testSetChannelModeCanvas_armsZoneToAdvancedBefore0x51Push()
+{
+    FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
+    MsiMotherboardDriver driver(hid);
+
+    QVERIFY(driver.setChannelMode("JARGB2", ChannelMode::Canvas));
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
+    const auto& report = hid.sentReports.back();
+    QCOMPARE(report[0], static_cast<uint8_t>(0x50));
+    // JARGB2 is zone index 1: lightingMode byte is at 1 + 1*16 = 17.
+    QCOMPARE(report[1 + 1 * 16], static_cast<uint8_t>(9)); // MsiLightingMode::Advanced
+}
+
+// Only Canvas arms a zone; Native must never trigger the 0x50 arming send
+// (it has its own, separate setNativeMode path).
+void MsiMotherboardDriverTest::testSetChannelModeNative_doesNotArmZone()
+{
+    FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
+    MsiMotherboardDriver driver(hid);
+
+    QVERIFY(driver.setChannelMode("JARGB1", ChannelMode::Native));
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
+}
+
+// JRGB1 has no Gen1Adv area, so setChannelMode(Canvas) must keep returning
+// false and must not attempt the arming send either (it's gated behind the
+// same early return as the Gen1Adv-area check).
+void MsiMotherboardDriverTest::testJRGB1_cannotBeSetToCanvasMode_sendsNothing()
+{
+    FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
+    MsiMotherboardDriver driver(hid);
+
+    QVERIFY(!driver.setChannelMode("JRGB1", ChannelMode::Canvas));
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
 }
 
 QTEST_MAIN(MsiMotherboardDriverTest)
