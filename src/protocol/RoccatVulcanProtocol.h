@@ -59,15 +59,28 @@
 //             not implement (out of scope; the brief asks only for the
 //             SendColors byte packing). Without that handshake this
 //             encoder cannot know a specific unit's firmware version, so
-//             it hardcodes the little-endian branch (`bufs[0][3]=
-//             length&0xFF, bufs[0][4]=(length>>8)&0xFF`) - an arbitrary
-//             but necessary choice, not a derived default.
-//             ** CONCERN carried into the task report: this is the one
-//             byte pair in this encoder that may be wrong for a unit
-//             running firmware >= v1.16. It affects only packet 0, bytes
-//             3-4 (a constant length field, not any per-key color byte) -
-//             confirm against real hardware in Task 18; if wrong, the fix
-//             is a single two-byte swap, not a repacking. **
+//             it hardcodes one branch - an arbitrary but necessary choice
+//             per unit, not a derived default.
+//             ** Live-hardware-tested 2026-10-20 against a real Roccat
+//             Vulcan 100 Aimo (full-size, numpad, 144 individually
+//             addressable keys): the little-endian branch (`bufs[0][3]=
+//             length&0xFF, bufs[0][4]=(length>>8)&0xFF`) produced
+//             corrupted/shifted colors - all 144 keys lit in scattered
+//             wrong hues (yellow/green/cyan, no red), the classic symptom
+//             of the firmware misparsing the declared length and reading
+//             color bytes from a shifted offset. The big-endian branch
+//             (`bufs[0][3]=(length>>8)&0xFF, bufs[0][4]=length&0xFF`,
+//             now hardcoded in BuildVulcanColorPackets) produced solid,
+//             correct red across all keys, confirming this tested unit's
+//             firmware is >= v1.16 per IsBigEndianDirectMode() above. So
+//             big-endian is now the confirmed default for at least this
+//             one real unit - but the underlying caveat still applies: a
+//             *different* physical unit on older firmware (pre-v1.16)
+//             could still need little-endian, and this encoder still has
+//             no way to tell without performing the real
+//             InitDeviceInfo/IsBigEndianDirectMode handshake. If a future
+//             unit reports wrong colors again, the fix is the same single
+//             two-byte swap, not a repacking. **
 //   [5..64] = color data starts here (byte index 5 = header_length_first+1)
 //
 // Packets 1..6: no header at all - bytes [1..64] are color data (.cpp:

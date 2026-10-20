@@ -24,10 +24,11 @@ private slots:
 // an empty input - the real device always receives all 7 packets
 // (RoccatVulcanKeyboardController.cpp:249-256 sizes `bufs` from the fixed
 // packet_length, not from colors.size()). Packet 0's header is pinned to
-// .cpp:266-269 (0xA1/0x01 markers) and .cpp:280-289's little-endian branch
-// of IsBigEndianDirectMode() (see header comment for why little-endian is
-// the defensible default without a firmware-version handshake):
-// VULCAN_PACKET_LENGTH=436=0x01B4 -> low byte 0xB4 at [3], high byte 0x01
+// .cpp:266-269 (0xA1/0x01 markers) and .cpp:280-289's big-endian branch of
+// IsBigEndianDirectMode() - confirmed by live-hardware test 2026-10-20
+// against a real Vulcan 100 Aimo; see header comment for the firmware-
+// version caveat that still applies to other physical units:
+// VULCAN_PACKET_LENGTH=436=0x01B4 -> high byte 0x01 at [3], low byte 0xB4
 // at [4]. Packets 1..6 have no header at all (.cpp's protocol_version==1
 // branch only ever writes bufs[0][1]/[2], never bufs[i>0][1]/[2]).
 void RoccatVulcanProtocolTest::testBuildVulcanColorPackets_packetCountAndHeader()
@@ -41,8 +42,8 @@ void RoccatVulcanProtocolTest::testBuildVulcanColorPackets_packetCountAndHeader(
     QCOMPARE(packets[0][0], static_cast<uint8_t>(0x00)); // report-ID byte, never written
     QCOMPARE(packets[0][1], static_cast<uint8_t>(0xA1));
     QCOMPARE(packets[0][2], static_cast<uint8_t>(0x01));
-    QCOMPARE(packets[0][3], static_cast<uint8_t>(0xB4)); // 436 & 0xFF
-    QCOMPARE(packets[0][4], static_cast<uint8_t>(0x01)); // 436 >> 8
+    QCOMPARE(packets[0][3], static_cast<uint8_t>(0x01)); // 436 >> 8
+    QCOMPARE(packets[0][4], static_cast<uint8_t>(0xB4)); // 436 & 0xFF
 
     for (int p = 1; p < VULCAN_PACKET_COUNT; ++p) {
         QCOMPARE(packets[p][0], static_cast<uint8_t>(0x00));

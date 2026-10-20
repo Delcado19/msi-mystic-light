@@ -26,10 +26,12 @@ std::vector<std::array<uint8_t, VULCAN_PACKET_SIZE>> BuildVulcanColorPackets(
     // headerless, pure color data.
     packets[0][1] = 0xA1;
     packets[0][2] = 0x01;
-    // header_length_first==4 branch (.cpp:278-289); little-endian default,
-    // see header comment for the firmware-version caveat.
-    packets[0][3] = VULCAN_PACKET_LENGTH & 0xFF;
-    packets[0][4] = (VULCAN_PACKET_LENGTH >> 8) & 0xFF;
+    // header_length_first==4 branch (.cpp:278-289). Big-endian default,
+    // confirmed by live-hardware test 2026-10-20 against a real Vulcan 100
+    // Aimo; see header comment for the firmware-version caveat that still
+    // applies to other physical units.
+    packets[0][3] = (VULCAN_PACKET_LENGTH >> 8) & 0xFF;
+    packets[0][4] = VULCAN_PACKET_LENGTH & 0xFF;
 
     for (size_t i = 0; i < keyColors.size(); ++i) {
         const int column = static_cast<int>(i) / VULCAN_COLUMN_LENGTH;
