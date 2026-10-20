@@ -26,6 +26,7 @@ private slots:
     void testPushCanvasColors_wrongChannelNameFailsGracefully();
     void testPushCanvasColors_rejectsMoreLedsThanMax();
     void testCreateDefaultChannel_hasDocumentedNameAndLedCount();
+    void testSupportsMode_canvasOnlyNeverNative();
 };
 
 void RazerBasiliskDriverTest::testPushCanvasColors_sendsBothReportsInOrder()
@@ -94,6 +95,18 @@ void RazerBasiliskDriverTest::testCreateDefaultChannel_hasDocumentedNameAndLedCo
     QCOMPARE(channel.name(), std::string("RazerBasiliskV3"));
     QCOMPARE(channel.ledLimit(), RAZER_BASILISK_MAX_LEDS);
     QCOMPARE(channel.totalLedCount(), RAZER_BASILISK_MAX_LEDS);
+}
+
+// Task 23: non-mutating capability query LightingStudioWindow uses to pick
+// which modes this channel's row offers; must agree with setChannelMode.
+void RazerBasiliskDriverTest::testSupportsMode_canvasOnlyNeverNative()
+{
+    FakeHidDevice hid; // deliberately not opened -- supportsMode needs no I/O
+    RazerBasiliskDriver driver(hid);
+    QVERIFY(driver.supportsMode("RazerBasiliskV3", ChannelMode::Canvas));
+    QVERIFY(!driver.supportsMode("RazerBasiliskV3", ChannelMode::Native));
+    QVERIFY(!driver.supportsMode("NoSuchChannel", ChannelMode::Canvas));
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
 }
 
 QTEST_MAIN(RazerBasiliskDriverTest)

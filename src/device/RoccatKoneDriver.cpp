@@ -15,14 +15,16 @@ Channel RoccatKoneDriver::createDefaultChannel()
     return channel;
 }
 
-bool RoccatKoneDriver::setChannelMode(const std::string& channelName, ChannelMode mode)
+bool RoccatKoneDriver::supportsMode(const std::string& channelName, ChannelMode mode) const
 {
     // Direct-mode only (Global Constraint): Canvas is the only mode this
-    // peripheral ever accepts, so Native is always rejected here.
-    if (channelName != kChannelName || mode != ChannelMode::Canvas) {
-        return false;
-    }
-    return true;
+    // peripheral ever accepts, so Native is never supported.
+    return channelName == kChannelName && mode == ChannelMode::Canvas;
+}
+
+bool RoccatKoneDriver::setChannelMode(const std::string& channelName, ChannelMode mode)
+{
+    return supportsMode(channelName, mode);
 }
 
 ChannelMode RoccatKoneDriver::channelMode(const std::string& channelName) const

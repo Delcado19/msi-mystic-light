@@ -64,6 +64,7 @@ class FakeDriver : public IDriver {
 public:
     bool setChannelMode(const std::string&, ChannelMode) override { return true; }
     ChannelMode channelMode(const std::string&) const override { return ChannelMode::Canvas; }
+    bool supportsMode(const std::string&, ChannelMode) const override { return true; } // test double: accepts everything
     bool setNativeMode(const std::string& channelName, const NativeModeSettings&) override {
         nativeModeChannels.push_back(channelName);
         return true;

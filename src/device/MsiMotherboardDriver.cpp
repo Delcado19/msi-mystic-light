@@ -63,17 +63,27 @@ std::vector<Channel> MsiMotherboardDriver::createDefaultChannels()
     return channels;
 }
 
-bool MsiMotherboardDriver::setChannelMode(const std::string& channelName, ChannelMode mode)
+bool MsiMotherboardDriver::supportsMode(const std::string& channelName, ChannelMode mode) const
 {
     auto it = channelTable().find(channelName);
     if (it == channelTable().end()) {
         return false;
     }
     // Canvas mode needs a Gen1Adv area for per-LED addressing; JRGB1 has
-    // none (single non-addressable LED), so it is native-mode only.
-    if (mode == ChannelMode::Canvas && !it->second.gen1AdvArea.has_value()) {
+    // none (single non-addressable LED), so it is native-mode only. Every
+    // known channel supports Native.
+    if (mode == ChannelMode::Canvas) {
+        return it->second.gen1AdvArea.has_value();
+    }
+    return true;
+}
+
+bool MsiMotherboardDriver::setChannelMode(const std::string& channelName, ChannelMode mode)
+{
+    if (!supportsMode(channelName, mode)) {
         return false;
     }
+    auto it = channelTable().find(channelName); // known to exist: supportsMode() already confirmed it
     channelModes_[channelName] = mode;
     // Live-hardware finding (2026-10-20): report 0x51 ("Gen1_Adv", per-LED
     // color data) is only honored by the firmware for a zone whose 0x50

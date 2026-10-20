@@ -25,6 +25,7 @@ private slots:
     void testPushCanvasColors_wrongChannelNameFailsGracefully();
     void testPushCanvasColors_rejectsMoreZonesThanMax();
     void testCreateDefaultChannel_hasDocumentedNameAndZoneCount();
+    void testSupportsMode_canvasOnlyNeverNative();
 };
 
 void SteelSeriesApex3DriverTest::testPushCanvasColors_sendsBothPacketsInOrder()
@@ -96,6 +97,18 @@ void SteelSeriesApex3DriverTest::testCreateDefaultChannel_hasDocumentedNameAndZo
     QCOMPARE(channel.name(), std::string("SteelSeriesApex3"));
     QCOMPARE(channel.ledLimit(), STEELSERIES_APEX3_MAX_ZONES);
     QCOMPARE(channel.totalLedCount(), STEELSERIES_APEX3_MAX_ZONES);
+}
+
+// Task 23: non-mutating capability query LightingStudioWindow uses to pick
+// which modes this channel's row offers; must agree with setChannelMode.
+void SteelSeriesApex3DriverTest::testSupportsMode_canvasOnlyNeverNative()
+{
+    FakeHidDevice hid; // deliberately not opened -- supportsMode needs no I/O
+    SteelSeriesApex3Driver driver(hid);
+    QVERIFY(driver.supportsMode("SteelSeriesApex3", ChannelMode::Canvas));
+    QVERIFY(!driver.supportsMode("SteelSeriesApex3", ChannelMode::Native));
+    QVERIFY(!driver.supportsMode("NoSuchChannel", ChannelMode::Canvas));
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
 }
 
 QTEST_MAIN(SteelSeriesApex3DriverTest)

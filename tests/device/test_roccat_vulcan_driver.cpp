@@ -28,6 +28,7 @@ private slots:
     void testPushCanvasColors_wrongChannelNameFailsGracefully();
     void testPushCanvasColors_rejectsMoreLedsThanMax();
     void testCreateDefaultChannel_hasDocumentedNameAndLedCount();
+    void testSupportsMode_canvasOnlyNeverNative();
 };
 
 // Color pushes go to the LED interface only (hid_write(dev_led, ...),
@@ -143,6 +144,22 @@ void RoccatVulcanDriverTest::testCreateDefaultChannel_hasDocumentedNameAndLedCou
     QCOMPARE(channel.name(), std::string("RoccatVulcan"));
     QCOMPARE(channel.ledLimit(), VULCAN_MAX_LEDS);
     QCOMPARE(channel.totalLedCount(), VULCAN_MAX_LEDS);
+}
+
+// Task 23: supportsMode() is a non-mutating query (no HID I/O, works even
+// with both handles closed) that LightingStudioWindow uses to decide which
+// modes to offer in this channel's mode combo -- must agree with
+// setChannelMode's own accept/reject rule above.
+void RoccatVulcanDriverTest::testSupportsMode_canvasOnlyNeverNative()
+{
+    FakeHidDevice controlHid; // deliberately not opened
+    FakeHidDevice ledHid;     // deliberately not opened
+    RoccatVulcanDriver driver(controlHid, ledHid);
+
+    QVERIFY(driver.supportsMode("RoccatVulcan", ChannelMode::Canvas));
+    QVERIFY(!driver.supportsMode("RoccatVulcan", ChannelMode::Native));
+    QVERIFY(!driver.supportsMode("NoSuchChannel", ChannelMode::Canvas));
+    QCOMPARE(static_cast<int>(controlHid.sentReports.size()), 0); // purely a query, nothing sent
 }
 
 QTEST_MAIN(RoccatVulcanDriverTest)
