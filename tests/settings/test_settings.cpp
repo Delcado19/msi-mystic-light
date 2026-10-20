@@ -27,6 +27,7 @@ private slots:
     void testLoadFromFile_wrongFieldTypesUseDefaults();
     void testLoadFromFile_outOfRangeNativeValuesAreClamped();
     void testLoadFromFile_extremePlacementIsClamped();
+    void testLoadFromFile_extremeGlobalEffectReferenceIsClamped();
     void testLoadFromFile_structurallyInvalidJsonLeavesSettingsUnchanged();
     void testSaveToFile_unwritablePathFails();
 
@@ -288,6 +289,29 @@ void SettingsTest::testLoadFromFile_extremePlacementIsClamped()
     QVERIFY(std::isfinite(p.y));
     QVERIFY(p.x < 1e7 && p.x > -1e7); // clamped, not passed through raw
     QVERIFY(p.y < 1e7 && p.y > -1e7);
+    QFile::remove(path);
+}
+
+// Same overflow-UB class as the placement test above, but for
+// GlobalEffectSettings::referenceX/Y (int fields read via clampPlacementCoord
+// since commit d8ed7dd): a hand-edited settings.json can encode e.g. 2e9,
+// which overflows int and is UB where Spiral/SwirlCircles/RadialRainbow
+// compute `x - centerX_`. Exercised through the real load path for the same
+// reason as the placement test: the clamp must survive JSON's double->int
+// boundary, not just be unit-tested on clampPlacementCoord() in isolation.
+void SettingsTest::testLoadFromFile_extremeGlobalEffectReferenceIsClamped()
+{
+    QString path = QDir::temp().filePath("msi_app_settings_extremereference_test.json");
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(R"({"profiles":[{"name":"Default","globalEffect":{"effectName":"Spiral","referenceX":2e9,"referenceY":-2e9}}],"activeProfile":"Default"})");
+    f.close();
+
+    Settings s;
+    QVERIFY(s.loadFromFile(path.toStdString()));
+    const GlobalEffectSettings& g = s.profiles[0].globalEffect;
+    QVERIFY(g.referenceX < 1'000'001 && g.referenceX > -1'000'001); // clamped, not passed through raw
+    QVERIFY(g.referenceY < 1'000'001 && g.referenceY > -1'000'001);
     QFile::remove(path);
 }
 
