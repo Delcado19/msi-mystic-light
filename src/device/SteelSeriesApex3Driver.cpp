@@ -4,14 +4,19 @@ namespace {
 const char* kChannelName = "SteelSeriesApex3";
 
 // The brief (task-9-brief.md) pins the brightness *packet layout* but not
-// which value the driver should send; "3" is only the example argument in
-// its protocol-layout test. IDriver exposes no brightness control, so this
-// hardcodes a value for every push.
-// ponytail: hardcoded brightness, unverified against real hardware's actual
-// scale (could be 0-3, could be 0-100 - unknown without a device or the
-// cited OpenRGB source). Expose a real brightness setting, or confirm and
-// pin the correct max value, once hardware is available to test against.
-constexpr uint8_t kBrightness = 3;
+// which value the driver should send; "3" was only the example argument in
+// its protocol-layout test, mistaken at the time for a plausible real value.
+// IDriver exposes no brightness control, so this hardcodes a value (not
+// user-configurable) for every push.
+// Hardware-verified 2026-10-20 (Task 18, closing the Task 9 ponytail debt
+// item in .superpowers/sdd/2026-10-19-lighting-studio/progress.md): the
+// T-Zone brightness scale is 0-100, not 0-3. Confirmed both by live test
+// against a real Apex 3 (kBrightness=3 was visually ~3% brightness, barely
+// perceptible; 100 is full, clearly visible) and by OpenRGB's own source -
+// STEELSERIES_TZ_BRIGHTNESS_MAX = 0x64 (100) in
+// SteelSeriesApexTZoneController.h:22. The value is now confirmed-correct,
+// not a guess; it just still can't be changed by the user.
+constexpr uint8_t kSteelSeriesApex3BrightnessMax = 100;
 } // namespace
 
 SteelSeriesApex3Driver::SteelSeriesApex3Driver(IHidDevice& hid) : hid_(hid)
@@ -60,7 +65,7 @@ bool SteelSeriesApex3Driver::pushCanvasColors(const std::string& channelName, co
     // Order pinned to SteelSeriesApexTZoneController::SetColor: the
     // brightness packet (cmd 0x0A) is sent before the colors packet (cmd
     // 0x0B). Both are output reports (hid_write), not feature reports.
-    const std::array<uint8_t, STEELSERIES_APEX3_PACKET_SIZE> brightnessPacket = BuildApex3BrightnessPacket(kBrightness);
+    const std::array<uint8_t, STEELSERIES_APEX3_PACKET_SIZE> brightnessPacket = BuildApex3BrightnessPacket(kSteelSeriesApex3BrightnessMax);
     const std::array<uint8_t, STEELSERIES_APEX3_PACKET_SIZE> colorsPacket = BuildApex3ColorsPacket(colors);
     const bool brightnessSent = hid_.write(brightnessPacket.data(), brightnessPacket.size());
     const bool colorsSent = hid_.write(colorsPacket.data(), colorsPacket.size());
