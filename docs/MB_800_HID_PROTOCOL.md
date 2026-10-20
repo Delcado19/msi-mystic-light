@@ -117,9 +117,9 @@ family, instead of the correct 727 bytes here). A `GET_FEATURE_REPORT` on a
 report the firmware only implements as `SET` plausibly times out without
 the report actually being absent.
 
-**Confirmed working via a third-party production app (2026-10-18)**:
-SignalRGB (installed locally, v2.5.80, officially signed by WhirlwindFX)
-ships a maintained plugin for this exact VID (`0x0DB0`, file
+**Confirmed working via a third-party production app (2026-10-18, static
+analysis)**: SignalRGB (installed locally, v2.5.80, officially signed by
+WhirlwindFX) ships a maintained plugin for this exact VID (`0x0DB0`, file
 `185 Byte Motherboard Controller/MSI_185Byte_Controller_0x0DB0.js`) with
 an explicit entry for `MPG B850 EDGE TI WIFI (MS-7E62)`. It detects this
 report with `device.send_report([0x51], 761)` — a **SET**, not the GET
@@ -131,9 +131,41 @@ found in OpenRGB's own code, apparently inherited from the same
 community lineage). No "Store" flag equivalent for this report; it's
 purely transient, sent every render frame with no explicit per-packet
 delay in this code path (global frame-rate capping happens elsewhere in
-the app). This closes the "not yet tested" gap without touching the
+the app). This closed the "not yet tested" gap without touching the
 board ourselves — static analysis of already-running, signed vendor
 software.
+
+**Confirmed working live against real hardware (2026-10-20) — with a
+precondition this project missed for a long time.** The byte layout above
+is now confirmed by an actual observed LED change, not just derivation:
+live-tested on two independent, physically-wired zones (`JARGB1` → rear
+exhaust fan, `JARGB2` → 3 side fans + 1 bottom fan + an LED strip, wiring
+confirmed via MSI Center's own UI), both turned solid red from a correctly
+encoded `0x51` push.
+
+The missing piece: **the firmware only honors `0x51` per-LED data for a
+zone whose `0x50` record has `LightingMode=Advanced` (`9`)** — not `Off`
+(the default for an unused zone), and not `Steady` either (tried first,
+confirmed insufficient, ruling out "any non-`Off` mode" as the real
+requirement). The report's own name — "Gen1_**Adv**" — turned out to be
+the literal clue. This project's standalone app now sends one `0x50`
+report arming a zone to `Advanced` the moment that zone enters Canvas
+(per-LED) mode, before any `0x51` push — see
+`MsiMotherboardDriver::setChannelMode` in `src/device/MsiMotherboardDriver.cpp`.
+
+For the historical record: an earlier live test on this same day wrongly
+concluded `0x51` was non-functional on this board (see this file's git
+history for the retraction text that was briefly drafted, never
+committed). The root cause of that wrong conclusion: this app's Canvas
+mode never sent a `0x50` report for its own zone at all (only `0x51`), so
+every Canvas-mode zone's `0x50` record silently stayed at its
+`MsiZoneSettings` default — `LightingMode=Off` — regardless of how many
+byte-perfect `0x51` sends followed. The `0x51` sends themselves were never
+the problem. Separately, MSI Center's own live runtime log showing no
+`0x51`/`Gen1Adv` usage anywhere does **not** disprove the report works —
+it only shows MSI Center's own UI doesn't happen to use it for this
+board's simple static/animated colors, which `0x50`'s native modes already
+cover for MSI's own purposes.
 
 **Exact LED topology for `MPG B850 EDGE TI WIFI (MS-7E62)`**, per that
 plugin's own device table: 3 ARGB headers (`JARGB1/2/3`, up to 120 LEDs
