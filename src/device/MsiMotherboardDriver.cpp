@@ -50,7 +50,15 @@ std::vector<Channel> MsiMotherboardDriver::createDefaultChannels()
     std::vector<Channel> channels;
     channels.reserve(order.size());
     for (const auto& name : order) {
-        channels.emplace_back(name, channelTable().at(name).ledLimit);
+        const int ledLimit = channelTable().at(name).ledLimit;
+        channels.emplace_back(name, ledLimit);
+        // Bug found during live HW verification: without a Component, Channel::colors()
+        // is always empty, so Canvas's report 0x51 silently sends zero LEDs for every
+        // motherboard channel (0x00 at offset 6 instead of e.g. 0x78/120) even though
+        // the HID write itself succeeds. Every peripheral driver's createDefaultChannel()
+        // already does this; this was the one place it was missed. Native mode (0x50)
+        // never used colors(), which is why it kept "working" and hid the gap.
+        channels.back().addComponent(Component::makeGenericPlaceholder(ledLimit));
     }
     return channels;
 }

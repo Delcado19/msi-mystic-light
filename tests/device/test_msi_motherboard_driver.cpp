@@ -27,6 +27,7 @@ private slots:
     void testSetNativeMode_wrongModeFailsGracefully();
     void testSetNativeMode_jargb3UsesZoneTwoAndAreaFour02();
     void testCreateDefaultChannels_returnsAllSixChannelsWithDocumentedLedLimits();
+    void testCreateDefaultChannels_channelsHavePlaceholderComponentsSoColorsAreNotEmpty();
 };
 
 void MsiMotherboardDriverTest::testSetNativeMode_sendsExpectedBytesAndPreservesOtherZones()
@@ -229,6 +230,32 @@ void MsiMotherboardDriverTest::testCreateDefaultChannels_returnsAllSixChannelsWi
     QCOMPARE(ledLimitByName.at("EZConnector"), 120);
     QCOMPARE(ledLimitByName.at("IOShield"), 11);
     QCOMPARE(ledLimitByName.at("JRGB1"), 1);
+}
+
+// HW verification finding: createDefaultChannels() built each Channel with
+// the right ledLimit but never called addComponent() on it, so Channel::colors()
+// (only populated for LEDs owned by an added Component) was always empty for
+// every motherboard channel - Canvas's report 0x51 silently sent zero LEDs on
+// real hardware (offset-6 LED-count byte 0x00 instead of e.g. 0x78/120), with
+// no error anywhere. testCreateDefaultChannels_returnsAllSixChannelsWithDocumentedLedLimits
+// above only checked ledLimit(), which addComponent() does not affect, so it
+// never caught this. This test exercises colors()/totalLedCount() instead -
+// the exact values Canvas::tick() depends on - so a regression (removing the
+// addComponent calls again) fails here immediately.
+void MsiMotherboardDriverTest::testCreateDefaultChannels_channelsHavePlaceholderComponentsSoColorsAreNotEmpty()
+{
+    auto channels = MsiMotherboardDriver::createDefaultChannels();
+
+    std::map<std::string, int> expectedLedCount = {
+        {"JARGB1", 120}, {"JARGB2", 120}, {"JARGB3", 120},
+        {"EZConnector", 120}, {"IOShield", 11}, {"JRGB1", 1},
+    };
+    QCOMPARE(static_cast<int>(channels.size()), static_cast<int>(expectedLedCount.size()));
+    for (const auto& ch : channels) {
+        const int expected = expectedLedCount.at(ch.name());
+        QCOMPARE(ch.totalLedCount(), expected);
+        QCOMPARE(static_cast<int>(ch.colors().size()), expected);
+    }
 }
 
 QTEST_MAIN(MsiMotherboardDriverTest)
