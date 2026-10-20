@@ -19,7 +19,7 @@ public:
     HidApiDevice(const HidApiDevice&) = delete;
     HidApiDevice& operator=(const HidApiDevice&) = delete;
 
-    bool open(uint16_t vendorId, uint16_t productId, int interfaceNumber = -1) override;
+    bool open(uint16_t vendorId, uint16_t productId, int interfaceNumber = -1, int usagePage = -1) override;
     void close() override;
     bool isOpen() const override;
     bool sendFeatureReport(const uint8_t* report, size_t length) override;

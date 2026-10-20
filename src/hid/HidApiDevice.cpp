@@ -30,23 +30,24 @@ HidApiDevice::~HidApiDevice() {
     }
 }
 
-bool HidApiDevice::open(uint16_t vendorId, uint16_t productId, int interfaceNumber) {
+bool HidApiDevice::open(uint16_t vendorId, uint16_t productId, int interfaceNumber, int usagePage) {
     close();
-    if (interfaceNumber == -1) {
+    if (interfaceNumber == -1 && usagePage == -1) {
         // Preserves v1's exact existing behavior: hid_open opens the first
         // VID/PID match, with no way to target a specific interface.
         handle_ = hid_open(vendorId, productId, nullptr);
         return handle_ != nullptr;
     }
 
-    // A device exposing several HID interfaces under one VID/PID (e.g. the
-    // Roccat Vulcan's separate control and LED interfaces) needs a specific
-    // interface_number, which plain hid_open can't target. Enumerate and
-    // match it, then open that exact path.
+    // A device exposing several HID interfaces (or several collections
+    // sharing one interface_number) under one VID/PID needs a specific
+    // interface_number and/or usage_page, which plain hid_open can't
+    // target. Enumerate and match, then open that exact path.
     hid_device_info* devs = hid_enumerate(vendorId, productId);
     hid_device_info* match = nullptr;
     for (hid_device_info* cur = devs; cur != nullptr; cur = cur->next) {
-        if (cur->interface_number == interfaceNumber) {
+        if ((interfaceNumber == -1 || cur->interface_number == interfaceNumber)
+            && (usagePage == -1 || cur->usage_page == usagePage)) {
             match = cur;
             break;
         }
