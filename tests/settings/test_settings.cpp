@@ -29,6 +29,21 @@ private slots:
     void testLoadFromFile_extremePlacementIsClamped();
     void testLoadFromFile_structurallyInvalidJsonLeavesSettingsUnchanged();
     void testSaveToFile_unwritablePathFails();
+
+    // Task 23: profile create/rename/delete (CRUD), added because the UI
+    // previously had no way to do any of this -- only switch between
+    // profiles already present in a hand-edited settings file.
+    void testAddProfile_appendsNewProfileWithGivenName();
+    void testAddProfile_rejectsEmptyName();
+    void testAddProfile_rejectsDuplicateName();
+    void testRenameActiveProfile_updatesNameAndActiveProfileName();
+    void testRenameActiveProfile_rejectsEmptyName();
+    void testRenameActiveProfile_rejectsCollisionWithDifferentProfile();
+    void testRenameActiveProfile_allowsRenamingToItsOwnCurrentName();
+    void testRenameActiveProfile_resolvesStaleActiveProfileNameViaActiveProfile();
+    void testRemoveActiveProfile_removesItAndActivatesANeighbor();
+    void testRemoveActiveProfile_refusesWhenOnlyOneProfileLeft();
+    void testRemoveActiveProfile_refusesWhenProfilesEmpty();
 };
 
 // Extends the pre-Task-13 round-trip test to cover the new shape: 2
@@ -317,6 +332,132 @@ void SettingsTest::testSaveToFile_unwritablePathFails()
     marker.name = "Marker";
     s.profiles.push_back(marker);
     QVERIFY(!s.saveToFile("/does/not/exist/subdir/settings.json"));
+}
+
+void SettingsTest::testAddProfile_appendsNewProfileWithGivenName()
+{
+    Settings s;
+    Profile p; p.name = "Default";
+    s.profiles.push_back(p);
+    s.activeProfileName = "Default";
+
+    QVERIFY(s.addProfile("Night"));
+    QCOMPARE(static_cast<int>(s.profiles.size()), 2);
+    QCOMPARE(s.profiles[1].name, std::string("Night"));
+    QVERIFY(s.profiles[1].channelSettings.empty()); // caller fills in channel defaults, not addProfile itself
+    QCOMPARE(s.activeProfileName, std::string("Default")); // unchanged: addProfile doesn't switch
+}
+
+void SettingsTest::testAddProfile_rejectsEmptyName()
+{
+    Settings s;
+    QVERIFY(!s.addProfile(""));
+    QVERIFY(s.profiles.empty());
+}
+
+void SettingsTest::testAddProfile_rejectsDuplicateName()
+{
+    Settings s;
+    Profile p; p.name = "Default";
+    s.profiles.push_back(p);
+    QVERIFY(!s.addProfile("Default"));
+    QCOMPARE(static_cast<int>(s.profiles.size()), 1); // no duplicate appended
+}
+
+void SettingsTest::testRenameActiveProfile_updatesNameAndActiveProfileName()
+{
+    Settings s;
+    Profile p; p.name = "Default";
+    s.profiles.push_back(p);
+    s.activeProfileName = "Default";
+
+    QVERIFY(s.renameActiveProfile("Gaming"));
+    QCOMPARE(s.profiles[0].name, std::string("Gaming"));
+    QCOMPARE(s.activeProfileName, std::string("Gaming"));
+}
+
+void SettingsTest::testRenameActiveProfile_rejectsEmptyName()
+{
+    Settings s;
+    Profile p; p.name = "Default";
+    s.profiles.push_back(p);
+    s.activeProfileName = "Default";
+
+    QVERIFY(!s.renameActiveProfile(""));
+    QCOMPARE(s.profiles[0].name, std::string("Default")); // unchanged
+}
+
+void SettingsTest::testRenameActiveProfile_rejectsCollisionWithDifferentProfile()
+{
+    Settings s;
+    Profile a; a.name = "Default";
+    Profile b; b.name = "Night";
+    s.profiles = {a, b};
+    s.activeProfileName = "Default";
+
+    QVERIFY(!s.renameActiveProfile("Night")); // would collide with profiles[1]
+    QCOMPARE(s.profiles[0].name, std::string("Default"));
+    QCOMPARE(s.activeProfileName, std::string("Default"));
+}
+
+void SettingsTest::testRenameActiveProfile_allowsRenamingToItsOwnCurrentName()
+{
+    Settings s;
+    Profile p; p.name = "Default";
+    s.profiles.push_back(p);
+    s.activeProfileName = "Default";
+
+    QVERIFY(s.renameActiveProfile("Default")); // not a collision with itself
+    QCOMPARE(s.profiles[0].name, std::string("Default"));
+}
+
+// renameActiveProfile goes through activeProfile()'s own stale-name
+// fallback: if activeProfileName names a profile that no longer exists,
+// "the active profile" is profiles.front(), not a nonexistent entry -- the
+// rename must act on that fallback target, same as every other Settings
+// caller that uses activeProfile().
+void SettingsTest::testRenameActiveProfile_resolvesStaleActiveProfileNameViaActiveProfile()
+{
+    Settings s;
+    Profile p; p.name = "First";
+    s.profiles.push_back(p);
+    s.activeProfileName = "DoesNotExist";
+
+    QVERIFY(s.renameActiveProfile("Renamed"));
+    QCOMPARE(s.profiles[0].name, std::string("Renamed"));
+    QCOMPARE(s.activeProfileName, std::string("Renamed"));
+}
+
+void SettingsTest::testRemoveActiveProfile_removesItAndActivatesANeighbor()
+{
+    Settings s;
+    Profile a; a.name = "Default";
+    Profile b; b.name = "Night";
+    s.profiles = {a, b};
+    s.activeProfileName = "Default";
+
+    QVERIFY(s.removeActiveProfile());
+    QCOMPARE(static_cast<int>(s.profiles.size()), 1);
+    QCOMPARE(s.profiles[0].name, std::string("Night"));
+    QCOMPARE(s.activeProfileName, std::string("Night"));
+}
+
+void SettingsTest::testRemoveActiveProfile_refusesWhenOnlyOneProfileLeft()
+{
+    Settings s;
+    Profile p; p.name = "Default";
+    s.profiles.push_back(p);
+    s.activeProfileName = "Default";
+
+    QVERIFY(!s.removeActiveProfile());
+    QCOMPARE(static_cast<int>(s.profiles.size()), 1); // untouched: never left with zero profiles
+}
+
+void SettingsTest::testRemoveActiveProfile_refusesWhenProfilesEmpty()
+{
+    Settings s;
+    QVERIFY(!s.removeActiveProfile());
+    QVERIFY(s.profiles.empty());
 }
 
 QTEST_MAIN(SettingsTest)

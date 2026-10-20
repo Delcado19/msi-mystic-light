@@ -6,8 +6,10 @@
 #include <QtTest/QtTest>
 
 #include <QComboBox>
+#include <QPushButton>
 
 #include <algorithm>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -74,6 +76,31 @@ private slots:
     void testChangingARowsModeInUi_emitsChannelAssignmentChanged();
     void testSwitchingActiveProfile_emitsActiveProfileChangedAndRepopulatesCanvas();
     void testRefreshFromSettings_afterExternalProfileSwitch_repopulatesRowsAndCanvas();
+
+    // Task 23, Part 1: mode-availability enforcement.
+    void testModeCombo_onlySupportedModesAreOffered();
+    void testFreshProfile_canvasOnlyChannelDefaultsToVisibleCanvasStaticColor();
+    void testPersistedUnsupportedMode_nativeOnlyChannelClampedFromCanvasToNative();
+    void testPersistedUnsupportedMode_canvasOnlyChannelClampedFromNativeFillsStaticColorDefault();
+
+    // Task 23, Part 2: color editing (everything around the modal
+    // QColorDialog -- the dialog itself cannot be driven from an automated
+    // test, see this window's public setChannelColor/setChannelNativeColor/
+    // setGlobalEffectColor).
+    void testSetChannelColor_updatesSettingsAndEmitsChannelAssignmentChanged();
+    void testColorButton_enabledOnlyWhenEffectUsesColor();
+    void testGlobalColorButton_enabledOnlyWhenEffectUsesColor();
+    void testSetGlobalEffectColor_updatesSettingsAndEmitsGlobalEffectChanged();
+    void testSetChannelNativeColor_updatesSettingsAndEmitsChannelAssignmentChanged();
+    void testNativeModeCombo_changingItUpdatesSettingsAndEmitsSignal();
+    void testNativeModeCombo_excludesAdvanced();
+
+    // Task 23, Part 3: profile create/rename/delete.
+    void testCreateProfile_addsAndActivatesNewProfileWithChannelDefaults();
+    void testCreateProfile_rejectsDuplicateNameAsNoOp();
+    void testRenameActiveProfile_updatesNameAndEmitsActiveProfileChanged();
+    void testDeleteActiveProfile_removesItAndActivatesNeighbor();
+    void testDeleteProfileButton_disabledWhenOnlyOneProfileLeft();
 };
 
 void LightingStudioWindowTest::testConstruction_populatesCanvasForEveryChannelName()
@@ -239,6 +266,301 @@ void LightingStudioWindowTest::testRefreshFromSettings_afterExternalProfileSwitc
 
     // ...and the canvas: GPU's box moved to Night's placement.
     QCOMPARE(dragBoxAt(window.canvas(), CanvasPlacement{300.0, 200.0}), std::string("GPU"));
+}
+
+// Part 1: a channel's mode combo must only ever offer a mode its driver
+// actually supports (via the constructor's availableModesByChannel map),
+// never a hardcoded Native/Canvas pair -- a channel with no map entry (here,
+// JARGB1) still gets both, same as every pre-Task-23 test/call site.
+void LightingStudioWindowTest::testModeCombo_onlySupportedModesAreOffered()
+{
+    Settings settings; // fresh/empty: avoids entangling this with clamp-on-load behavior
+    const std::map<std::string, std::vector<ChannelMode>> availableModes = {
+        {"CPU", {ChannelMode::Canvas}}, // like a Canvas-only peripheral
+        {"GPU", {ChannelMode::Native}}, // like JRGB1
+    };
+    LightingStudioWindow window(settings, kChannelNames, availableModes);
+
+    auto* cpuMode = window.findChild<QComboBox*>(QStringLiteral("mode:CPU"));
+    QVERIFY(cpuMode != nullptr);
+    QCOMPARE(cpuMode->count(), 1);
+    QCOMPARE(cpuMode->itemText(0), QStringLiteral("Canvas"));
+
+    auto* gpuMode = window.findChild<QComboBox*>(QStringLiteral("mode:GPU"));
+    QVERIFY(gpuMode != nullptr);
+    QCOMPARE(gpuMode->count(), 1);
+    QCOMPARE(gpuMode->itemText(0), QStringLiteral("Native"));
+
+    auto* jargbMode = window.findChild<QComboBox*>(QStringLiteral("mode:JARGB1"));
+    QVERIFY(jargbMode != nullptr);
+    QCOMPARE(jargbMode->count(), 2); // no map entry -- both offered
+}
+
+// A freshly-created entry for a Canvas-only channel must default to Canvas/
+// StaticColor/a non-black color, not ChannelSettings' own Native/black
+// default -- Native is a confirmed permanent no-op for peripheral hardware,
+// so the plain default would leave the device dark until manually fixed.
+void LightingStudioWindowTest::testFreshProfile_canvasOnlyChannelDefaultsToVisibleCanvasStaticColor()
+{
+    Settings settings; // empty profiles -- exercises ensureProfileAndEntries()'s fresh-entry path
+    const std::map<std::string, std::vector<ChannelMode>> availableModes = {{"CPU", {ChannelMode::Canvas}}};
+    LightingStudioWindow window(settings, kChannelNames, availableModes);
+
+    const auto& channels = settings.activeProfile()->channelSettings;
+    const auto it = std::find_if(channels.begin(), channels.end(), [](const ChannelSettings& cs) { return cs.channelName == "CPU"; });
+    QVERIFY(it != channels.end());
+    QCOMPARE(it->mode, ChannelMode::Canvas);
+    QCOMPARE(it->effectName, std::string("StaticColor"));
+    QVERIFY(it->staticColor.r != 0 || it->staticColor.g != 0 || it->staticColor.b != 0); // not black
+}
+
+// A persisted entry naming a mode this channel no longer supports (e.g. a
+// hand-edited settings.json predating Task 23) must be clamped on
+// construction, not left mismatched with the combo or silently a no-op
+// forever.
+void LightingStudioWindowTest::testPersistedUnsupportedMode_nativeOnlyChannelClampedFromCanvasToNative()
+{
+    Settings settings = makeSettingsWithOneProfile(); // GPU persisted as Canvas/Independent/StaticColor
+    const std::map<std::string, std::vector<ChannelMode>> availableModes = {{"GPU", {ChannelMode::Native}}};
+    LightingStudioWindow window(settings, kChannelNames, availableModes);
+
+    const auto& channels = settings.activeProfile()->channelSettings;
+    const auto it = std::find_if(channels.begin(), channels.end(), [](const ChannelSettings& cs) { return cs.channelName == "GPU"; });
+    QVERIFY(it != channels.end());
+    QCOMPARE(it->mode, ChannelMode::Native);
+
+    auto* gpuMode = window.findChild<QComboBox*>(QStringLiteral("mode:GPU"));
+    QVERIFY(gpuMode != nullptr);
+    QCOMPARE(gpuMode->currentText(), QStringLiteral("Native"));
+}
+
+// The inverse clamp (Native -> Canvas) must not leave effectName empty --
+// that's the exact "stays dark forever" bug class the brief calls out for
+// per-channel defaults; the clamp must fill the same StaticColor/color
+// default a fresh peripheral entry gets.
+void LightingStudioWindowTest::testPersistedUnsupportedMode_canvasOnlyChannelClampedFromNativeFillsStaticColorDefault()
+{
+    Settings settings;
+    Profile profile;
+    profile.name = "Default";
+    ChannelSettings cs;
+    cs.channelName = "CPU";
+    cs.mode = ChannelMode::Native; // persisted; effectName left empty per the "empty if Native" contract
+    profile.channelSettings.push_back(cs);
+    settings.profiles = {profile};
+    settings.activeProfileName = "Default";
+
+    const std::map<std::string, std::vector<ChannelMode>> availableModes = {{"CPU", {ChannelMode::Canvas}}};
+    LightingStudioWindow window(settings, kChannelNames, availableModes);
+
+    const auto& channels = settings.activeProfile()->channelSettings;
+    const auto it = std::find_if(channels.begin(), channels.end(), [](const ChannelSettings& c) { return c.channelName == "CPU"; });
+    QVERIFY(it != channels.end());
+    QCOMPARE(it->mode, ChannelMode::Canvas);
+    QCOMPARE(it->effectName, std::string("StaticColor"));
+    QVERIFY(it->staticColor.r != 0 || it->staticColor.g != 0 || it->staticColor.b != 0);
+}
+
+void LightingStudioWindowTest::testSetChannelColor_updatesSettingsAndEmitsChannelAssignmentChanged()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+
+    QSignalSpy spy(&window, &LightingStudioWindow::channelAssignmentChanged);
+    window.setChannelColor("GPU", MsiColor{10, 20, 30});
+
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.last().at(0).value<std::string>(), std::string("GPU"));
+    const auto& channels = settings.activeProfile()->channelSettings;
+    const auto it = std::find_if(channels.begin(), channels.end(), [](const ChannelSettings& c) { return c.channelName == "GPU"; });
+    QVERIFY(it != channels.end());
+    QCOMPARE(it->staticColor.r, static_cast<uint8_t>(10));
+    QCOMPARE(it->staticColor.g, static_cast<uint8_t>(20));
+    QCOMPARE(it->staticColor.b, static_cast<uint8_t>(30));
+}
+
+// effectUsesColor() gates the row's color swatch: StaticColor uses it,
+// RainbowWave doesn't (mirrors buildEffect()'s own constructor arguments).
+void LightingStudioWindowTest::testColorButton_enabledOnlyWhenEffectUsesColor()
+{
+    Settings settings = makeSettingsWithOneProfile(); // GPU: Canvas/Independent/StaticColor
+    LightingStudioWindow window(settings, kChannelNames);
+
+    auto* colorButton = window.findChild<QPushButton*>(QStringLiteral("color:GPU"));
+    QVERIFY(colorButton != nullptr);
+    QVERIFY(colorButton->isEnabled());
+
+    auto* effectCombo = window.findChild<QComboBox*>(QStringLiteral("effect:GPU"));
+    QVERIFY(effectCombo != nullptr);
+    const int rainbowIdx = effectCombo->findText(QStringLiteral("RainbowWave"));
+    QVERIFY(rainbowIdx >= 0);
+    effectCombo->setCurrentIndex(rainbowIdx);
+    QVERIFY(!colorButton->isEnabled());
+}
+
+void LightingStudioWindowTest::testGlobalColorButton_enabledOnlyWhenEffectUsesColor()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+
+    auto* globalEffectCombo = window.findChild<QComboBox*>(QStringLiteral("globalEffectCombo"));
+    auto* globalColorButton = window.findChild<QPushButton*>(QStringLiteral("globalColorButton"));
+    QVERIFY(globalEffectCombo != nullptr);
+    QVERIFY(globalColorButton != nullptr);
+
+    const int staticIdx = globalEffectCombo->findText(QStringLiteral("StaticColor"));
+    QVERIFY(staticIdx >= 0);
+    globalEffectCombo->setCurrentIndex(staticIdx);
+    QVERIFY(globalColorButton->isEnabled());
+
+    const int rainbowIdx = globalEffectCombo->findText(QStringLiteral("RainbowWave"));
+    QVERIFY(rainbowIdx >= 0);
+    globalEffectCombo->setCurrentIndex(rainbowIdx);
+    QVERIFY(!globalColorButton->isEnabled());
+}
+
+void LightingStudioWindowTest::testSetGlobalEffectColor_updatesSettingsAndEmitsGlobalEffectChanged()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+
+    QSignalSpy spy(&window, &LightingStudioWindow::globalEffectChanged);
+    window.setGlobalEffectColor(MsiColor{1, 2, 3});
+
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(settings.activeProfile()->globalEffect.color.r, static_cast<uint8_t>(1));
+    QCOMPARE(settings.activeProfile()->globalEffect.color.g, static_cast<uint8_t>(2));
+    QCOMPARE(settings.activeProfile()->globalEffect.color.b, static_cast<uint8_t>(3));
+}
+
+void LightingStudioWindowTest::testSetChannelNativeColor_updatesSettingsAndEmitsChannelAssignmentChanged()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+
+    QSignalSpy spy(&window, &LightingStudioWindow::channelAssignmentChanged);
+    window.setChannelNativeColor("GPU", MsiColor{40, 50, 60});
+
+    QCOMPARE(spy.count(), 1);
+    const auto& channels = settings.activeProfile()->channelSettings;
+    const auto it = std::find_if(channels.begin(), channels.end(), [](const ChannelSettings& c) { return c.channelName == "GPU"; });
+    QVERIFY(it != channels.end());
+    QCOMPARE(it->nativeSettings.color1.r, static_cast<uint8_t>(40));
+    QCOMPARE(it->nativeSettings.color1.g, static_cast<uint8_t>(50));
+    QCOMPARE(it->nativeSettings.color1.b, static_cast<uint8_t>(60));
+}
+
+void LightingStudioWindowTest::testNativeModeCombo_changingItUpdatesSettingsAndEmitsSignal()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+
+    auto* nativeModeCombo = window.findChild<QComboBox*>(QStringLiteral("nativeMode:GPU"));
+    QVERIFY(nativeModeCombo != nullptr);
+    const int waveIdx = nativeModeCombo->findData(static_cast<int>(MsiLightingMode::Wave));
+    QVERIFY(waveIdx >= 0);
+
+    QSignalSpy spy(&window, &LightingStudioWindow::channelAssignmentChanged);
+    nativeModeCombo->setCurrentIndex(waveIdx);
+
+    QCOMPARE(spy.count(), 1);
+    const auto& channels = settings.activeProfile()->channelSettings;
+    const auto it = std::find_if(channels.begin(), channels.end(), [](const ChannelSettings& c) { return c.channelName == "GPU"; });
+    QVERIFY(it != channels.end());
+    QCOMPARE(it->nativeSettings.lightingMode, MsiLightingMode::Wave);
+}
+
+// Advanced is the Canvas per-LED arming mode (MsiMotherboardDriver::
+// setChannelMode), not a real user-chosen Native-mode value -- must not
+// appear in this combo at all.
+void LightingStudioWindowTest::testNativeModeCombo_excludesAdvanced()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+
+    auto* nativeModeCombo = window.findChild<QComboBox*>(QStringLiteral("nativeMode:GPU"));
+    QVERIFY(nativeModeCombo != nullptr);
+    QCOMPARE(nativeModeCombo->findData(static_cast<int>(MsiLightingMode::Advanced)), -1);
+}
+
+void LightingStudioWindowTest::testCreateProfile_addsAndActivatesNewProfileWithChannelDefaults()
+{
+    Settings settings = makeSettingsWithOneProfile(); // one profile, "Default"
+    LightingStudioWindow window(settings, kChannelNames);
+
+    QSignalSpy profileSpy(&window, &LightingStudioWindow::activeProfileChanged);
+    window.createProfile("Night");
+
+    QCOMPARE(static_cast<int>(settings.profiles.size()), 2);
+    QCOMPARE(settings.activeProfileName, std::string("Night"));
+    QCOMPARE(profileSpy.count(), 1);
+    QCOMPARE(profileSpy.last().at(0).value<std::string>(), std::string("Night"));
+    // ensureProfileAndEntries() filled in every known channel for it.
+    QCOMPARE(static_cast<int>(settings.activeProfile()->channelSettings.size()), static_cast<int>(kChannelNames.size()));
+
+    auto* profileCombo = window.findChild<QComboBox*>(QStringLiteral("profileCombo"));
+    QVERIFY(profileCombo != nullptr);
+    QVERIFY(profileCombo->findText(QStringLiteral("Night")) >= 0);
+    QCOMPARE(profileCombo->currentText(), QStringLiteral("Night"));
+}
+
+void LightingStudioWindowTest::testCreateProfile_rejectsDuplicateNameAsNoOp()
+{
+    Settings settings = makeSettingsWithOneProfile(); // profile named "Default"
+    LightingStudioWindow window(settings, kChannelNames);
+
+    QSignalSpy profileSpy(&window, &LightingStudioWindow::activeProfileChanged);
+    window.createProfile("Default"); // duplicate
+
+    QCOMPARE(static_cast<int>(settings.profiles.size()), 1);
+    QCOMPARE(profileSpy.count(), 0); // no-op: nothing re-synced/re-emitted
+}
+
+void LightingStudioWindowTest::testRenameActiveProfile_updatesNameAndEmitsActiveProfileChanged()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+
+    QSignalSpy profileSpy(&window, &LightingStudioWindow::activeProfileChanged);
+    window.renameActiveProfile("Gaming");
+
+    QCOMPARE(settings.activeProfileName, std::string("Gaming"));
+    QCOMPARE(profileSpy.count(), 1);
+    QCOMPARE(profileSpy.last().at(0).value<std::string>(), std::string("Gaming"));
+
+    auto* profileCombo = window.findChild<QComboBox*>(QStringLiteral("profileCombo"));
+    QVERIFY(profileCombo != nullptr);
+    QCOMPARE(profileCombo->currentText(), QStringLiteral("Gaming"));
+}
+
+void LightingStudioWindowTest::testDeleteActiveProfile_removesItAndActivatesNeighbor()
+{
+    Settings settings = makeSettingsWithOneProfile(); // "Default"
+    LightingStudioWindow window(settings, kChannelNames);
+    window.createProfile("Night"); // 2 profiles now, "Night" active
+
+    QSignalSpy profileSpy(&window, &LightingStudioWindow::activeProfileChanged);
+    window.deleteActiveProfile();
+
+    QCOMPARE(static_cast<int>(settings.profiles.size()), 1);
+    QCOMPARE(settings.activeProfileName, std::string("Default"));
+    QCOMPARE(profileSpy.count(), 1);
+}
+
+void LightingStudioWindowTest::testDeleteProfileButton_disabledWhenOnlyOneProfileLeft()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+
+    auto* deleteButton = window.findChild<QPushButton*>(QStringLiteral("deleteProfileButton"));
+    QVERIFY(deleteButton != nullptr);
+    QVERIFY(!deleteButton->isEnabled());
+
+    window.createProfile("Night");
+    QVERIFY(deleteButton->isEnabled());
+
+    window.deleteActiveProfile();
+    QVERIFY(!deleteButton->isEnabled());
 }
 
 QTEST_MAIN(LightingStudioWindowTest)

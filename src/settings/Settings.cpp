@@ -364,3 +364,50 @@ Profile* Settings::activeProfile()
     }
     return &profiles.front();
 }
+
+bool Settings::addProfile(const std::string& name)
+{
+    if (name.empty()) return false;
+    for (const Profile& p : profiles) {
+        if (p.name == name) return false; // duplicate name: would make one of the two unreachable via activeProfile()
+    }
+    Profile p;
+    p.name = name;
+    profiles.push_back(std::move(p));
+    return true;
+}
+
+bool Settings::renameActiveProfile(const std::string& newName)
+{
+    if (newName.empty()) return false;
+    Profile* active = activeProfile();
+    if (!active) return false;
+    if (newName != active->name) {
+        for (const Profile& p : profiles) {
+            if (p.name == newName) return false; // collision with a DIFFERENT existing profile
+        }
+    }
+    active->name = newName;
+    activeProfileName = newName; // keep it findable by name after the rename
+    return true;
+}
+
+bool Settings::removeActiveProfile()
+{
+    // activeProfile()'s own contract (see its doc comment) assumes profiles
+    // is never empty elsewhere in this codebase -- refuse to produce an
+    // empty list rather than honoring a delete that would.
+    if (profiles.size() <= 1) return false;
+    Profile* active = activeProfile();
+    if (!active) return false;
+
+    // Index-based erase (via pointer arithmetic into the vector's own
+    // storage), not a name-based std::remove_if: a hand-edited settings file
+    // could in principle contain duplicate profile names, and this must
+    // remove exactly the one Profile object `active` points to, never a
+    // same-named sibling.
+    const auto index = static_cast<std::vector<Profile>::difference_type>(active - profiles.data());
+    profiles.erase(profiles.begin() + index);
+    activeProfileName = profiles.front().name; // a neighbor becomes active
+    return true;
+}
