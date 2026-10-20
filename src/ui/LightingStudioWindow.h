@@ -31,6 +31,18 @@ public:
 
     LightingCanvasWidget* canvas() const; // exposed for tests and for main.cpp to connect Canvas::setAssignment on changes
 
+    // Call this after changing settings_.activeProfileName from OUTSIDE
+    // this window -- e.g. Task 18's tray profile-switch path (plan Step 5:
+    // "refresh the LightingStudioWindow") sets the name on the Settings
+    // reference this window already holds, then must call this so the
+    // canvas, every row's combos, and the profile selector all repaint to
+    // match the newly active profile. Internal switches via profileCombo_
+    // already do this themselves (onProfileComboChanged) -- this is the
+    // external-trigger equivalent, including the same signal fan-out
+    // (channelAssignmentChanged per channel, globalEffectChanged,
+    // activeProfileChanged).
+    void refreshFromSettings();
+
 signals:
     // Fired whenever any row's mode/source/effect/placement changes, or the
     // active profile switches -- main.cpp listens to push the new

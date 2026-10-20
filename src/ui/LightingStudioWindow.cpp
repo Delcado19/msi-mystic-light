@@ -311,6 +311,16 @@ void LightingStudioWindow::onGlobalEffectComboChanged()
 void LightingStudioWindow::onProfileComboChanged()
 {
     settings_.activeProfileName = profileCombo_->currentText().toStdString();
+    refreshFromSettings();
+}
+
+// Shared by both the in-UI path (onProfileComboChanged, after it writes
+// profileCombo_'s current text into settings_.activeProfileName) and the
+// external path (a caller -- e.g. Task 18's tray profile-switch wiring --
+// that already changed settings_.activeProfileName itself, via the
+// Settings& this window holds, and now needs this window to catch up).
+void LightingStudioWindow::refreshFromSettings()
+{
     ensureProfileAndEntries(); // the newly active profile may be missing entries for some channelNames_
     repopulateFromActiveProfile();
 
