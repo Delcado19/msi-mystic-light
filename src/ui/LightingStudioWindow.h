@@ -82,12 +82,15 @@ public:
     void refreshFromSettings();
 
 signals:
-    // Fired whenever any row's mode/source/effect/placement changes, or the
-    // active profile switches -- main.cpp listens to push the new
-    // assignment into the running Canvas (Task 18), not just to Settings.
-    // A profile switch fires channelAssignmentChanged once per channel in
-    // channelNames_ (every channel's assignment changes at once) plus
-    // globalEffectChanged, followed by activeProfileChanged last.
+    // Fired whenever any row's mode/source/effect/placement/staticColor/
+    // native lightingMode/native color1 changes (Task 23 added the last
+    // three), or the active profile switches -- main.cpp listens to push the
+    // new assignment into the running Canvas (Task 18), not just to
+    // Settings. A profile switch -- or create/rename/delete (Task 23: all
+    // three route through refreshFromSettings(), same as a switch) -- fires
+    // channelAssignmentChanged once per channel in channelNames_ (every
+    // channel's assignment changes at once) plus globalEffectChanged,
+    // followed by activeProfileChanged last.
     void channelAssignmentChanged(const std::string& channelName);
     void globalEffectChanged();
     void activeProfileChanged(const std::string& profileName);
