@@ -17,6 +17,8 @@ private slots:
     void testOpen_defaultUsagePageIsNegativeOne();
     void testOpen_capturesExplicitUsagePage();
     void testWrite_appendsToWrittenReportsIndependentlyOfSentReports();
+    void testOpen_failedOpenLeavesDeviceClosed();
+    void testOpen_afterCloseCanReopenSuccessfully();
 };
 
 void FakeHidDeviceTest::testOpen_defaultInterfaceNumberIsNegativeOne()
@@ -65,6 +67,34 @@ void FakeHidDeviceTest::testWrite_appendsToWrittenReportsIndependentlyOfSentRepo
     QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
     QCOMPARE(static_cast<int>(hid.writtenReports.size()), 1);
     QCOMPARE(hid.writtenReports[0], std::vector<uint8_t>({0x02, 0xBB, 0xCC}));
+}
+
+// Task 21 (USB peripheral reconnect/retry): main.cpp's retry timer gates a
+// reopen attempt on isOpen() == false. Pins that a failed open() (e.g.
+// simulating a device still absent on a retry tick) leaves isOpen() false
+// rather than the previous (buggy) behavior of unconditionally marking the
+// fake "opened" regardless of openSucceeds -- see FakeHidDevice::open()'s
+// doc comment.
+void FakeHidDeviceTest::testOpen_failedOpenLeavesDeviceClosed()
+{
+    FakeHidDevice hid;
+    hid.openSucceeds = false;
+    QVERIFY(!hid.open(0x1234, 0x5678));
+    QVERIFY(!hid.isOpen());
+}
+
+// Task 21: pins that a device can be reopened after going away -- the
+// core assumption main.cpp's reconnect timer relies on (close() on a
+// disconnect, via HidApiDevice::setCloseOnIoError()'s real-hardware
+// equivalent, followed by a later successful open()).
+void FakeHidDeviceTest::testOpen_afterCloseCanReopenSuccessfully()
+{
+    FakeHidDevice hid;
+    QVERIFY(hid.open(0x1234, 0x5678));
+    hid.close();
+    QVERIFY(!hid.isOpen());
+    QVERIFY(hid.open(0x1234, 0x5678));
+    QVERIFY(hid.isOpen());
 }
 
 QTEST_MAIN(FakeHidDeviceTest)

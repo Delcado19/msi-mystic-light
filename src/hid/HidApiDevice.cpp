@@ -75,6 +75,16 @@ bool HidApiDevice::sendFeatureReport(const uint8_t* report, size_t length) {
         return false;
     }
     int sent = hid_send_feature_report(handle_, report, length);
+    // Task 21: sent < 0 is hidapi's hard-error return (as opposed to a
+    // merely short count, which can't happen for a feature report's
+    // strict == check below), typically meaning the device went away
+    // (unplugged, or the handle was invalidated by a sleep/resume). Close
+    // the handle so isOpen() reflects that -- see setCloseOnIoError()'s
+    // doc comment in HidApiDevice.h for why this is opt-out-able and why
+    // the default is to close.
+    if (sent < 0 && closeOnIoError_) {
+        close();
+    }
     return sent == static_cast<int>(length);
 }
 
@@ -83,6 +93,13 @@ bool HidApiDevice::write(const uint8_t* report, size_t length) {
         return false;
     }
     int sent = hid_write(handle_, report, length);
+    // Task 21: same hard-error close as sendFeatureReport() above. Only
+    // sent < 0 (an actual error) closes the handle -- a non-negative but
+    // short count is the padding behavior the comment below already
+    // tolerates, not a disconnect signal.
+    if (sent < 0 && closeOnIoError_) {
+        close();
+    }
     // Unlike hid_send_feature_report (which echoes back the caller's exact
     // length), hidapi's Windows backend pads a report shorter than the
     // device's output_report_length and returns the padded byte count

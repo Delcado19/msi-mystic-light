@@ -12,6 +12,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QMenu>
@@ -20,6 +21,7 @@
 #include <QTimer>
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -141,6 +143,50 @@ void applyChannelSettingsToCanvas(Canvas& canvas, const std::map<std::string, ID
     canvas.setAssignment(cs.channelName, buildAssignment(cs));
 }
 
+// Task 21 (USB peripheral reconnect/retry): re-applies every channel
+// currently routed to `driver` using its CURRENT ChannelSettings, read live
+// from `settings.activeProfile()` rather than the lastAppliedChannelSettings
+// cache -- the channelAssignmentChanged handler further down always writes
+// a channel's new ChannelSettings into both settings and that cache
+// together (even while the push to hardware was silently failing because
+// the device was down), so the two already agree here; Settings is simply
+// the unambiguous single source of truth (a channel that reconnects before
+// ever being touched by that handler -- e.g. right after startup -- would
+// have no cache entry at all yet).
+//
+// Matches channels by `driversByChannel`'s driver pointer rather than a
+// hardcoded channel name, so this works unchanged if a driver is ever
+// routed to more than one channel. Calls applyChannelSettingsToCanvas() --
+// the same unconditional helper Step 4b below uses for the initial
+// startup apply -- which always calls through to both the driver's
+// setChannelMode() and canvas.setAssignment(). This is deliberate: a
+// reconnect is not a placement-only drag (Task 20, Bug A's gate, see
+// channelSettingsNeedFullReapply() below) even though the ChannelSettings
+// value itself hasn't changed since last time -- it's the device, not the
+// settings, that changed, so the gated channelAssignmentChanged path (and
+// its cache-driven no-op) must not be the one used here. The cache is
+// still updated afterward so later gated comparisons stay correct.
+void reapplyChannelsForDriver(
+    Settings& settings,
+    Canvas& canvas,
+    const std::map<std::string, IDriver*>& driversByChannel,
+    std::map<std::string, ChannelSettings>& lastAppliedChannelSettings,
+    IDriver* driver)
+{
+    Profile* profile = settings.activeProfile();
+    if (!profile) {
+        return; // defensive; never null once LightingStudioWindow has constructed
+    }
+    for (const ChannelSettings& cs : profile->channelSettings) {
+        auto driverIt = driversByChannel.find(cs.channelName);
+        if (driverIt == driversByChannel.end() || driverIt->second != driver) {
+            continue;
+        }
+        applyChannelSettingsToCanvas(canvas, driversByChannel, cs);
+        lastAppliedChannelSettings[cs.channelName] = cs;
+    }
+}
+
 // True unless `next` differs from `previous` only in `placement` -- i.e.
 // true when the channel's mode/source/effect/color/native-settings actually
 // changed and Canvas needs a fresh ChannelAssignment (canvas.setAssignment(),
@@ -184,6 +230,23 @@ void refreshTrayProfiles(TrayApp& tray, const Settings& settings)
     tray.setAvailableProfiles(names, settings.activeProfileName);
 }
 
+// Task 21 (USB peripheral reconnect/retry): one entry per reconnectable USB
+// peripheral (the 4 named in this task's brief; the motherboard's
+// mbHid/mbDriver deliberately has no entry -- see this task's report for
+// why). `isOpen`/`reopen` close over that device's own IHidDevice
+// instance(s) -- `reopen` reuses the exact same open() lambda main()
+// defines for that device's initial startup open (Step 2), so there is
+// only ever one place that knows this device's vendorId/productId/
+// interfaceNumber/usagePage. `reopen` returns whether the device ended up
+// open, not whether the underlying open() call "succeeded" in isolation
+// (relevant for the Vulcan, which needs two separate HID interfaces both
+// open before it counts as reconnected).
+struct ReconnectiblePeripheral {
+    IDriver* driver;
+    std::function<bool()> isOpen;
+    std::function<bool()> reopen;
+};
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -204,6 +267,16 @@ int main(int argc, char** argv)
     // value is intentionally unused except where noted below.
     HidApiDevice mbHid;
     mbHid.open(0x0DB0, 0x0076);
+    // Task 21: the motherboard is a different, internal, permanently-
+    // attached device (not a hot-pluggable USB peripheral) and is
+    // explicitly out of scope for this task's reconnect/retry mechanism --
+    // see the 4 peripherals' ReconnectiblePeripheral entries further down,
+    // which mbHid deliberately has no equivalent of. Disable
+    // close-on-I/O-error for mbHid specifically: without a retry timer
+    // watching it, closing its handle on a transient I/O blip would strand
+    // it disconnected for the rest of the app's lifetime (see
+    // HidApiDevice::setCloseOnIoError()'s doc comment).
+    mbHid.setCloseOnIoError(false);
 
     HidApiDevice koneHid;
     // Roccat Kone Aimo ships under two PIDs (the plain Aimo and the Aimo
@@ -219,9 +292,22 @@ int main(int argc, char** argv)
     // live-tested, both pure red and pure green writes produced the same
     // fixed orange (the device's own idle default, unaffected by our writes).
     // Confirmed fixed with usagePage=0x0B: red now shows as red.
-    if (!koneHid.open(0x1E7D, 0x2E27, 0, 0x0B)) {
-        koneHid.open(0x1E7D, 0x2E2C, 0, 0x0B);
-    }
+    constexpr uint16_t kKoneVid = 0x1E7D;
+    constexpr uint16_t kKonePidAimo = 0x2E27;
+    constexpr uint16_t kKonePid16K = 0x2E2C;
+    constexpr int kKoneIface = 0;
+    constexpr int kKoneUsagePage = 0x0B;
+    // Task 21: named so the reconnect timer's retry (built further down)
+    // can reopen this device with the exact same two-PID fallback and
+    // constants as this initial open, instead of a second, possibly
+    // drifting copy of this logic.
+    auto openKoneHid = [&koneHid]() {
+        if (!koneHid.open(kKoneVid, kKonePidAimo, kKoneIface, kKoneUsagePage)) {
+            koneHid.open(kKoneVid, kKonePid16K, kKoneIface, kKoneUsagePage);
+        }
+        return koneHid.isOpen();
+    };
+    openKoneHid();
 
     HidApiDevice basiliskHid;
     // interfaceNumber=3 per RazerControllerDetect.cpp:361
@@ -232,7 +318,12 @@ int main(int argc, char** argv)
     // is actually connected) confirmed interface 3 is a single, unambiguous
     // collection for this device -- no other collection shares it -- so the
     // interface-only filter is sufficient here; usage_page isn't needed.
-    basiliskHid.open(0x1532, 0x0099, 3);
+    // Task 21: named for the same reason as openKoneHid above.
+    auto openBasiliskHid = [&basiliskHid]() {
+        basiliskHid.open(0x1532, 0x0099, 3);
+        return basiliskHid.isOpen();
+    };
+    openBasiliskHid();
 
     HidApiDevice apex3Hid;
     // interfaceNumber=3 per SteelSeriesControllerDetect.cpp:543
@@ -242,7 +333,12 @@ int main(int argc, char** argv)
     // now supports one. Confirmed via a read-only Get-PnpDevice enumeration
     // on this machine (where this keyboard is actually connected):
     // interface 3 is a single, unambiguous collection.
-    apex3Hid.open(0x1038, 0x161A, 3);
+    // Task 21: named for the same reason as openKoneHid above.
+    auto openApex3Hid = [&apex3Hid]() {
+        apex3Hid.open(0x1038, 0x161A, 3);
+        return apex3Hid.isOpen();
+    };
+    openApex3Hid();
 
     // Roccat Vulcan 100/120 Aimo: one physical device, two HID interfaces
     // under the same VID/PID -- control (mode/EnableDirect feature reports,
@@ -271,12 +367,31 @@ int main(int argc, char** argv)
     constexpr int kVulcanLedIface = 3;
     constexpr int kVulcanCtrlUsagePage = 0x000B;
     constexpr int kVulcanLedUsagePage = 0x0001;
-    for (uint16_t pid : kVulcanPids) {
-        if (vulcanControlHid.open(kVulcanVid, pid, kVulcanCtrlIface, kVulcanCtrlUsagePage)) {
-            vulcanLedHid.open(kVulcanVid, pid, kVulcanLedIface, kVulcanLedUsagePage);
-            break;
+    // Task 21: named for the same reason as openKoneHid above. Both
+    // interfaces always belong to the one physical device actually
+    // present, so they only ever pair under the SAME loop iteration's pid
+    // -- there is no scenario where control ends up open under one PID
+    // while led is open (or retried) under a different one. Explicitly
+    // closes both first so every call (startup or a later retry) starts
+    // from a clean slate rather than relying only on open()'s own
+    // close-before-reopen; if control opens but led doesn't (the device
+    // vanishing mid-attempt), control is closed again so this driver is
+    // never left half-open.
+    auto openVulcanHid = [&vulcanControlHid, &vulcanLedHid, kVulcanVid, &kVulcanPids, kVulcanCtrlIface, kVulcanLedIface, kVulcanCtrlUsagePage, kVulcanLedUsagePage]() {
+        vulcanControlHid.close();
+        vulcanLedHid.close();
+        for (uint16_t pid : kVulcanPids) {
+            if (vulcanControlHid.open(kVulcanVid, pid, kVulcanCtrlIface, kVulcanCtrlUsagePage)) {
+                vulcanLedHid.open(kVulcanVid, pid, kVulcanLedIface, kVulcanLedUsagePage);
+                break;
+            }
         }
-    }
+        if (vulcanControlHid.isOpen() && !vulcanLedHid.isOpen()) {
+            vulcanControlHid.close();
+        }
+        return vulcanControlHid.isOpen() && vulcanLedHid.isOpen();
+    };
+    openVulcanHid();
 
     // Step 3: one driver instance per physical device; the motherboard's 6
     // channels all route to the same driver instance, each peripheral's one
@@ -351,6 +466,53 @@ int main(int argc, char** argv)
         lastAppliedChannelSettings[cs.channelName] = cs;
     }
     applyGlobalEffectToCanvas(canvas, settings.activeProfile()->globalEffect);
+
+    // Task 21: USB peripheral reconnect/retry. Review finding: the 4 USB
+    // peripherals below have their HID handle(s) opened exactly once,
+    // above -- if one is unplugged and replugged, or the machine sleeps/
+    // resumes (both of which can invalidate a USB HID handle on Windows),
+    // it stayed permanently failed for the rest of the app's lifetime with
+    // no retry/reopen anywhere. Each entry's `isOpen`/`reopen` reuse the
+    // exact open() lambda (and vendorId/productId/interfaceNumber/
+    // usagePage constants) already defined above for that device's initial
+    // startup open -- see openKoneHid/openBasiliskHid/openApex3Hid/
+    // openVulcanHid. The motherboard (mbHid/mbDriver) deliberately has no
+    // entry here -- see mbHid.setCloseOnIoError(false) above and this
+    // task's report for why.
+    std::vector<ReconnectiblePeripheral> reconnectPeripherals = {
+        {&vulcanDriver, [&vulcanControlHid, &vulcanLedHid]() { return vulcanControlHid.isOpen() && vulcanLedHid.isOpen(); }, openVulcanHid},
+        {&koneDriver, [&koneHid]() { return koneHid.isOpen(); }, openKoneHid},
+        {&basiliskDriver, [&basiliskHid]() { return basiliskHid.isOpen(); }, openBasiliskHid},
+        {&apex3Driver, [&apex3Hid]() { return apex3Hid.isOpen(); }, openApex3Hid},
+    };
+
+    // Interval: 5s. A failed hid_open() on an absent device is a cheap
+    // Windows device enumeration, not a blocking call, so this isn't about
+    // protecting the OS from load -- there's just no reason to poll faster
+    // than a human plug-in event needs to be noticed in.
+    QTimer reconnectTimer;
+    QObject::connect(&reconnectTimer, &QTimer::timeout,
+        [&reconnectPeripherals, &settings, &canvas, &driversByChannel, &lastAppliedChannelSettings]() {
+            for (ReconnectiblePeripheral& peripheral : reconnectPeripherals) {
+                if (peripheral.isOpen()) {
+                    continue; // already up, nothing to do
+                }
+                if (!peripheral.reopen()) {
+                    continue; // still down (device not present); try again next tick
+                }
+                qInfo() << "Reconnected a USB peripheral; re-applying its current lighting settings";
+                // Re-apply this device's channel(s) to their CURRENT
+                // settings: a freshly (re)plugged device resets to its own
+                // firmware-default lighting state. This intentionally
+                // bypasses Task 20's lastAppliedChannelSettings gate (see
+                // reapplyChannelsForDriver()'s doc comment above) rather
+                // than going through the gated channelAssignmentChanged
+                // handler further down, since the ChannelSettings value
+                // itself hasn't changed -- only the device has.
+                reapplyChannelsForDriver(settings, canvas, driversByChannel, lastAppliedChannelSettings, peripheral.driver);
+            }
+        });
+    reconnectTimer.start(5000);
 
     // Step 5 (render loop): ~60Hz, elapsed time measured from launch.
     QElapsedTimer clock;
