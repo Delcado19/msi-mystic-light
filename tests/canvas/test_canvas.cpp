@@ -41,6 +41,22 @@ public:
     }
 };
 
+// Builds a synthetic grid-shaped component (local (col,row) per LED,
+// row-major), to stand in for a real 2D component layout (e.g. the Roccat
+// Vulcan's 24x6 key grid) without linking that driver's source just for
+// this test -- see testTick_globalFollowScalesDifferentShapedChannelsIntoSameBox.
+Component makeGridComponent(int width, int height) {
+    Component c = Component::makeGenericPlaceholder(width * height);
+    c.width = width;
+    c.height = height;
+    for (int row = 0; row < height; ++row) {
+        for (int col = 0; col < width; ++col) {
+            c.ledCoordinates[row * width + col] = {col, row};
+        }
+    }
+    return c;
+}
+
 // Test double for IDriver, recording which channel name each call targeted.
 // Used by the multi-driver routing test to confirm Canvas sends each
 // channel's push only to that channel's own driver, never a sibling's.
@@ -72,6 +88,7 @@ private slots:
     void testTick_continuesAfterOneChannelFails();
     void testTick_continuesAfterFailureWhenFailingChannelIsNotLast();
     void testTick_globalFollowSamplesGlobalEffectAtPlacementOffset();
+    void testTick_globalFollowScalesDifferentShapedChannelsIntoSameBox();
     void testTick_globalFollowWithNoGlobalEffectDoesNotCrash();
     void testTick_extremePlacementDoesNotCrash();
     void testTick_multipleDriversEachReceiveOnlyTheirOwnChannel();
@@ -182,9 +199,11 @@ void CanvasTest::testTick_globalFollowSamplesGlobalEffectAtPlacementOffset()
     MsiMotherboardDriver driver(hid);
     auto defaultChannels = MsiMotherboardDriver::createDefaultChannels();
     std::map<std::string, Channel> channels;
+    // createDefaultChannels() already attaches each channel's own full-size
+    // generic placeholder (JARGB1's is 120 LEDs, local x 0..119, y always
+    // 0) -- no extra addComponent() needed/possible here (it would just
+    // exceed the channel's ledLimit and no-op).
     for (auto& c : defaultChannels) channels.emplace(c.name(), c);
-    // Generic placeholder lays 2 LEDs at local (0,0) and (1,0).
-    channels.at("JARGB1").addComponent(Component::makeGenericPlaceholder(2));
     driver.setChannelMode("JARGB1", ChannelMode::Canvas);
     // Clear the arming 0x50 report setChannelMode just sent, so this test's
     // assertions only count what tick() sends.
@@ -200,10 +219,61 @@ void CanvasTest::testTick_globalFollowSamplesGlobalEffectAtPlacementOffset()
     canvas.tick(0);
 
     QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
-    // Sampled at placement+local (10,0) and (11,0) -- NOT at local (0,0)/(1,0),
-    // which PositionColorEffect would instead report as R=0 and R=1.
-    QCOMPARE(hid.sentReports[0][7], static_cast<uint8_t>(10));     // first LED's R
-    QCOMPARE(hid.sentReports[0][7 + 3], static_cast<uint8_t>(11)); // second LED's R (stride 3 bytes/LED)
+    // Task 22 geometry fix: local x is rescaled from the channel's own
+    // [0, 119] extent into [0, kGlobalFollowBoxWidth - 1] BEFORE adding the
+    // placement offset, so LED 0 (local x=0) lands at placement+0 and LED
+    // 119 (local x=119, the channel's own far end) lands at
+    // placement+(kGlobalFollowBoxWidth-1) -- not at placement+119, which
+    // would run far past the on-screen box LightingCanvasWidget draws for
+    // this channel.
+    QCOMPARE(hid.sentReports[0][7], static_cast<uint8_t>(10)); // LED 0's R: placement.x(10) + scaled(0)
+    QCOMPARE(hid.sentReports[0][7 + 119 * 3],
+             static_cast<uint8_t>(10 + kGlobalFollowBoxWidth - 1)); // LED 119's R: placement.x(10) + scaled(119->69)
+}
+
+// Task 22 geometry fix: confirms the fix is channel-shape-generic, not
+// hardcoded per device. JARGB1 keeps its real 120-wide flat-line placeholder
+// (motherboard channels); EZConnector is given a synthetic 24x5 grid (same
+// column count as the Roccat Vulcan's real 24x6 key layout, trimmed to 5
+// rows so it still fits EZConnector's 120-LED test limit) in place of its
+// own default placeholder. Both channels' extreme LEDs (the ones furthest
+// from their own component's local origin) must land exactly on the shared
+// GlobalFollow box's far edge -- proving a 120-LED line and a 2D grid are
+// scaled into the SAME box size, regardless of raw LED count or shape.
+void CanvasTest::testTick_globalFollowScalesDifferentShapedChannelsIntoSameBox()
+{
+    FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
+    MsiMotherboardDriver driver(hid);
+    auto defaultChannels = MsiMotherboardDriver::createDefaultChannels();
+    std::map<std::string, Channel> channels;
+    for (auto& c : defaultChannels) channels.emplace(c.name(), c);
+    channels.at("EZConnector").clearComponents();
+    channels.at("EZConnector").addComponent(makeGridComponent(24, 5));
+
+    driver.setChannelMode("JARGB1", ChannelMode::Canvas);
+    driver.setChannelMode("EZConnector", ChannelMode::Canvas);
+    hid.sentReports.clear();
+
+    Canvas canvas(allChannelsTo(&driver, channels), channels);
+    canvas.setGlobalEffect(std::make_shared<PositionColorEffect>());
+
+    ChannelAssignment assignment;
+    assignment.mode = ChannelMode::Canvas;
+    assignment.source = CanvasSource::GlobalFollow;
+    assignment.placement = CanvasPlacement{0, 0};
+    canvas.setAssignment("JARGB1", assignment);
+    canvas.setAssignment("EZConnector", assignment);
+    canvas.tick(0);
+
+    const auto& lineColors = channels.at("JARGB1").colors();
+    QCOMPARE(lineColors[0].r, static_cast<uint8_t>(0));                          // local x=0 -> scaled 0
+    QCOMPARE(lineColors[119].r, static_cast<uint8_t>(kGlobalFollowBoxWidth - 1)); // local x=119 (far end) -> scaled box edge
+
+    const auto& gridColors = channels.at("EZConnector").colors();
+    QCOMPARE(gridColors[0].r, static_cast<uint8_t>(0));   // local (0,0) -> scaled (0,0)
+    QCOMPARE(gridColors[0].g, static_cast<uint8_t>(0));
+    QCOMPARE(gridColors[119].r, static_cast<uint8_t>(kGlobalFollowBoxWidth - 1));  // local col=23 (far end) -> scaled box edge
+    QCOMPARE(gridColors[119].g, static_cast<uint8_t>(kGlobalFollowBoxHeight - 1)); // local row=4 (far end) -> scaled box edge
 }
 
 void CanvasTest::testTick_globalFollowWithNoGlobalEffectDoesNotCrash()

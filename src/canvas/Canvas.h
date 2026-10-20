@@ -29,6 +29,23 @@ enum class CanvasSource { Independent, GlobalFollow };
 // Meaningful only when CanvasSource == GlobalFollow.
 struct CanvasPlacement { double x = 0.0, y = 0.0; };
 
+// Pixel size of the box a GlobalFollow channel samples the global effect
+// through. Single source of truth for two things that must stay in
+// lockstep: the region Canvas::tick() actually samples (see its GlobalFollow
+// branch) and the region LightingCanvasWidget draws on screen for that
+// channel (LightingCanvasWidget::kBoxWidth/kBoxHeight alias these). Before
+// Task 22's geometry fix, the drawn box was a fixed 70x40 but the *sampled*
+// region was each channel's raw local-coordinate extent (e.g. 120px wide for
+// a motherboard JARGB channel's generic placeholder) -- so a wide channel's
+// hardware LEDs were driven by pixels far outside what was drawn/highlighted
+// on screen. Canvas::tick() now scales every channel's own local-coordinate
+// range into this fixed box (see computeLocalExtent/scaleIntoBox in
+// Canvas.cpp), so a 120-LED flat line and e.g. the Roccat Vulcan's 24x6 grid
+// both sample proportionally from this same box size, generically, with no
+// per-device-name special-casing.
+constexpr int kGlobalFollowBoxWidth = 70;
+constexpr int kGlobalFollowBoxHeight = 40;
+
 struct ChannelAssignment {
     ChannelMode mode = ChannelMode::Canvas;
     CanvasSource source = CanvasSource::Independent; // meaningful only when mode == Canvas
@@ -62,8 +79,15 @@ public:
     //   frame if assignment.effect is null), writes it via channel.setColor,
     //   then pushes via the channel's driver.
     // - Canvas-mode, source == GlobalFollow: same, but samples globalEffect_
-    //   at (placement.x + localX, placement.y + localY), skipping the
-    //   channel this frame if globalEffect_ is null.
+    //   at (placement.x + scaledX, placement.y + scaledY), where scaledX/Y
+    //   is this channel's local (x,y) rescaled from its own actual
+    //   local-coordinate extent (derived from Channel::ledPosition across
+    //   all its LEDs -- see computeLocalExtent() in Canvas.cpp) into
+    //   [0, kGlobalFollowBoxWidth) / [0, kGlobalFollowBoxHeight) (Task 22
+    //   geometry fix: this is the same box LightingCanvasWidget draws, so
+    //   what's sampled now always matches what's drawn/highlighted).
+    //   Skips the channel this frame if globalEffect_ is null, same as
+    //   before.
     // - Native-mode channels: calls driver.setNativeMode(channelName, assignment.nativeSettings)
     //   ONLY if that channel is still marked pending-send (i.e. only the
     //   first tick after setAssignment() last touched it) -- not every tick.

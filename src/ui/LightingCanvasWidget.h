@@ -6,6 +6,11 @@
 // outline so the background effect shows through it; an Independent
 // channel is filled with its own effect's color instead (Task 14 of the
 // Lighting Studio plan; Task 15 embeds this widget into the main window).
+// kBoxWidth/kBoxHeight below are the same box Canvas::tick() scales a
+// GlobalFollow channel's real LED-coordinate extent into (see Canvas.h's
+// kGlobalFollowBoxWidth/Height), so the box drawn/dragged here is always the
+// same region actually sampled and pushed to that channel's hardware LEDs
+// (Task 22 geometry fix).
 #pragma once
 
 #include <QElapsedTimer>
@@ -38,9 +43,14 @@ public:
     // the global effect's draggable reference point. Exposed (rather than
     // kept as private magic numbers) so callers/tests can compute a box's
     // on-screen rect from the CanvasPlacement passed to setChannel without
-    // duplicating these values.
-    static constexpr int kBoxWidth = 70;
-    static constexpr int kBoxHeight = 40;
+    // duplicating these values. kBoxWidth/kBoxHeight alias Canvas.h's
+    // kGlobalFollowBoxWidth/Height (Task 22 geometry fix) rather than
+    // redeclaring their own 70/40 -- Canvas::tick() scales every GlobalFollow
+    // channel's sampling into that exact same box, so what's drawn here and
+    // what's actually sampled for the hardware must stay the same two
+    // numbers, not just equal by coincidence.
+    static constexpr int kBoxWidth = kGlobalFollowBoxWidth;
+    static constexpr int kBoxHeight = kGlobalFollowBoxHeight;
     static constexpr int kHandleHitRadius = 10;
 
 signals:
