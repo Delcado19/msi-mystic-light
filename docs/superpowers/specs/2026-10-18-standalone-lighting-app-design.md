@@ -156,9 +156,19 @@ code, only the architecture and observed protocol facts):
 
 **MSI motherboard protocol** (modular device, this board's HID driver):
 fully specified in `docs/MB_800_HID_PROTOCOL.md` — report `0x50` (18×16-byte
-zone records, selects the firmware's native animation modes) and report
-`0x51` (727-byte `Gen1_Adv`, true per-LED color data, confirmed working
-via SignalRGB's own signed, production plugin for this exact VID). Gen2
+zone records, selects the firmware's native animation modes; **confirmed
+working live against real hardware on 2026-10-20**) and report `0x51`
+(727-byte `Gen1_Adv`, true per-LED color data — also **confirmed working
+live on 2026-10-20**, on two independent zones, `JARGB1`/`JARGB2`). The
+"confirmed working" claim for `0x51` was originally based only on reading
+SignalRGB's plugin source, never an observed effect; the live test found
+the missing precondition: the firmware only honors `0x51` per-LED data for
+a zone whose `0x50` record has `LightingMode=Advanced` (`9`), not `Off`
+(the default) or `Steady` (tried first, insufficient) — see
+`docs/MB_800_HID_PROTOCOL.md`'s `0x51` section for the full finding. The
+app's motherboard driver now sends one `0x50` arming report to set a
+zone's mode to `Advanced` whenever that zone enters Canvas mode, before
+any `0x51` push. Gen2
 (`0x90+`/`0xB0+`) is confirmed unused for this board's VID (`0x0DB0`) from
 three independent sources and is not part of v1. Exact per-zone LED counts
 for the user's board variant (`MPG B850 EDGE TI WIFI`, MS-7E62) are known:
