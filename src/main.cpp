@@ -158,15 +158,15 @@ int main(int argc, char** argv)
     // 16K); RoccatKoneDriver is PID-agnostic (it only matches on channel
     // name), so try the plain Aimo PID first and fall back to the 16K PID
     // on the same handle before giving up, same as the Vulcan's two-PID
-    // family below. interfaceNumber=0 per RoccatControllerDetect.cpp:414-415
-    // (both PIDs' REGISTER_HID_DETECTOR_IPU: interface_number=0,
-    // usage_page=0x0B, usage=0) -- IHidDevice::open() can only filter on
-    // interface_number, not usage_page, so this is a best-effort match, not
-    // a full fix: if another collection also exposes interface 0 with a
-    // different usage_page on a real unit, this could still open the wrong
-    // one. Unlike the Basilisk/Apex 3 fix below, this one is NOT confirmed
-    // against a real device on this machine (no Kone is physically present
-    // here) -- flag this explicitly to the user before trusting it in Step 7.
+    // family below. interfaceNumber=0, usagePage=0x0B per
+    // RoccatControllerDetect.cpp:414-415 (both PIDs' REGISTER_HID_DETECTOR_IPU:
+    // interface_number=0, usage_page=0x0B, usage=0). The usagePage filter is
+    // required, not optional: interface_number=0 alone splits into 5 separate
+    // HID collections on this machine's Kone Aimo (confirmed via
+    // Get-PnpDevice), and without usagePage, open() landed on the wrong one --
+    // live-tested, both pure red and pure green writes produced the same
+    // fixed orange (the device's own idle default, unaffected by our writes).
+    // Confirmed fixed with usagePage=0x0B: red now shows as red.
     if (!koneHid.open(0x1E7D, 0x2E27, 0, 0x0B)) {
         koneHid.open(0x1E7D, 0x2E2C, 0, 0x0B);
     }
@@ -200,11 +200,16 @@ int main(int argc, char** argv)
     // byte-for-byte identical on the wire (RoccatVulcanProtocol.h), so try
     // 100 Aimo first, then 120, opening both interfaces on whichever PID
     // matches.
-    // usage_page is also pinned here (0x000B control, 0x0001 LED; same
-    // task-12-report.md citation) as a precaution against the same
-    // collection-ambiguity bug confirmed live on the Kone Aimo above --
-    // unlike the Kone fix, this is NOT verified against a real Vulcan (none
-    // physically available), so treat it as plausible-but-unconfirmed.
+    // usage_page is also pinned here (0x000B control, 0x0001 LED), confirmed
+    // directly from RoccatControllerDetect.cpp's default-case switch (which
+    // both target PIDs hit, same as task-12-report.md's citation) against
+    // the same collection-ambiguity risk confirmed live on the Kone Aimo
+    // above. This is strictly MORE restrictive than the pre-fix
+    // interface-only match, not a free precaution: if these usage_page
+    // values are wrong for a specific physical unit, open() now fails
+    // outright instead of possibly working by luck. Unlike the Kone fix,
+    // this has NOT been verified against a real Vulcan (none physically
+    // available) -- treat it as plausible-but-unconfirmed until tested.
     HidApiDevice vulcanControlHid;
     HidApiDevice vulcanLedHid;
     constexpr uint16_t kVulcanVid = 0x1E7D;
