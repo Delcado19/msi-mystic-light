@@ -31,6 +31,7 @@ private slots:
     void testSetChannelModeCanvas_armsZoneToAdvancedBefore0x51Push();
     void testSetChannelModeNative_doesNotArmZone();
     void testJRGB1_cannotBeSetToCanvasMode_sendsNothing();
+    void testSupportsMode_matchesSetChannelModesOwnAcceptReject();
 };
 
 void MsiMotherboardDriverTest::testSetNativeMode_sendsExpectedBytesAndPreservesOtherZones()
@@ -311,6 +312,25 @@ void MsiMotherboardDriverTest::testJRGB1_cannotBeSetToCanvasMode_sendsNothing()
 
     QVERIFY(!driver.setChannelMode("JRGB1", ChannelMode::Canvas));
     QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
+}
+
+// Task 23: supportsMode() is a non-mutating query LightingStudioWindow now
+// calls at startup (via main.cpp) to decide which modes to offer per
+// channel; it must agree with setChannelMode's own accept/reject decision
+// (setChannelMode is now implemented in terms of it -- see
+// MsiMotherboardDriver.cpp) and must never send anything.
+void MsiMotherboardDriverTest::testSupportsMode_matchesSetChannelModesOwnAcceptReject()
+{
+    FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
+    MsiMotherboardDriver driver(hid);
+
+    QVERIFY(driver.supportsMode("JARGB1", ChannelMode::Native));
+    QVERIFY(driver.supportsMode("JARGB1", ChannelMode::Canvas));
+    QVERIFY(driver.supportsMode("JRGB1", ChannelMode::Native));
+    QVERIFY(!driver.supportsMode("JRGB1", ChannelMode::Canvas)); // no Gen1Adv area
+    QVERIFY(!driver.supportsMode("NoSuchChannel", ChannelMode::Native));
+    QVERIFY(!driver.supportsMode("NoSuchChannel", ChannelMode::Canvas));
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 0); // purely a query, nothing sent
 }
 
 QTEST_MAIN(MsiMotherboardDriverTest)

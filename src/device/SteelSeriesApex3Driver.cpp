@@ -30,14 +30,16 @@ Channel SteelSeriesApex3Driver::createDefaultChannel()
     return channel;
 }
 
-bool SteelSeriesApex3Driver::setChannelMode(const std::string& channelName, ChannelMode mode)
+bool SteelSeriesApex3Driver::supportsMode(const std::string& channelName, ChannelMode mode) const
 {
     // Direct-mode only (Global Constraint): Canvas is the only mode this
-    // peripheral ever accepts, so Native is always rejected here.
-    if (channelName != kChannelName || mode != ChannelMode::Canvas) {
-        return false;
-    }
-    return true;
+    // peripheral ever accepts, so Native is never supported.
+    return channelName == kChannelName && mode == ChannelMode::Canvas;
+}
+
+bool SteelSeriesApex3Driver::setChannelMode(const std::string& channelName, ChannelMode mode)
+{
+    return supportsMode(channelName, mode);
 }
 
 ChannelMode SteelSeriesApex3Driver::channelMode(const std::string& channelName) const

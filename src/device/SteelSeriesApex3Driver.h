@@ -31,6 +31,11 @@ public:
     bool setChannelMode(const std::string& channelName, ChannelMode mode) override;
     ChannelMode channelMode(const std::string& channelName) const override;
 
+    // Capability query (Task 23): true only for ChannelMode::Canvas on
+    // "SteelSeriesApex3" -- the same rule setChannelMode checks before
+    // sending anything, exposed without the HID/isOpen side effects.
+    bool supportsMode(const std::string& channelName, ChannelMode mode) const override;
+
     // Always returns false, no-op: this peripheral has no native mode.
     bool setNativeMode(const std::string& channelName, const NativeModeSettings& settings) override;
 

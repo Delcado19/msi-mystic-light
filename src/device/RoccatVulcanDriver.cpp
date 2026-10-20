@@ -45,11 +45,16 @@ Channel RoccatVulcanDriver::createDefaultChannel()
     return channel;
 }
 
-bool RoccatVulcanDriver::setChannelMode(const std::string& channelName, ChannelMode mode)
+bool RoccatVulcanDriver::supportsMode(const std::string& channelName, ChannelMode mode) const
 {
     // Direct-mode only (Global Constraint): Canvas is the only mode this
-    // peripheral ever accepts, so Native is always rejected here.
-    if (channelName != kChannelName || mode != ChannelMode::Canvas) {
+    // peripheral ever accepts, so Native is never supported.
+    return channelName == kChannelName && mode == ChannelMode::Canvas;
+}
+
+bool RoccatVulcanDriver::setChannelMode(const std::string& channelName, ChannelMode mode)
+{
+    if (!supportsMode(channelName, mode)) {
         return false;
     }
     if (!controlHid_.isOpen()) {

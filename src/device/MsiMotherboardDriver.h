@@ -46,6 +46,13 @@ public:
     bool setChannelMode(const std::string& channelName, ChannelMode mode) override;
     ChannelMode channelMode(const std::string& channelName) const override;
 
+    // Capability query (Task 23): false for an unknown channel; for Canvas,
+    // true only if the channel has a Gen1Adv area (every channel but
+    // JRGB1); Native is always true for a known channel -- the exact same
+    // rule setChannelMode's own early-return already encodes, read without
+    // mutating anything.
+    bool supportsMode(const std::string& channelName, ChannelMode mode) const override;
+
     // Native mode only. Updates this channel's record in the internal
     // 18-zone state (so other zones' last-sent settings are preserved)
     // and sends the full report 0x50. Returns false without sending if

@@ -26,6 +26,7 @@ private slots:
     void testPushCanvasColors_wrongChannelNameFailsGracefully();
     void testPushCanvasColors_rejectsMoreLedsThanMax();
     void testCreateDefaultChannel_hasDocumentedNameAndLedCount();
+    void testSupportsMode_canvasOnlyNeverNative();
 };
 
 void RoccatKoneDriverTest::testPushCanvasColors_sendsBothReportsInOrder()
@@ -94,6 +95,18 @@ void RoccatKoneDriverTest::testCreateDefaultChannel_hasDocumentedNameAndLedCount
     QCOMPARE(channel.name(), std::string("RoccatKone"));
     QCOMPARE(channel.ledLimit(), ROCCAT_KONE_MAX_LEDS);
     QCOMPARE(channel.totalLedCount(), ROCCAT_KONE_MAX_LEDS);
+}
+
+// Task 23: non-mutating capability query LightingStudioWindow uses to pick
+// which modes this channel's row offers; must agree with setChannelMode.
+void RoccatKoneDriverTest::testSupportsMode_canvasOnlyNeverNative()
+{
+    FakeHidDevice hid; // deliberately not opened -- supportsMode needs no I/O
+    RoccatKoneDriver driver(hid);
+    QVERIFY(driver.supportsMode("RoccatKone", ChannelMode::Canvas));
+    QVERIFY(!driver.supportsMode("RoccatKone", ChannelMode::Native));
+    QVERIFY(!driver.supportsMode("NoSuchChannel", ChannelMode::Canvas));
+    QCOMPARE(static_cast<int>(hid.sentReports.size()), 0);
 }
 
 QTEST_MAIN(RoccatKoneDriverTest)
