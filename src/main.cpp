@@ -158,16 +158,38 @@ int main(int argc, char** argv)
     // 16K); RoccatKoneDriver is PID-agnostic (it only matches on channel
     // name), so try the plain Aimo PID first and fall back to the 16K PID
     // on the same handle before giving up, same as the Vulcan's two-PID
-    // family below.
-    if (!koneHid.open(0x1E7D, 0x2E27)) {
-        koneHid.open(0x1E7D, 0x2E2C);
+    // family below. interfaceNumber=0 per RoccatControllerDetect.cpp:414-415
+    // (both PIDs' REGISTER_HID_DETECTOR_IPU: interface_number=0,
+    // usage_page=0x0B, usage=0) -- IHidDevice::open() can only filter on
+    // interface_number, not usage_page, so this is a best-effort match, not
+    // a full fix: if another collection also exposes interface 0 with a
+    // different usage_page on a real unit, this could still open the wrong
+    // one. Unlike the Basilisk/Apex 3 fix below, this one is NOT confirmed
+    // against a real device on this machine (no Kone is physically present
+    // here) -- flag this explicitly to the user before trusting it in Step 7.
+    if (!koneHid.open(0x1E7D, 0x2E27, 0)) {
+        koneHid.open(0x1E7D, 0x2E2C, 0);
     }
 
     HidApiDevice basiliskHid;
-    basiliskHid.open(0x1532, 0x0099);
+    // interfaceNumber=3 per RazerControllerDetect.cpp:361
+    // (REGISTER_HID_DETECTOR_IPU("Razer Basilisk V3", ..., 0x03, 0x0C, 0x01):
+    // interface_number=3, usage_page=0x0C, usage=0x01). IHidDevice::open()
+    // only filters on interface_number, not usage_page/usage, but a
+    // read-only Get-PnpDevice enumeration on this machine (where this mouse
+    // is actually connected) confirmed interface 3 is a single, unambiguous
+    // collection for this device -- no other collection shares it -- so the
+    // interface-only filter is sufficient here.
+    basiliskHid.open(0x1532, 0x0099, 3);
 
     HidApiDevice apex3Hid;
-    apex3Hid.open(0x1038, 0x161A);
+    // interfaceNumber=3 per SteelSeriesControllerDetect.cpp:543
+    // (REGISTER_HID_DETECTOR_I("SteelSeries Apex 3", ..., 3): this detector
+    // variant filters on interface_number only, no usage_page, matching
+    // exactly what IHidDevice::open() supports. Confirmed via a read-only
+    // Get-PnpDevice enumeration on this machine (where this keyboard is
+    // actually connected): interface 3 is a single, unambiguous collection.
+    apex3Hid.open(0x1038, 0x161A, 3);
 
     // Roccat Vulcan 100/120 Aimo: one physical device, two HID interfaces
     // under the same VID/PID -- control (mode/EnableDirect feature reports,
