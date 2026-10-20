@@ -1,0 +1,227 @@
+{
+  "communities": {
+    "0": [
+      "docs_superpowers_plans_2026_10_19_lighting_studio",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_global_constraints",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_lighting_studio_implementation_plan",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_review_focus",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_self_review_notes",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_10_roccat_kone_aimo_driver",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_11_razer_basilisk_v3_driver",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_12_roccat_vulcan_100_120_aimo_driver_two_hid_interfaces",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_13_extend_settings_placement_source_global_effect_profiles",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_14_lightingcanvaswidget",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_15_lightingstudiowindow",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_16_tray_integration_open_lighting_studio_profile_quick_switch",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_17_license_and_readme_update",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_18_final_wire_up_and_real_hardware_verification",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_1_extract_shared_device_value_types_add_idriver",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_2_ihiddevice_gains_write_and_interface_aware_open",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_3_canvas_global_placement_and_follow_global_effect",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_4_ipositionableeffect_radialrainboweffect",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_5_breathingeffect",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_6_spiraleffect",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_7_cometeffect_and_marqueeeffect",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_8_swirlcircleseffect",
+      "docs_superpowers_plans_2026_10_19_lighting_studio_task_9_steelseries_apex_3_driver_t_zone_protocol"
+    ],
+    "1": [
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_anti_goals",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_application_structure",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_canvas_architecture",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_decisions_already_made_do_not_re_derive",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_device_roster_confirmed",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_effect_library_staged",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_effect_reference_points",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_goals",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_intent_and_why",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_layout_confirmed_via_mockup_see_decisions_already_made_below",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_licensing_consequence_important_not_optional",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_lighting_studio_design_doc_v2",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_non_goals_v1_of_this_feature",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_spatial_model_extends_doesn_t_replace_v1_s_effect_model",
+      "docs_superpowers_specs_2026_10_19_lighting_studio_design_what_s_left_to_the_builder"
+    ],
+    "2": [
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_file_structure",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_10_qt_tray_app_shell",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_11_windows_autostart_registration",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_12_application_wire_up_and_first_real_hardware_verification",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_1_project_scaffolding_and_test_harness",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_2_msi_wire_protocol_encoders",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_3_hid_transport_interface_and_hidapi_backend",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_4_component_data_model",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_5_channel_model",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_6_msi_motherboard_driver",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_7_effect_interface_and_built_in_effects",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_8_canvas_render_loop",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_task_9_settings_persistence"
+    ],
+    "3": [
+      "docs_architecture",
+      "docs_mb_800_hid_protocol",
+      "docs_network_protocol",
+      "docs_online_data_catalog",
+      "docs_openrgb_upstream_draft",
+      "docs_openrgb_upstream_draft_entwurf_kommentar_für_gitlab_issues_4935_5429",
+      "readme",
+      "readme_contents",
+      "readme_msi_mystic_light_reverse_engineering",
+      "readme_related_repos"
+    ],
+    "4": [
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_anti_goals",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_constraints",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_goals",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_how_it_gets_made_decided",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_intent_and_why",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_non_goals_v1",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_settled_during_review_builder_check_pass",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_standalone_rgb_lighting_app_design",
+      "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_what_s_left_to_the_builder"
+    ],
+    "5": [
+      "docs_mb_800_hid_protocol_msi_mainboard_led_protocol_800_series_generation_vid_0x0db0_pid_0x0076",
+      "docs_mb_800_hid_protocol_record_layout_16_bytes_per_zone_area",
+      "docs_mb_800_hid_protocol_report_0x50_gen1_290_bytes_status_and_default_configuration",
+      "docs_mb_800_hid_protocol_report_0x51_gen1_adv_727_bytes_per_led_addressing_of_individual_segments",
+      "docs_mb_800_hid_protocol_report_0x90_port_0xb0_port_gen2_gen2_adv_newer_strip_model",
+      "docs_mb_800_hid_protocol_safety_relevant_finding_the_store_flag_is_set_on_every_write",
+      "docs_mb_800_hid_protocol_upstream_openrgb_bug_found_while_cross_checking_featurepacket_perled_761_is_727_bytes_not_761",
+      "docs_mb_800_hid_protocol_verification_against_the_existing_capture_template",
+      "docs_mb_800_hid_protocol_why_mystic_light_appears_softer_than_openrgb_context_for_the_user_s_observation"
+    ],
+    "6": [
+      "docs_network_protocol_1_tcp_26820_local_http_web_api_mlmodule_dll_cwebapi_cs",
+      "docs_network_protocol_2_udp_26822_mobile_app_pairing_cbaseserver_cs_cbasefn_cs",
+      "docs_network_protocol_3_udp_26823_party_sync_between_multiple_pcs_csyncserver_cs_csyncfn_cs",
+      "docs_network_protocol_4_udp_61337_signalrgb_bridge_ledkeeper_2_service",
+      "docs_network_protocol_live_verification_2026_10_17_the_whole_mlmodule_network_layer_is_dead_code",
+      "docs_network_protocol_mystic_light_local_network_interfaces",
+      "docs_network_protocol_protocol_confirmed_via_code_extends_the_msi_js_reconstruction",
+      "docs_network_protocol_still_open"
+    ],
+    "7": [
+      "docs_architecture_components",
+      "docs_architecture_hid_password_mechanism_hid_basic_init",
+      "docs_architecture_ledkeeper2_exe",
+      "docs_architecture_mlmodule_dll_network_core",
+      "docs_architecture_mystic_light_overall_architecture",
+      "docs_architecture_mystic_light_service_exe",
+      "docs_architecture_syncdata_dll"
+    ],
+    "8": [
+      "docs_online_data_catalog_content",
+      "docs_online_data_catalog_decryption_recipe_read_only_nothing_sent_to_any_device",
+      "docs_online_data_catalog_mystic_light_online_data_dat_decryption_and_content",
+      "docs_online_data_catalog_our_board_ms_7e62_i_e_the_msi_mpg_b850_edge_ti_wifi",
+      "docs_online_data_catalog_scope_how_many_other_boards_share_this_exact_protocol"
+    ],
+    "9": [
+      "docs_superpowers_plans_2026_10_18_v1_skeleton",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_global_constraints",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_review_focus",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_self_review",
+      "docs_superpowers_plans_2026_10_18_v1_skeleton_standalone_lighting_app_v1_skeleton_implementation_plan"
+    ],
+    "10": [
+      "claude",
+      "claude_graphify"
+    ]
+  },
+  "cohesion": {
+    "0": 0.08695652173913043,
+    "1": 0.125,
+    "2": 0.15384615384615385,
+    "3": 0.28888888888888886,
+    "4": 0.2,
+    "5": 0.2222222222222222,
+    "6": 0.25,
+    "7": 0.2857142857142857,
+    "8": 0.4,
+    "9": 0.4,
+    "10": 1.0
+  },
+  "gods": [
+    {
+      "id": "docs_superpowers_plans_2026_10_19_lighting_studio_lighting_studio_implementation_plan",
+      "label": "Lighting Studio Implementation Plan",
+      "degree": 22
+    },
+    {
+      "id": "docs_superpowers_plans_2026_10_18_v1_skeleton_file_structure",
+      "label": "File Structure",
+      "degree": 13
+    },
+    {
+      "id": "docs_superpowers_specs_2026_10_19_lighting_studio_design_lighting_studio_design_doc_v2",
+      "label": "Lighting Studio — Design Doc (v2)",
+      "degree": 12
+    },
+    {
+      "id": "docs_superpowers_specs_2026_10_18_standalone_lighting_app_design_standalone_rgb_lighting_app_design",
+      "label": "Standalone RGB Lighting App — Design",
+      "degree": 9
+    },
+    {
+      "id": "docs_network_protocol_mystic_light_local_network_interfaces",
+      "label": "Mystic Light — local network interfaces",
+      "degree": 7
+    },
+    {
+      "id": "docs_architecture_mystic_light_overall_architecture",
+      "label": "Mystic Light — Overall Architecture",
+      "degree": 7
+    },
+    {
+      "id": "docs_mb_800_hid_protocol_msi_mainboard_led_protocol_800_series_generation_vid_0x0db0_pid_0x0076",
+      "label": "MSI mainboard LED protocol, \"800-series\" generation (VID `0x0DB0`/PID `0x0076`)",
+      "degree": 6
+    },
+    {
+      "id": "docs_superpowers_plans_2026_10_18_v1_skeleton_standalone_lighting_app_v1_skeleton_implementation_plan",
+      "label": "Standalone Lighting App — v1 Skeleton Implementation Plan",
+      "degree": 5
+    },
+    {
+      "id": "docs_superpowers_specs_2026_10_19_lighting_studio_design_canvas_architecture",
+      "label": "Canvas architecture",
+      "degree": 4
+    },
+    {
+      "id": "docs_mb_800_hid_protocol_report_0x50_gen1_290_bytes_status_and_default_configuration",
+      "label": "Report `0x50` (\"Gen1\"), 290 bytes — status and default configuration",
+      "degree": 4
+    }
+  ],
+  "surprises": [],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `MSI mainboard LED protocol, \"800-series\" generation (VID `0x0DB0`/PID `0x0076`)` connect `MSI Mainboard LED Protocol` to `Documentation and Protocols`?",
+      "why": "High betweenness centrality (0.046) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Mystic Light — local network interfaces` connect `Mystic Light Network Interfaces` to `Documentation and Protocols`?",
+      "why": "High betweenness centrality (0.042) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `Global Constraints`, `Review Focus`, `Self-Review Notes` to the rest of the system?",
+      "why": "83 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Lighting Studio Implementation` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Lighting Studio Design` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.125 - nodes in this community are weakly interconnected."
+    }
+  ]
+}
