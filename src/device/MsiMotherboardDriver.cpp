@@ -75,6 +75,38 @@ bool MsiMotherboardDriver::setChannelMode(const std::string& channelName, Channe
         return false;
     }
     channelModes_[channelName] = mode;
+    // Live-hardware finding (2026-10-20): report 0x51 ("Gen1_Adv", per-LED
+    // color data) is only honored by the firmware for a zone whose 0x50
+    // record has lightingMode=Advanced (9) - the report's own name is the
+    // literal clue. Canvas::tick() never sends a 0x50 report for a
+    // Canvas-mode channel (only pushCanvasColors/0x51), so without this,
+    // that zone's lightingMode silently stays at MsiZoneSettings's default
+    // (Off) and the board never displays the 0x51 data at all, even though
+    // the 0x51 send itself is byte-perfect. Confirmed on two independent,
+    // real, MSI-Center-UI-verified zones: JARGB1 (rear exhaust fan) and
+    // JARGB2 (3 side fans + 1 bottom fan + an LED strip), both went solid
+    // red from a 0x51 push only after this arming send. Steady was tried
+    // first and did NOT work, ruling out "any non-Off mode" as the real
+    // requirement - Advanced specifically is needed.
+    //
+    // Only lightingMode is touched: brightness/colorCount/color1-4 are left
+    // at the zone's existing values. The live test's own result rules out
+    // needing more than that - color1 stayed black/default in both
+    // successful tests, yet the real LEDs showed the 0x51-pushed red, not
+    // black, so once Advanced is active, 0x51's own per-LED data is what
+    // the firmware displays and the 0x50 record's color fields don't matter.
+    //
+    // Resent unconditionally on every setChannelMode(Canvas) call, same as
+    // RoccatVulcanDriver::setChannelMode's EnableDirect send - this also
+    // fires on every canvas-drag placement change (LightingStudioWindow::
+    // onCanvasChannelPlacementChanged), not just the first. A 290-byte
+    // feature report is cheap and idempotent, so no "already armed" flag.
+    if (mode == ChannelMode::Canvas && hid_.isOpen()) {
+        MsiZoneSettings& zone = zoneState_[it->second.zoneIndex];
+        zone.lightingMode = MsiLightingMode::Advanced;
+        const std::array<uint8_t, 290> report = BuildReport0x50(zoneState_);
+        hid_.sendFeatureReport(report.data(), report.size());
+    }
     return true;
 }
 

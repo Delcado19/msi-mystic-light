@@ -36,6 +36,13 @@ public:
     // Returns false (no-op) for an unknown channel name, or for a channel
     // that has no Gen1Adv area (currently only "JRGB1") when mode is
     // Canvas: that channel isn't per-LED addressable.
+    //
+    // Entering Canvas mode also sends one 0x50 report arming that zone's
+    // record to lightingMode=Advanced: live hardware testing (2026-10-20)
+    // found the firmware only displays 0x51 per-LED data for a zone whose
+    // 0x50 record is in Advanced mode (see MsiMotherboardDriver.cpp for the
+    // full finding). This send is resent every call, same as
+    // RoccatVulcanDriver's EnableDirect.
     bool setChannelMode(const std::string& channelName, ChannelMode mode) override;
     ChannelMode channelMode(const std::string& channelName) const override;
 

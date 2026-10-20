@@ -88,6 +88,10 @@ void CanvasTest::testTick_canvasModeSamplesEffectAndPushes()
     for (auto& c : defaultChannels) channels.emplace(c.name(), c);
     channels.at("JARGB1").addComponent(Component::makeGenericPlaceholder(2));
     driver.setChannelMode("JARGB1", ChannelMode::Canvas);
+    // setChannelMode(Canvas) itself sends an arming 0x50 report (see
+    // MsiMotherboardDriverTest::testSetChannelModeCanvas_armsZoneToAdvancedBefore0x51Push);
+    // clear it here so this test's assertions only count what tick() sends.
+    hid.sentReports.clear();
 
     Canvas canvas(allChannelsTo(&driver, channels), channels);
     canvas.setAssignment("JARGB1", ChannelAssignment{ChannelMode::Canvas, CanvasSource::Independent, std::make_shared<FakeEffect>(MsiColor{1,2,3}), {}, {}});
@@ -125,6 +129,9 @@ void CanvasTest::testTick_continuesAfterOneChannelFails()
     channels.at("JARGB2").addComponent(Component::makeGenericPlaceholder(1));
     driver.setChannelMode("JARGB1", ChannelMode::Canvas);
     driver.setChannelMode("JARGB2", ChannelMode::Canvas);
+    // Clear the two arming 0x50 reports setChannelMode just sent, so this
+    // test's assertions only count what tick() sends.
+    hid.sentReports.clear();
 
     Canvas canvas(allChannelsTo(&driver, channels), channels);
     canvas.setAssignment("JARGB1", ChannelAssignment{ChannelMode::Canvas, CanvasSource::Independent, std::make_shared<FakeEffect>(MsiColor{1,1,1}), {}, {}});
@@ -156,6 +163,9 @@ void CanvasTest::testTick_continuesAfterFailureWhenFailingChannelIsNotLast()
     // JARGB1 intentionally left in the driver's default Native mode, so its
     // pushCanvasColors call below fails (mode mismatch) without touching hid.
     driver.setChannelMode("JARGB2", ChannelMode::Canvas);
+    // Clear the arming 0x50 report setChannelMode just sent, so this test's
+    // assertions only count what tick() sends.
+    hid.sentReports.clear();
 
     Canvas canvas(allChannelsTo(&driver, channels), channels);
     canvas.setAssignment("JARGB1", ChannelAssignment{ChannelMode::Canvas, CanvasSource::Independent, std::make_shared<FakeEffect>(MsiColor{1,1,1}), {}, {}});
@@ -176,6 +186,9 @@ void CanvasTest::testTick_globalFollowSamplesGlobalEffectAtPlacementOffset()
     // Generic placeholder lays 2 LEDs at local (0,0) and (1,0).
     channels.at("JARGB1").addComponent(Component::makeGenericPlaceholder(2));
     driver.setChannelMode("JARGB1", ChannelMode::Canvas);
+    // Clear the arming 0x50 report setChannelMode just sent, so this test's
+    // assertions only count what tick() sends.
+    hid.sentReports.clear();
 
     Canvas canvas(allChannelsTo(&driver, channels), channels);
     canvas.setGlobalEffect(std::make_shared<PositionColorEffect>());
@@ -202,6 +215,9 @@ void CanvasTest::testTick_globalFollowWithNoGlobalEffectDoesNotCrash()
     for (auto& c : defaultChannels) channels.emplace(c.name(), c);
     channels.at("JARGB1").addComponent(Component::makeGenericPlaceholder(1));
     driver.setChannelMode("JARGB1", ChannelMode::Canvas);
+    // Clear the arming 0x50 report setChannelMode just sent, so this test's
+    // assertions only count what tick() sends.
+    hid.sentReports.clear();
 
     Canvas canvas(allChannelsTo(&driver, channels), channels);
     // setGlobalEffect() deliberately never called.
@@ -223,6 +239,9 @@ void CanvasTest::testTick_extremePlacementDoesNotCrash()
     for (auto& c : defaultChannels) channels.emplace(c.name(), c);
     channels.at("JARGB1").addComponent(Component::makeGenericPlaceholder(1));
     driver.setChannelMode("JARGB1", ChannelMode::Canvas);
+    // Clear the arming 0x50 report setChannelMode just sent, so this test's
+    // assertions only count what tick() sends.
+    hid.sentReports.clear();
 
     Canvas canvas(allChannelsTo(&driver, channels), channels);
     canvas.setGlobalEffect(std::make_shared<FakeEffect>(MsiColor{9,9,9}));
