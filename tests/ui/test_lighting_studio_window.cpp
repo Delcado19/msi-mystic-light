@@ -408,11 +408,11 @@ void LightingStudioWindowTest::testColorButton_enabledOnlyWhenEffectUsesColor()
 // whose stored effect is still "" -- clicking it would call
 // setGlobalEffectColor(), but applyGlobalEffectToCanvas(buildEffect(""))
 // still resolves to nullptr, so nothing visible would change. This test
-// pins the swatch disabled on a truly-empty stored name, and -- since
-// selecting index 0 ("StaticColor") when the combo ALREADY merely displays
-// index 0 is a Qt no-op that fires no signal and would mask this bug --
-// deliberately selects RainbowWave first so the StaticColor selection after
-// it is a genuine index change that actually writes Settings and emits.
+// pins the swatch disabled on a truly-empty stored name. Follow-up: the
+// combo itself now shows NO selection (index -1) for an empty stored name,
+// so picking "StaticColor" directly -- the user's obvious first action -- is
+// a genuine index change that writes Settings and enables the swatch
+// (previously it was a same-index no-op, forcing a detour via another effect).
 void LightingStudioWindowTest::testGlobalColorButton_enabledOnlyWhenEffectUsesColor()
 {
     Settings settings = makeSettingsWithOneProfile(); // globalEffect.effectName == "" (never set by this helper)
@@ -424,18 +424,29 @@ void LightingStudioWindowTest::testGlobalColorButton_enabledOnlyWhenEffectUsesCo
     QVERIFY(globalColorButton != nullptr);
 
     QCOMPARE(settings.activeProfile()->globalEffect.effectName, std::string());
-    QVERIFY(!globalColorButton->isEnabled()); // stored name is "", regardless of what the combo displays
-
-    const int rainbowIdx = globalEffectCombo->findText(QStringLiteral("RainbowWave"));
-    QVERIFY(rainbowIdx >= 0);
-    globalEffectCombo->setCurrentIndex(rainbowIdx); // a genuine change: fires currentIndexChanged, writes Settings
+    QCOMPARE(globalEffectCombo->currentIndex(), -1); // display matches the stored "" -- no fake "StaticColor"
     QVERIFY(!globalColorButton->isEnabled());
 
     const int staticIdx = globalEffectCombo->findText(QStringLiteral("StaticColor"));
     QVERIFY(staticIdx >= 0);
-    globalEffectCombo->setCurrentIndex(staticIdx); // also a genuine change now (from RainbowWave)
+    globalEffectCombo->setCurrentIndex(staticIdx); // picked directly from the fresh state
     QVERIFY(globalColorButton->isEnabled());
     QCOMPARE(settings.activeProfile()->globalEffect.effectName, std::string("StaticColor"));
+
+    const int rainbowIdx = globalEffectCombo->findText(QStringLiteral("RainbowWave"));
+    QVERIFY(rainbowIdx >= 0);
+    globalEffectCombo->setCurrentIndex(rainbowIdx);
+    QVERIFY(!globalColorButton->isEnabled());
+
+    // Item 3 round trip: a color picked via the swatch lands in Settings and
+    // is shown again after a profile reload (refreshFromSettings).
+    globalEffectCombo->setCurrentIndex(staticIdx);
+    window.setGlobalEffectColor(MsiColor{9, 8, 7});
+    window.refreshFromSettings();
+    QCOMPARE(settings.activeProfile()->globalEffect.color.b, static_cast<uint8_t>(7));
+    QCOMPARE(globalEffectCombo->currentText(), QStringLiteral("StaticColor"));
+    QVERIFY(globalColorButton->isEnabled());
+    QVERIFY(globalColorButton->styleSheet().contains(QStringLiteral("#090807")));
 }
 
 void LightingStudioWindowTest::testSetGlobalEffectColor_updatesSettingsAndEmitsGlobalEffectChanged()

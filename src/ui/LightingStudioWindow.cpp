@@ -552,8 +552,15 @@ void LightingStudioWindow::repopulateFromActiveProfile()
 
     {
         const QSignalBlocker blocker(globalEffectCombo_);
+        // No index-0 fallback here (unlike the row effect combos): a fresh
+        // profile's globalEffect.effectName is "" (no global effect), and
+        // displaying "StaticColor" for it made picking StaticColor a
+        // same-index no-op that fired no signal -- the user saw StaticColor
+        // selected, a disabled color swatch, and no way to enable it short of
+        // picking another effect first (Task 23 review, follow-up to
+        // 17d9a4f). -1 shows an empty selection that matches the stored value.
         const int idx = globalEffectCombo_->findText(QString::fromStdString(profile->globalEffect.effectName));
-        globalEffectCombo_->setCurrentIndex(idx >= 0 ? idx : 0);
+        globalEffectCombo_->setCurrentIndex(idx);
     }
     updateColorSwatch(globalColorButton_, profile->globalEffect.color);
     updateGlobalColorButtonEnabledState();
