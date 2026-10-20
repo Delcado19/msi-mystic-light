@@ -154,9 +154,10 @@ report arming a zone to `Advanced` the moment that zone enters Canvas
 `MsiMotherboardDriver::setChannelMode` in `src/device/MsiMotherboardDriver.cpp`.
 
 For the historical record: an earlier live test on this same day wrongly
-concluded `0x51` was non-functional on this board (see this file's git
-history for the retraction text that was briefly drafted, never
-committed). The root cause of that wrong conclusion: this app's Canvas
+concluded `0x51` was non-functional on this board. A retraction for that
+wrong conclusion was drafted but never committed, so there is no git
+history to point to for it — this section is the corrected record. The
+root cause of that wrong conclusion: this app's Canvas
 mode never sent a `0x50` report for its own zone at all (only `0x51`), so
 every Canvas-mode zone's `0x50` record silently stayed at its
 `MsiZoneSettings` default — `LightingMode=Off` — regardless of how many
