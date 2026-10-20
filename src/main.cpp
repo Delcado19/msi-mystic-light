@@ -45,6 +45,7 @@
 #include "hid/HidApiDevice.h"
 #include "platform/win/AutostartWin.h"
 #include "settings/Settings.h"
+#include "ui/LightingCanvasWidget.h" // needed for the channelPlacementChanged signal connect below (Task 20, Bug B)
 #include "ui/LightingStudioWindow.h"
 #include "ui/TrayApp.h"
 
@@ -101,20 +102,71 @@ ChannelAssignment buildAssignment(const ChannelSettings& cs)
     return assignment;
 }
 
-// Pushes one channel's current ChannelSettings into both its driver
-// (setChannelMode -- needed so e.g. RoccatVulcanDriver sends its one-time
-// EnableDirect report, and so MsiMotherboardDriver's internal channelMode_
-// state matches what Canvas is about to push/send) and Canvas itself
-// (setAssignment). Shared by the initial apply below and the
-// channelAssignmentChanged handler, so a row edit in the Studio window and
-// the app's own startup state go through exactly the same path.
-void applyChannelSettingsToCanvas(Canvas& canvas, const std::map<std::string, IDriver*>& driversByChannel, const ChannelSettings& cs)
+// Pushes `cs.mode` into the channel's driver (setChannelMode -- needed so
+// e.g. RoccatVulcanDriver sends its one-time EnableDirect report, and so
+// MsiMotherboardDriver's internal channelMode_ state matches what Canvas is
+// about to push/send). Split out from applyChannelSettingsToCanvas() below
+// so the channelAssignmentChanged handler (Task 20, Bug A) can call *only*
+// this -- gated on whether `cs.mode` itself actually changed, the only field
+// this function reads -- separately from the Canvas-assignment push, which
+// is gated on a wider set of fields (see channelSettingsNeedFullReapply()
+// below). For MsiMotherboardDriver, setChannelMode(Canvas) resends a full
+// 290-byte 0x50 report that arms the zone to Advanced mode and carries every
+// other zone's last-sent state along with it (device/MsiMotherboardDriver.cpp,
+// commit 2884a12); for RoccatVulcanDriver it resends the one-time
+// EnableDirect report. Both are meant to run once per actual mode change,
+// not on every mouse-move pixel of a drag, nor on every effect/color tweak
+// that leaves the mode itself unchanged -- see
+// .superpowers/sdd/2026-10-19-lighting-studio/progress.md line 111
+// ("full resend on every canvas-drag pixel").
+void applyChannelModeToDriver(const std::map<std::string, IDriver*>& driversByChannel, const ChannelSettings& cs)
 {
     auto it = driversByChannel.find(cs.channelName);
     if (it != driversByChannel.end() && it->second) {
         it->second->setChannelMode(cs.channelName, cs.mode);
     }
+}
+
+// Pushes one channel's current ChannelSettings into both its driver
+// (applyChannelModeToDriver, see above) and Canvas itself (setAssignment).
+// Used for the initial per-channel apply at startup below, where both halves
+// are always needed unconditionally (there is no "previous" to gate against
+// yet). The channelAssignmentChanged handler further down calls
+// applyChannelModeToDriver()/canvas.setAssignment() separately instead of
+// through this combined function, since after startup the two halves are
+// gated independently (Task 20, Bug A).
+void applyChannelSettingsToCanvas(Canvas& canvas, const std::map<std::string, IDriver*>& driversByChannel, const ChannelSettings& cs)
+{
+    applyChannelModeToDriver(driversByChannel, cs);
     canvas.setAssignment(cs.channelName, buildAssignment(cs));
+}
+
+// True unless `next` differs from `previous` only in `placement` -- i.e.
+// true when the channel's mode/source/effect/color/native-settings actually
+// changed and Canvas needs a fresh ChannelAssignment (canvas.setAssignment(),
+// which rebuilds the channel's IEffect and/or re-arms Canvas's native-mode
+// resend -- see canvas/Canvas.cpp's setAssignment()), false when only the
+// on-canvas x/y position moved (a drag). Note this is a *wider* gate than
+// applyChannelModeToDriver()'s (any of the above fields, not just `mode`) --
+// Canvas needs the full rebuild for an effect/color/native-settings change
+// even though the driver's setChannelMode() doesn't care about any of those.
+// Task 20, Bug A: LightingCanvasWidget::channelPlacementChanged fires on
+// every mouseMoveEvent during a drag (see LightingCanvasWidget.h), which
+// LightingStudioWindow::onCanvasChannelPlacementChanged relays into
+// channelAssignmentChanged once per pixel -- so without this gate, dragging
+// a channel's box rebuilt its IEffect/resent native-mode settings on every
+// pixel. Extracted as a free, pure function (no Canvas/IDriver/Settings-file
+// dependency) so the gating decision itself is a small, independently-
+// reasoned-about unit even though main.cpp has no existing test harness to
+// host a regression test in (see task-20-report.md for why no test file was
+// added for this).
+bool channelSettingsNeedFullReapply(const ChannelSettings& previous, const ChannelSettings& next)
+{
+    ChannelSettings previousIgnoringPlacement = previous;
+    ChannelSettings nextIgnoringPlacement = next;
+    previousIgnoringPlacement.placement = CanvasPlacement{};
+    nextIgnoringPlacement.placement = CanvasPlacement{};
+    return !(previousIgnoringPlacement == nextIgnoringPlacement);
 }
 
 void applyGlobalEffectToCanvas(Canvas& canvas, const GlobalEffectSettings& g)
@@ -287,8 +339,16 @@ int main(int argc, char** argv)
     // complete for every line below.
     LightingStudioWindow studio(settings, channelNames);
 
+    // Task 20, Bug A: last ChannelSettings actually pushed to the driver/
+    // Canvas per channel, so the channelAssignmentChanged handler below can
+    // tell "placement moved" apart from "mode/settings changed" (see
+    // channelSettingsNeedFullReapply() above) instead of reapplying on
+    // every canvas-drag pixel.
+    std::map<std::string, ChannelSettings> lastAppliedChannelSettings;
+
     for (const ChannelSettings& cs : settings.activeProfile()->channelSettings) {
         applyChannelSettingsToCanvas(canvas, driversByChannel, cs);
+        lastAppliedChannelSettings[cs.channelName] = cs;
     }
     applyGlobalEffectToCanvas(canvas, settings.activeProfile()->globalEffect);
 
@@ -309,19 +369,77 @@ int main(int argc, char** argv)
     });
     QObject::connect(&tray, &TrayApp::quitRequested, &app, &QApplication::quit);
 
+    // Task 20, Bug B: Settings was previously only ever persisted on the
+    // tray's Quit action above, so an autostart tray app that the user logs
+    // off or shuts down (rather than explicitly choosing Quit) silently
+    // lost every edit made since the last Quit. Debounces a save behind a
+    // short idle window instead of writing on every single change signal
+    // (which would mean a disk write per canvas-drag pixel -- the same
+    // problem class as Bug A above): 2 seconds is long enough to coalesce a
+    // drag or a burst of row edits into one write, short enough that an
+    // unplanned shutdown can only ever lose ~2s of edits. Restarted (not
+    // just started) on every relevant change below, and reuses the exact
+    // same saveToFile() call the Quit path already uses -- no new
+    // persistence code path/semantics. The Quit-time save above stays as an
+    // immediate, non-debounced final flush.
+    QTimer saveDebounceTimer;
+    saveDebounceTimer.setSingleShot(true);
+    saveDebounceTimer.setInterval(2000);
+    QObject::connect(&saveDebounceTimer, &QTimer::timeout, [&settings, &settingsPath]() {
+        settings.saveToFile(settingsPath.toStdString());
+    });
+
     // Step 4/5: Studio window <-> Canvas/tray wiring. Every mutation the
     // Studio window makes is written into `settings` before it emits, so
     // each handler just re-reads settings.activeProfile() rather than
     // needing the new value passed through the signal.
     QObject::connect(&studio, &LightingStudioWindow::channelAssignmentChanged,
-        [&settings, &canvas, &driversByChannel](const std::string& channelName) {
+        [&settings, &canvas, &driversByChannel, &lastAppliedChannelSettings](const std::string& channelName) {
             Profile* profile = settings.activeProfile();
             if (!profile) return; // defensive; never null once `studio` exists
             for (const ChannelSettings& cs : profile->channelSettings) {
-                if (cs.channelName == channelName) {
-                    applyChannelSettingsToCanvas(canvas, driversByChannel, cs);
-                    break;
+                if (cs.channelName != channelName) continue;
+
+                // Task 20, Bug A gate: a canvas drag re-fires this signal on
+                // every mouse-move pixel with only `cs.placement` different
+                // from last time. Two independent gates below, matching the
+                // brief's wording precisely rather than one coarse "did
+                // anything change" flag:
+                //  - applyChannelModeToDriver() (IDriver::setChannelMode --
+                //    see its comment above for the full-report resend it can
+                //    trigger) only runs when `cs.mode` itself flipped, since
+                //    that's the only field it actually reads -- an
+                //    effect/source/color/native-settings-only change (e.g.
+                //    picking a new effect in the combo) must not re-arm the
+                //    driver.
+                //  - canvas.setAssignment() runs whenever anything besides
+                //    placement changed (it needs the new effect/
+                //    nativeSettings/etc.), plus the Canvas+GlobalFollow
+                //    placement-only case below so that mode keeps tracking a
+                //    drag live. Canvas+Independent and Native-mode
+                //    placement-only changes are skipped entirely: Canvas::
+                //    tick() never reads `placement` for either of those
+                //    (only Canvas+GlobalFollow does), and calling
+                //    setAssignment() would otherwise needlessly rebuild the
+                //    channel's IEffect (Independent) or re-arm
+                //    nativeModePending_ and resend the full native-mode
+                //    report on the next tick for no reason (Native) -- see
+                //    canvas/Canvas.cpp's setAssignment().
+                auto cached = lastAppliedChannelSettings.find(channelName);
+                const bool firstApply = cached == lastAppliedChannelSettings.end();
+                const bool modeChanged = firstApply || cached->second.mode != cs.mode;
+                const bool nonPlacementChanged = firstApply || channelSettingsNeedFullReapply(cached->second, cs);
+
+                if (modeChanged) {
+                    applyChannelModeToDriver(driversByChannel, cs);
                 }
+                if (nonPlacementChanged
+                    || (cs.mode == ChannelMode::Canvas && cs.source == CanvasSource::GlobalFollow)) {
+                    canvas.setAssignment(channelName, buildAssignment(cs));
+                }
+
+                lastAppliedChannelSettings[channelName] = cs;
+                break;
             }
         });
     QObject::connect(&studio, &LightingStudioWindow::globalEffectChanged, [&settings, &canvas]() {
@@ -334,6 +452,24 @@ int main(int argc, char** argv)
     QObject::connect(&studio, &LightingStudioWindow::activeProfileChanged, [&tray, &settings](const std::string&) {
         refreshTrayProfiles(tray, settings);
     });
+
+    // Task 20, Bug B: restart the debounced save (declared above, next to
+    // the tray's Quit-time save) on every one of the Studio's three change
+    // signals, plus the canvas widget's own placement signal directly --
+    // belt-and-suspenders with channelAssignmentChanged, since
+    // LightingStudioWindow::onCanvasChannelPlacementChanged already relays
+    // every canvas drag into channelAssignmentChanged (LightingStudioWindow.cpp),
+    // but restarting from both costs nothing extra (QTimer::start() on an
+    // already-running single-shot timer just re-arms it) and keeps this
+    // wiring resilient to that relay ever changing.
+    QObject::connect(&studio, &LightingStudioWindow::channelAssignmentChanged,
+        [&saveDebounceTimer](const std::string&) { saveDebounceTimer.start(); });
+    QObject::connect(&studio, &LightingStudioWindow::globalEffectChanged,
+        [&saveDebounceTimer]() { saveDebounceTimer.start(); });
+    QObject::connect(&studio, &LightingStudioWindow::activeProfileChanged,
+        [&saveDebounceTimer](const std::string&) { saveDebounceTimer.start(); });
+    QObject::connect(studio.canvas(), &LightingCanvasWidget::channelPlacementChanged,
+        [&saveDebounceTimer](const std::string&, CanvasPlacement) { saveDebounceTimer.start(); });
 
     QObject::connect(&tray, &TrayApp::openStudioRequested, [&studio]() {
         studio.show();
