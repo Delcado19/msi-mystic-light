@@ -85,7 +85,11 @@ public:
     //   all its LEDs -- see computeLocalExtent() in Canvas.cpp) into
     //   [0, kGlobalFollowBoxWidth) / [0, kGlobalFollowBoxHeight) (Task 22
     //   geometry fix: this is the same box LightingCanvasWidget draws, so
-    //   what's sampled now always matches what's drawn/highlighted).
+    //   what's sampled now always matches what's drawn/highlighted). An axis
+    //   with no extent (a flat line's y, or either axis of a single-LED
+    //   channel) scales to that axis's box CENTER, not 0 -- see
+    //   scaleIntoBox()'s doc comment in Canvas.cpp for why a corner/edge
+    //   default was rejected.
     //   Skips the channel this frame if globalEffect_ is null, same as
     //   before.
     // - Native-mode channels: calls driver.setNativeMode(channelName, assignment.nativeSettings)

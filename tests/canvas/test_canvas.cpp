@@ -89,6 +89,7 @@ private slots:
     void testTick_continuesAfterFailureWhenFailingChannelIsNotLast();
     void testTick_globalFollowSamplesGlobalEffectAtPlacementOffset();
     void testTick_globalFollowScalesDifferentShapedChannelsIntoSameBox();
+    void testTick_globalFollowSingleLedChannelSamplesBoxCenter();
     void testTick_globalFollowWithNoGlobalEffectDoesNotCrash();
     void testTick_extremePlacementDoesNotCrash();
     void testTick_multipleDriversEachReceiveOnlyTheirOwnChannel();
@@ -268,12 +269,49 @@ void CanvasTest::testTick_globalFollowScalesDifferentShapedChannelsIntoSameBox()
     const auto& lineColors = channels.at("JARGB1").colors();
     QCOMPARE(lineColors[0].r, static_cast<uint8_t>(0));                          // local x=0 -> scaled 0
     QCOMPARE(lineColors[119].r, static_cast<uint8_t>(kGlobalFollowBoxWidth - 1)); // local x=119 (far end) -> scaled box edge
+    // y has no extent at all (every LED is row 0) -- scaleIntoBox() maps that
+    // degenerate axis to the box's vertical center, not 0, so the line
+    // samples through the box's middle rather than hugging its top edge.
+    QCOMPARE(lineColors[0].g, static_cast<uint8_t>((kGlobalFollowBoxHeight - 1) / 2));
+    QCOMPARE(lineColors[119].g, static_cast<uint8_t>((kGlobalFollowBoxHeight - 1) / 2));
 
     const auto& gridColors = channels.at("EZConnector").colors();
     QCOMPARE(gridColors[0].r, static_cast<uint8_t>(0));   // local (0,0) -> scaled (0,0)
     QCOMPARE(gridColors[0].g, static_cast<uint8_t>(0));
     QCOMPARE(gridColors[119].r, static_cast<uint8_t>(kGlobalFollowBoxWidth - 1));  // local col=23 (far end) -> scaled box edge
     QCOMPARE(gridColors[119].g, static_cast<uint8_t>(kGlobalFollowBoxHeight - 1)); // local row=4 (far end) -> scaled box edge
+}
+
+// Task 22 geometry fix, degenerate-extent case: a 1-LED channel (e.g. a
+// mouse DPI indicator) has no extent on EITHER axis -- its one LED's local
+// (x,y) is trivially its own min and max. scaleIntoBox() maps that to the
+// box's center on both axes, so this channel samples the middle of its
+// drawn box. Mapping to 0 instead (this task's first attempt) would have
+// sampled the box's top-left corner -- indistinguishable from the pre-fix
+// bug for exactly this case, since a 1-LED channel has no raw coordinate to
+// run past the box in the first place.
+void CanvasTest::testTick_globalFollowSingleLedChannelSamplesBoxCenter()
+{
+    std::map<std::string, Channel> channels;
+    channels.emplace("Solo", Channel("Solo", 1));
+    channels.at("Solo").addComponent(Component::makeGenericPlaceholder(1));
+
+    FakeDriver driver;
+    std::map<std::string, IDriver*> driversByChannel{{"Solo", &driver}};
+
+    Canvas canvas(driversByChannel, channels);
+    canvas.setGlobalEffect(std::make_shared<PositionColorEffect>());
+
+    ChannelAssignment assignment;
+    assignment.mode = ChannelMode::Canvas;
+    assignment.source = CanvasSource::GlobalFollow;
+    assignment.placement = CanvasPlacement{5, 7};
+    canvas.setAssignment("Solo", assignment);
+    canvas.tick(0);
+
+    const auto& colors = channels.at("Solo").colors();
+    QCOMPARE(colors[0].r, static_cast<uint8_t>(5 + (kGlobalFollowBoxWidth - 1) / 2));
+    QCOMPARE(colors[0].g, static_cast<uint8_t>(7 + (kGlobalFollowBoxHeight - 1) / 2));
 }
 
 void CanvasTest::testTick_globalFollowWithNoGlobalEffectDoesNotCrash()
