@@ -1,3 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Derived from OpenRGB (https://openrgb.org), GPL-2.0-or-later: upstream
+// source RoccatKoneAimoController (Controllers/RoccatController/
+// RoccatKoneAimoController/RoccatKoneAimoController.cpp/.h). This is a
+// from-scratch reimplementation of that protocol, written by reading
+// OpenRGB's source (not copied from it), and modified to this codebase's
+// own style and IHidDevice abstraction; kept under GPL-2.0-or-later as a
+// derivative work of GPL-licensed protocol logic, per GPLv2 Sections 1/2(a).
+//
 // Roccat Kone Aimo wire-protocol encoders. Ported from OpenRGB's
 // RoccatKoneAimoController
 // (Controllers/RoccatController/RoccatKoneAimoController/RoccatKoneAimoController.cpp

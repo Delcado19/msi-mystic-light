@@ -1,3 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Derived from OpenRGB (https://openrgb.org), GPL-2.0-or-later: upstream
+// source RazerController (Controllers/RazerController/RazerController/
+// RazerController.cpp/.h), specifically SetLEDs, razer_create_custom_
+// frame_extended_matrix_report, razer_create_mode_custom_extended_matrix_
+// report, and razer_calculate_crc. This is a from-scratch reimplementation
+// of that protocol, written by reading OpenRGB's source (not copied from
+// it), and modified to this codebase's own style and IHidDevice
+// abstraction; kept under GPL-2.0-or-later as a derivative work of
+// GPL-licensed protocol logic, per GPLv2 Sections 1/2(a).
+
 #include "protocol/RazerBasiliskProtocol.h"
 
 #include <stdexcept>
