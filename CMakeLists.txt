@@ -10,7 +10,7 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 COMPONENTS Core Widgets Test REQUIRED)
 find_package(hidapi CONFIG REQUIRED)
 
-add_executable(MsiMysticLightApp src/main.cpp src/hid/HidApiDevice.cpp src/protocol/MsiProtocol.cpp src/device/Component.cpp src/device/Channel.cpp src/device/MsiMotherboardDriver.cpp src/effects/StaticColorEffect.cpp src/effects/RainbowWaveEffect.cpp src/canvas/Canvas.cpp src/settings/Settings.cpp src/ui/TrayApp.cpp src/platform/win/AutostartWin.cpp)
+add_executable(MsiMysticLightApp src/main.cpp src/hid/HidApiDevice.cpp src/protocol/MsiProtocol.cpp src/protocol/RoccatVulcanProtocol.cpp src/protocol/RoccatKoneProtocol.cpp src/protocol/RazerBasiliskProtocol.cpp src/protocol/SteelSeriesApex3Protocol.cpp src/device/Component.cpp src/device/Channel.cpp src/device/MsiMotherboardDriver.cpp src/device/RoccatVulcanDriver.cpp src/device/RoccatKoneDriver.cpp src/device/RazerBasiliskDriver.cpp src/device/SteelSeriesApex3Driver.cpp src/effects/StaticColorEffect.cpp src/effects/RainbowWaveEffect.cpp src/effects/BreathingEffect.cpp src/effects/RadialRainbowEffect.cpp src/effects/SpiralEffect.cpp src/effects/CometEffect.cpp src/effects/MarqueeEffect.cpp src/effects/SwirlCirclesEffect.cpp src/canvas/Canvas.cpp src/settings/Settings.cpp src/ui/TrayApp.cpp src/ui/LightingCanvasWidget.cpp src/ui/LightingStudioWindow.cpp src/platform/win/AutostartWin.cpp)
 target_include_directories(MsiMysticLightApp PRIVATE src)
 target_link_libraries(MsiMysticLightApp PRIVATE Qt6::Core Qt6::Widgets hidapi::hidapi)
 
