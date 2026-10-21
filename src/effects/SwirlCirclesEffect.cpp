@@ -17,13 +17,9 @@ MsiColor SwirlCirclesEffect::colorAt(int x, int y, int64_t elapsedMs) const
     double dy = static_cast<double>(y - centerY_);
     double distance = std::hypot(dx, dy);
 
-    // distance is >=0, so floor == truncation here; keep the explicit floor
-    // to match the spec formula.
-    int64_t ringIndex = static_cast<int64_t>(std::floor(distance / ringWidthPx_));
-
-    // Same integer normalize-mod-360 idiom as SpiralEffect/RadialRainbowEffect.
-    int64_t raw = ringIndex * 60 + (elapsedMs * 360) / periodMs_;
-    int hue = static_cast<int>(((raw % 360) + 360) % 360);
+    // Continuous distance preserves ring motion without hard hue bands.
+    const double raw = distance / ringWidthPx_ * 60.0 + (elapsedMs % periodMs_) * 360.0 / periodMs_;
+    const double hue = std::fmod(std::fmod(raw,360.0)+360.0,360.0);
 
     return HsvFullToRgb(hue);
 }

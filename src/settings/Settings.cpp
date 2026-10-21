@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 #include <QFile>
+#include <QSaveFile>
 #include <QIODevice>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -130,7 +132,7 @@ QJsonObject placementToJson(const CanvasPlacement& p)
 {
     QJsonObject o;
     o["x"] = p.x;
-    o["y"] = p.y;
+    o["y"] = p.y;o["width"]=p.width;o["height"]=p.height;o["rotation"]=p.rotation;
     return o;
 }
 
@@ -158,6 +160,9 @@ CanvasPlacement placementFromJson(const QJsonValue& v, const CanvasPlacement& fa
     CanvasPlacement p = fallback;
     p.x = clampPlacementCoord(o.value("x").toDouble(p.x), p.x);
     p.y = clampPlacementCoord(o.value("y").toDouble(p.y), p.y);
+    p.width=std::clamp(o.value("width").toDouble(70),10.,2000.);
+    p.height=std::clamp(o.value("height").toDouble(40),10.,2000.);
+    p.rotation=std::clamp(o.value("rotation").toDouble(0),-360.,360.);
     return p;
 }
 
@@ -171,6 +176,14 @@ QJsonObject channelSettingsToJson(const ChannelSettings& cs)
     o["effectName"] = QString::fromStdString(cs.effectName);
     o["staticColor"] = colorToJson(cs.staticColor);
     o["nativeSettings"] = nativeSettingsToJson(cs.nativeSettings);
+    QJsonArray components;
+    for (const auto& component : cs.components) components.append(component.toJson());
+    o["components"] = components;
+    o["componentsConfigured"]=cs.hasCustomComponents();
+    QJsonObject overrides;
+    for (const auto& [index, color] : cs.ledOverrides) overrides[QString::number(index)] = colorToJson(color);
+    o["ledOverrides"] = overrides;
+
     return o;
 }
 
@@ -186,6 +199,26 @@ ChannelSettings channelSettingsFromJson(const QJsonObject& o)
     cs.effectName = o.value("effectName").toString().toStdString();
     cs.staticColor = colorFromJson(o.value("staticColor"), cs.staticColor);
     cs.nativeSettings = nativeSettingsFromJson(o.value("nativeSettings"));
+    const bool header = cs.channelName == "JARGB1" || cs.channelName == "JARGB2" || cs.channelName == "JARGB3" || cs.channelName == "EZConnector";
+    int total = 0;
+    const int capacity=header?120:cs.channelName=="RoccatVulcan"?144:cs.channelName=="SteelSeriesApex3"?10:11;
+    cs.componentsConfigured=o.value("componentsConfigured").toBool(false);
+    for (const auto& value : o.value("components").toArray()) {
+        try {
+            auto component = Component::fromJson(value.toObject());
+            if (component.ledCount <= 0 || component.ledCount > capacity - total) { cs.components.clear();cs.componentsConfigured=false; break; }
+            total += component.ledCount;
+            cs.components.push_back(std::move(component));
+        } catch (const std::invalid_argument&) { cs.components.clear();cs.componentsConfigured=false; break; }
+    }
+    if(!header && !cs.components.empty() && total!=capacity){cs.components.clear();cs.componentsConfigured=false;}
+    const auto overrides = o.value("ledOverrides").toObject();
+    for (auto it = overrides.begin(); it != overrides.end(); ++it) {
+        bool ok = false;
+        const int index = it.key().toInt(&ok);
+        if (ok && index >= 0 && index < 144 && it.value().isObject()) cs.ledOverrides[index] = colorFromJson(it.value());
+    }
+
     return cs;
 }
 
@@ -255,11 +288,20 @@ Profile profileFromJson(const QJsonObject& o)
 
 bool ChannelSettings::operator==(const ChannelSettings& other) const
 {
+    if (components.size() != other.components.size() || ledOverrides.size() != other.ledOverrides.size()) return false;
+    for (size_t i = 0; i < components.size(); ++i) if (components[i].toJson() != other.components[i].toJson()) return false;
+    for (const auto& [index, color] : ledOverrides) {
+        const auto it = other.ledOverrides.find(index);
+        if (it == other.ledOverrides.end() || !colorEquals(color, it->second)) return false;
+    }
+
     return channelName == other.channelName
         && mode == other.mode
         && source == other.source
         && placement.x == other.placement.x
         && placement.y == other.placement.y
+        && placement.width==other.placement.width && placement.height==other.placement.height && placement.rotation==other.placement.rotation
+        && hasCustomComponents()==other.hasCustomComponents()
         && effectName == other.effectName
         && colorEquals(staticColor, other.staticColor)
         && nativeSettingsEquals(nativeSettings, other.nativeSettings);
@@ -287,15 +329,32 @@ bool Settings::saveToFile(const std::string& path) const
 
     QJsonObject root;
     root["profiles"] = profilesArray;
+    QJsonArray custom;
+    for (const auto& definition : customEffects) {
+        QJsonArray colors;
+        for (const auto& color : definition.colors) colors.append(colorToJson(color));
+        QJsonObject item;
+        item["name"] = QString::fromStdString(definition.name);
+        item["colors"] = colors;
+        item["periodMs"] = definition.periodMs;
+        item["wavelength"] = definition.wavelength;
+        item["pattern"] = QString::fromStdString(definition.pattern);
+        item["path"]=QString::fromStdString(definition.path);
+        QJsonArray stops;for(double stop:definition.stops)stops.append(stop);item["stops"]=stops;
+        custom.append(item);
+    }
+    root["customEffects"] = custom;
+    QJsonArray catalog;for(const auto& c:hardwareCatalog)catalog.append(c.toJson());root["hardwareCatalog"]=catalog;
+
     root["activeProfile"] = QString::fromStdString(activeProfileName);
 
-    QFile file(QString::fromStdString(path));
+    QSaveFile file(QString::fromStdString(path));
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false; // I/O failure, e.g. directory doesn't exist
 
     const QByteArray bytes = QJsonDocument(root).toJson();
-    const bool ok = file.write(bytes) == bytes.size();
-    file.close();
-    return ok;
+    // Save component chains and user-created recipes atomically with profiles.
+    if (file.write(bytes) != bytes.size()) return false;
+    return file.commit();
 }
 
 // Review Focus (owned by this task): the settings file can be missing on
@@ -338,6 +397,7 @@ bool Settings::loadFromFile(const std::string& path)
         defaultProfile.name = "Default";
 
         profiles = {std::move(defaultProfile)};
+        customEffects.clear();hardwareCatalog.clear();
         activeProfileName = "Default";
         return true;
     }
@@ -353,6 +413,34 @@ bool Settings::loadFromFile(const std::string& path)
         parsed.push_back(profileFromJson(entry.toObject()));
     }
 
+    std::vector<CustomEffectDefinition> parsedEffects;
+    for (const auto& value : root.value("customEffects").toArray()) {
+        if (parsedEffects.size() >= 64) break;
+        const auto item = value.toObject();
+        CustomEffectDefinition definition;
+        definition.name = item.value("name").toString().trimmed().left(80).toStdString();
+        if (definition.name.empty() || std::any_of(parsedEffects.begin(), parsedEffects.end(), [&](const auto& d) { return d.name == definition.name; })) continue;
+        definition.periodMs = std::clamp(item.value("periodMs").toInt(6000), 500, 120000);
+        definition.wavelength = std::clamp(item.value("wavelength").toInt(720), 40, 4000);
+        for (const auto& color : item.value("colors").toArray()) {
+            if (definition.colors.size() >= 16) break;
+            if (color.isObject()) definition.colors.push_back(colorFromJson(color));
+        }
+        definition.path=item.value("path").toString("Component LEDs").toStdString();
+        if(!CustomEffectDefinition::validPath(definition.path))definition.path="Component LEDs";
+        definition.pattern=item.value("pattern").toString("Wave").toStdString();
+        if(!CustomEffectDefinition::validPattern(definition.pattern))definition.pattern="Wave";
+        for(const auto& stop:item.value("stops").toArray())definition.stops.push_back(stop.toDouble(-1));
+        if(!definition.validStops())definition.stops.clear(); // Corrupt positions keep the usable legacy palette.
+        if (definition.colors.size() >= 2) parsedEffects.push_back(std::move(definition));
+    }
+    std::vector<Component> catalog;
+    for(const auto& value:root.value("hardwareCatalog").toArray()) {
+        if(catalog.size()>=128)break;
+        try {auto c=Component::fromJson(value.toObject());if(c.valid() && c.ledCount<=120 && !c.productName.empty())catalog.push_back(std::move(c));}catch(const std::invalid_argument&){}
+    }
+    hardwareCatalog=std::move(catalog);
+    customEffects = std::move(parsedEffects);
     profiles = std::move(parsed);
     activeProfileName = root.value("activeProfile").toString().toStdString();
     return true;

@@ -1,22 +1,17 @@
-// QWidget showing every channel (device) as a small draggable rectangle
-// positioned over a live-rendered background: the canvas-wide global
-// effect (if any), sampled across the widget's full area via QPainter and
-// redrawn on a 60Hz QTimer (mirrors Canvas::tick's own rate -- see
-// src/canvas/Canvas.h). A channel in GlobalFollow mode is drawn as an
-// outline so the background effect shows through it; an Independent
-// channel is filled with its own effect's color instead (Task 14 of the
-// Lighting Studio plan; Task 15 embeds this widget into the main window).
-// kBoxWidth/kBoxHeight below are the same box Canvas::tick() scales a
-// GlobalFollow channel's real LED-coordinate extent into (see Canvas.h's
-// kGlobalFollowBoxWidth/Height), so the box drawn/dragged here is always the
-// same region actually sampled and pushed to that channel's hardware LEDs
-// (Task 22 geometry fix).
+// Spatial preview in the same scene coordinates used by Canvas::tick.
+// The inspector fits the 1100x700 workspace into the available viewport;
+// pointer positions are inverse-transformed, so resizing never changes
+// physical placement or hardware sampling. Standalone widgets keep 1:1
+// coordinates unless setFitToView(true) is requested.
+// Preview frames run at up to 60 Hz, stop while hidden/paused, and are independent
+// of hardware rendering. The effect field is the spatial sampling surface;
+// artwork carries addressed light markers; detailed color editing has its own dialog.
 #pragma once
 
-#include <QElapsedTimer>
 #include <QPoint>
 #include <QTimer>
-#include <QWidget>
+#include <QOpenGLWidget>
+#include <QTransform>
 
 #include <map>
 #include <memory>
@@ -27,7 +22,7 @@
 
 class IPositionableEffect; // effects/IPositionableEffect.h -- only referenced by pointer here
 
-class LightingCanvasWidget : public QWidget {
+class LightingCanvasWidget : public QOpenGLWidget {
     Q_OBJECT
 public:
     explicit LightingCanvasWidget(QWidget* parent = nullptr);
@@ -38,22 +33,25 @@ public:
     void setChannel(const std::string& channelName, CanvasPlacement placement, CanvasSource source, std::shared_ptr<IEffect> ownEffect);
     void removeChannel(const std::string& channelName);
     void setGlobalEffect(std::shared_ptr<IEffect> effect);
+    void setChannelOverrides(const std::string& name, const std::map<int,MsiColor>& overrides) { overrides_[name]=overrides; update(); }
+    void setChannelComponents(const std::string& name, const std::vector<Component>& components) { geometries_[name]=components; update(); }
 
-    // Pixel size of a channel's drawn box, and the hit-test radius around
-    // the global effect's draggable reference point. Exposed (rather than
-    // kept as private magic numbers) so callers/tests can compute a box's
-    // on-screen rect from the CanvasPlacement passed to setChannel without
-    // duplicating these values. kBoxWidth/kBoxHeight alias Canvas.h's
-    // kGlobalFollowBoxWidth/Height (Task 22 geometry fix) rather than
-    // redeclaring their own 70/40 -- Canvas::tick() scales every GlobalFollow
-    // channel's sampling into that exact same box, so what's drawn here and
-    // what's actually sampled for the hardware must stay the same two
-    // numbers, not just equal by coincidence.
+    // View transforms never change persisted placement or effect sampling.
+    void setFitToView(bool enabled) { fitToView_ = enabled; update(); }
+    QPoint sceneToWidget(QPoint point) const;
+    void setSelectedChannel(const std::string& name);
+    void setPreviewPaused(bool paused);
+    bool previewPaused() const { return previewPaused_; }
+
+
+    // Legacy default footprint for callers without custom sizing. Actual
+    // rendering/sampling uses CanvasPlacement width, height and rotation.
     static constexpr int kBoxWidth = kGlobalFollowBoxWidth;
     static constexpr int kBoxHeight = kGlobalFollowBoxHeight;
     static constexpr int kHandleHitRadius = 10;
 
 signals:
+    void channelSelected(const std::string& channelName);
     // Emitted live while dragging a channel's box, and once more on
     // release. The widget already applies the new placement to its own
     // channels_ entry before emitting -- this signal is a notification for
@@ -67,10 +65,14 @@ signals:
     void globalEffectReferencePointChanged(int x, int y);
 
 protected:
-    void paintEvent(QPaintEvent*) override;
+    void paintGL() override;
+    void initializeGL() override;
+    void showEvent(QShowEvent*) override;
+    void hideEvent(QHideEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
     void mouseMoveEvent(QMouseEvent*) override;
     void mouseReleaseEvent(QMouseEvent*) override;
+    void wheelEvent(QWheelEvent*) override;
 
 private:
     struct ChannelBox { CanvasPlacement placement; CanvasSource source; std::shared_ptr<IEffect> ownEffect; };
@@ -81,15 +83,27 @@ private:
     // RadialRainbowEffect, expose a draggable reference point).
     IPositionableEffect* globalEffectPositionable() const;
 
+    QTransform viewTransform() const;
+    QPoint widgetToScene(QPoint point) const;
+    int sceneWidth() const;
+    int sceneHeight() const;
+    bool fitToView_ = false;
+    bool previewPaused_ = false;
+    bool reducedMotion_ = false;
+    std::string selectedChannel_;
+    int64_t previewTimeMs_ = 0;
+    std::map<std::string, std::map<int,MsiColor>> overrides_;
+    std::map<std::string, std::vector<Component>> geometries_;
     std::map<std::string, ChannelBox> channels_;
     std::shared_ptr<IEffect> globalEffect_;
     QTimer repaintTimer_;
-    QElapsedTimer clock_;
+
 
     // Drag state: which box (by name) or "the global effect's reference
     // point" is currently grabbed, and the press-time offset, set in
     // mousePressEvent and read in mouseMoveEvent/mouseReleaseEvent.
-    enum class DragTarget { None, Channel, GlobalReferencePoint };
+    enum class DragTarget { None, Channel, Resize, Rotate, GlobalReferencePoint };
+    CanvasPlacement dragStartPlacement_;
     DragTarget dragKind_ = DragTarget::None;
     std::string draggedChannel_;
     QPoint dragOffset_; // press position minus the dragged box's top-left, so the box doesn't jump to re-center on the cursor

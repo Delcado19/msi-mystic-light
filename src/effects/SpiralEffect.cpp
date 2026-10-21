@@ -27,12 +27,9 @@ MsiColor SpiralEffect::colorAt(int x, int y, int64_t elapsedMs) const
     double angleDeg = std::atan2(dy, dx) * (180.0 / kPi);
     double distance = std::hypot(dx, dy);
 
-    // Round the spatial part once, then add the integer time sweep, and
-    // normalize mod 360 in one step (handles atan2's negative range and any
-    // sign of elapsedMs), same idiom as RadialRainbowEffect.
-    int64_t spatial = static_cast<int64_t>(std::lround(angleDeg + distance * tightnessDegPerPx_));
-    int64_t raw = spatial + (elapsedMs * 360) / periodMs_;
-    int hue = static_cast<int>(((raw % 360) + 360) % 360);
+    // Keep fractional hue; integer rounding produced visible color steps.
+    const double raw = angleDeg + distance * tightnessDegPerPx_ + (elapsedMs % periodMs_) * 360.0 / periodMs_;
+    const double hue = std::fmod(std::fmod(raw,360.0)+360.0,360.0);
 
     return HsvFullToRgb(hue);
 }

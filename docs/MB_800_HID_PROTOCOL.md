@@ -251,3 +251,15 @@ For a standalone app this means: **the smoothness is a protocol/feature
 choice, not a hardware advantage of MSI's.** The relevant work is setting
 `LightingMode` correctly, or using the per-LED reports, not building custom
 transition math.
+
+## Standalone app capability correction (2026-10-21)
+
+The app now treats IOShield (native zone 4) as native-only. Earlier hardware
+checks recorded no visible response to 0x51 with either JPIPE1 or JPIPE2,
+even after arming Advanced mode. A catalog name or successful transport write
+must not be interpreted as working per-LED support. Saved Canvas assignments
+are clamped to Native by the existing UI capability validation.
+
+The settings inspected during troubleshooting requested black for all board
+channels. New entries now default to steady white; existing choices remain
+unchanged. A separate red Hardware Check profile is used for visual verification.

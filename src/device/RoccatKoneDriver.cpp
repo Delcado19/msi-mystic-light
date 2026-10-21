@@ -11,7 +11,13 @@ RoccatKoneDriver::RoccatKoneDriver(IHidDevice& hid) : hid_(hid)
 Channel RoccatKoneDriver::createDefaultChannel()
 {
     Channel channel(kChannelName, ROCCAT_KONE_MAX_LEDS);
-    channel.addComponent(Component::makeGenericPlaceholder(ROCCAT_KONE_MAX_LEDS));
+    Component component = Component::makeGenericPlaceholder(ROCCAT_KONE_MAX_LEDS);
+    component.productName = component.displayName = "Roccat Kone Aimo";
+    component.type = "Mouse";
+    component.width = 100; component.height = 160;
+    component.ledCoordinates = {{50,30},{20,45},{16,70},{15,95},{25,120},{80,45},{84,70},{85,95},{75,120},{35,140},{65,140}};
+    component.ledNames = {"Wheel","Left strip 1","Left strip 2","Left strip 3","Left strip 4","Right strip 1","Right strip 2","Right strip 3","Right strip 4","Lower left","Lower right"};
+    channel.addComponent(component);
     return channel;
 }
 

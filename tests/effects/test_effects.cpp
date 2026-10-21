@@ -3,6 +3,7 @@
 // color computation, no HID/device I/O.
 #include <QtTest/QtTest>
 
+#include "effects/CustomGradientEffect.h"
 #include "effects/BreathingEffect.h"
 #include "effects/CometEffect.h"
 #include "effects/MarqueeEffect.h"
@@ -17,6 +18,8 @@ class EffectsTest : public QObject
     Q_OBJECT
 
 private slots:
+    void testSmoothWaveAndCustomPalette();
+    void testCustomPatternsAndStops();
     void testStaticColorEffect_ignoresInputs();
     void testRainbowWaveEffect_hueZeroIsRed();
     void testRainbowWaveEffect_variesWithTimeAndPosition();
@@ -266,7 +269,7 @@ void EffectsTest::testSpiralEffect_zeroDistanceDoesNotCrashAndIsFinite()
 }
 
 // Due east (same angle 0deg) at distance 10 vs. 100. Tightness is 1.0 so the
-// hue offsets are 10deg vs. 100deg; with the default 4.0 they would be 40deg
+// hue offsets are 10deg vs. 100deg; with the old tightness 4.0 they would be 40deg
 // vs. 400 mod 360 = 40deg and collide, which would make this test meaningless.
 // Unlike RadialRainbowEffect, distance must change the hue.
 void EffectsTest::testSpiralEffect_sameAngleDifferentDistanceDiffersInHue()
@@ -358,20 +361,16 @@ void EffectsTest::testMarqueeEffect_scrollsWithTime()
     QCOMPARE(halfPeriodLater.b, static_cast<uint8_t>(0));
 }
 
-// Ring 0 is distance [0,15). (10,0) and (0,5) are at different angles but
-// both at distance <15 from center, so they share ring 0 and must match.
+// Equal radii match at any angle; neighboring radii now change continuously.
 void EffectsTest::testSwirlCirclesEffect_sameRingSameHue()
 {
-    SwirlCirclesEffect e(0, 0, 15, 3000);
-    MsiColor a = e.colorAt(10, 0, 500);
-    MsiColor b = e.colorAt(0, 5, 500);
-    QCOMPARE(a.r, b.r);
-    QCOMPARE(a.g, b.g);
-    QCOMPARE(a.b, b.b);
+    SwirlCirclesEffect e(0,0,15,3000);
+    const auto a=e.colorAt(10,0,500),b=e.colorAt(0,10,500);
+    QCOMPARE(a.r,b.r);QCOMPARE(a.g,b.g);QCOMPARE(a.b,b.b);
+    const auto c=e.colorAt(14,0,0),d=e.colorAt(15,0,0);
+    QVERIFY(qAbs(int(c.r)-d.r)<=18 && qAbs(int(c.g)-d.g)<=18 && qAbs(int(c.b)-d.b)<=18);
 }
 
-// (14,0) is distance 14 (ring 0, hue 0) and (15,0) is distance 15 (ring 1,
-// hue 60). Different hues must give different colors.
 void EffectsTest::testSwirlCirclesEffect_adjacentRingsDiffer()
 {
     SwirlCirclesEffect e(0, 0, 15, 3000);
@@ -391,6 +390,48 @@ void EffectsTest::testSwirlCirclesEffect_zeroRingWidthDoesNotCrash()
     QCOMPARE(a.r, b.r);
     QCOMPARE(a.g, b.g);
     QCOMPARE(a.b, b.b);
+}
+
+void EffectsTest::testSmoothWaveAndCustomPalette()
+{
+    RainbowWaveEffect wave;
+    const auto a=wave.colorAt(0,0,0),b=wave.colorAt(1,0,0);
+    QVERIFY(qAbs(int(a.r)-b.r)<=4 && qAbs(int(a.g)-b.g)<=4 && qAbs(int(a.b)-b.b)<=4);
+    for(const auto& effect:std::vector<std::shared_ptr<IEffect>>{std::make_shared<SpiralEffect>(),std::make_shared<SwirlCirclesEffect>()}) {
+        const auto left=effect->colorAt(100,0,0),right=effect->colorAt(101,0,0);
+        QVERIFY(qAbs(int(left.r)-right.r)<=4 && qAbs(int(left.g)-right.g)<=4 && qAbs(int(left.b)-right.b)<=4);
+    }
+    CustomGradientEffect gradient({"Test",{{255,0,0},{0,0,255}},6000,720});
+    auto middle=gradient.colorAt(180,0,0);
+    QCOMPARE(middle.r,uint8_t(128));QCOMPARE(middle.b,uint8_t(128));
+    auto wrap=gradient.colorAt(-720,0,0);
+    QCOMPARE(wrap.r,uint8_t(255));QCOMPARE(wrap.b,uint8_t(0));
+    CustomGradientEffect invalid({"",{},0,0});QCOMPARE(invalid.colorAt(0,0,0).r,uint8_t(0));
+}
+
+void EffectsTest::testCustomPatternsAndStops()
+{
+    for(const auto* pattern:{"Wave","Vertical","Diagonal","Radial","Spiral","Plasma","Breathing","Sweep","Static gradient"}) {
+        CustomEffectDefinition d{"Pattern",{{255,0,0},{0,0,255}},6000,720};d.pattern=pattern;d.stops={0,.25};
+        QVERIFY(CustomEffectDefinition::validPattern(pattern));QVERIFY(d.validStops());CustomGradientEffect effect(d);
+        const auto start=effect.colorAt(100,150,1234),repeat=effect.colorAt(100,150,7234);
+        QCOMPARE(start.r,repeat.r);QCOMPARE(start.g,repeat.g);QCOMPARE(start.b,repeat.b);
+        const auto later=effect.colorAt(100,150,2734);
+        if(d.pattern=="Static gradient"){QCOMPARE(start.r,later.r);QCOMPARE(start.b,later.b);}
+        else QVERIFY(start.r!=later.r || start.b!=later.b);
+    }
+    CustomEffectDefinition d{"Stops",{{255,0,0},{0,0,255}},6000,720};d.stops={0,.25};
+    const auto blue=CustomGradientEffect(d).colorAt(180,0,0);QCOMPARE(blue.b,uint8_t(255));QCOMPARE(blue.r,uint8_t(0));
+    d.stops={.7,.2};QVERIFY(!d.validStops());d.stops={0,1};QVERIFY(!d.validStops());d.stops={0};QVERIFY(!d.validStops());
+    QVERIFY(!CustomEffectDefinition::validPattern("Untrusted"));
+    d.stops={0,.5};d.path="Component LEDs";CustomGradientEffect ledEffect(d);
+    QCOMPARE(ledEffect.colorForLed(0,0,0,0,12,0,6).r,uint8_t(255));
+    QCOMPARE(ledEffect.colorForLed(0,0,0,3,12,3,6).b,uint8_t(255));
+    QCOMPARE(ledEffect.colorForLed(0,0,0,6,12,0,6).r,uint8_t(255));
+    d.path="Entire chain";CustomGradientEffect chainEffect(d);
+    QCOMPARE(chainEffect.colorForLed(0,0,0,6,12,0,6).b,uint8_t(255));
+    d.path="Canvas positions";CustomGradientEffect spatial(d);
+    QCOMPARE(spatial.colorForLed(180,0,0,6,12,0,6).b,spatial.colorAt(180,0,0).b);
 }
 
 QTEST_MAIN(EffectsTest)

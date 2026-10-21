@@ -26,7 +26,12 @@ SteelSeriesApex3Driver::SteelSeriesApex3Driver(IHidDevice& hid) : hid_(hid)
 Channel SteelSeriesApex3Driver::createDefaultChannel()
 {
     Channel channel(kChannelName, STEELSERIES_APEX3_MAX_ZONES);
-    channel.addComponent(Component::makeGenericPlaceholder(STEELSERIES_APEX3_MAX_ZONES));
+    auto component = Component::makeGenericPlaceholder(STEELSERIES_APEX3_MAX_ZONES);
+    component.productName = component.displayName = "SteelSeries Apex 3";
+    component.type = "KeyboardZones";
+    component.width = 10; component.height = 2;
+    for (int i = 0; i < component.ledCount; ++i) component.ledNames[i] = "Zone " + std::to_string(i + 1);
+    channel.addComponent(component);
     return channel;
 }
 

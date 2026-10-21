@@ -25,7 +25,23 @@ const std::map<std::string, ChannelInfo>& channelTable()
         {"JARGB2",      {1, MsiGen1AdvArea::JARGB2, 120}},
         {"JARGB3",      {2, MsiGen1AdvArea::JARGB3, 120}},
         {"EZConnector", {3, MsiGen1AdvArea::JAF,    120}},
-        {"IOShield",    {4, MsiGen1AdvArea::JPIPE1, 11}},
+        // Live-tested 2026-10-20: report 0x51 (Gen1Adv per-LED) has no
+        // visible effect on this board's real IOShield zone, confirmed with
+        // TWO independent zone/area hypotheses: (1) {4, JPIPE1} -- matches
+        // both MSI's generic Enum_LedArea slot naming and this board's own
+        // catalog ("IO COVER"=4); (2) {5, JPIPE2} -- tested as an
+        // alternative-wiring hypothesis, also negative. Native mode (0x50)
+        // on this same zoneIndex=4 is independently confirmed working (see
+        // earlier Step 7 ground-truth testing), so this is specifically a
+        // Gen1Adv/per-LED limitation for this one zone, NOT a repeat of the
+        // already-fixed Advanced-mode-arming issue that affected
+        // JARGB1/2/3 -- IOShield was armed to Advanced exactly like those
+        // three and still showed nothing. Keep the catalog-confirmed
+        // native zone 4, but no supported per-LED area; see
+        // docs/MB_800_HID_PROTOCOL.md.
+        // Do not advertise a known non-working mode: the UI clamps saved
+        // Canvas assignments back to Native for this board.
+        {"IOShield",    {4, std::nullopt, 11}},
         {"JRGB1",       {9, std::nullopt,           1}},
     };
     return table;
@@ -69,8 +85,8 @@ bool MsiMotherboardDriver::supportsMode(const std::string& channelName, ChannelM
     if (it == channelTable().end()) {
         return false;
     }
-    // Canvas mode needs a Gen1Adv area for per-LED addressing; JRGB1 has
-    // none (single non-addressable LED), so it is native-mode only. Every
+    // Canvas mode needs a working Gen1Adv area; IOShield and JRGB1 have
+    // none supported on this board, so they are native-mode only. Every
     // known channel supports Native.
     if (mode == ChannelMode::Canvas) {
         return it->second.gen1AdvArea.has_value();

@@ -1,3 +1,6 @@
+#include "effects/CustomGradientEffect.h"
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 // Unit test for LightingCanvasWidget (Task 14): the draggable-box canvas
 // over a live-rendered background effect. Same off-screen-widget pattern
 // as test_tray_app.cpp -- construct the widget, show() it (needed so
@@ -35,6 +38,9 @@ class LightingCanvasWidgetTest : public QObject
     Q_OBJECT
 
 private slots:
+    void testResizeAndRotationHandles();
+    void testLedPathStillPaintsContinuousEffectBehindHardware();
+    void testOpenGLPreviewPerformance();
     void testSetChannel_thenRemoveChannel_doesNotCrash();
     void testMousePressDragRelease_onAChannelBox_emitsChannelPlacementChanged();
     void testMousePressDragRelease_onGlobalEffectHandle_emitsGlobalEffectReferencePointChanged();
@@ -143,6 +149,54 @@ void LightingCanvasWidgetTest::testDragBoxFarPastWidgetEdge_clampsPlacementToVis
     const CanvasPlacement newPlacement = spy.last().at(1).value<CanvasPlacement>();
     QVERIFY(newPlacement.x >= 0 && newPlacement.x <= widget.width() - LightingCanvasWidget::kBoxWidth);
     QVERIFY(newPlacement.y >= 0 && newPlacement.y <= widget.height() - LightingCanvasWidget::kBoxHeight);
+}
+
+void LightingCanvasWidgetTest::testOpenGLPreviewPerformance()
+{
+    LightingCanvasWidget widget;widget.setFitToView(true);widget.resize(1100,700);
+    CustomEffectDefinition d{"Performance",{{113,226,197},{101,133,255},{219,119,203}},6000,720};d.pattern="Plasma";d.path="Canvas positions";
+    widget.setGlobalEffect(std::make_shared<CustomGradientEffect>(d));widget.setPreviewPaused(true);
+    widget.show();QVERIFY(QTest::qWaitForWindowExposed(&widget));QVERIFY(widget.isValid());
+    widget.makeCurrent();
+    const QString renderer=QString::fromLatin1(reinterpret_cast<const char*>(widget.context()->functions()->glGetString(GL_RENDERER)));
+    widget.doneCurrent();QVERIFY(!renderer.isEmpty());qInfo()<<"Verified preview GL renderer:"<<renderer;
+    QElapsedTimer elapsed;elapsed.start();
+    for(int i=0;i<30;++i)QVERIFY(!widget.grabFramebuffer().isNull());
+    const double frameMs=elapsed.nsecsElapsed()/30000000.;
+    const auto screenshot=qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");
+    if(!screenshot.isEmpty())QVERIFY(widget.grabFramebuffer().save(screenshot+".framebuffer.png"));
+    qInfo()<<"Preview frame + GPU readback average (ms):"<<frameMs;
+}
+
+void LightingCanvasWidgetTest::testResizeAndRotationHandles()
+{
+    LightingCanvasWidget widget;widget.resize(600,450);widget.setChannel("Fan",{100,100,160,120,0},CanvasSource::GlobalFollow,nullptr);widget.setSelectedChannel("Fan");widget.show();QVERIFY(QTest::qWaitForWindowExposed(&widget));
+    QSignalSpy changes(&widget,&LightingCanvasWidget::channelPlacementChanged);
+    QTest::mousePress(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(260,220));QTest::mouseMove(&widget,QPoint(300,260));QTest::mouseRelease(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(300,260));
+    QVERIFY(!changes.empty());auto p=changes.last()[1].value<CanvasPlacement>();QVERIFY(p.width>160);QVERIFY(p.height>120);
+    const QPoint rotation(qRound(p.x+p.width/2),qRound(p.y-20));
+    QTest::mousePress(&widget,Qt::LeftButton,Qt::NoModifier,rotation);QTest::mouseMove(&widget,QPoint(qRound(p.x+p.width),qRound(p.y+p.height/2)));QTest::mouseRelease(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(qRound(p.x+p.width),qRound(p.y+p.height/2)));
+    p=changes.last()[1].value<CanvasPlacement>();QVERIFY(std::abs(p.rotation)>45);
+}
+
+void LightingCanvasWidgetTest::testLedPathStillPaintsContinuousEffectBehindHardware()
+{
+    CustomEffectDefinition d{"Spatial regression",{{255,0,0},{0,0,255}},6000,720};
+    d.path="Component LEDs";d.pattern="Static gradient";
+    LightingCanvasWidget widget;widget.setFitToView(true);widget.resize(1100,700);
+    widget.setGlobalEffect(std::make_shared<CustomGradientEffect>(d));widget.setPreviewPaused(true);
+    widget.setChannel("Fan",{500,300,120,120},CanvasSource::GlobalFollow,nullptr);
+    widget.setChannelComponents("Fan",{Component::makeFan(6,true)});
+    widget.show();QVERIFY(QTest::qWaitForWindowExposed(&widget));
+    const auto image=widget.grabFramebuffer();QVERIFY(!image.isNull());
+    const auto sample=[&](int x,int y){return image.pixelColor(int(x*image.width()/1100.),int(y*image.height()/700.));};
+    QVERIFY(sample(8,100).red()>240);QVERIFY(sample(360,100).blue()>240);
+    QVERIFY(sample(180,100).red()>100 && sample(180,100).blue()>100);
+    // Hardware remains movable while the full background, not LED dots, is visible.
+    QSignalSpy moved(&widget,&LightingCanvasWidget::channelPlacementChanged);
+    QTest::mousePress(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(550,350));
+    QTest::mouseMove(&widget,QPoint(580,370));QTest::mouseRelease(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(580,370));
+    QVERIFY(!moved.empty());
 }
 
 QTEST_MAIN(LightingCanvasWidgetTest)

@@ -11,7 +11,7 @@
 
 // hueDegrees must be in [0,360); callers normalize their own hue formula
 // (e.g. via a mod-360 step) before calling this.
-inline MsiColor HsvFullToRgb(int hueDegrees)
+inline MsiColor HsvFullToRgb(double hueDegrees)
 {
     double c = 1.0;
     double hPrime = hueDegrees / 60.0;

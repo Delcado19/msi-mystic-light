@@ -144,6 +144,26 @@ void RoccatVulcanDriverTest::testCreateDefaultChannel_hasDocumentedNameAndLedCou
     QCOMPARE(channel.name(), std::string("RoccatVulcan"));
     QCOMPARE(channel.ledLimit(), VULCAN_MAX_LEDS);
     QCOMPARE(channel.totalLedCount(), VULCAN_MAX_LEDS);
+    // Reference fallback from OpenRGB, not physical proof for every unit.
+    QVERIFY(channel.ledPosition(0x09) == std::make_pair(1, 4)); // < >
+    QVERIFY(channel.ledPosition(0x0A) == std::make_pair(1, 5)); // Win
+    QVERIFY(channel.ledPosition(0x59) == std::make_pair(14, 5)); // Right Ctrl
+    QVERIFY(channel.ledPosition(0x83) == std::make_pair(23, 4)); // Numpad Enter
+    int active=0;
+    for (int i = 0; i < VULCAN_MAX_LEDS; ++i) {
+        const auto pos = channel.ledPosition(i);
+        if(channel.components()[0].ledNames[i].find("Wire slot")==0){QVERIFY(!pos);continue;}
+        QVERIFY(pos && pos->first >= 0 && pos->first < 24);
+        QVERIFY(pos->second >= 0 && pos->second < 6);++active;
+    }
+    QCOMPARE(active,105);
+    std::vector<MsiColor> colors(VULCAN_MAX_LEDS);
+    colors[0x09] = {11, 22, 33};
+    const auto packets = BuildVulcanColorPackets(colors);
+    QCOMPARE(packets[0][14], uint8_t(11));
+    QCOMPARE(packets[0][26], uint8_t(22));
+    QCOMPARE(packets[0][38], uint8_t(33));
+
 }
 
 // Task 23: supportsMode() is a non-mutating query (no HID I/O, works even

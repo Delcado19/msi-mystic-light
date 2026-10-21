@@ -1,3 +1,5 @@
+#include "effects/EffectClock.h"
+#include "hid/HardwareWorker.h"
 // Application entry point: wires together every device driver (the MSI
 // motherboard plus the four peripherals added by the Lighting Studio plan),
 // the Canvas render loop, Settings persistence, the Lighting Studio window,
@@ -37,6 +39,7 @@
 #include "device/RoccatKoneDriver.h"
 #include "device/RoccatVulcanDriver.h"
 #include "device/SteelSeriesApex3Driver.h"
+#include "effects/EffectFactory.h"
 #include "effects/BreathingEffect.h"
 #include "effects/CometEffect.h"
 #include "effects/MarqueeEffect.h"
@@ -54,33 +57,6 @@
 
 namespace {
 
-// Minimal effectName -> IEffect factory. LightingStudioWindow.cpp carries
-// its own copy of this exact mapping for its preview widget; there is still
-// no shared factory anywhere in the codebase (see that file's "Minimal
-// effectName -> IEffect factory" comment), so this is a second, independent
-// instance of the same small if/else chain rather than an extracted shared
-// header for two callers -- per the plan's Task 18, Step 3 and the
-// established precedent from Task 15's own report. Both copies must be kept
-// in sync with Settings' effectName contract if a new effect is ever added.
-std::shared_ptr<IEffect> buildEffect(const std::string& effectName, const MsiColor& color, int referenceX, int referenceY)
-{
-    // ponytail: CometEffect's trackWidthPx has no stored Settings field to
-    // read (no canvas-width concept persisted); fixed to a sane constant
-    // for now, matching LightingStudioWindow.cpp's own copy of this
-    // simplification. Add a real field if Comet's track width ever needs
-    // tuning.
-    constexpr int kCometTrackWidthPx = 300;
-    if (effectName == "StaticColor") return std::make_shared<StaticColorEffect>(color);
-    if (effectName == "RainbowWave") return std::make_shared<RainbowWaveEffect>();
-    if (effectName == "Breathing") return std::make_shared<BreathingEffect>(color);
-    if (effectName == "RadialRainbow") return std::make_shared<RadialRainbowEffect>(referenceX, referenceY);
-    if (effectName == "Spiral") return std::make_shared<SpiralEffect>(referenceX, referenceY);
-    if (effectName == "Comet") return std::make_shared<CometEffect>(color, kCometTrackWidthPx);
-    if (effectName == "Marquee") return std::make_shared<MarqueeEffect>(color);
-    if (effectName == "SwirlCircles") return std::make_shared<SwirlCirclesEffect>(referenceX, referenceY);
-    return nullptr; // unknown/empty name -- Canvas tolerates a null effect by skipping the channel for the frame
-}
-
 // Builds the Canvas-ready assignment for one persisted ChannelSettings
 // entry. Native mode carries its NativeModeSettings verbatim. Canvas mode
 // with CanvasSource::Independent resolves effectName to a concrete IEffect;
@@ -91,16 +67,17 @@ std::shared_ptr<IEffect> buildEffect(const std::string& effectName, const MsiCol
 // unrecognized effectName (e.g. from a hand-edited settings.json) leaves
 // effect null; Canvas::tick already tolerates a null effect by skipping
 // that channel for the frame rather than crashing.
-ChannelAssignment buildAssignment(const ChannelSettings& cs)
+ChannelAssignment buildAssignment(const ChannelSettings& cs, const Settings& settings)
 {
     ChannelAssignment assignment;
     assignment.mode = cs.mode;
     assignment.source = cs.source;
     assignment.placement = cs.placement;
+    assignment.ledOverrides = cs.ledOverrides;
     if (cs.mode == ChannelMode::Native) {
         assignment.nativeSettings = cs.nativeSettings;
     } else if (cs.source == CanvasSource::Independent) {
-        assignment.effect = buildEffect(cs.effectName, cs.staticColor, 0, 0);
+        assignment.effect = buildEffect(cs.effectName, cs.staticColor, 0, 0, settings.customEffects);
     }
     return assignment;
 }
@@ -138,10 +115,10 @@ void applyChannelModeToDriver(const std::map<std::string, IDriver*>& driversByCh
 // applyChannelModeToDriver()/canvas.setAssignment() separately instead of
 // through this combined function, since after startup the two halves are
 // gated independently (Task 20, Bug A).
-void applyChannelSettingsToCanvas(Canvas& canvas, const std::map<std::string, IDriver*>& driversByChannel, const ChannelSettings& cs)
+void applyChannelSettingsToCanvas(Canvas& canvas, const std::map<std::string, IDriver*>& driversByChannel, const ChannelSettings& cs, const Settings& settings)
 {
     applyChannelModeToDriver(driversByChannel, cs);
-    canvas.setAssignment(cs.channelName, buildAssignment(cs));
+    canvas.setAssignment(cs.channelName, buildAssignment(cs, settings));
 }
 
 // Task 21 (USB peripheral reconnect/retry): re-applies every channel
@@ -185,7 +162,7 @@ void reapplyChannelsForDriver(
         if (driverIt == driversByChannel.end() || driverIt->second != driver) {
             continue;
         }
-        applyChannelSettingsToCanvas(canvas, driversByChannel, cs);
+        applyChannelSettingsToCanvas(canvas, driversByChannel, cs, settings);
         lastAppliedChannelSettings[cs.channelName] = cs;
     }
 }
@@ -218,9 +195,9 @@ bool channelSettingsNeedFullReapply(const ChannelSettings& previous, const Chann
     return !(previousIgnoringPlacement == nextIgnoringPlacement);
 }
 
-void applyGlobalEffectToCanvas(Canvas& canvas, const GlobalEffectSettings& g)
+void applyGlobalEffectToCanvas(Canvas& canvas, const GlobalEffectSettings& g, const Settings& settings)
 {
-    canvas.setGlobalEffect(buildEffect(g.effectName, g.color, g.referenceX, g.referenceY));
+    canvas.setGlobalEffect(buildEffect(g.effectName, g.color, g.referenceX, g.referenceY, settings.customEffects));
 }
 
 // Rebuilds the tray's profile submenu from Settings.profiles. Called once
@@ -476,6 +453,9 @@ int main(int argc, char** argv)
     Settings settings;
     settings.loadFromFile(settingsPath.toStdString());
 
+    // Keep the detected geometry as the fallback when a profile has no custom chain.
+    std::map<std::string, std::vector<Component>> defaultComponents;
+    for (const auto& [name, channel] : channels) defaultComponents[name] = channel.components();
     Canvas canvas(driversByChannel, channels);
 
     // Step 4b: construct the Studio window before the initial Canvas push,
@@ -494,6 +474,7 @@ int main(int argc, char** argv)
     // default-filling loop here means settings.activeProfile() is
     // guaranteed non-null and complete for every line below.
     LightingStudioWindow studio(settings, channelNames, availableModesByChannel);
+    for (const auto& [name, components] : defaultComponents) studio.setDeviceComponents(name, components);
 
     // Task 20, Bug A: last ChannelSettings actually pushed to the driver/
     // Canvas per channel, so the channelAssignmentChanged handler below can
@@ -503,10 +484,11 @@ int main(int argc, char** argv)
     std::map<std::string, ChannelSettings> lastAppliedChannelSettings;
 
     for (const ChannelSettings& cs : settings.activeProfile()->channelSettings) {
-        applyChannelSettingsToCanvas(canvas, driversByChannel, cs);
+        if (channels.count(cs.channelName)) channels.at(cs.channelName).replaceComponents(!cs.hasCustomComponents() ? defaultComponents.at(cs.channelName) : cs.components);
+        applyChannelSettingsToCanvas(canvas, driversByChannel, cs, settings);
         lastAppliedChannelSettings[cs.channelName] = cs;
     }
-    applyGlobalEffectToCanvas(canvas, settings.activeProfile()->globalEffect);
+    applyGlobalEffectToCanvas(canvas, settings.activeProfile()->globalEffect, settings);
 
     // Task 21: USB peripheral reconnect/retry. Review finding: the 4 USB
     // peripherals below have their HID handle(s) opened exactly once,
@@ -531,9 +513,11 @@ int main(int argc, char** argv)
     // Windows device enumeration, not a blocking call, so this isn't about
     // protecting the OS from load -- there's just no reason to poll faster
     // than a human plug-in event needs to be noticed in.
+    HardwareWorker hardware;
     QTimer reconnectTimer;
     QObject::connect(&reconnectTimer, &QTimer::timeout,
-        [&reconnectPeripherals, &settings, &canvas, &driversByChannel, &lastAppliedChannelSettings]() {
+        [&]() {
+          hardware.post([&reconnectPeripherals, settings=settings, &canvas, &driversByChannel, &lastAppliedChannelSettings]() mutable {
             for (ReconnectiblePeripheral& peripheral : reconnectPeripherals) {
                 if (peripheral.isOpen()) {
                     continue; // already up, nothing to do
@@ -552,17 +536,18 @@ int main(int argc, char** argv)
                 // itself hasn't changed -- only the device has.
                 reapplyChannelsForDriver(settings, canvas, driversByChannel, lastAppliedChannelSettings, peripheral.driver);
             }
+          });
         });
     reconnectTimer.start(5000);
 
-    // Step 5 (render loop): ~60Hz, elapsed time measured from launch.
-    QElapsedTimer clock;
-    clock.start();
-    QTimer renderTimer;
-    QObject::connect(&renderTimer, &QTimer::timeout, [&canvas, &clock]() {
-        canvas.tick(clock.elapsed());
+    // The timer lives with the HID queue. Qt coalesces missed ticks instead of
+    // building an unbounded queue of stale frames when a USB device is slow.
+    hardware.post([&canvas,&hardware] {
+        auto* timer=new QTimer(hardware.context());
+        timer->setTimerType(Qt::PreciseTimer);
+        QObject::connect(timer,&QTimer::timeout,timer,[&canvas]{canvas.tick(effectTimeMs());});
+        timer->start(16);
     });
-    renderTimer.start(16);
 
     // Step 5 (tray shell). Quit both persists settings (first, so the save
     // happens before teardown) and exits the app.
@@ -588,16 +573,47 @@ int main(int argc, char** argv)
     QTimer saveDebounceTimer;
     saveDebounceTimer.setSingleShot(true);
     saveDebounceTimer.setInterval(2000);
-    QObject::connect(&saveDebounceTimer, &QTimer::timeout, [&settings, &settingsPath]() {
-        settings.saveToFile(settingsPath.toStdString());
+    QObject::connect(&saveDebounceTimer, &QTimer::timeout, [&settings, &settingsPath,&studio]() {
+        studio.setPersistenceStatus(settings.saveToFile(settingsPath.toStdString()));
     });
+
+    QObject::connect(&studio,&LightingStudioWindow::customEffectsChanged,[&] {
+      studio.setPersistenceStatus(settings.saveToFile(settingsPath.toStdString()));
+      hardware.post([settings=settings,&canvas]() mutable {
+        // A recipe can change while its saved ID stays the same. Bypass the
+        // assignment equality cache so independent users get the edited recipe.
+        const auto* profile=settings.activeProfile();if(!profile)return;
+        for(const auto& cs:profile->channelSettings) {
+            if(cs.mode==ChannelMode::Canvas && cs.source==CanvasSource::Independent)
+                canvas.setAssignment(cs.channelName,buildAssignment(cs,settings));
+        }
+      });
+    });
+    QObject::connect(&studio,&LightingStudioWindow::regionIdentificationRequested,
+        [&](const std::string& name,int index) {
+          hardware.post([settings=settings,&canvas,&channels,name,index]() mutable {
+            const auto* profile=settings.activeProfile();if(!profile || !channels.count(name))return;
+            for(const auto& cs:profile->channelSettings)if(cs.channelName==name) {
+                auto assignment=buildAssignment(cs,settings);
+                if(index>=0 && cs.mode==ChannelMode::Canvas && index<channels.at(name).totalLedCount()) {
+                    assignment.source=CanvasSource::Independent;
+                    assignment.effect=std::make_shared<StaticColorEffect>(MsiColor{});
+                    assignment.ledOverrides.clear();assignment.rawWireOverride=true;
+                    for(int i=0;i<channels.at(name).totalLedCount();++i)assignment.ledOverrides[i]=i==index?MsiColor{255,255,255}:MsiColor{};
+                }
+                canvas.setAssignment(name,std::move(assignment));break;
+            }
+          });
+        });
+    QObject::connect(&app,&QCoreApplication::aboutToQuit,&studio,[&studio]{studio.stopRegionIdentification();});
 
     // Step 4/5: Studio window <-> Canvas/tray wiring. Every mutation the
     // Studio window makes is written into `settings` before it emits, so
     // each handler just re-reads settings.activeProfile() rather than
     // needing the new value passed through the signal.
     QObject::connect(&studio, &LightingStudioWindow::channelAssignmentChanged,
-        [&settings, &canvas, &driversByChannel, &lastAppliedChannelSettings](const std::string& channelName) {
+        [&](const std::string& channelName) {
+          hardware.post([settings=settings, &canvas, &driversByChannel, &lastAppliedChannelSettings, &channels, &defaultComponents, channelName]() mutable {
             Profile* profile = settings.activeProfile();
             if (!profile) return; // defensive; never null once `studio` exists
             for (const ChannelSettings& cs : profile->channelSettings) {
@@ -636,19 +652,26 @@ int main(int argc, char** argv)
                 if (modeChanged) {
                     applyChannelModeToDriver(driversByChannel, cs);
                 }
+                if (nonPlacementChanged) {
+                    channels.at(channelName).replaceComponents(!cs.hasCustomComponents() ? defaultComponents.at(channelName) : cs.components);
+                }
                 if (nonPlacementChanged
-                    || (cs.mode == ChannelMode::Canvas && cs.source == CanvasSource::GlobalFollow)) {
-                    canvas.setAssignment(channelName, buildAssignment(cs));
+                    || (cs.mode == ChannelMode::Canvas && (cs.source == CanvasSource::GlobalFollow
+                        || cs.placement.width!=cached->second.placement.width || cs.placement.height!=cached->second.placement.height || cs.placement.rotation!=cached->second.placement.rotation))) {
+                    canvas.setAssignment(channelName, buildAssignment(cs, settings));
                 }
 
                 lastAppliedChannelSettings[channelName] = cs;
                 break;
             }
+          });
         });
-    QObject::connect(&studio, &LightingStudioWindow::globalEffectChanged, [&settings, &canvas]() {
+    QObject::connect(&studio, &LightingStudioWindow::globalEffectChanged, [&]() {
+      hardware.post([settings=settings, &canvas]() mutable {
         Profile* profile = settings.activeProfile();
         if (!profile) return; // defensive; never null once `studio` exists
-        applyGlobalEffectToCanvas(canvas, profile->globalEffect);
+        applyGlobalEffectToCanvas(canvas, profile->globalEffect, settings);
+      });
     });
     // Updates the tray's profile submenu/checkmark whenever the active
     // profile changes from inside the Studio window -- not just the profile
@@ -720,6 +743,14 @@ int main(int argc, char** argv)
     menu->insertAction(menu->actions().isEmpty() ? nullptr : menu->actions().first(), autostartAction);
 
     tray.start();
+    // Make the GUI discoverable even when Windows hides the tray icon.
+    studio.show();
 
-    return app.exec();
+    const int result=app.exec();
+    reconnectTimer.stop();
+    // Drain queued restoration edits before quitting; then no HID owner outlives
+    // the channel/driver objects declared above it.
+    QMetaObject::invokeMethod(hardware.context(),[]{},Qt::BlockingQueuedConnection);
+    hardware.stop();
+    return result;
 }

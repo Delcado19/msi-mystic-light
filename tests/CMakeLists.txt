@@ -179,7 +179,7 @@ set_tests_properties(test_canvas PROPERTIES
 # header-defined types (no calls into MsiMotherboardDriver/Channel/
 # Component/MsiProtocol's own .cpp files), so unlike test_msi_motherboard_driver
 # and test_canvas above, this target doesn't need those sources linked in.
-add_executable(test_settings settings/test_settings.cpp ${CMAKE_SOURCE_DIR}/src/settings/Settings.cpp)
+add_executable(test_settings settings/test_settings.cpp ${CMAKE_SOURCE_DIR}/src/settings/Settings.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp)
 target_include_directories(test_settings PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_settings PRIVATE Qt6::Test)
 
@@ -204,9 +204,9 @@ add_test(NAME test_tray_app COMMAND test_tray_app)
 set_tests_properties(test_tray_app PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
 
-# LightingCanvasWidget wraps QWidget/QPainter, so this target needs
+# LightingCanvasWidget uses QOpenGLWidget/QPainter, so this target needs
 # Qt6::Widgets in addition to Qt6::Test, same reason as test_tray_app above.
-add_executable(test_lighting_canvas_widget ui/test_lighting_canvas_widget.cpp ${CMAKE_SOURCE_DIR}/src/ui/LightingCanvasWidget.cpp)
+add_executable(test_lighting_canvas_widget ${CMAKE_SOURCE_DIR}/src/ui/studio.qrc ui/test_lighting_canvas_widget.cpp ${CMAKE_SOURCE_DIR}/src/ui/LightingCanvasWidget.cpp ${CMAKE_SOURCE_DIR}/src/device/Component.cpp)
 target_include_directories(test_lighting_canvas_widget PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_lighting_canvas_widget PRIVATE Qt6::Test Qt6::Widgets)
 
@@ -223,6 +223,17 @@ set_tests_properties(test_lighting_canvas_widget PROPERTIES
 # Qt6::Widgets (same reason as test_tray_app/test_lighting_canvas_widget
 # above).
 add_executable(test_lighting_studio_window ui/test_lighting_studio_window.cpp
+    ${CMAKE_SOURCE_DIR}/src/device/RazerBasiliskDriver.cpp
+    ${CMAKE_SOURCE_DIR}/src/protocol/RazerBasiliskProtocol.cpp
+    ${CMAKE_SOURCE_DIR}/src/device/SteelSeriesApex3Driver.cpp
+    ${CMAKE_SOURCE_DIR}/src/protocol/SteelSeriesApex3Protocol.cpp
+    ${CMAKE_SOURCE_DIR}/src/device/Component.cpp
+    ${CMAKE_SOURCE_DIR}/src/device/Channel.cpp
+    ${CMAKE_SOURCE_DIR}/src/device/RoccatVulcanDriver.cpp
+    ${CMAKE_SOURCE_DIR}/src/protocol/RoccatVulcanProtocol.cpp
+    ${CMAKE_SOURCE_DIR}/src/device/RoccatKoneDriver.cpp
+    ${CMAKE_SOURCE_DIR}/src/protocol/RoccatKoneProtocol.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/studio.qrc
     ${CMAKE_SOURCE_DIR}/src/ui/LightingStudioWindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/LightingCanvasWidget.cpp
     ${CMAKE_SOURCE_DIR}/src/settings/Settings.cpp

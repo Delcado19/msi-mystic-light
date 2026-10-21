@@ -26,10 +26,9 @@ MsiColor RadialRainbowEffect::colorAt(int x, int y, int64_t elapsedMs) const
     double angleRad = std::atan2(static_cast<double>(y - centerY_), static_cast<double>(x - centerX_));
     double angleDeg = angleRad * (180.0 / kPi);
 
-    // Same mod-360 normalization idiom as RainbowWaveEffect: handles
-    // atan2's negative range and any sign/magnitude of elapsedMs in one step.
-    int64_t raw = static_cast<int64_t>(std::lround(angleDeg)) + (elapsedMs * 360) / periodMs_;
-    int hue = static_cast<int>(((raw % 360) + 360) % 360);
+    // Preserve fractional hue through space and time for smooth LED fades.
+    const double raw = angleDeg + (elapsedMs % periodMs_) * 360.0 / periodMs_;
+    const double hue = std::fmod(std::fmod(raw,360.0)+360.0,360.0);
 
     return HsvFullToRgb(hue);
 }

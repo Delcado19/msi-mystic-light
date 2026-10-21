@@ -12,7 +12,7 @@
 
 class SpiralEffect : public IEffect, public IPositionableEffect {
 public:
-    explicit SpiralEffect(int centerX = 0, int centerY = 0, double tightnessDegPerPx = 4.0, int64_t periodMs = 3000);
+    explicit SpiralEffect(int centerX = 0, int centerY = 0, double tightnessDegPerPx = 0.5, int64_t periodMs = 3000);
 
     // hue = (angleDegrees(x,y around center) + distance(x,y,center)*tightnessDegPerPx_
     //        + elapsedMs*360/periodMs_) mod 360, full-saturation/value HSV->RGB

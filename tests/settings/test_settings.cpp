@@ -17,6 +17,7 @@ class SettingsTest : public QObject
     Q_OBJECT
 
 private slots:
+    void testComponentsOverridesAndCustomEffectsRoundTrip();
     void testSaveAndLoadRoundTrip_multipleProfilesWithPlacementAndSource();
     void testLoadFromFile_legacyChannelsOnlyFileMigratesToDefaultProfile();
     void testLoadFromFile_danglingActiveProfileFallsBackToFirst();
@@ -482,6 +483,29 @@ void SettingsTest::testRemoveActiveProfile_refusesWhenProfilesEmpty()
     Settings s;
     QVERIFY(!s.removeActiveProfile());
     QVERIFY(s.profiles.empty());
+}
+
+void SettingsTest::testComponentsOverridesAndCustomEffectsRoundTrip()
+{
+    QTemporaryDir directory;QVERIFY(directory.isValid());
+    Settings source;Profile profile;profile.name="Components";
+    ChannelSettings channel;channel.channelName="JARGB1";channel.components={Component::makeFan(6,true),Component::makeFan(12,false,1)};
+    channel.ledOverrides[8]={13,29,47};profile.channelSettings={channel};source.profiles={profile};source.activeProfileName=profile.name;
+    source.profiles[0].channelSettings[0].placement={50,80,380,240,42};
+    ChannelSettings empty;empty.channelName="JARGB2";empty.componentsConfigured=true;source.profiles[0].channelSettings.push_back(empty);
+    source.hardwareCatalog={Component::makeFan(6,true)};
+    source.customEffects={{"Mine",{{255,0,0},{0,128,255}},9000,1000}};
+    source.customEffects[0].pattern="Plasma";source.customEffects[0].stops={.1,.7};
+    const auto file=directory.filePath("settings.json").toStdString();QVERIFY(source.saveToFile(file));
+    Settings restored;QVERIFY(restored.loadFromFile(file));QVERIFY(source.profiles==restored.profiles);
+    QCOMPARE(restored.hardwareCatalog.size(),size_t(1));QVERIFY(restored.profiles[0].channelSettings[1].hasCustomComponents());
+    QCOMPARE(restored.customEffects.size(),size_t(1));QCOMPARE(restored.customEffects[0].name,std::string("Mine"));
+    QCOMPARE(restored.customEffects[0].colors[1].g,uint8_t(128));
+    QCOMPARE(restored.customEffects[0].pattern,std::string("Plasma"));
+    QCOMPARE(restored.customEffects[0].stops,source.customEffects[0].stops);
+    source.customEffects[0].pattern="Unknown";source.customEffects[0].stops={.9,.2};
+    QVERIFY(source.saveToFile(file));QVERIFY(restored.loadFromFile(file));
+    QCOMPARE(restored.customEffects[0].pattern,std::string("Wave"));QVERIFY(restored.customEffects[0].stops.empty());
 }
 
 QTEST_MAIN(SettingsTest)

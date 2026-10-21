@@ -3,12 +3,15 @@
 #include <QtTest/QtTest>
 
 #include "device/Component.h"
+#include <stdexcept>
 
 class ComponentTest : public QObject
 {
     Q_OBJECT
 
 private slots:
+    void testShapesResetAndMappingValidation();
+    void testMalformedCoordinatesRejected();
     void testFromJson_roundTrip();
     void testFromJson_tooShortArrayThrows();
     void testFromJson_tooLongArrayTruncates();
@@ -88,6 +91,25 @@ void ComponentTest::testMakeGenericPlaceholder()
     QCOMPARE(static_cast<int>(c.ledCoordinates.size()), 5);
     QCOMPARE(c.ledCoordinates[4].first, 4);
     QCOMPARE(c.ledCoordinates[4].second, 0);
+}
+
+void ComponentTest::testMalformedCoordinatesRejected()
+{
+    auto json=Component::makeGenericPlaceholder(1).toJson();
+    json["LedCoordinates"]=QJsonArray{QJsonArray{2147483647,-2147483647}};
+    QVERIFY_EXCEPTION_THROWN(Component::fromJson(json),std::invalid_argument);
+    json["LedCoordinates"]=QJsonArray{QJsonArray{"wrong",1}};
+    QVERIFY_EXCEPTION_THROWN(Component::fromJson(json),std::invalid_argument);
+}
+
+void ComponentTest::testShapesResetAndMappingValidation()
+{
+    auto component=Component::makeFan(6,true);const auto original=component.ledCoordinates;const auto mapping=component.ledMapping;
+    for(const auto* shape:{"Line","Circle","Ellipse","Rectangle"}){QVERIFY(component.arrange(shape));QVERIFY(component.valid());QCOMPARE(component.ledMapping,mapping);}
+    component.resetLayout();QCOMPARE(component.ledCoordinates,original);
+    const auto restored=Component::fromJson(component.toJson());QCOMPARE(restored.layoutDefaults,original);QCOMPARE(restored.physicalLedsPerAddress,2);
+    component.ledCoordinates[1]=component.ledCoordinates[0];QCOMPARE(component.effectAddress(1),component.effectAddress(0));
+    component.ledMapping[1]=component.ledMapping[0];QVERIFY(!component.valid());QVERIFY_EXCEPTION_THROWN(Component::fromJson(component.toJson()),std::invalid_argument);
 }
 
 QTEST_MAIN(ComponentTest)
