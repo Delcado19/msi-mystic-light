@@ -25,33 +25,22 @@
 // Where a Canvas-mode channel's per-LED colors come from.
 enum class CanvasSource { Independent, GlobalFollow };
 
-// A channel's offset within the shared canvas-wide coordinate space.
-// Meaningful only when CanvasSource == GlobalFollow.
-struct CanvasPlacement { double x = 0.0, y = 0.0; };
-
-// Pixel size of the box a GlobalFollow channel samples the global effect
-// through. Single source of truth for two things that must stay in
-// lockstep: the region Canvas::tick() actually samples (see its GlobalFollow
-// branch) and the region LightingCanvasWidget draws on screen for that
-// channel (LightingCanvasWidget::kBoxWidth/kBoxHeight alias these). Before
-// Task 22's geometry fix, the drawn box was a fixed 70x40 but the *sampled*
-// region was each channel's raw local-coordinate extent (e.g. 120px wide for
-// a motherboard JARGB channel's generic placeholder) -- so a wide channel's
-// hardware LEDs were driven by pixels far outside what was drawn/highlighted
-// on screen. Canvas::tick() now scales every channel's own local-coordinate
-// range into this fixed box (see computeLocalExtent/scaleIntoBox in
-// Canvas.cpp), so a 120-LED flat line and e.g. the Roccat Vulcan's 24x6 grid
-// both sample proportionally from this same box size, generically, with no
-// per-device-name special-casing.
-constexpr int kGlobalFollowBoxWidth = 70;
-constexpr int kGlobalFollowBoxHeight = 40;
+// Scene-space footprint; rotation is around the footprint center. Legacy
+// profiles retain their 70x40 size until the user scales them.
+struct CanvasPlacement {
+    double x=0.,y=0.,width=70.,height=40.,rotation=0.;
+};
+constexpr int kGlobalFollowBoxWidth=70;
+constexpr int kGlobalFollowBoxHeight=40;
 
 struct ChannelAssignment {
     ChannelMode mode = ChannelMode::Canvas;
     CanvasSource source = CanvasSource::Independent; // meaningful only when mode == Canvas
     std::shared_ptr<IEffect> effect;        // used when mode == Canvas && source == Independent
     NativeModeSettings nativeSettings;      // used when mode == Native
+    std::map<int, MsiColor> ledOverrides; // Explicit per-region colors override the sampled effect.
     CanvasPlacement placement{};             // this channel's offset in global canvas space; used when source == GlobalFollow
+    bool rawWireOverride=false; // Temporary calibration may probe unmapped slots. Never persisted.
 };
 
 class Canvas {
@@ -72,33 +61,10 @@ public:
     // UI may place a channel before the user picks a global effect.
     void setGlobalEffect(std::shared_ptr<IEffect> effect);
 
-    // One render tick at elapsedMs since some external reference time:
-    // - Canvas-mode, source == Independent: for every LED index in
-    //   channel.colors(), looks up ledPosition(index), samples
-    //   assignment.effect->colorAt(x,y,elapsedMs) (skipping the channel this
-    //   frame if assignment.effect is null), writes it via channel.setColor,
-    //   then pushes via the channel's driver.
-    // - Canvas-mode, source == GlobalFollow: same, but samples globalEffect_
-    //   at (placement.x + scaledX, placement.y + scaledY), where scaledX/Y
-    //   is this channel's local (x,y) rescaled from its own actual
-    //   local-coordinate extent (derived from Channel::ledPosition across
-    //   all its LEDs -- see computeLocalExtent() in Canvas.cpp) into
-    //   [0, kGlobalFollowBoxWidth) / [0, kGlobalFollowBoxHeight) (Task 22
-    //   geometry fix: this is the same box LightingCanvasWidget draws, so
-    //   what's sampled now always matches what's drawn/highlighted). An axis
-    //   with no extent (a flat line's y, or either axis of a single-LED
-    //   channel) scales to that axis's box CENTER, not 0 -- see
-    //   scaleIntoBox()'s doc comment in Canvas.cpp for why a corner/edge
-    //   default was rejected.
-    //   Skips the channel this frame if globalEffect_ is null, same as
-    //   before.
-    // - Native-mode channels: calls driver.setNativeMode(channelName, assignment.nativeSettings)
-    //   ONLY if that channel is still marked pending-send (i.e. only the
-    //   first tick after setAssignment() last touched it) -- not every tick.
-    // Continues to the next channel if any single channel's driver call
-    // returns false, or if no driver is routed for it; never throws. (Review
-    // Focus: a HID send failing mid-session must not abort the rest of the
-    // frame.)
+    // Samples every mapped address using LayoutGeometry's shared footprint
+    // transform, then applies fixed region colors and dispatches the wire frame.
+    // Unpopulated slots remain black except during explicit raw calibration.
+    // Native effects are sent only once after an assignment change.
     void tick(int64_t elapsedMs);
 
 private:

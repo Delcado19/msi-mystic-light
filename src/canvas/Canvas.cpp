@@ -1,61 +1,8 @@
+#include "canvas/LayoutGeometry.h"
 #include "canvas/Canvas.h"
 
 #include <algorithm> // std::min/std::max (computeLocalExtent)
 #include <utility> // std::move (currently pulled in transitively; make it explicit)
-
-namespace {
-
-// A channel's local LED-coordinate bounding box, derived from its actual
-// attached Component data (Channel::ledPosition, which resolves to each
-// owning Component's own ledCoordinates -- see device/Component.h). Generic
-// over any channel shape: a flat 1-row line (Component::makeGenericPlaceholder,
-// used by the motherboard's 120-LED channels), a 2D grid (e.g. the Roccat
-// Vulcan's real 24x6 key layout), or anything else a Component JSON
-// declares -- no per-device-name special-casing (Task 22 geometry fix).
-struct LocalExtent { int minX = 0, maxX = 0, minY = 0, maxY = 0; };
-
-LocalExtent computeLocalExtent(const Channel& channel)
-{
-    LocalExtent extent;
-    bool first = true;
-    for (int i = 0; i < channel.totalLedCount(); ++i) {
-        auto pos = channel.ledPosition(i);
-        if (!pos) {
-            continue;
-        }
-        if (first) {
-            extent.minX = extent.maxX = pos->first;
-            extent.minY = extent.maxY = pos->second;
-            first = false;
-        } else {
-            extent.minX = std::min(extent.minX, pos->first);
-            extent.maxX = std::max(extent.maxX, pos->first);
-            extent.minY = std::min(extent.minY, pos->second);
-            extent.maxY = std::max(extent.maxY, pos->second);
-        }
-    }
-    return extent;
-}
-
-// Rescales one local coordinate from this channel's own [lo, hi] extent
-// into [0, boxSize - 1], so the channel's extreme LEDs land exactly on the
-// shared GlobalFollow box's edges regardless of its raw coordinate range.
-// hi <= lo (a single-LED channel, or a flat line's constant axis -- every
-// motherboard channel's y, plus every smaller peripheral's whole 1-row
-// placeholder) maps to the box's CENTER, not its corner/edge: per the
-// review's own symptom list, those channels should sample somewhere inside
-// the box, not hug its top-left corner or top edge the way a naive "0"
-// default would (indistinguishable from the pre-fix bug for a 1-LED
-// channel, and still an edge-hugging line for every flat-line channel).
-int scaleIntoBox(int local, int lo, int hi, int boxSize)
-{
-    if (hi <= lo) {
-        return (boxSize - 1) / 2;
-    }
-    return static_cast<int>(static_cast<int64_t>(local - lo) * (boxSize - 1) / (hi - lo));
-}
-
-} // namespace
 
 Canvas::Canvas(std::map<std::string, IDriver*> driversByChannel, std::map<std::string, Channel>& channels)
     : driversByChannel_(std::move(driversByChannel)), channels_(channels) {}
@@ -97,52 +44,33 @@ void Canvas::tick(int64_t elapsedMs) {
             IEffect* effect = assignment.source == CanvasSource::Independent
                 ? assignment.effect.get()
                 : globalEffect_.get();
-            if (!effect) {
+            if (!effect && channel.totalLedCount()>0) {
                 continue;
             }
             const auto& colors = channel.colors();
-            // GlobalFollow's local-coordinate extent, recomputed fresh each
-            // tick rather than cached: components can be reassigned to a
-            // channel between ticks (Channel::addComponent/clearComponents),
-            // and totalLedCount() is small enough (<= a few hundred) that
-            // this second O(n) pass is negligible next to the sampling loop
-            // below. Unused (default-constructed) for Independent, which
-            // never scales -- it samples its own effect at its raw local
-            // (x,y), same as v1.
-            const LocalExtent extent = assignment.source == CanvasSource::GlobalFollow
-                ? computeLocalExtent(channel)
-                : LocalExtent{};
+            // Recompute from active geometry, including edited groups and wire
+            // calibration. Both previews call the same transform below.
+            const auto extent=layoutBounds(channel.components());
             for (int i = 0; i < static_cast<int>(colors.size()); ++i) {
                 auto pos = channel.ledPosition(i);
                 if (!pos) {
-                    continue;
+                    // Unpopulated Vulcan slots must remain zero, as in OpenRGB.
+                    // Padding slots are not LEDs and must not inherit the origin color.
+                    channel.setColor(i,{});continue;
                 }
-                int x = pos->first;
-                int y = pos->second;
-                if (assignment.source == CanvasSource::GlobalFollow) {
-                    // Task 22 geometry fix: rescale this channel's own local
-                    // (x,y) from its real local-coordinate extent (whatever
-                    // shape its attached Component(s) declare) into the
-                    // fixed GlobalFollow box (kGlobalFollowBoxWidth/Height,
-                    // Canvas.h) BEFORE adding the placement offset. Previously
-                    // the raw local coordinate was added straight to
-                    // placement, so e.g. a 120-wide motherboard channel
-                    // sampled a 120px line starting at the box's corner --
-                    // far past the fixed-size box LightingCanvasWidget drew
-                    // on screen for it. Placement is double (UI may drag to
-                    // fractional positions); truncate only once, after
-                    // adding the already-integer scaled offset.
-                    const int scaledX = scaleIntoBox(x, extent.minX, extent.maxX, kGlobalFollowBoxWidth);
-                    const int scaledY = scaleIntoBox(y, extent.minY, extent.maxY, kGlobalFollowBoxHeight);
-                    x = static_cast<int>(assignment.placement.x) + scaledX;
-                    y = static_cast<int>(assignment.placement.y) + scaledY;
-                }
-                MsiColor color = effect->colorAt(x, y, elapsedMs);
+                const auto [x,y]=layoutSamplePoint(*pos,extent,assignment.placement,assignment.source==CanvasSource::GlobalFollow);
+                int offset=0,local=i,localCount=channel.totalLedCount();
+                for(const auto& component:channel.components()){if(i<offset+component.ledCount){local=i-offset;localCount=component.ledCount;for(int logical=0;logical<component.ledCount;++logical)if(component.ledMapping[logical]==local){local=component.effectAddress(logical);break;}break;}offset+=component.ledCount;}
+                // GlobalFollow always samples the visible spatial field; an LED-path
+                // recipe must not make placement irrelevant for shared lighting.
+                MsiColor color = assignment.source==CanvasSource::GlobalFollow?effect->colorAt(x,y,elapsedMs)
+                    :effect->colorForLed(x,y,elapsedMs,offset+local,channel.totalLedCount(),local,localCount);
                 channel.setColor(i, color);
             }
             // Driver call may fail (e.g. board disconnected); per the Review
             // Focus item, that must not abort the rest of this frame, so the
             // return value is intentionally ignored and the loop continues.
+            for (const auto& [index, color] : assignment.ledOverrides) if(assignment.rawWireOverride || channel.ledPosition(index))channel.setColor(index, color);
             driver.pushCanvasColors(channelName, channel.colors());
         } else {
             if (nativeModePending_[channelName]) {

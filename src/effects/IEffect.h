@@ -14,4 +14,10 @@ public:
     // Color this effect wants at local coordinate (x,y) at elapsedMs since
     // the effect was (re)started.
     virtual MsiColor colorAt(int x, int y, int64_t elapsedMs) const = 0;
+    // Spatial effects keep their coordinate contract; LED-path effects also
+    // receive real wire/component indices, never a guessed pixel spacing.
+    virtual MsiColor colorForLed(int x,int y,int64_t time,int wire,int count,int localWire,int localCount) const {
+        return colorAt(x,y,time);
+    }
+    virtual bool usesSceneCoordinates() const {return true;}
 };

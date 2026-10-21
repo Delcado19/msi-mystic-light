@@ -1,4 +1,5 @@
 #include "device/Channel.h"
+#include <algorithm>
 
 Channel::Channel(std::string name, int ledLimit)
     : name_(std::move(name)), ledLimit_(ledLimit)
@@ -59,9 +60,25 @@ std::optional<std::pair<int,int>> Channel::ledPosition(int index) const
     int offset = 0;
     for (const Component& c : components_) {
         if (index < offset + c.ledCount) {
-            return c.ledCoordinates[index - offset];
+            const auto found=std::find(c.ledMapping.begin(),c.ledMapping.end(),index-offset);
+            if(found==c.ledMapping.end())return std::nullopt;
+            const auto logical=std::distance(c.ledMapping.begin(),found);
+            if(c.ledNames[logical].find("Wire slot")==0)return std::nullopt;
+            return c.ledCoordinates[logical];
         }
         offset += c.ledCount;
     }
     return std::nullopt; // unreachable: totalLedCount() bound above guarantees a match
+}
+
+bool Channel::replaceComponents(const std::vector<Component>& components)
+{
+    int count = 0;
+    for (const auto& c : components) {
+        if(!c.valid() || c.ledCount>ledLimit_-count)return false;
+        count += c.ledCount;
+    }
+    components_ = components;
+    colors_.assign(count, {});
+    return true;
 }

@@ -1,3 +1,5 @@
+#include "canvas/LayoutGeometry.h"
+#include "effects/CustomGradientEffect.h"
 // Unit tests for Canvas (Task 8, extended by Task 3's canvas-global
 // placement/follow-global-effect). Uses FakeHidDevice
 // (tests/hid/FakeHidDevice.h), FakeEffect (tests/canvas/FakeEffect.h) and
@@ -84,6 +86,9 @@ class CanvasTest : public QObject
     Q_OBJECT
 
 private slots:
+    void testResizedRotatedGeometryAndRawCalibration();
+    void testGlobalPaletteUsesTheVisibleFieldWhenHardwareMoves();
+    void testPerRegionOverridesReachWireSlots();
     void testTick_canvasModeSamplesEffectAndPushes();
     void testTick_nativeModeSendsOnlyOnceAfterAssignment();
     void testTick_continuesAfterOneChannelFails();
@@ -426,6 +431,50 @@ void CanvasTest::testTick_nativeModeChannelWithNoRoutedDriverIsSkipped()
 
     QCOMPARE(static_cast<int>(driver.nativeModeChannels.size()), 1);
     QCOMPARE(driver.nativeModeChannels[0], std::string("Real"));
+}
+
+void CanvasTest::testPerRegionOverridesReachWireSlots()
+{
+    FakeDriver driver;Channel channel("JARGB1",120);
+    QVERIFY(channel.replaceComponents({Component::makeFan(6,true),Component::makeFan(6,true,1)}));
+    std::map<std::string,Channel> channels;channels.emplace("JARGB1",channel);
+    Canvas canvas({{"JARGB1",&driver}},channels);ChannelAssignment assignment;
+    assignment.effect=std::make_shared<FakeEffect>(MsiColor{0,0,0});
+    assignment.ledOverrides[7]={0,255,0};assignment.ledOverrides[500]={255,0,0};
+    canvas.setAssignment("JARGB1",assignment);canvas.tick(0);
+    QCOMPARE(channels.at("JARGB1").colors().size(),size_t(12));
+    QCOMPARE(channels.at("JARGB1").colors()[7].g,uint8_t(255));
+    QCOMPARE(channels.at("JARGB1").colors()[1].g,uint8_t(0));
+}
+
+void CanvasTest::testResizedRotatedGeometryAndRawCalibration()
+{
+    FakeDriver driver;auto component=Component::makeFan(6,true);std::swap(component.ledMapping[0],component.ledMapping[4]);
+    component.ledNames[2]="Wire slot 2";
+    std::map<std::string,Channel> channels;channels.emplace("Fan",Channel("Fan",120));QVERIFY(channels.at("Fan").replaceComponents({component}));
+    Canvas canvas({{"Fan",&driver}},channels);canvas.setGlobalEffect(std::make_shared<PositionColorEffect>());
+    ChannelAssignment a;a.source=CanvasSource::GlobalFollow;a.placement={20,30,220,180,35};canvas.setAssignment("Fan",a);canvas.tick(123);
+    const auto bounds=layoutBounds({component});
+    for(int i=0;i<6;++i){const auto address=component.ledMapping[i];const auto color=channels.at("Fan").colors()[address];if(i==2){QCOMPARE(color.r,uint8_t(0));continue;}const auto point=layoutSamplePoint(component.ledCoordinates[i],bounds,a.placement);QCOMPARE(color.r,uint8_t(point.first));QCOMPARE(color.g,uint8_t(point.second));}
+    QVERIFY(channels.at("Fan").colors()[component.ledMapping[0]].r!=channels.at("Fan").colors()[component.ledMapping[1]].r);
+    a.ledOverrides[2]={255,255,255};canvas.setAssignment("Fan",a);canvas.tick(124);QCOMPARE(channels.at("Fan").colors()[2].r,uint8_t(0));
+    a.rawWireOverride=true;canvas.setAssignment("Fan",a);canvas.tick(125);QCOMPARE(channels.at("Fan").colors()[2].r,uint8_t(255));
+    QVERIFY(channels.at("Fan").replaceComponents({}));QCOMPARE(channels.at("Fan").totalLedCount(),0);
+}
+
+void CanvasTest::testGlobalPaletteUsesTheVisibleFieldWhenHardwareMoves()
+{
+    FakeDriver driver;std::map<std::string,Channel> channels;channels.emplace("Chain",Channel("Chain",120));
+    channels.at("Chain").addComponent(Component::makeGenericPlaceholder(3));
+    CustomEffectDefinition d{"Existing LED recipe",{{255,0,0},{0,0,255}},6000,720};d.pattern="Static gradient";d.path="Component LEDs";
+    auto effect=std::make_shared<CustomGradientEffect>(d);Canvas canvas({{"Chain",&driver}},channels);canvas.setGlobalEffect(effect);
+    ChannelAssignment assignment;assignment.mode=ChannelMode::Canvas;assignment.source=CanvasSource::GlobalFollow;assignment.placement={0,0,361,40};
+    canvas.setAssignment("Chain",assignment);canvas.tick(0);
+    QCOMPARE(channels.at("Chain").colors()[1].r,effect->colorAt(180,19,0).r);
+    QCOMPARE(channels.at("Chain").colors()[1].b,effect->colorAt(180,19,0).b);
+    const auto before=channels.at("Chain").colors()[0];assignment.placement.x=180;canvas.setAssignment("Chain",assignment);canvas.tick(0);
+    const auto after=channels.at("Chain").colors()[0];QVERIFY(before.r!=after.r || before.b!=after.b);
+    QCOMPARE(after.r,effect->colorAt(180,19,0).r);
 }
 
 QTEST_MAIN(CanvasTest)

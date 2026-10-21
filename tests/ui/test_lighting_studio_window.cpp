@@ -1,3 +1,11 @@
+#include <QCheckBox>
+#include "ui/LayoutEditor.h"
+#include "ui/HardwareLibrary.h"
+#include "ui/HardwarePicker.h"
+#include "ui/DeviceArtwork.h"
+#include "ui/EffectEditor.h"
+#include "hid/HardwareWorker.h"
+#include <atomic>
 // Unit test for LightingStudioWindow (Task 15): canvas + side panel (per-
 // channel mode/source/effect rows, profile selector) over a Settings
 // instance. Same off-screen-widget/QTest pattern as
@@ -7,6 +15,19 @@
 
 #include <QComboBox>
 #include <QPushButton>
+#include <QListWidget>
+#include <QStackedWidget>
+#include <QTabWidget>
+#include "device/RoccatVulcanDriver.h"
+#include "device/RoccatKoneDriver.h"
+#include "device/RazerBasiliskDriver.h"
+#include "device/SteelSeriesApex3Driver.h"
+#include <QDir>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QLineEdit>
+#include <QTimer>
+#include <QApplication>
 
 #include <algorithm>
 #include <map>
@@ -37,6 +58,7 @@ Settings makeSettingsWithOneProfile()
         cs.mode = ChannelMode::Canvas;
         cs.source = CanvasSource::Independent;
         cs.effectName = "StaticColor";
+        if(cs.channelName=="JARGB1"){cs.componentsConfigured=true;cs.components={Component::makeGenericPlaceholder(1)};}
         cs.placement = placements[i];
         profile.channelSettings.push_back(cs);
     }
@@ -56,9 +78,9 @@ std::string dragBoxAt(LightingCanvasWidget* canvas, const CanvasPlacement& place
     const QPoint movePos = pressPos + QPoint(6, 6);
 
     QSignalSpy spy(canvas, &LightingCanvasWidget::channelPlacementChanged);
-    QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, pressPos);
-    QTest::mouseMove(canvas, movePos);
-    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, movePos);
+    QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, canvas->sceneToWidget(pressPos));
+    QTest::mouseMove(canvas, canvas->sceneToWidget(movePos));
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, canvas->sceneToWidget(movePos));
 
     if (spy.count() < 1) return {};
     return spy.last().at(0).value<std::string>();
@@ -71,6 +93,22 @@ class LightingStudioWindowTest : public QObject
     Q_OBJECT
 
 private slots:
+    void testHardwareRemovalGeometryAndCalibration();
+    void testLayoutEditorDragShapesAndReset();
+    void testCustomHardwareDefinitionDialog();
+    void testChannelPickerAddsMultipleAndRemovesInline();
+    void testHardwarePickerFiltersAndRejectsOverCapacity();
+    void testFocusedNavigationAndArtworkResources();
+    void testDurationSliderHasUsefulQuarterRangeAndExactSeconds();
+    void testCustomEffectEditorDialogSavesRecipe();
+    void testEditPresetColorsSurviveSaveAndReopen();
+    void testColorWheelRgbAndHexStaySynchronized();
+    void testGradientDraggingAndPatternDrop();
+    void testSlowHardwareDoesNotBlockGui();
+    void testHardwareSelectionAndCustomEffectEditing();
+    void testDeviceSelection_changesInspectorWithoutChangingLighting();
+    void testPreviewPause_doesNotChangeHardwareSettings();
+    void testDesignPreview_export();
     void testConstruction_populatesCanvasForEveryChannelName();
     void testConstruction_withEmptyProfiles_doesNotCrashAndShowsDefaults();
     void testChangingARowsModeInUi_emitsChannelAssignmentChanged();
@@ -284,12 +322,19 @@ void LightingStudioWindowTest::testModeCombo_onlySupportedModesAreOffered()
     auto* cpuMode = window.findChild<QComboBox*>(QStringLiteral("mode:CPU"));
     QVERIFY(cpuMode != nullptr);
     QCOMPARE(cpuMode->count(), 1);
-    QCOMPARE(cpuMode->itemText(0), QStringLiteral("Canvas"));
+    QCOMPARE(cpuMode->itemText(0), QStringLiteral("Software lighting"));
 
     auto* gpuMode = window.findChild<QComboBox*>(QStringLiteral("mode:GPU"));
     QVERIFY(gpuMode != nullptr);
     QCOMPARE(gpuMode->count(), 1);
-    QCOMPARE(gpuMode->itemText(0), QStringLiteral("Native"));
+    QCOMPARE(gpuMode->itemText(0), QStringLiteral("Device effects"));
+    const auto& entries = settings.activeProfile()->channelSettings;
+    const auto gpu = std::find_if(entries.begin(), entries.end(), [](const ChannelSettings& cs) { return cs.channelName == "GPU"; });
+    QVERIFY(gpu != entries.end());
+    QCOMPARE(gpu->nativeSettings.color1.r, uint8_t(255));
+    QCOMPARE(gpu->nativeSettings.color1.g, uint8_t(255));
+    QCOMPARE(gpu->nativeSettings.color1.b, uint8_t(255));
+
 
     auto* jargbMode = window.findChild<QComboBox*>(QStringLiteral("mode:JARGB1"));
     QVERIFY(jargbMode != nullptr);
@@ -331,7 +376,7 @@ void LightingStudioWindowTest::testPersistedUnsupportedMode_nativeOnlyChannelCla
 
     auto* gpuMode = window.findChild<QComboBox*>(QStringLiteral("mode:GPU"));
     QVERIFY(gpuMode != nullptr);
-    QCOMPARE(gpuMode->currentText(), QStringLiteral("Native"));
+    QCOMPARE(gpuMode->currentText(), QStringLiteral("Device effects"));
 }
 
 // The inverse clamp (Native -> Canvas) must not leave effectName empty --
@@ -591,6 +636,330 @@ void LightingStudioWindowTest::testDeleteProfileButton_disabledWhenOnlyOneProfil
 
     window.deleteActiveProfile();
     QVERIFY(!deleteButton->isEnabled());
+}
+
+void LightingStudioWindowTest::testDeviceSelection_changesInspectorWithoutChangingLighting()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+    const auto before = settings.profiles;
+    auto* list = window.findChild<QListWidget*>(QStringLiteral("deviceList"));
+    auto* pages = window.findChild<QStackedWidget*>(QStringLiteral("deviceInspector"));
+    QVERIFY(list && pages);
+    QCOMPARE(list->count(), 3);
+    QSignalSpy changed(&window, &LightingStudioWindow::channelAssignmentChanged);
+    list->setCurrentRow(1);
+    QCOMPARE(pages->currentIndex(), 1);
+    QVERIFY(settings.profiles == before);
+    QCOMPARE(changed.count(), 0);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    dragBoxAt(window.canvas(), {10, 10});
+    QCOMPARE(list->currentRow(), 0);
+    QCOMPARE(pages->currentIndex(), 0);
+}
+
+void LightingStudioWindowTest::testPreviewPause_doesNotChangeHardwareSettings()
+{
+    Settings settings = makeSettingsWithOneProfile();
+    LightingStudioWindow window(settings, kChannelNames);
+    const auto before = settings.profiles;
+    auto* pause = window.findChild<QPushButton*>(QStringLiteral("previewToggle"));
+    QVERIFY(pause);
+    pause->setChecked(true);
+    QVERIFY(window.canvas()->previewPaused());
+    pause->setChecked(false);
+    QVERIFY(!window.canvas()->previewPaused());
+    QVERIFY(settings.profiles == before);
+}
+
+void LightingStudioWindowTest::testDesignPreview_export()
+{
+    const QString output = qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");
+    if (output.isEmpty()) QSKIP("Set LIGHTING_STUDIO_SCREENSHOT to export a UI-only preview.");
+    Settings settings;
+    Profile profile;
+    profile.name = "Evening studio";
+    profile.globalEffect.effectName = "RadialRainbow";
+    profile.globalEffect.referenceX = 550;
+    profile.globalEffect.referenceY = 350;
+    const std::vector<std::string> names = {"JARGB1", "JARGB2", "JARGB3", "EZConnector", "IOShield", "JRGB1", "RoccatVulcan", "RoccatKone", "RazerBasiliskV3", "SteelSeriesApex3"};
+    const CanvasPlacement positions[] = {{345,190},{630,190},{630,300},{345,300},{345,405},{630,405},{320,550},{760,550},{760,615},{535,550}};
+    for (size_t i = 0; i < names.size(); ++i) {
+        ChannelSettings channel;
+        channel.channelName = names[i];
+        channel.mode = ChannelMode::Canvas;
+        channel.effectName = "StaticColor";
+        channel.staticColor = {113, 226, 197};
+        channel.placement = positions[i];
+        profile.channelSettings.push_back(channel);
+    }
+    settings.profiles = {profile};
+    settings.activeProfileName = profile.name;
+    LightingStudioWindow window(settings, names, {{"IOShield", {ChannelMode::Native}}, {"JRGB1", {ChannelMode::Native}}});
+    window.setDeviceComponents("RoccatVulcan",RoccatVulcanDriver::createDefaultChannel().components());
+    window.setDeviceComponents("RoccatKone",RoccatKoneDriver::createDefaultChannel().components());
+    window.configureComponents("JARGB1",{Component::makeFan(6,true),Component::makeFan(6,true,1),Component::makeFan(6,true,2)});
+    window.setDeviceComponents("JARGB2",{Component::makeGenericPlaceholder(120)});
+    window.setDeviceComponents("RazerBasiliskV3",RazerBasiliskDriver::createDefaultChannel().components());
+    window.setDeviceComponents("SteelSeriesApex3",SteelSeriesApex3Driver::createDefaultChannel().components());
+    const CanvasPlacement arranged[]={{80,80,440,125},{630,190},{630,300},{345,300},{160,300,140,35},{420,300,140,35},{100,430,520,145},{760,410,80,135},{900,410,80,135},{630,580,370,85}};
+    for(size_t i=0;i<names.size();++i)settings.activeProfile()->channelSettings[i].placement=arranged[i];
+    window.refreshFromSettings();
+    window.resize(1440, 880);
+    window.findChild<QListWidget*>(QStringLiteral("deviceList"))->setCurrentRow(6);
+    window.canvas()->setPreviewPaused(true);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    const auto capture=[&](const QString& path) {
+        auto image=window.grab();
+        if(window.canvas()->isVisible()) {
+            QPainter painter(&image);
+            painter.drawImage(QRect(window.canvas()->mapTo(&window,QPoint()),window.canvas()->size()),window.canvas()->grabFramebuffer());
+        }
+        return image.save(path);
+    };
+    QVERIFY(capture(output));
+    QVERIFY(window.canvas()->grabFramebuffer().save(output+".canvas-framebuffer.png"));
+    window.resize(1080, 700);
+    QCoreApplication::processEvents();
+    QVERIFY(capture(output + QStringLiteral(".compact.png")));
+    window.resize(1440,880);
+    auto* regions=window.findChild<QDialog*>("ledRegionsDialog");QVERIFY(regions);regions->show();
+    window.findChild<QListWidget*>(QStringLiteral("deviceList"))->setCurrentRow(6);
+    QCoreApplication::processEvents();QVERIFY(regions->grab().save(output+QStringLiteral(".keyboard.png")));
+    window.findChild<QListWidget*>(QStringLiteral("deviceList"))->setCurrentRow(7);
+    QCoreApplication::processEvents();QVERIFY(regions->grab().save(output+QStringLiteral(".mouse.png")));
+    window.findChild<QListWidget*>(QStringLiteral("deviceList"))->setCurrentRow(0);
+    QCoreApplication::processEvents();QVERIFY(regions->grab().save(output+QStringLiteral(".fans.png")));
+    regions->close();window.findChild<QTabWidget*>("workspaceViews")->setCurrentIndex(2);
+    QCoreApplication::processEvents();QVERIFY(window.grab().save(output+".hardware.png"));
+    window.resize(1080,700);QCoreApplication::processEvents();QVERIFY(window.grab().save(output+".hardware-compact.png"));
+    window.resize(1440,880);
+    window.findChild<QTabWidget*>("workspaceViews")->setCurrentIndex(1);
+    QCoreApplication::processEvents();QVERIFY(window.grab().save(output+".effects.png"));
+    regions->show();
+    window.findChild<QListWidget*>(QStringLiteral("deviceList"))->setCurrentRow(1);
+    QCoreApplication::processEvents();QVERIFY(regions->grab().save(output+QStringLiteral(".slots.png")));
+
+}
+
+void LightingStudioWindowTest::testHardwareSelectionAndCustomEffectEditing()
+{
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1"},{{"JARGB1",{ChannelMode::Canvas}}});
+    window.setDeviceComponents("JARGB1",{Component::makeGenericPlaceholder(120)});
+    QVERIFY(window.configureComponents("JARGB1",{Component::makeFan(6,true),Component::makeFan(6,true,1)}));
+    QCOMPARE(settings.activeProfile()->channelSettings[0].components.size(),size_t(2));
+    QVERIFY(window.setRegionColor("JARGB1",7,{0,255,0}));
+    const auto beforeIdentify=settings.profiles;
+    QSignalSpy identify(&window,&LightingStudioWindow::regionIdentificationRequested);
+    QVERIFY(window.identifyRegion("JARGB1",7));QCOMPARE(identify.count(),1);
+    QCOMPARE(identify.last().at(1).toInt(),7);
+    window.stopRegionIdentification();QCOMPARE(identify.last().at(1).toInt(),-1);
+    QVERIFY(settings.profiles==beforeIdentify);
+    QVERIFY(!window.identifyRegion("JARGB1",120));
+
+    QVERIFY(!window.setRegionColor("JARGB1",12,{255,0,0}));
+    auto huge=Component::makeGenericPlaceholder(121);QVERIFY(!window.configureComponents("JARGB1",{huge}));
+    QSignalSpy libraryChanges(&window,&LightingStudioWindow::customEffectsChanged);
+    QVERIFY(window.createCustomEffect({"My palette",{{255,0,0},{0,0,255}},6000,720}));
+    QCOMPARE(libraryChanges.count(),1);
+    QCOMPARE(settings.activeProfile()->globalEffect.effectName,std::string("custom:My palette"));
+    auto* combo=window.findChild<QComboBox*>(QStringLiteral("globalEffectCombo"));
+    QCOMPARE(combo->currentText(),QStringLiteral("My palette"));
+    QVERIFY(!window.createCustomEffect({"Invalid",{{1,2,3}},0,0}));
+    QCOMPARE(settings.customEffects.size(),size_t(1));
+}
+
+void LightingStudioWindowTest::testCustomEffectEditorDialogSavesRecipe()
+{
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1"});
+    auto* button=window.findChild<QPushButton*>(QStringLiteral("createEffectButton"));QVERIFY(button);
+    QTimer::singleShot(0,[&] {
+        auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!dialog)return;
+        auto* name=dialog->findChild<QLineEdit*>(QStringLiteral("effectRecipeName"));
+        auto* library=dialog->findChild<QListWidget*>(QStringLiteral("patternLibrary"));
+        if(!name || !library){dialog->reject();return;}
+        name->setText(QStringLiteral("Dialog recipe"));library->setCurrentRow(5);
+        const QString output=qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");
+        if(!output.isEmpty())dialog->grab().save(output+QStringLiteral(".effect-editor.png"));
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
+    });
+    button->click();
+    QCOMPARE(settings.customEffects.size(),size_t(1));
+    QCOMPARE(settings.customEffects[0].name,std::string("Dialog recipe"));
+    QCOMPARE(settings.customEffects[0].pattern,std::string("Plasma"));
+    QVERIFY(settings.customEffects[0].validStops());
+    QCOMPARE(settings.activeProfile()->globalEffect.effectName,std::string("custom:Dialog recipe"));
+}
+
+void LightingStudioWindowTest::testColorWheelRgbAndHexStaySynchronized()
+{
+    ColorPicker picker(QColor(255,0,0));
+    auto* green=picker.findChild<QSpinBox*>("colorG");QVERIFY(green);green->setValue(128);
+    QCOMPARE(picker.color(),QColor(255,128,0));
+    ColorWheel wheel;wheel.color=QColor(255,0,0);QColor picked;
+    wheel.changed=[&](QColor c){picked=c;};QTest::mouseClick(&wheel,Qt::LeftButton,Qt::NoModifier,QPoint(125,125));QCOMPARE(picked.rgb(),QColor(Qt::white).rgb());
+    auto* hex=picker.findChild<QLineEdit*>("colorHex");hex->setText("#123456");
+    QMetaObject::invokeMethod(hex,"editingFinished");QCOMPARE(picker.color(),QColor("#123456"));
+    hex->setText("invalid");QMetaObject::invokeMethod(hex,"editingFinished");QCOMPARE(picker.color(),QColor("#123456"));
+}
+
+void LightingStudioWindowTest::testGradientDraggingAndPatternDrop()
+{
+    CustomEffectDefinition d{"Test",{{255,0,0},{0,0,255}},6000,720};
+    GradientStops stops(&d,nullptr);stops.resize(500,74);stops.show();
+    const int x=12+int(d.stops[1]*476);
+    QTest::mousePress(&stops,Qt::LeftButton,Qt::NoModifier,QPoint(x,45));
+    QMouseEvent move(QEvent::MouseMove,QPointF(390,45),QPointF(390,45),Qt::NoButton,Qt::LeftButton,Qt::NoModifier);
+    QApplication::sendEvent(&stops,&move);QTest::mouseRelease(&stops,Qt::LeftButton,Qt::NoModifier,QPoint(390,45));
+    QVERIFY(d.stops[1]>.75);QVERIFY(d.validStops());
+    stops.addStop(.4);QCOMPARE(d.colors.size(),size_t(3));stops.removeStop();QCOMPARE(d.colors.size(),size_t(2));
+    EffectPreview preview(&d,nullptr);QMimeData mime;mime.setData("application/x-lighting-pattern","Plasma");
+    QDragEnterEvent enter(QPoint(50,50),Qt::CopyAction,&mime,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(&preview,&enter);QVERIFY(enter.isAccepted());
+    QDropEvent drop(QPointF(50,50),Qt::CopyAction,&mime,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(&preview,&drop);QCOMPARE(d.pattern,std::string("Plasma"));
+}
+
+void LightingStudioWindowTest::testSlowHardwareDoesNotBlockGui()
+{
+    HardwareWorker worker;std::atomic<bool> started{false},done{false};int heartbeat=0;
+    QTimer timer;connect(&timer,&QTimer::timeout,[&]{++heartbeat;});timer.start(5);
+    QElapsedTimer submission;submission.start();
+    worker.post([&]{started=true;QThread::msleep(150);done=true;});
+    QVERIFY(submission.elapsed()<100);
+    QTRY_VERIFY(started.load());QTest::qWait(60);QVERIFY(heartbeat>=3);
+    QTRY_VERIFY(done.load());worker.stop();
+}
+
+void LightingStudioWindowTest::testHardwareRemovalGeometryAndCalibration()
+{
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1","RoccatVulcan"},{{"RoccatVulcan",{ChannelMode::Canvas}}});
+    window.setDeviceComponents("JARGB1",{Component::makeGenericPlaceholder(120)});
+    const auto keyboard=RoccatVulcanDriver::createDefaultChannel().components();window.setDeviceComponents("RoccatVulcan",keyboard);
+    QVERIFY(window.configureComponents("JARGB1",{Component::makeFan(6,true)}));
+    QVERIFY(settings.activeProfile()->channelSettings[0].placement.width>150);
+    QVERIFY(window.configureComponents("JARGB1",{}));QVERIFY(settings.activeProfile()->channelSettings[0].hasCustomComponents());QVERIFY(settings.activeProfile()->channelSettings[0].components.empty());
+    QCOMPARE(settings.activeProfile()->channelSettings[1].placement.width,420.);
+    settings.activeProfile()->channelSettings[1].placement.width=510;window.setDeviceComponents("RoccatVulcan",keyboard);QCOMPARE(settings.activeProfile()->channelSettings[1].placement.width,510.);
+    auto modified=keyboard;modified[0].ledCoordinates[0].first+=5;QVERIFY(window.editComponentGeometry("RoccatVulcan",modified));
+    QSignalSpy probe(&window,&LightingStudioWindow::regionIdentificationRequested);
+    QTimer::singleShot(0,[&]{auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!dialog)return;auto* address=dialog->findChild<QSpinBox*>("calibrationAddress");if(!address){dialog->reject();return;}address->setValue(0x16);const auto checkboxes=dialog->findChildren<QCheckBox*>();if(!checkboxes.empty())checkboxes.front()->setChecked(true);dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();});
+    window.findChild<QPushButton*>("calibrateKeyboard")->click();
+    const auto& saved=settings.activeProfile()->channelSettings[1].components[0];QCOMPARE(saved.ledMapping[0x0a],0x16);QCOMPARE(saved.ledMapping[0x16],0x0a);QVERIFY(saved.valid());
+    QCOMPARE(probe.count(),2);QCOMPARE(probe[0][1].toInt(),0x16);QCOMPARE(probe[1][1].toInt(),-1);
+    const auto& catalog=hardwareLibrary();QVERIFY(catalog.size()>=5);for(const auto& c:catalog)QVERIFY(c.valid());qInfo()<<"Available hardware definitions:"<<catalog.size();
+}
+
+void LightingStudioWindowTest::testLayoutEditorDragShapesAndReset()
+{
+    const auto fan=Component::makeFan(6,true);LayoutEditor editor({fan});editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    auto* view=editor.findChild<QGraphicsView*>("componentLayoutView");QVERIFY(view);
+    view->fitInView(view->scene()->itemsBoundingRect().adjusted(-20,-20,20,20),Qt::KeepAspectRatio);
+    QGraphicsItem* dot=nullptr;for(auto* item:view->scene()->items())if(item->data(0).toString()=="LED" && item->data(1).toInt()==0){dot=item;break;}QVERIFY(dot);
+    const auto from=view->mapFromScene(dot->scenePos()),to=from+QPoint(30,15);
+    QTest::mousePress(view->viewport(),Qt::LeftButton,Qt::NoModifier,from);QTest::mouseMove(view->viewport(),to);QTest::mouseRelease(view->viewport(),Qt::LeftButton,Qt::NoModifier,to);
+    QVERIFY(dot->pos()!=QPointF(fan.ledCoordinates[0].first,fan.ledCoordinates[0].second));
+    QGraphicsItem* second=nullptr;for(auto* item:view->scene()->items())if(item->data(0).toString()=="LED" && item->data(1).toInt()==1){second=item;break;}QVERIFY(second);
+    dot->setSelected(true);second->setSelected(true);for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="Group selected LEDs")button->click();
+    QCOMPARE(dot->pos(),second->pos());dot->setSelected(false);second->setSelected(false);dot->setPos(dot->pos()+QPointF(10,5));QCOMPARE(dot->pos(),second->pos());
+    auto* shape=editor.findChild<QComboBox*>("layoutShape");shape->setCurrentText("Rectangle");
+    for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="Apply shape")button->click();
+    const QString screenshot=qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");if(!screenshot.isEmpty())editor.grab().save(screenshot+".layout-editor.png");
+    editor.findChild<QPushButton*>("resetComponentLayout")->click();editor.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
+    QCOMPARE(editor.components()[0].ledCoordinates,fan.ledCoordinates);QCOMPARE(editor.components()[0].ledMapping,fan.ledMapping);
+}
+
+void LightingStudioWindowTest::testCustomHardwareDefinitionDialog()
+{
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1"});
+    auto* create=window.findChild<QPushButton*>("createHardwareDefinition:JARGB1");QVERIFY(create);
+    QTimer::singleShot(0,[&]{auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!dialog)return;dialog->findChild<QLineEdit*>("hardwareName")->setText("My paired fan");dialog->findChild<QSpinBox*>("hardwareAddressCount")->setValue(6);dialog->findChild<QSpinBox*>("hardwareLedsPerAddress")->setValue(2);dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();});
+    create->click();QCOMPARE(settings.hardwareCatalog.size(),size_t(1));QCOMPARE(settings.hardwareCatalog[0].ledCount,6);QCOMPARE(settings.hardwareCatalog[0].physicalLedsPerAddress,2);
+    QTimer::singleShot(0,[&]{auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!dialog)return;
+        dialog->findChild<QLineEdit*>("hardwareSearch")->setText("My paired fan");dialog->findChild<QPushButton*>("confirmAddHardware")->click();});
+    window.findChild<QPushButton*>("addHardware:JARGB1")->click();
+    QCOMPARE(settings.activeProfile()->channelSettings[0].components.size(),size_t(1));QCOMPARE(settings.activeProfile()->channelSettings[0].components[0].ledCount,6);
+}
+
+void LightingStudioWindowTest::testEditPresetColorsSurviveSaveAndReopen()
+{
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1"});
+    auto* effects=window.findChild<QComboBox*>("globalEffectCombo");QVERIFY(effects);
+    effects->setCurrentIndex(effects->findText(QString("Aurora")));
+    auto* edit=window.findChild<QPushButton*>("editEffectButton");QVERIFY(edit);
+    QTimer::singleShot(0,[&]{
+        auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());QVERIFY(dialog);
+        QCOMPARE(dialog->findChild<QLineEdit*>("effectRecipeName")->text(),QString("Aurora"));
+        QCOMPARE(dialog->findChild<QSpinBox*>("stopR")->value(),38);
+        dialog->findChild<QSpinBox*>("stopR")->setValue(231);
+        dialog->findChild<QSpinBox*>("stopG")->setValue(19);
+        QVERIFY(!dialog->findChild<QComboBox*>("effectPath")->isEnabled());
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
+    });edit->click();
+    QCOMPARE(settings.customEffects.size(),size_t(1));
+    QTemporaryDir directory;const auto file=directory.filePath("settings.json").toStdString();QVERIFY(settings.saveToFile(file));
+    Settings restored;QVERIFY(restored.loadFromFile(file));
+    QCOMPARE(restored.customEffects[0].colors[0].r,uint8_t(231));QCOMPARE(restored.customEffects[0].colors[0].g,uint8_t(19));
+    QCOMPARE(restored.customEffects[0].path,std::string("Canvas positions"));
+    LightingStudioWindow reopened(restored,{"JARGB1"});
+    QTimer::singleShot(0,[&]{auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());QVERIFY(dialog);
+        QCOMPARE(dialog->findChild<QSpinBox*>("stopR")->value(),231);
+        QCOMPARE(dialog->findChild<QComboBox*>("effectPath")->currentText(),QString("Canvas positions"));dialog->reject();});
+    reopened.findChild<QPushButton*>("editEffectButton")->click();
+}
+
+void LightingStudioWindowTest::testChannelPickerAddsMultipleAndRemovesInline()
+{
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1","JARGB2"});
+    QTimer::singleShot(0,[&]{auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!dialog)return;
+        dialog->findChild<QSpinBox*>("hardwareQuantity")->setValue(3);
+        const auto output=qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");if(!output.isEmpty())dialog->grab().save(output+".hardware-picker.png");
+        dialog->findChild<QPushButton*>("confirmAddHardware")->click();});
+    window.findChild<QPushButton*>("addHardware:JARGB2")->click();
+    QCOMPARE(settings.activeProfile()->channelSettings[0].components.size(),size_t(0));
+    QCOMPARE(settings.activeProfile()->channelSettings[1].components.size(),size_t(3));
+    window.findChild<QListWidget*>("deviceList")->setCurrentRow(1);
+    auto* remove=window.findChild<QPushButton*>("removeHardware:JARGB2:1");QVERIFY(remove);remove->click();
+    QCOMPARE(settings.activeProfile()->channelSettings[1].components.size(),size_t(2));
+    QCOMPARE(settings.activeProfile()->channelSettings[1].components[1].displayName.find("#3")!=std::string::npos,true);
+}
+
+void LightingStudioWindowTest::testHardwarePickerFiltersAndRejectsOverCapacity()
+{
+    HardwarePicker picker("JARGB1",{Component::makeFan(6,true),Component::makeFan(12,false)},5);
+    auto* add=picker.findChild<QPushButton*>("confirmAddHardware");QVERIFY(!add->isEnabled());
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("no such product");QVERIFY(!add->isEnabled());
+    HardwarePicker fits("JARGB2",{Component::makeFan(6,true)},18);
+    auto* count=fits.findChild<QSpinBox*>("hardwareQuantity");count->setValue(120);QCOMPARE(count->value(),3);
+    fits.findChild<QPushButton*>("confirmAddHardware")->click();QCOMPARE(fits.result(),int(QDialog::Accepted));
+    HardwarePicker cancel("JARGB3",{Component::makeFan(6,true)},120);cancel.reject();QCOMPARE(cancel.result(),int(QDialog::Rejected));
+}
+
+void LightingStudioWindowTest::testFocusedNavigationAndArtworkResources()
+{
+    for(const auto* kind:{"fan","mouse","keyboard","keyboard-zones","strip","controller"}){QSvgRenderer image(QString(":/studio/devices/%1.svg").arg(kind));QVERIFY2(image.isValid(),kind);}
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1"});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* views=window.findChild<QTabWidget*>("workspaceViews");QCOMPARE(views->count(),3);
+    QCOMPARE(views->tabText(0),QString("Layout"));QCOMPARE(views->tabText(1),QString("Effects"));QCOMPARE(views->tabText(2),QString("Hardware"));
+    auto* create=window.findChild<QPushButton*>("createEffectButton");QVERIFY(!create->isVisible());
+    QVERIFY(!window.findChild<QPushButton*>("openHardwareChains"));QVERIFY(!window.findChild<QPushButton*>("newCanvasEffect"));
+    views->setCurrentIndex(1);QVERIFY(create->isVisible());QVERIFY(window.findChild<QComboBox*>("globalEffectCombo")->isVisible());
+    QVERIFY(!window.findChild<QStackedWidget*>("deviceInspector")->isVisible());
+    views->setCurrentIndex(0);QVERIFY(!create->isVisible());QVERIFY(window.canvas()->isVisible());
+}
+
+void LightingStudioWindowTest::testDurationSliderHasUsefulQuarterRangeAndExactSeconds()
+{
+    EffectEditor editor({"Timing",{{255,0,0},{0,0,255}},6000,720});
+    auto* slider=editor.findChild<QSlider*>("effectDuration");auto* seconds=editor.findChild<QDoubleSpinBox*>("effectDurationSeconds");QVERIFY(slider && seconds);
+    QCOMPARE(editor.definition().periodMs,6000);QCOMPARE(seconds->value(),6.);
+    slider->setValue(250);QVERIFY(editor.definition().periodMs>=1900 && editor.definition().periodMs<=2000);
+    QCOMPARE(int(std::lround(seconds->value()*1000)),editor.definition().periodMs);
+    slider->setValue(0);QCOMPARE(editor.definition().periodMs,500);
+    slider->setValue(1000);QCOMPARE(editor.definition().periodMs,120000);
+    seconds->setValue(6.125);QCOMPARE(editor.definition().periodMs,6125);
+    QVERIFY(slider->value()>400 && slider->value()<500);
+    EffectEditor reopened(editor.definition());QCOMPARE(reopened.definition().periodMs,6125);
 }
 
 QTEST_MAIN(LightingStudioWindowTest)

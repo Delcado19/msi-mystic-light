@@ -30,19 +30,9 @@ class RoccatVulcanDriver : public IDriver {
 public:
     RoccatVulcanDriver(IHidDevice& controlHid, IHidDevice& ledHid);
 
-    // One Channel named "RoccatVulcan" with VULCAN_MAX_LEDS (144) LED
-    // slots, one Component approximating the key matrix as a 24x6
-    // row/column grid - the real physical matrix dimensions from
-    // RoccatVulcanKeyboardLayouts.h:45/55 (`[6][24]`: 6 rows, 24 columns),
-    // not VULCAN_COLUMN_LENGTH's 12, which is a wire-protocol addressing
-    // stride unrelated to physical key placement.
-    // ponytail: key index -> (column,row) uses a simple column-major fill
-    // (idx/6, idx%6), not the real per-key id->position lookup table (which
-    // has NA gaps the simple fill doesn't model) - per the task brief's
-    // explicit note, a grid matching the matrix *dimensions* is enough for
-    // v1, exact keycap identity is not required; protocol correctness does
-    // not depend on this. Refine later (port the real lookup table) only
-    // if the canvas preview's visual accuracy demands it.
+    // One channel with 144 hardware-addressed slots and the actual 24x6
+    // ISO (DE/UK/FR) key positions. Unused wire slots share the origin;
+    // ANSI/JIS layout detection is not implemented.
     static Channel createDefaultChannel();
 
     // True only for ChannelMode::Canvas on "RoccatVulcan"; Native always

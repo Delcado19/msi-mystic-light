@@ -10,6 +10,7 @@ class ChannelTest : public QObject
     Q_OBJECT
 
 private slots:
+    void testFanChainsAndAtomicReplacement();
     void testAddComponent_withinLimit();
     void testAddComponent_exceedsLimitRejected();
     void testSetColorAndLedPosition();
@@ -97,6 +98,22 @@ void ChannelTest::testClearComponents_resetsState()
     QCOMPARE(ch.totalLedCount(), 0);
     QVERIFY(ch.colors().empty());
     QVERIFY(!ch.ledPosition(0).has_value());
+}
+
+void ChannelTest::testFanChainsAndAtomicReplacement()
+{
+    Channel channel("JARGB1",120);
+    const auto fan=Component::makeFan(6,true);
+    QCOMPARE(fan.ledCount,6);
+    QVERIFY(channel.replaceComponents({fan,Component::makeFan(6,true,1)}));
+    QCOMPARE(channel.totalLedCount(),12);
+    QVERIFY(channel.ledPosition(0)!=channel.ledPosition(6));
+    auto invalid=fan;invalid.ledCount=121;
+    QVERIFY(!channel.replaceComponents({invalid}));
+    QCOMPARE(channel.totalLedCount(),12);
+    auto malformed=fan;malformed.ledCoordinates.clear();
+    QVERIFY(!channel.replaceComponents({malformed}));
+    QCOMPARE(channel.totalLedCount(),12);
 }
 
 QTEST_MAIN(ChannelTest)

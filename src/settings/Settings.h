@@ -10,6 +10,7 @@
 
 #include <string>
 #include <vector>
+#include "effects/CustomGradientEffect.h"
 
 #include "canvas/Canvas.h"
 #include "device/MsiMotherboardDriver.h"
@@ -28,6 +29,12 @@ struct ChannelSettings {
     // said "meaningful only if effectName == StaticColor", which missed the
     // other three color-taking effects.)
     MsiColor staticColor;
+    // Header topology is configurable; peripheral geometry and wire calibration
+    // preserve device capacity. Explicitly empty configured headers output black.
+    std::vector<Component> components;
+    bool componentsConfigured=false; // Distinguishes deliberately empty outputs from legacy defaults.
+    bool hasCustomComponents() const {return componentsConfigured || !components.empty();}
+    std::map<int, MsiColor> ledOverrides;
     NativeModeSettings nativeSettings; // meaningful only if mode == Native
 
     bool operator==(const ChannelSettings&) const; // field-by-field, for tests
@@ -60,6 +67,8 @@ struct Profile {
 class Settings {
 public:
     std::vector<Profile> profiles;
+    std::vector<CustomEffectDefinition> customEffects;
+    std::vector<Component> hardwareCatalog;
     std::string activeProfileName;
 
     bool saveToFile(const std::string& path) const; // false on I/O failure

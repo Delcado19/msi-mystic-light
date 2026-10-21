@@ -27,14 +27,14 @@ public:
     // docs/MB_800_HID_PROTOCOL.md: "JARGB1"/"JARGB2"/"JARGB3" (<=120 LEDs
     // each, zone indices 0/1/2, Gen1Adv areas JARGB1/JARGB2/JARGB3),
     // "EZConnector" (<=120 LEDs, zone index 3, Gen1Adv area JAF),
-    // "IOShield" (11 LEDs, zone index 4, Gen1Adv area JPIPE1),
+    // "IOShield" (11 LEDs, zone index 4, native-mode only; 0x51 ineffective),
     // "JRGB1" (1 LED, zone index 9, native-mode only - not addressable
-    // per-LED, so Canvas mode is unsupported for this one channel and
+    // per-LED, so Canvas mode is unsupported for these two channels and
     // setChannelMode("JRGB1", Canvas) returns false).
     static std::vector<Channel> createDefaultChannels();
 
     // Returns false (no-op) for an unknown channel name, or for a channel
-    // that has no Gen1Adv area (currently only "JRGB1") when mode is
+    // that has no Gen1Adv area ("JRGB1" and "IOShield") when mode is
     // Canvas: that channel isn't per-LED addressable.
     //
     // Entering Canvas mode also sends one 0x50 report arming that zone's

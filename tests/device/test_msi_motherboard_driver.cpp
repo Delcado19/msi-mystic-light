@@ -131,16 +131,15 @@ void MsiMotherboardDriverTest::testZoneIndexMapping_pinsEachChannelToItsDocument
     QCOMPARE(hid.sentReports.back()[1 + 9 * 16], static_cast<uint8_t>(1)); // zone 9
 }
 
-// Pins the name -> Gen1Adv-area mapping from the brief's note: EZConnector
-// uses area JAF (0x0800), IOShield uses JPIPE1 (0x0300) - NOT the areas
-// named JARGB1/2/3. Report 0x51 bytes 2-3 are the area, big-endian.
+// Pin supported Gen1Adv areas (0x51 bytes 2-3, big-endian), and reject
+// IOShield Canvas: the historical JPIPE1 hypothesis failed on hardware.
 void MsiMotherboardDriverTest::testGen1AdvAreaMapping_pinsEachChannelToItsDocumentedArea()
 {
     FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
     MsiMotherboardDriver driver(hid);
 
     // JARGB1/JARGB2 use the areas of the same name (0x0400/0x0401) - unlike
-    // EZConnector/IOShield below, which use a DIFFERENT area than their own
+    // EZConnector below, which uses a DIFFERENT area than its own
     // name would suggest. Neither was asserted anywhere before this test.
     QVERIFY(driver.setChannelMode("JARGB1", ChannelMode::Canvas));
     QVERIFY(driver.pushCanvasColors("JARGB1", {{1,2,3}}));
@@ -157,28 +156,31 @@ void MsiMotherboardDriverTest::testGen1AdvAreaMapping_pinsEachChannelToItsDocume
     QCOMPARE(hid.sentReports.back()[2], static_cast<uint8_t>(0x08)); // JAF high byte
     QCOMPARE(hid.sentReports.back()[3], static_cast<uint8_t>(0x00));
 
-    QVERIFY(driver.setChannelMode("IOShield", ChannelMode::Canvas));
-    QVERIFY(driver.pushCanvasColors("IOShield", {{1,2,3}}));
-    QCOMPARE(hid.sentReports.back()[2], static_cast<uint8_t>(0x03)); // JPIPE1 high byte
-    QCOMPARE(hid.sentReports.back()[3], static_cast<uint8_t>(0x00));
+    const auto before = hid.sentReports.size();
+    QVERIFY(!driver.supportsMode("IOShield", ChannelMode::Canvas));
+    QVERIFY(driver.supportsMode("IOShield", ChannelMode::Native));
+    QVERIFY(!driver.setChannelMode("IOShield", ChannelMode::Canvas));
+    QVERIFY(!driver.pushCanvasColors("IOShield", {{1,2,3}}));
+    QCOMPARE(hid.sentReports.size(), before);
+
 }
 
 // Deliberate contract addition beyond the brief (see header comment on
 // pushCanvasColors): BuildReport0x51 throws past 240 colors, which would
 // violate the "never throw or crash" Review Focus item, so the driver must
 // refuse anything over the channel's own LED limit before calling it.
-// IOShield's limit is 11; 12 colors must be rejected with nothing sent.
+// JARGB1's limit is 120; 121 colors must be rejected with nothing sent.
 void MsiMotherboardDriverTest::testPushCanvasColors_rejectsMoreColorsThanLedLimit()
 {
     FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
     MsiMotherboardDriver driver(hid);
-    QVERIFY(driver.setChannelMode("IOShield", ChannelMode::Canvas));
+    QVERIFY(driver.setChannelMode("JARGB1", ChannelMode::Canvas));
     // setChannelMode(Canvas) itself sends one arming 0x50 report; only the
     // rejected pushCanvasColors call below must add nothing further.
     QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
 
-    std::vector<MsiColor> tooMany(12, MsiColor{1, 2, 3});
-    QVERIFY(!driver.pushCanvasColors("IOShield", tooMany));
+    std::vector<MsiColor> tooMany(121, MsiColor{1, 2, 3});
+    QVERIFY(!driver.pushCanvasColors("JARGB1", tooMany));
     QCOMPARE(static_cast<int>(hid.sentReports.size()), 1);
 }
 

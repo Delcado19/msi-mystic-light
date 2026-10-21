@@ -26,14 +26,17 @@ public:
     bool addComponent(const Component& component);
 
     void clearComponents();
+    const std::vector<Component>& components() const { return components_; }
+    // Validate the complete replacement before changing an active chain.
+    bool replaceComponents(const std::vector<Component>& components);
     int totalLedCount() const;
     const std::vector<MsiColor>& colors() const;
 
     // No-op if index is out of [0, totalLedCount()) range.
     void setColor(int index, MsiColor color);
 
-    // Global chain index -> the owning component's declared [x,y], or
-    // std::nullopt if index is out of range.
+    // Wire index -> logical LED coordinates via the inverse component mapping.
+    // Out-of-range/unpopulated packet slots have no LED position.
     std::optional<std::pair<int,int>> ledPosition(int index) const;
 
 private:

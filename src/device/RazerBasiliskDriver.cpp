@@ -11,7 +11,14 @@ RazerBasiliskDriver::RazerBasiliskDriver(IHidDevice& hid) : hid_(hid)
 Channel RazerBasiliskDriver::createDefaultChannel()
 {
     Channel channel(kChannelName, RAZER_BASILISK_MAX_LEDS);
-    channel.addComponent(Component::makeGenericPlaceholder(RAZER_BASILISK_MAX_LEDS));
+    auto component = Component::makeGenericPlaceholder(RAZER_BASILISK_MAX_LEDS);
+    component.productName = component.displayName = "Razer Basilisk V3";
+    component.type = "Mouse";
+    component.width = 100; component.height = 160;
+    // Wire identities from RazerDevices.cpp: logo, wheel, then nine strip LEDs.
+    component.ledCoordinates = {{50,95},{50,30},{25,30},{15,55},{12,85},{20,120},{50,145},{80,120},{88,85},{85,55},{75,30}};
+    component.ledNames = {"Logo","Wheel","Strip 1","Strip 2","Strip 3","Strip 4","Strip 5","Strip 6","Strip 7","Strip 8","Strip 9"};
+    channel.addComponent(component);
     return channel;
 }
 

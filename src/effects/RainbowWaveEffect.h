@@ -8,8 +8,7 @@
 class RainbowWaveEffect : public IEffect {
 public:
     explicit RainbowWaveEffect(int64_t periodMs = 3000);
-    // hue = ((x * 36) + (elapsedMs * 360 / periodMs_)) mod 360 (wavelength
-    // fixed at 10px/360deg for v1); full saturation/value HSV->RGB.
+    // Smooth 720-pixel spatial cycle; time advances one full cycle per period.
     // y is ignored for v1 (horizontal wave only).
     MsiColor colorAt(int x, int y, int64_t elapsedMs) const override;
 

@@ -7,10 +7,10 @@
 
 namespace {
 // hid_init()/hid_exit() are hidapi's process-wide lifecycle: hid_init() sets
-// up global backend state and hid_exit() tears it down. Since more than one
-// HidApiDevice can exist at a time (and the app is single-threaded for HID
-// use), a simple instance counter calls hid_init() only for the first live
-// instance and hid_exit() only once the last one is destroyed, so instances
+// up global backend state and hid_exit() tears it down. Handles are constructed
+// before the hardware worker starts and destroyed after it joins; lifecycle
+// operations remain on the main thread. The counter initializes the first live
+// instance and calls hid_exit() only after the last is destroyed, so instances
 // don't stomp on each other's global state.
 int g_instanceCount = 0;
 }

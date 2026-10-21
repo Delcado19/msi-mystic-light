@@ -1,11 +1,7 @@
-// Main window ("Lighting Studio"): LightingCanvasWidget (Task 14) on the
-// left, a side panel on the right with a profile selector, a global-effect
-// picker, and one mode/source/effect row per known channel. Writes directly
-// into the Settings instance it's given -- it does not own persistence
-// (main.cpp still calls Settings::saveToFile on quit, per the plan's
-// Task 18). Task 15 of the Lighting Studio plan; see
-// docs/superpowers/specs/2026-10-19-lighting-studio-design.md and
-// .superpowers/sdd/2026-10-19-lighting-studio/task-15-brief.md.
+// Device sidebar, fitted spatial preview, and selected-device inspector.
+// Edits update the shared Settings model; main.cpp owns hardware writes
+// and debounced persistence. Selecting a device or pausing the preview
+// never modifies a hardware assignment.
 #pragma once
 
 #include <QWidget>
@@ -20,6 +16,13 @@
 class LightingCanvasWidget;
 class QComboBox;
 class QPushButton;
+class QListWidget;
+class QFormLayout;
+class DeviceLedWidget;
+class QLabel;
+class QCheckBox;
+class QTabWidget;
+class QStackedWidget;
 
 class LightingStudioWindow : public QWidget {
     Q_OBJECT
@@ -32,7 +35,7 @@ public:
     // availableModesByChannel (Task 23): which of {Native, Canvas} channel
     // X's own driver actually honors -- e.g. the 4 peripheral drivers are
     // Canvas-only (their setNativeMode is a confirmed permanent no-op), and
-    // the motherboard's JRGB1 is Native-only (no Gen1Adv area). main.cpp
+    // the motherboard's JRGB1 and IOShield are Native-only. main.cpp
     // builds this once at startup from each driver's IDriver::supportsMode()
     // (the authoritative, hardware-topology-owning source -- see IDriver.h),
     // so this window never has to re-derive per-device mode rules as magic
@@ -45,11 +48,19 @@ public:
         std::map<std::string, std::vector<ChannelMode>> availableModesByChannel = {},
         QWidget* parent = nullptr);
 
+    void setDeviceComponents(const std::string& name, const std::vector<Component>& components);
+    bool editComponentGeometry(const std::string& name,const std::vector<Component>& components);
+    bool configureComponents(const std::string& name, const std::vector<Component>& components);
+    bool setRegionColor(const std::string& name, int index, MsiColor color);
+    bool createCustomEffect(const CustomEffectDefinition& definition);
+    bool identifyRegion(const std::string& name, int index);
+    void stopRegionIdentification();
+    void setPersistenceStatus(bool saved);
     LightingCanvasWidget* canvas() const; // exposed for tests and for main.cpp to connect Canvas::setAssignment on changes
 
     // Public mutators backing the color-swatch buttons and profile
     // create/rename/delete buttons (Task 23). Each one is the single place
-    // its corresponding button's click handler funnels into -- QColorDialog/
+    // its corresponding button's click handler funnels into -- ColorPicker/
     // QInputDialog are modal and cannot be driven from an automated test, so
     // tests call these directly instead and assert on the resulting Settings
     // state + emitted signal, exactly as this window's existing row-combo
@@ -82,6 +93,9 @@ public:
     void refreshFromSettings();
 
 signals:
+    // Temporary hardware-only override; index -1 restores the saved assignment.
+    void customEffectsChanged();
+    void regionIdentificationRequested(const std::string& name, int index);
     // Fired whenever any row's mode/source/effect/placement/staticColor/
     // native lightingMode/native color1 changes (Task 23 added the last
     // three), or the active profile switches -- main.cpp listens to push the
@@ -95,6 +109,9 @@ signals:
     void globalEffectChanged();
     void activeProfileChanged(const std::string& profileName);
 
+protected:
+    void hideEvent(QHideEvent* event) override;
+
 private:
     // One row's mode/source/effect pickers in the side panel, plus (Task 23)
     // a staticColor swatch button and a minimal Native-mode editor
@@ -102,6 +119,10 @@ private:
     // task-23-report.md for what's deliberately NOT exposed here (every
     // other NativeModeSettings field keeps its current default, unedited).
     struct ChannelRow {
+        QFormLayout* form = nullptr;
+        DeviceLedWidget* hardwarePreview=nullptr;
+        QString componentSignature;
+        QListWidget* components = nullptr;
         QComboBox* modeCombo = nullptr;
         QComboBox* sourceCombo = nullptr;
         QComboBox* effectCombo = nullptr;
@@ -132,8 +153,7 @@ private:
     // channel with no entry (see the constructor's doc comment).
     std::vector<ChannelMode> availableModesFor(const std::string& channelName) const;
     // Builds a fresh ChannelSettings for a channel with no persisted entry
-    // yet: motherboard channels (Native available) keep ChannelSettings' own
-    // Native default; a Canvas-only peripheral instead defaults to Canvas/
+    // yet: motherboard channels start with steady white; a Canvas-only peripheral instead defaults to Canvas/
     // StaticColor/a visible color (Task 23) -- Native is a confirmed
     // permanent no-op for all 4 peripheral drivers, so leaving a fresh
     // peripheral channel at the plain ChannelSettings default would mean it
@@ -169,6 +189,17 @@ private:
     void onCanvasChannelPlacementChanged(const std::string& channelName, CanvasPlacement newPlacement);
     void onCanvasGlobalReferencePointChanged(int x, int y);
 
+    void updateSelectedDevice();
+    std::map<std::string, std::vector<Component>> defaultComponents_;
+    DeviceLedWidget* ledMap_ = nullptr;
+    QCheckBox* identifyToggle_ = nullptr;
+    QTabWidget* workspaceViews_=nullptr;
+    QStackedWidget* hardwarePages_=nullptr;
+    CustomEffectDefinition previewRecipe_;
+    QLabel* layoutEffectBadge_=nullptr;
+    QLabel* persistenceStatus_=nullptr;
+    bool persistenceSucceeded_=true;
+    std::string identificationChannel_;
     Settings& settings_;
     std::vector<std::string> channelNames_;
     std::map<std::string, std::vector<ChannelMode>> availableModesByChannel_;
@@ -180,4 +211,6 @@ private:
     QComboBox* globalEffectCombo_ = nullptr;
     QPushButton* globalColorButton_ = nullptr;
     std::map<std::string, ChannelRow> rows_;
+    QListWidget* deviceList_ = nullptr;
+    QStackedWidget* devicePages_ = nullptr;
 };
