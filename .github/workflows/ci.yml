@@ -6,27 +6,26 @@ on:
 
 jobs:
   build-and-test:
-    # Self-hosted: GitHub-hosted Windows runners bill against the private-repo
-    # Actions minutes quota (2x multiplier); self-hosted runners never do.
-    runs-on: [self-hosted, Windows, msi-mystic-light]
+    # Public repo: GitHub-hosted Actions minutes are unmetered here, unlike
+    # on a private repo (where Windows runners bill at a 2x multiplier).
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          modules: 'qtsvg'
+
       - name: Configure
         shell: pwsh
-        run: |
-          & "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" `
-            -S . -B build `
-            -DCMAKE_TOOLCHAIN_FILE="C:/Program Files/Microsoft Visual Studio/18/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
         shell: pwsh
-        run: |
-          & "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" `
-            --build build --config Debug
+        run: cmake --build build --config Debug
 
       - name: Test
         shell: pwsh
-        run: |
-          & "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\ctest.exe" `
-            --test-dir build -C Debug --output-on-failure
+        run: ctest --test-dir build -C Debug --output-on-failure
