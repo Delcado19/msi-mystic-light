@@ -4,6 +4,7 @@
 #include <QtTest/QtTest>
 
 #include "effects/CustomGradientEffect.h"
+#include "effects/EffectFactory.h"
 #include "effects/BreathingEffect.h"
 #include "effects/CometEffect.h"
 #include "effects/MarqueeEffect.h"
@@ -19,6 +20,11 @@ class EffectsTest : public QObject
 
 private slots:
     void testSmoothWaveAndCustomPalette();
+    void testLayersZonesAndScroll();
+    void testCircularCentersTranslate();
+    void testBaseEffectsVisibleAtStart();
+    void testSourceMotionModes();
+    void testBreathingDoesNotScrollAndPatternsDiffer();
     void testCustomPatternsAndStops();
     void testStaticColorEffect_ignoresInputs();
     void testRainbowWaveEffect_hueZeroIsRed();
@@ -48,6 +54,65 @@ private slots:
     void testSwirlCirclesEffect_adjacentRingsDiffer();
     void testSwirlCirclesEffect_zeroRingWidthDoesNotCrash();
 };
+
+void EffectsTest::testBreathingDoesNotScrollAndPatternsDiffer()
+{
+    CustomEffectDefinition d{"Breath",{{255,0,0},{0,0,255}},6000,720};d.pattern="Breathing";d.path="Canvas positions";
+    const CustomGradientEffect effect(d);const auto a=effect.colorAt(180,0,1500),b=effect.colorAt(180,0,3000);
+    QCOMPARE(a.r,effect.colorAt(1000,600,1500).r);QCOMPARE(a.b,effect.colorAt(1000,600,1500).b);
+    QVERIFY(a.r!=b.r || a.b!=b.b);QCOMPARE(effect.colorAt(180,0,0).r,uint8_t(255));
+    d.path="Component LEDs";const CustomGradientEffect leds(d);const auto l=leds.colorForLed(0,0,1500,3,12,3,12),m=leds.colorForLed(600,400,1500,9,12,9,12);QCOMPARE(l.r,m.r);QCOMPARE(l.b,m.b);
+    d.colors={{255,255,255},{255,255,255}};d.path="Canvas positions";d.pattern="Comet";const auto comet=CustomGradientEffect(d).colorAt(90,0,0);
+    d.pattern="Marquee";const auto marquee=CustomGradientEffect(d).colorAt(90,0,0);QVERIFY(comet.r!=marquee.r);
+    d.pattern="Vertical";d.normalizeScroll();QCOMPARE(d.pattern,std::string("Scroll"));QCOMPARE(d.angle,270.);
+}
+
+void EffectsTest::testSourceMotionModes()
+{
+    CustomEffectDefinition d{"Motion",{{255,0,0},{0,0,0}},6000,300};d.pattern="Color source";
+    const auto x=[&](int time){return CustomGradientEffect(d).sourceCenterAt(time).first;};
+    QVERIFY(std::abs(x(0)-550)<.001);QVERIFY(std::abs(x(1500)-935)<.001);
+    d.sourceMotion="Cosine";QVERIFY(std::abs(x(0)-935)<.001);QVERIFY(std::abs(x(3000)-165)<.001);
+    d.sourceMotion="Ping-pong";QVERIFY(std::abs(x(0)-165)<.001);QVERIFY(std::abs(x(1500)-550)<.001);QVERIFY(std::abs(x(3000)-935)<.001);
+    d.sourceMotion="Static";QCOMPARE(x(0),x(1500));d.sourceMotion="Sine";d.angle=90;const auto point=CustomGradientEffect(d).sourceCenterAt(1500);QVERIFY(std::abs(point.first-550)<.001);QVERIFY(std::abs(point.second-595)<.001);
+}
+
+void EffectsTest::testBaseEffectsVisibleAtStart()
+{
+    for(const auto* name:{"StaticColor","Scroll","Breathing","RadialRainbow","Spiral","Comet","Marquee","SwirlCircles","Plasma","Color source","Static gradient"}){
+        const auto effect=buildEffect(name,{255,255,255},550,350);QVERIFY(effect);int maximum=0;
+        for(int y=0;y<700;y+=70)for(int x=0;x<1100;x+=55){const auto c=effect->colorAt(x,y,0);maximum=std::max(maximum,int(c.r)+c.g+c.b);}QVERIFY2(maximum>0,name);
+    }
+    CustomEffectDefinition comet{"Head",{{255,255,255},{255,255,255}},6000,720};comet.pattern="Comet";QVERIFY(CustomGradientEffect(comet).colorAt(0,0,0).r>0);
+}
+
+void EffectsTest::testCircularCentersTranslate()
+{
+    CustomEffectDefinition namedSpiral{"Spiral",{{255,0,0},{0,0,255}},6000,720};namedSpiral.pattern="Scroll";
+    QVERIFY(dynamic_cast<SpiralEffect*>(buildEffect("Spiral",{},0,0,{namedSpiral}).get()));QVERIFY(dynamic_cast<CustomGradientEffect*>(buildEffect("custom:Spiral",{},0,0,{namedSpiral}).get()));
+    for(const auto* pattern:{"Radial","Angular","Spiral"}){
+        CustomEffectDefinition d{"Center",{{255,0,0},{0,0,255}},6000,720};d.pattern=pattern;
+        const auto original=CustomGradientEffect(d).colorAt(610,390,1500);d.centerX+=100;d.centerY+=50;
+        const auto moved=CustomGradientEffect(d).colorAt(710,440,1500);QCOMPARE(original.r,moved.r);QCOMPARE(original.b,moved.b);
+    }
+}
+
+void EffectsTest::testLayersZonesAndScroll()
+{
+    CustomEffectDefinition invalid;invalid.opacity=2;QVERIFY(!invalid.validLayerSettings());invalid.opacity=1;invalid.layers.resize(9);QVERIFY(!invalid.validLayerSettings());
+    CustomEffectDefinition d{"Red",{{255,0,0},{255,0,0}},6000,720};d.path="Canvas positions";
+    CustomEffectDefinition blue{"Blue",{{0,0,255},{0,0,255}},6000,720};blue.zoneEnabled=true;blue.zoneX=100;blue.zoneY=100;blue.zoneWidth=200;blue.zoneHeight=200;
+    d.layers={blue};auto mixed=CustomGradientEffect(d).colorAt(150,150,0);QCOMPARE(mixed.r,uint8_t(255));QCOMPARE(mixed.b,uint8_t(255));
+    QCOMPARE(CustomGradientEffect(d).colorAt(300,150,0).b,uint8_t(0));
+    d.zoneEnabled=true;d.zoneX=0;d.zoneWidth=50;
+    const auto overlayOnly=CustomGradientEffect(d).colorAt(150,150,0);QCOMPARE(overlayOnly.r,uint8_t(0));QCOMPARE(overlayOnly.b,uint8_t(255));d.zoneEnabled=false;
+    d.layers[0].blend="Normal";d.layers[0].opacity=.5;QCOMPARE(CustomGradientEffect(d).colorAt(150,150,0).r,uint8_t(128));
+    d.layers.clear();d.pattern="Scroll";d.colors={{255,0,0},{0,0,255}};d.angle=90;
+    const auto down=CustomGradientEffect(d).colorAt(0,180,0);const auto same=CustomGradientEffect(d).colorAt(200,180,0);QCOMPARE(down.r,same.r);
+    d.angle=0;const auto right=CustomGradientEffect(d).colorAt(180,0,0);QCOMPARE(right.r,down.r);
+    d.pattern="Color source";d.colors={{255,0,0},{255,0,0}};d.wavelength=200;d.layers={d};d.layers[0].layers.clear();d.layers[0].colors={{0,0,255},{0,0,255}};
+    mixed=CustomGradientEffect(d).colorAt(550,350,0);QCOMPARE(mixed.r,uint8_t(255));QCOMPARE(mixed.b,uint8_t(255));
+}
 
 void EffectsTest::testStaticColorEffect_ignoresInputs()
 {

@@ -70,8 +70,9 @@ protected:
                 double cx=0,cy=0;int top=c.ledCoordinates.front().second;
                 for(const auto& point:c.ledCoordinates){cx+=point.first;cy+=point.second;top=qMin(top,point.second);}cx/=c.ledCount;
                 p.setPen(QColor("#c4d2e2"));p.setFont(font());
-                p.drawText(QRectF(originX+(cx-minX)*scale-130,originY+(top-minY)*scale-34,260,22),Qt::AlignCenter,
-                    QString::fromStdString(c.displayName)+QString(" / %1-%2").arg(offset+1).arg(offset+c.ledCount));
+                const int labelWidth=qMax(24,int((cr-cl)*scale));
+                p.drawText(QRectF(originX+(cx-minX)*scale-labelWidth/2.,originY+(top-minY)*scale-28,labelWidth,22),Qt::AlignCenter,
+                    p.fontMetrics().elidedText(compactHardwareName(c),Qt::ElideRight,labelWidth));
             }
             for (int i=0;i<c.ledCount;++i) {
                 if (c.ledNames[i].find("Wire slot")==0) continue;

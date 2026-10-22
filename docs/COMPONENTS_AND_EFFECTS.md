@@ -319,3 +319,14 @@ Cycle duration uses a logarithmic 0.5-120 second slider: one quarter is about
 1.97 seconds, not the former 30 seconds. The adjacent seconds field supports
 exact millisecond values and stays synchronized with slider edits. Existing
 recipe durations are preserved on opening and still persist as integer milliseconds.
+
+### Vulcan modifier color investigation (2026-10-22)
+
+The working application source is in `.claude/worktrees/lighting-studio/src`
+relative to the main checkout. A targeted green/blue swap for Left Windows
+(0x0A) and Right Ctrl (0x59) was rejected by the physical retest and removed.
+The encoder preserves RGB channels for all 144 slots, covered with purple,
+blue, cyan and orange regression inputs. The reported intermittent white flashes
+and dark ISO keys remain unresolved. SignalRGB GUI and service were also running
+during diagnosis; process presence alone does not prove competing HID writes.
+Do not change key mapping or channel order without a controlled single-writer test.

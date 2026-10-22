@@ -16,6 +16,40 @@
 
 namespace {
 
+void writeEffectLayers(QJsonObject& item,const CustomEffectDefinition& d,bool overlays=true) {
+    item["sourceMotion"]=QString::fromStdString(d.sourceMotion);item["centerX"]=d.centerX;item["centerY"]=d.centerY;item["enabled"]=d.enabled;item["reverse"]=d.reverse;item["spreadDegrees"]=d.spreadDegrees;
+    item["angle"]=d.angle;item["opacity"]=d.opacity;item["blend"]=QString::fromStdString(d.blend);
+    item["zoneEnabled"]=d.zoneEnabled;item["zoneX"]=d.zoneX;item["zoneY"]=d.zoneY;item["zoneWidth"]=d.zoneWidth;item["zoneHeight"]=d.zoneHeight;
+    QJsonArray layers;
+    if(overlays)for(const auto& layer:d.layers) {
+        QJsonObject value;value["name"]=QString::fromStdString(layer.name);value["pattern"]=QString::fromStdString(layer.pattern);
+        value["periodMs"]=layer.periodMs;value["wavelength"]=layer.wavelength;
+        QJsonArray colors;for(auto c:layer.colors){QJsonObject color;color["r"]=c.r;color["g"]=c.g;color["b"]=c.b;colors.append(color);}value["colors"]=colors;
+        QJsonArray stops;for(auto stop:layer.stops)stops.append(stop);value["stops"]=stops;
+        writeEffectLayers(value,layer,false);layers.append(value);
+    }
+    item["layers"]=layers;
+}
+void readEffectLayers(const QJsonObject& item,CustomEffectDefinition& d,bool overlays=true) {
+    const auto number=[&](const char* key,double fallback,double low,double high){const double v=item.value(key).toDouble(fallback);return std::isfinite(v)?std::clamp(v,low,high):fallback;};
+    d.sourceMotion=item.value("sourceMotion").toString("Sine").toStdString();if(d.sourceMotion!="Sine" && d.sourceMotion!="Cosine" && d.sourceMotion!="Ping-pong" && d.sourceMotion!="Static")d.sourceMotion="Sine";
+    d.centerX=int(number("centerX",550,0,1100));d.centerY=int(number("centerY",350,0,700));d.enabled=item.value("enabled").toBool(true);d.reverse=item.value("reverse").toBool();d.spreadDegrees=number("spreadDegrees",360,15,720);
+    d.angle=number("angle",0,-360,360);d.opacity=number("opacity",1,0,1);
+    d.blend=item.value("blend").toString("Screen").toStdString();if(d.blend!="Screen" && d.blend!="Add" && d.blend!="Normal")d.blend="Screen";
+    d.zoneEnabled=item.value("zoneEnabled").toBool();d.zoneX=int(number("zoneX",0,0,1100));d.zoneY=int(number("zoneY",0,0,700));
+    d.zoneWidth=int(number("zoneWidth",1100,1,1100));d.zoneHeight=int(number("zoneHeight",700,1,700));
+    if(overlays)for(const auto& value:item.value("layers").toArray()) {
+        if(d.layers.size()>=8)break;const auto o=value.toObject();CustomEffectDefinition layer;
+        layer.name=o.value("name").toString("Layer").left(80).toStdString();layer.path="Canvas positions";
+        layer.pattern=o.value("pattern").toString("Scroll").toStdString();if(!CustomEffectDefinition::validPattern(layer.pattern))layer.pattern="Scroll";
+        layer.periodMs=std::clamp(o.value("periodMs").toInt(6000),500,120000);layer.wavelength=std::clamp(o.value("wavelength").toInt(720),40,4000);
+        for(auto color:o.value("colors").toArray()){if(layer.colors.size()>=16)break;const auto c=color.toObject();layer.colors.push_back({uint8_t(std::clamp(c.value("r").toInt(),0,255)),uint8_t(std::clamp(c.value("g").toInt(),0,255)),uint8_t(std::clamp(c.value("b").toInt(),0,255))});}
+        if(layer.colors.size()<2)continue;
+        for(auto stop:o.value("stops").toArray())layer.stops.push_back(stop.toDouble(-1));if(!layer.validStops())layer.stops.clear();
+        readEffectLayers(o,layer,false);d.layers.push_back(std::move(layer));
+    }
+}
+
 bool colorEquals(const MsiColor& a, const MsiColor& b)
 {
     return a.r == b.r && a.g == b.g && a.b == b.b;
@@ -170,6 +204,7 @@ QJsonObject channelSettingsToJson(const ChannelSettings& cs)
 {
     QJsonObject o;
     o["channelName"] = QString::fromStdString(cs.channelName);
+    o["layoutVisible"]=cs.layoutVisible;
     o["mode"] = (cs.mode == ChannelMode::Canvas) ? QStringLiteral("Canvas") : QStringLiteral("Native");
     o["source"] = sourceToJson(cs.source);
     o["placement"] = placementToJson(cs.placement);
@@ -193,6 +228,7 @@ ChannelSettings channelSettingsFromJson(const QJsonObject& o)
 {
     ChannelSettings cs;
     cs.channelName = o.value("channelName").toString().toStdString();
+    cs.layoutVisible=o.value("layoutVisible").toBool(true);
     cs.mode = (o.value("mode").toString() == QStringLiteral("Canvas")) ? ChannelMode::Canvas : ChannelMode::Native;
     cs.source = sourceFromJson(o.value("source"), cs.source);
     cs.placement = placementFromJson(o.value("placement"), cs.placement);
@@ -201,7 +237,7 @@ ChannelSettings channelSettingsFromJson(const QJsonObject& o)
     cs.nativeSettings = nativeSettingsFromJson(o.value("nativeSettings"));
     const bool header = cs.channelName == "JARGB1" || cs.channelName == "JARGB2" || cs.channelName == "JARGB3" || cs.channelName == "EZConnector";
     int total = 0;
-    const int capacity=header?120:cs.channelName=="RoccatVulcan"?144:cs.channelName=="SteelSeriesApex3"?10:11;
+    const int capacity=header?120:cs.channelName=="RoccatVulcan"?144:cs.channelName=="SteelSeriesApex3"?10:cs.channelName.rfind("XpgRam",0)==0?8:(cs.channelName=="GigabyteAero5080" || cs.channelName=="IOShield")?1:11;
     cs.componentsConfigured=o.value("componentsConfigured").toBool(false);
     for (const auto& value : o.value("components").toArray()) {
         try {
@@ -295,7 +331,7 @@ bool ChannelSettings::operator==(const ChannelSettings& other) const
         if (it == other.ledOverrides.end() || !colorEquals(color, it->second)) return false;
     }
 
-    return channelName == other.channelName
+    return layoutVisible==other.layoutVisible && channelName == other.channelName
         && mode == other.mode
         && source == other.source
         && placement.x == other.placement.x
@@ -341,6 +377,7 @@ bool Settings::saveToFile(const std::string& path) const
         item["pattern"] = QString::fromStdString(definition.pattern);
         item["path"]=QString::fromStdString(definition.path);
         QJsonArray stops;for(double stop:definition.stops)stops.append(stop);item["stops"]=stops;
+        writeEffectLayers(item,definition);
         custom.append(item);
     }
     root["customEffects"] = custom;
@@ -432,6 +469,7 @@ bool Settings::loadFromFile(const std::string& path)
         if(!CustomEffectDefinition::validPattern(definition.pattern))definition.pattern="Wave";
         for(const auto& stop:item.value("stops").toArray())definition.stops.push_back(stop.toDouble(-1));
         if(!definition.validStops())definition.stops.clear(); // Corrupt positions keep the usable legacy palette.
+        readEffectLayers(item,definition);
         if (definition.colors.size() >= 2) parsedEffects.push_back(std::move(definition));
     }
     std::vector<Component> catalog;

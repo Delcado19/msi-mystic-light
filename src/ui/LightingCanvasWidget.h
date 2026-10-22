@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <set>
 
 #include "canvas/Canvas.h" // CanvasPlacement, CanvasSource
 #include "effects/IEffect.h"
@@ -31,6 +32,8 @@ public:
     // the box's label. Placement/source come from the ChannelSettings the
     // caller already owns -- this widget does not read Settings directly.
     void setChannel(const std::string& channelName, CanvasPlacement placement, CanvasSource source, std::shared_ptr<IEffect> ownEffect);
+    void setChannelVisible(const std::string& name,bool visible) {if(visible)hidden_.erase(name);else hidden_.insert(name);update();}
+    bool channelVisible(const std::string& name)const{return !hidden_.count(name);}
     void removeChannel(const std::string& channelName);
     void setGlobalEffect(std::shared_ptr<IEffect> effect);
     void setChannelOverrides(const std::string& name, const std::map<int,MsiColor>& overrides) { overrides_[name]=overrides; update(); }
@@ -51,6 +54,7 @@ public:
     static constexpr int kHandleHitRadius = 10;
 
 signals:
+    void componentGeometryChanged(const std::string& channelName, const std::vector<Component>& components);
     void channelSelected(const std::string& channelName);
     // Emitted live while dragging a channel's box, and once more on
     // release. The widget already applies the new placement to its own
@@ -90,6 +94,7 @@ private:
     bool fitToView_ = false;
     bool previewPaused_ = false;
     bool reducedMotion_ = false;
+    std::set<std::string> hidden_;
     std::string selectedChannel_;
     int64_t previewTimeMs_ = 0;
     std::map<std::string, std::map<int,MsiColor>> overrides_;
@@ -102,8 +107,14 @@ private:
     // Drag state: which box (by name) or "the global effect's reference
     // point" is currently grabbed, and the press-time offset, set in
     // mousePressEvent and read in mouseMoveEvent/mouseReleaseEvent.
-    enum class DragTarget { None, Channel, Resize, Rotate, GlobalReferencePoint };
+    enum class DragTarget { None, Channel, Resize, Rotate, ComponentMove, ComponentResize, ComponentRotate, GlobalReferencePoint };
+    struct ComponentHit {std::string channel;int index;QRectF rect;};
+    std::vector<ComponentHit> componentHits_;
+    int selectedComponent_=-1;
+    std::vector<Component> dragComponents_;
+    QPointF componentCenter_,componentGrab_;
     CanvasPlacement dragStartPlacement_;
+    double dragStartAngle_ = 0; // scene-space angle from box center to the grab point, so rotation tracks the grab offset instead of snapping to the pointer
     DragTarget dragKind_ = DragTarget::None;
     std::string draggedChannel_;
     QPoint dragOffset_; // press position minus the dragged box's top-left, so the box doesn't jump to re-center on the cursor

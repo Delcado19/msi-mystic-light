@@ -62,10 +62,10 @@ The Lighting Studio window opens at startup; closing it keeps the tray app runni
 
 ## Board lighting limitations and defaults
 
-On the MPG B850 Edge TI WiFi, IOShield supports firmware-native effects only:
-previous hardware checks found no visible response to per-LED report 0x51.
-The UI no longer offers Canvas for IOShield and clamps older assignments to
-Native. New board channel entries start with steady white instead of black;
+On the MPG B850 Edge TI WiFi, IOShield supports firmware-native effects and
+whole-zone Canvas sampling through volatile report 0x50 updates (up to 10 Hz).
+Previous hardware checks found no visible response to per-LED report 0x51;
+the Canvas fallback therefore treats the cover as one shared color zone. New board channel entries start with steady white instead of black;
 existing saved colors, including intentional black/off, remain unchanged.
 A successful HID write alone does not prove that a physical LED changed.
 
@@ -123,3 +123,9 @@ and actual key/LED-zone metadata; detailed colors open from the selected-device
 inspector. The product catalog uses installed SignalRGB component JSONs plus generic
 presets; the fallback Vulcan ISO map is based on OpenRGB. Workspace profiles remain
 local app settings, and generic artwork is not a claim of exact product imagery.
+
+## Installed hardware and layout grid
+
+The component layout editor opens maximized and offers an optional adjustable snap grid. The catalog includes the installed Phanteks models and RAM/GPU categories. The Gigabyte RTX 5080 AERO OC uses a PCI/signature-gated NVAPI controller for its single lighting zone. XPG Lancer Blade RGB RAM is driven through a separate RAM-only OpenRGB/PawnIO helper on loopback port 6745; each detected module exposes eight Canvas addresses. If needed, Windows requests elevation to start that helper. RAM cannot be added to an ARGB header. See [hardware inventory, sources and verification limits](docs/INSTALLED_LIGHTING_HARDWARE.md).
+
+The eye beside each device hides or restores its Layout drawing without disabling its lighting. Visibility persists per profile.

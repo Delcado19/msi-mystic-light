@@ -15,6 +15,7 @@ class RoccatVulcanProtocolTest : public QObject
 private slots:
     void testBuildVulcanColorPackets_packetCountAndHeader();
     void testBuildVulcanColorPackets_layout();
+    void testAllSlotsPreserveRgbChannels();
     void testBuildVulcanColorPackets_lastKeyLandsInLastPacket();
     void testBuildVulcanColorPackets_tooManyKeysThrows();
     void testBuildVulcanEnableDirectReport_layout();
@@ -88,6 +89,23 @@ void RoccatVulcanProtocolTest::testBuildVulcanColorPackets_layout()
     QCOMPARE(packets[0][41], static_cast<uint8_t>(0x77));
     QCOMPARE(packets[0][53], static_cast<uint8_t>(0x88));
     QCOMPARE(packets[1][1], static_cast<uint8_t>(0x99)); // crosses into packet 1
+}
+
+// Unequal channels expose swaps that an all-red hardware check cannot reveal.
+void RoccatVulcanProtocolTest::testAllSlotsPreserveRgbChannels()
+{
+    for (const MsiColor color : {MsiColor{128,0,255}, MsiColor{0,0,255},
+                                 MsiColor{0,255,255}, MsiColor{255,128,0}}) {
+        std::vector<MsiColor> colors(VULCAN_MAX_LEDS, color);
+        const auto packets = BuildVulcanColorPackets(colors);
+        for (int key = 0; key < VULCAN_MAX_LEDS; ++key) {
+            const int base = key / 12 * 36 + key % 12 + 4;
+            const auto byte = [&](int offset) { return packets[offset / 64][offset % 64 + 1]; };
+            QCOMPARE(byte(base), color.r);
+            QCOMPARE(byte(base+12), color.g);
+            QCOMPARE(byte(base+24), color.b);
+        }
+    }
 }
 
 // The very last addressable key (idx=143, the top of VULCAN_MAX_LEDS)

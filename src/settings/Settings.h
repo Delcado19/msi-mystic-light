@@ -18,6 +18,7 @@
 
 struct ChannelSettings {
     std::string channelName;
+    bool layoutVisible=true; // Presentation only; hiding never disables physical lighting.
     ChannelMode mode = ChannelMode::Native;
     CanvasSource source = CanvasSource::Independent; // meaningful only when mode == Canvas
     CanvasPlacement placement{};                      // meaningful only when source == GlobalFollow

@@ -1,3 +1,4 @@
+#include "ui/StudioControls.h"
 #include "ui/LayoutEditor.h"
 #include "ui/HardwareLibrary.h"
 #include "ui/HardwarePicker.h"
@@ -8,6 +9,7 @@
 #include <QJsonArray>
 #include <QCompleter>
 #include "ui/LightingStudioWindow.h"
+#include <QToolButton>
 
 #include "ui/DeviceLedWidget.h"
 #include <QTabWidget>
@@ -75,8 +77,14 @@ const std::vector<std::string> kSourceNames = {"Own effect", "Layout effect"};
 // "Fill" -- see task-15-brief.md note 4, resolved against the existing
 // codebase convention).
 const std::vector<std::string> kEffectNames = {
-    "StaticColor", "RainbowWave", "Breathing", "RadialRainbow",
-    "Spiral", "Comet", "Marquee", "SwirlCircles", "Aurora", "Ocean", "Ember", "Pastel", "Polar", "Sunset", "Wave", "Vertical", "Diagonal", "Radial", "Plasma", "Sweep", "Static gradient"};
+    "StaticColor", "Scroll", "Breathing", "RadialRainbow",
+    "Spiral", "Comet", "Marquee", "SwirlCircles", "Plasma", "Color source", "Static gradient"};
+
+std::string visibleEffectName(const std::string& name) {
+    // Keep old profiles playable without reintroducing duplicate picker entries.
+    if(name=="RainbowWave" || name=="Wave" || name=="Vertical" || name=="Diagonal" || name=="Aurora" || name=="Ocean" || name=="Ember" || name=="Pastel" || name=="Polar" || name=="Sunset")return "Scroll";
+    if(name=="Radial")return "SwirlCircles";if(name=="Sweep")return "Comet";return name;
+}
 
 // Which of kEffectNames' effects actually read the `color` parameter --
 // mirrors buildEffect()'s own constructor-argument list above exactly, not a
@@ -139,7 +147,7 @@ void updateColorSwatch(QPushButton* button, const MsiColor& color)
     button->setStyleSheet(QStringLiteral(
         "QPushButton { background: %1; color: %2; border: 1px solid #697485; "
         "border-radius: 9px; padding: 8px 12px; font-weight: 600; } "
-        "QPushButton:focus { border: 2px solid #71e2c5; } "
+        "QPushButton:focus { border: 2px solid #52d6ff; } "
         "QPushButton:disabled { background: #242a33; color: #a3adbb; border-color: #424c5b; }")
         .arg(fill.name(), light > 0.179 ? QStringLiteral("#10151b") : QStringLiteral("#ffffff")));
 
@@ -149,7 +157,7 @@ QComboBox* makeCombo(QWidget* parent, const QString& objectName, const std::vect
 {
     auto* combo = new QComboBox(parent);
     combo->setObjectName(objectName);
-    for (const std::string& item : items) combo->addItem(QString::fromStdString(item));
+    for (const std::string& item : items) combo->addItem(QString::fromStdString(effectDisplayName(item)),QString::fromStdString(item));
     return combo;
 }
 
@@ -172,12 +180,12 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
     setStyleSheet(QStringLiteral(R"(
         QWidget#lightingStudio { background: #11151b; color: #edf2f7; }
         QWidget { color: #edf2f7; font-family: 'Segoe UI'; }
-        QFrame#sidebar, QFrame#inspector { background: #181e27; border: 1px solid #303947; border-radius: 14px; }
-        QFrame#scenePanel { background: #131922; border: 1px solid #303947; border-radius: 14px; }
+        QFrame#sidebar, QFrame#inspector { background: #181e27; border: 1px solid #303947; border-radius: 7px; }
+        QFrame#scenePanel { background: #131922; border: 1px solid #303947; border-radius: 7px; }
         QDialog, QMenu { background: #181e27; }
         QMenu::item { padding: 8px 18px; } QMenu::item:selected { background: #30483f; }
         QLineEdit, QSpinBox { background: #252d39; color: #edf2f7; border: 1px solid #69798b; border-radius: 6px; padding: 8px; }
-        QLineEdit:focus, QSpinBox:focus { border: 2px solid #71e2c5; }
+        QLineEdit:focus, QSpinBox:focus { border: 2px solid #52d6ff; }
         QLabel { background: transparent; }
         QLabel[role="eyebrow"] { color: #9eabba; font-size: 11px; font-weight: 600; }
         QLabel[role="title"] { font-size: 19px; font-weight: 600; }
@@ -186,8 +194,8 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         QComboBox, QPushButton, QToolButton { min-height: 22px; padding: 8px 10px; border: 1px solid #424c5b; border-radius: 8px; background: #252d39; }
         QComboBox:hover, QPushButton:hover { border-color: #8a9bad; background: #303b4a; }
         QPushButton:pressed { background: #35475a; }
-        QPushButton[primary="true"] { background: #71e2c5; color: #10231d; border-color: #71e2c5; }
-        QComboBox:focus, QPushButton:focus, QListWidget:focus { border: 2px solid #71e2c5; }
+        QPushButton[primary="true"] { background: #52d6ff; color: #10231d; border-color: #52d6ff; }
+        QComboBox:focus, QPushButton:focus, QListWidget:focus { border: 2px solid #52d6ff; }
         QComboBox:disabled, QPushButton:disabled { color: #9ba6b5; background: #202630; border-color: #343e4c; }
         QComboBox::drop-down { border: none; width: 25px; }
         QComboBox::down-arrow { image: url(:/studio/chevron.svg); width: 12px; height: 8px; }
@@ -195,17 +203,18 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         QListWidget { background: transparent; border: none; outline: 0; padding: 2px; }
         QListWidget::item { padding: 8px 10px; margin: 3px 0; border: 1px solid transparent; border-radius: 9px; }
         QListWidget::item:hover { background: #252f3c; }
-        QListWidget::item:selected { background: #253c3b; border: 1px solid #5bbfa7; color: #e0fff5; }
+        QListWidget::item:selected { background: #173449; border: 1px solid #52d6ff; color: #e6faff; }
         QScrollArea, QStackedWidget { background: transparent; border: none; }
         QTabWidget::pane { border: none; }
-        QTabBar::tab { background: #202a36; color: #a9b4c3; padding: 9px 15px; }
-        QTabBar::tab:selected { background: #314a46; color: #e0fff5; }
+        QTabBar::tab { background: #202a36; color: #a9b4c3; padding: 8px 15px; border-bottom: 2px solid transparent; }
+        QTabBar::tab:selected { background: #173449; color: #e6faff; border-bottom: 2px solid #52d6ff; }
         QScrollBar:vertical { background: #181e27; width: 8px; }
         QScrollBar::handle:vertical { background: #526071; min-height: 30px; border-radius: 4px; }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
         QSplitter::handle { background: #11151b; width: 10px; }
         QToolTip { background: #263341; color: #f1f5fa; border: 1px solid #69798b; padding: 7px; }
     )"));
+    setStyleSheet(styleSheet()+compactStudioControlsStyle());
     auto label = [](const QString& text, const char* role, QWidget* parent) {
         auto* result = new QLabel(text, parent);
         result->setProperty("role", role);
@@ -214,7 +223,7 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
     };
     auto deviceName = [](const std::string& name) -> QString {
         static const std::map<std::string, QString> names = {
-            {"JARGB1", "ARGB header 1"}, {"JARGB2", "ARGB header 2"}, {"JARGB3", "ARGB header 3"},
+            {"XpgRam1", "XPG Lancer Blade RGB 1"}, {"XpgRam2", "XPG Lancer Blade RGB 2"}, {"GigabyteAero5080", "RTX 5080 AERO"}, {"JARGB1", "ARGB header 1"}, {"JARGB2", "ARGB header 2"}, {"JARGB3", "ARGB header 3"},
             {"EZConnector", "EZ Connector"}, {"IOShield", "I/O shield"}, {"JRGB1", "RGB header"},
             {"RoccatVulcan", "Roccat Vulcan"}, {"RoccatKone", "Roccat Kone Aimo"},
             {"RazerBasiliskV3", "Razer Basilisk V3"}, {"SteelSeriesApex3", "SteelSeries Apex 3"}};
@@ -270,10 +279,13 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
     auto* deviceHeading=label(QStringLiteral("DEVICES"), "eyebrow", sidebar);sideLayout->addWidget(deviceHeading);
     deviceList_ = new QListWidget(sidebar);
     deviceList_->setObjectName(QStringLiteral("deviceList"));
+    // Embedded eye controls need the full item height; inherited list padding
+    // clips them, and the item's own label must not duplicate the row label.
+    deviceList_->setStyleSheet("QListWidget#deviceList::item { padding:0; margin:0; color:transparent; } QListWidget#deviceList::item:selected { color:transparent; }");
     deviceList_->setAccessibleName(QStringLiteral("Devices and motherboard zones"));
     sideLayout->addWidget(deviceList_, 1);
     auto* effectHelp=label("Effects light the whole layout. Create a palette here, then place your hardware in Layout.","muted",sidebar);sideLayout->addWidget(effectHelp,1);effectHelp->setAlignment(Qt::AlignTop|Qt::AlignLeft);effectHelp->hide();
-    sideLayout->addWidget(label(QStringLiteral("GPU lighting is not supported in this build."), "muted", sidebar));
+    sideLayout->addWidget(label(QStringLiteral("GPU Canvas appears when its lighting controller is detected."), "muted", sidebar));
 
     auto* scenePanel = new QFrame(splitter);
     scenePanel->setObjectName(QStringLiteral("scenePanel"));
@@ -289,8 +301,11 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
     previewButton->setCheckable(true);
     previewButton->setToolTip(QStringLiteral("Pause only the on-screen animation. Hardware lighting continues."));
     sceneHeading->addWidget(previewButton);
+    for(auto* widget:{static_cast<QWidget*>(previewButton),static_cast<QWidget*>(layoutEffectBadge_)}){auto policy=widget->sizePolicy();policy.setRetainSizeWhenHidden(true);widget->setSizePolicy(policy);}
     sceneLayout->addLayout(sceneHeading);
-    auto* viewHelp=label("Drag hardware to position it over the colors. Select a device to resize or rotate it.","muted",scenePanel);sceneLayout->addWidget(viewHelp);
+    viewTitle->setMinimumHeight(36);
+    auto* viewHelp=label("Drag hardware over the colors. Click a component for individual move, scale and rotation. Alt+drag moves the chain.","muted",scenePanel);sceneLayout->addWidget(viewHelp);
+    viewHelp->setFixedHeight(36);
     canvasWidget_ = new LightingCanvasWidget(scenePanel);
     canvasWidget_->setMinimumSize(340, 320);
     canvasWidget_->setFitToView(true);
@@ -356,9 +371,11 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
     globalRow->addWidget(globalEffectCombo_, 1);
     globalRow->addWidget(globalColorButton_);
     globalLayout->addLayout(globalRow);
+    auto* savedRow=new QHBoxLayout;savedRow->addWidget(label("Your compositions","muted",globalPanel));customEffectCombo_=new QComboBox(globalPanel);customEffectCombo_->setObjectName("customEffectCombo");customEffectCombo_->setPlaceholderText("Choose a saved composition");savedRow->addWidget(customEffectCombo_,1);globalLayout->addLayout(savedRow);
+    connect(customEffectCombo_,&QComboBox::currentIndexChanged,this,[this](int i){if(i<0 || !settings_.activeProfile())return;const QSignalBlocker b(globalEffectCombo_);globalEffectCombo_->setCurrentIndex(-1);settings_.activeProfile()->globalEffect.effectName=customEffectCombo_->currentData().toString().toStdString();applyGlobalEffectToCanvas(settings_.activeProfile()->globalEffect);updateGlobalColorButtonEnabledState();emit globalEffectChanged();});
     globalLayout->addWidget(label(QStringLiteral("Devices using Canvas sample the colors beneath their positions."), "muted", globalPanel));
     effectsLayout->addWidget(globalPanel);
-    auto* effectPreview=new EffectPreview(&previewRecipe_,globalPanel);effectPreview->setObjectName("selectedEffectPreview");globalLayout->addWidget(effectPreview,1);
+    auto* effectPreview=new EffectPreview(&previewRecipe_,globalPanel);effectPreview->setObjectName("selectedEffectPreview");globalLayout->addWidget(effectPreview,1);effectPreview->setPreviewPaused(canvasWidget_->previewPaused());connect(previewButton,&QPushButton::toggled,effectPreview,&EffectPreview::setPreviewPaused);
     auto* effectActions=globalRow;
     auto* createEffect = new QPushButton("New effect",globalPanel);createEffect->setObjectName("createEffectButton");createEffect->setProperty("primary",true);effectActions->addWidget(createEffect);
     auto* editEffect=new QPushButton("Edit effect",globalPanel);editEffect->setObjectName("editEffectButton");effectActions->addWidget(editEffect);
@@ -368,7 +385,7 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         if(create){definition={"My effect",{{255,0,80},{0,190,255},{100,255,60}},6000,720};int i=1;const auto exists=[this](const std::string& name){return std::any_of(settings_.customEffects.begin(),settings_.customEffects.end(),[&](const auto& d){return d.name==name;});};while(exists(definition.name))definition.name="My effect "+std::to_string(++i);}
         if(definition.name.empty())definition.name="My effect";
         definition.path="Canvas positions";
-        EffectEditor editor(definition,this);editor.findChild<QComboBox*>("effectPath")->setEnabled(false);editor.saveEffect=[this](const auto& d){return createCustomEffect(d);};editor.exec();
+        EffectEditor editor(definition,this);if(!create && (isBuiltInEffect(profile->globalEffect.effectName) || isBuiltInEffect(definition.name))){editor.protectedBaseName=definition.name;QString copy=QString::fromStdString(definition.name)+" copy";int suffix=2;while(std::any_of(settings_.customEffects.begin(),settings_.customEffects.end(),[&](const auto& d){return d.name==copy.toStdString();}))copy=QString::fromStdString(definition.name)+QString(" copy %1").arg(suffix++);editor.findChild<QLineEdit*>("effectRecipeName")->setText(copy);}editor.findChild<QComboBox*>("effectPath")->setEnabled(false);editor.saveEffect=[this](const auto& d){return createCustomEffect(d);};editor.exec();
     };
     connect(createEffect,&QPushButton::clicked,this,[openEffect]{openEffect(true);});connect(editEffect,&QPushButton::clicked,this,[openEffect]{openEffect(false);});
     auto* inspector = new QFrame(splitter);
@@ -387,7 +404,14 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         ChannelRow row;
         const QString qname = QString::fromStdString(channelName);
         deviceList_->addItem(deviceName(channelName));
-        deviceList_->item(deviceList_->count() - 1)->setToolTip(qname);
+        auto* deviceItem=deviceList_->item(deviceList_->count()-1);deviceItem->setToolTip(qname);deviceItem->setForeground(Qt::transparent);deviceItem->setSizeHint(QSize(180,38));
+        auto* deviceRow=new QWidget(deviceList_);auto* deviceLayout=new QHBoxLayout(deviceRow);deviceLayout->setContentsMargins(5,0,2,0);
+        auto* deviceLabel=new QLabel(deviceName(channelName),deviceRow);deviceLabel->setAttribute(Qt::WA_TransparentForMouseEvents);deviceLabel->setStyleSheet("color:#edf2f7;background:transparent;");deviceLayout->addWidget(deviceLabel,1);
+        auto* visibility=new QToolButton(deviceRow);visibility->setObjectName("layoutVisible:"+qname);visibility->setCheckable(true);visibility->setChecked(true);visibility->setFixedSize(32,32);visibility->setStyleSheet("QToolButton { min-height:0; padding:0; border-radius:5px; } QToolButton:hover { border-color:#52d6ff; }");visibility->setIcon(QIcon(":/studio/eye.svg"));visibility->setAccessibleName("Show "+deviceName(channelName)+" in layout");deviceLayout->addWidget(visibility);deviceList_->setItemWidget(deviceItem,deviceRow);
+        connect(visibility,&QToolButton::toggled,this,[this,channelName,visibility](bool shown){
+            auto& cs=channelSettingsFor(channelName);cs.layoutVisible=shown;canvasWidget_->setChannelVisible(channelName,shown);
+            visibility->setIcon(QIcon(shown?":/studio/eye.svg":":/studio/eye-off.svg"));visibility->setToolTip(shown?"Hide from layout / lighting stays active":"Show in layout");emit layoutVisibilityChanged();
+        });
         auto* page = new QWidget(devicePages_);
         auto* pageLayout = new QVBoxLayout(page);
         pageLayout->setContentsMargins(0, 16, 0, 0);
@@ -399,7 +423,7 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         auto* form = new QFormLayout();
         row.form = form;
         form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-        form->setVerticalSpacing(12);
+        form->setVerticalSpacing(6);
         row.modeCombo = new QComboBox(page);
         row.modeCombo->setObjectName(QStringLiteral("mode:") + qname);
         // Display names distinguish control from the shared layout; enum data stays compatible.
@@ -431,11 +455,22 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         auto* geometry=new QFormLayout;
         for(int axis=0;axis<3;++axis) {
             auto* field=new QDoubleSpinBox(page);field->setObjectName(QString("layout%1:").arg(axis)+qname);
-            field->setRange(axis==2?-360:10,axis==2?360:2000);field->setValue(axis==0?70:axis==1?40:0);field->setSuffix(axis==2?" deg":" px");
+            field->setRange(axis==2?-360:10,axis==2?360:2000);field->setValue(axis==0?70:axis==1?40:0);field->setSuffix(axis==2?QString::fromUtf8("\xc2\xb0"):QStringLiteral(" px"));
             geometry->addRow(axis==0?"Width":axis==1?"Height":"Rotation",field);
             connect(field,&QDoubleSpinBox::valueChanged,this,[this,channelName,axis](double value){auto& cs=channelSettingsFor(channelName);if(axis==0)cs.placement.width=value;else if(axis==1)cs.placement.height=value;else cs.placement.rotation=value;applyChannelToCanvas(channelName,cs);updateSelectedDevice();emit channelAssignmentChanged(channelName);});
         }
         pageLayout->addWidget(label("PLACEMENT","eyebrow",page));pageLayout->addLayout(geometry);
+        auto* resetSize=new QPushButton("Reset device size",page);resetSize->setObjectName("resetDeviceSize:"+qname);pageLayout->addWidget(resetSize);
+        connect(resetSize,&QPushButton::clicked,this,[this,channelName]{
+            auto& cs=channelSettingsFor(channelName);const auto& components=cs.hasCustomComponents()?cs.components:defaultComponents_[channelName];if(components.empty())return;
+            const auto bounds=layoutBounds(components);const auto kind=deviceArtworkKind(components.front());
+            // Explicit reset leaves saved layouts intact until the user requests it.
+            if(kind.startsWith("keyboard")){cs.placement.width=420;cs.placement.height=120;}
+            else if(kind=="mouse"){cs.placement.width=80;cs.placement.height=130;}else if(kind=="ram"){cs.placement.width=140;cs.placement.height=40;}else if(kind=="gpu" || kind=="heatsink"){cs.placement.width=260;cs.placement.height=70;}
+            else {const double w=qMax(1,bounds.right-bounds.left),h=qMax(1,bounds.bottom-bounds.top),scale=180./qMax(w,h);cs.placement.width=qMax(20.,w*scale);cs.placement.height=qMax(20.,h*scale);}
+            cs.placement.x=qBound(0.,cs.placement.x,1100.-cs.placement.width);cs.placement.y=qBound(0.,cs.placement.y,700.-cs.placement.height);
+            applyChannelToCanvas(channelName,cs);updateSelectedDevice();emit channelAssignmentChanged(channelName);
+        });
         auto* regions=new QPushButton("Edit LED colors...",page);regions->setObjectName("openLedRegions:"+qname);pageLayout->addWidget(regions);
         connect(regions,&QPushButton::clicked,this,[ledDialog]{ledDialog->show();ledDialog->raise();ledDialog->activateWindow();});
         if(channelName=="RoccatVulcan") {
@@ -461,7 +496,9 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
             });
         }
 
-        auto* layoutButton=new QPushButton("Arrange components / LED groups",page);layoutButton->setObjectName("editLayout:"+qname);pageLayout->addWidget(layoutButton);
+        // Lives in the Hardware tab only (added to hardwareLayout below), not here:
+        // one navigation target per task, per the Hardware/Layout/Effects split.
+        auto* layoutButton=new QPushButton("Arrange components / LED groups",page);layoutButton->setObjectName("editLayout:"+qname);
         connect(layoutButton,&QPushButton::clicked,this,[this,channelName]{
             const auto& cs=channelSettingsFor(channelName);const auto components=cs.hasCustomComponents()?cs.components:defaultComponents_[channelName];
             if(components.empty())return;LayoutEditor editor(components,this);
@@ -473,9 +510,13 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         hardwareLayout->addWidget(label(deviceName(channelName)+" / connected hardware","section",hardwarePage));
         auto* topologyHint=label("Add the actual products in cable order. Each card is a physical component; its dots are addressable LEDs or groups.","muted",hardwarePage);topologyHint->setVisible(false);
         auto* hardwareScroll=new QScrollArea(hardwarePages_);hardwareScroll->setWidgetResizable(true);hardwareScroll->setFrameShape(QFrame::NoFrame);
-        hardwarePage->setMinimumHeight(650);hardwareScroll->setWidget(hardwarePage);hardwarePages_->addWidget(hardwareScroll);
+        hardwareScroll->setWidget(hardwarePage);hardwarePages_->addWidget(hardwareScroll);
         const bool header = channelName == "JARGB1" || channelName == "JARGB2" || channelName == "JARGB3" || channelName == "EZConnector";
         if (header) {
+            // Only a header's add/manage UI (list, catalog, advanced panel) needs
+            // real vertical room; a plain peripheral's page would otherwise sit in
+            // a forced-tall, mostly-empty scroll area around one small preview.
+            hardwarePage->setMinimumHeight(650);
             auto* page=hardwarePage;auto* pageLayout=hardwareLayout;
             pageLayout->addWidget(label(QStringLiteral("CONNECTED COMPONENTS / IN WIRE ORDER"),"eyebrow",page));
             row.components = new QListWidget(page);row.components->setMinimumHeight(160);row.components->setIconSize(QSize(40,40));
@@ -483,9 +524,9 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
             pageLayout->addWidget(row.components);
             auto* advanced=new QWidget(page);auto* advancedLayout=new QVBoxLayout(advanced);advancedLayout->setContentsMargins(0,0,0,0);advanced->setVisible(false);
             auto* catalog = new QComboBox(advanced);catalog->setObjectName("hardwareCatalog:"+qname);catalog->setEditable(true);catalog->setInsertPolicy(QComboBox::NoInsert);
-            const auto populate=[this]{for(auto* list:findChildren<QComboBox*>())if(list->objectName().startsWith("hardwareCatalog:")){list->clear();for(const auto& c:hardwareLibrary())list->addItem(QString::fromStdString(c.brand.empty()?c.displayName:c.brand+" / "+c.displayName));for(const auto& c:settings_.hardwareCatalog)list->addItem("Custom / "+QString::fromStdString(c.displayName));}};populate();catalog->completer()->setCaseSensitivity(Qt::CaseInsensitive);catalog->setToolTip("Search by brand or product, then choose a definition");advancedLayout->addWidget(catalog);
-            auto* actions = new QHBoxLayout();auto* add = new QPushButton(QStringLiteral("+ Add component to ")+qname,page);add->setObjectName("addHardware:"+qname);
-            actions->addWidget(add,1);auto* manage=new QPushButton("Manage definitions",page);manage->setCheckable(true);actions->addWidget(manage);pageLayout->insertLayout(1,actions);pageLayout->addWidget(advanced);
+            const auto populate=[this]{for(auto* list:findChildren<QComboBox*>())if(list->objectName().startsWith("hardwareCatalog:")){list->clear();for(const auto& c:hardwareLibrary())list->addItem(QString::fromStdString(c.brand.empty()?c.displayName:c.brand+" / "+c.displayName));for(const auto& c:settings_.hardwareCatalog)list->addItem("Custom / "+compactHardwareName(c));}};populate();catalog->completer()->setCaseSensitivity(Qt::CaseInsensitive);catalog->setToolTip("Search by brand or product, then choose a definition");advancedLayout->addWidget(catalog);
+            auto* actions = new QHBoxLayout();auto* add = new QPushButton(QStringLiteral("+ Add hardware"),page);add->setObjectName("addHardware:"+qname);
+            actions->addWidget(add);auto* manage=new QPushButton("Manage definitions",page);manage->setCheckable(true);actions->addWidget(manage);actions->addStretch();pageLayout->insertLayout(1,actions);pageLayout->addWidget(advanced);
             connect(manage,&QPushButton::toggled,advanced,&QWidget::setVisible);
             auto* definitions=new QHBoxLayout;advancedLayout->addLayout(definitions);auto* create=new QPushButton("New definition",page);create->setObjectName("createHardwareDefinition:"+qname);definitions->addWidget(create);
             auto* import=new QPushButton("Import JSON",page);definitions->addWidget(import);
@@ -495,7 +536,7 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
             connect(create,&QPushButton::clicked,this,[this,populate]{
                 QDialog dialog(this);dialog.setWindowTitle("Create hardware");dialog.resize(500,330);auto* form=new QFormLayout(&dialog);
                 auto* name=new QLineEdit(&dialog);name->setObjectName("hardwareName");name->setMaxLength(100);form->addRow("Product name",name);
-                auto* type=new QComboBox(&dialog);type->addItems({"Fan","Strip"});form->addRow("Type",type);
+                auto* type=new QComboBox(&dialog);type->addItems({"Fan","Strip","AIO","Water Block","Case","Cable","Heatsink","RAM","GPU","Motherboard","Other"});form->addRow("Type",type);
                 auto* count=new QSpinBox(&dialog);count->setObjectName("hardwareAddressCount");count->setRange(1,120);count->setValue(12);form->addRow("Addressable LEDs / groups",count);
                 auto* physical=new QSpinBox(&dialog);physical->setObjectName("hardwareLedsPerAddress");physical->setRange(1,16);form->addRow("Physical LEDs per address",physical);
                 auto* buttons=new QDialogButtonBox(QDialogButtonBox::Save|QDialogButtonBox::Cancel,&dialog);form->addRow(buttons);connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
@@ -530,6 +571,7 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         canvasWidget_->setSelectedChannel(channelNames_[index]);
         if(settings_.activeProfile()) updateSelectedDevice();
     });
+    connect(canvasWidget_,&LightingCanvasWidget::componentGeometryChanged,this,[this](const std::string& name,const std::vector<Component>& components){editComponentGeometry(name,components);});
     connect(canvasWidget_, &LightingCanvasWidget::channelSelected, this, [this](const std::string& name) {
         const auto it = std::find(channelNames_.begin(), channelNames_.end(), name);
         if (it != channelNames_.end()) deviceList_->setCurrentRow(static_cast<int>(it - channelNames_.begin()));
@@ -537,7 +579,7 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
     connect(views,&QTabWidget::currentChanged,this,[this,inspector,viewTitle,viewHelp,previewButton,deviceHeading,effectHelp](int index){
         inspector->setVisible(index==0);deviceList_->setVisible(index!=1);deviceHeading->setVisible(index!=1);effectHelp->setVisible(index==1);
         viewTitle->setText(index==0?"Layout":index==1?"Effects":"Hardware");previewButton->setVisible(index==0);layoutEffectBadge_->setVisible(index==0);
-        viewHelp->setText(index==0?"Drag hardware to position it over the colors. Select a device to resize or rotate it.":index==1?"Choose an effect or create your own palette. Lighting follows device positions in Layout.":"Choose a controller on the left, then add its connected fans and strips in cable order.");
+        viewHelp->setText(index==0?"Drag hardware over the colors. Click a component for individual move, scale and rotation. Alt+drag moves the chain.":index==1?"Choose an effect or create your own palette. Lighting follows device positions in Layout.":"Choose a controller on the left, then add its connected fans and strips in cable order.");
     });
     deviceList_->setCurrentRow(channelNames_.empty() ? -1 : 0);
     splitter->setSizes({250, 800, 300});
@@ -550,6 +592,10 @@ LightingStudioWindow::LightingStudioWindow(Settings& settings, std::vector<std::
         if (auto* text = qobject_cast<QLabel*>(footer->itemAt(i)->widget())) text->setWordWrap(false);
     }
     root->addLayout(footer);
+    for(auto* action:findChildren<QPushButton*>()) {
+        const bool swatch=action==globalColorButton_ || std::any_of(rows_.begin(),rows_.end(),[action](const auto& entry){return action==entry.second.colorButton || action==entry.second.nativeColorButton;});
+        if(!swatch)sizeStudioAction(action);
+    }
 
     // Settings/row initial state is applied before any of our own signals
     // are connected below, so construction can never spuriously emit
@@ -693,7 +739,7 @@ ChannelSettings LightingStudioWindow::makeDefaultChannelSettings(const std::stri
         // ChannelSettings' own Native default would mean the device never
         // lights up until the user manually flips it to Canvas (Task 23).
         cs.mode = ChannelMode::Canvas;
-        cs.source = CanvasSource::Independent;
+        cs.source = channelName.rfind("XpgRam",0)==0?CanvasSource::GlobalFollow:CanvasSource::Independent;
         cs.effectName = "StaticColor";
         cs.staticColor = kDefaultPeripheralColor;
     } else {
@@ -725,6 +771,8 @@ void LightingStudioWindow::clampModeIfUnsupported(const std::string& channelName
 
 void LightingStudioWindow::applyChannelToCanvas(const std::string& channelName, const ChannelSettings& cs)
 {
+    canvasWidget_->setChannelVisible(channelName,cs.layoutVisible);
+    if(auto* button=findChild<QToolButton*>("layoutVisible:"+QString::fromStdString(channelName))){const QSignalBlocker blocker(button);button->setChecked(cs.layoutVisible);button->setIcon(QIcon(cs.layoutVisible?":/studio/eye.svg":":/studio/eye-off.svg"));button->setToolTip(cs.layoutVisible?"Hide from layout / lighting stays active":"Show in layout");}
     const bool header=channelName=="JARGB1" || channelName=="JARGB2" || channelName=="JARGB3" || channelName=="EZConnector";
     // Unconfigured/empty connectors belong in Hardware, not as fake devices on Layout.
     if(header && (!cs.hasCustomComponents() || cs.components.empty())){canvasWidget_->removeChannel(channelName);return;}
@@ -751,7 +799,7 @@ void LightingStudioWindow::applyChannelToCanvas(const std::string& channelName, 
 void LightingStudioWindow::applyGlobalEffectToCanvas(const GlobalEffectSettings& g)
 {
     previewRecipe_=effectDefinition(g.effectName,g.color,settings_.customEffects);previewRecipe_.path="Canvas positions";
-    if(layoutEffectBadge_)layoutEffectBadge_->setText("Effect: "+QString::fromStdString(previewRecipe_.name));
+    if(layoutEffectBadge_)layoutEffectBadge_->setText("Effect: "+QString::fromStdString(effectDisplayName(visibleEffectName(previewRecipe_.name))));
     auto effect=buildEffect(g.effectName,g.color,g.referenceX,g.referenceY,settings_.customEffects);canvasWidget_->setGlobalEffect(effect);
     if(auto* preview=dynamic_cast<EffectPreview*>(findChild<QWidget*>("selectedEffectPreview")))preview->renderedEffect=effect;
     updateSelectedDevice();
@@ -840,14 +888,14 @@ void LightingStudioWindow::repopulateFromActiveProfile()
             const QSignalBlocker effectBlocker(row.effectCombo);
             const QSignalBlocker nativeModeBlocker(row.nativeModeCombo);
             while (row.effectCombo->count() > static_cast<int>(kEffectNames.size())) row.effectCombo->removeItem(row.effectCombo->count()-1);
-            for(const auto& definition : settings_.customEffects) row.effectCombo->addItem(QString::fromStdString(definition.name),QString::fromStdString("custom:"+definition.name));
+            for(const auto& definition : settings_.customEffects) row.effectCombo->addItem(QString::fromStdString(definition.name+(isBuiltInEffect(definition.name) && effectDefinition(definition.name,{}).pattern!=definition.pattern?" / "+effectDisplayName(definition.pattern):"")),QString::fromStdString("custom:"+definition.name));
             // findData, not a hardcoded index: cs.mode is guaranteed to be
             // one of this combo's items by ensureProfileAndEntries()'s own
             // clamp, but falling back to index 0 defensively costs nothing.
             const int modeIdx = row.modeCombo->findData(static_cast<int>(cs.mode));
             row.modeCombo->setCurrentIndex(modeIdx >= 0 ? modeIdx : 0);
             row.sourceCombo->setCurrentIndex(cs.source == CanvasSource::GlobalFollow ? 1 : 0);
-            const int effectIdx = (cs.effectName.find("custom:") == 0 ? row.effectCombo->findData(QString::fromStdString(cs.effectName)) : row.effectCombo->findText(QString::fromStdString(cs.effectName)));
+            const int effectIdx = (cs.effectName.find("custom:") == 0 ? row.effectCombo->findData(QString::fromStdString(cs.effectName)) : row.effectCombo->findData(QString::fromStdString(visibleEffectName(cs.effectName))));
             row.effectCombo->setCurrentIndex(effectIdx >= 0 ? effectIdx : 0);
             // If cs.nativeSettings.lightingMode isn't one of this combo's
             // items (e.g. a hand-edited file set it to Advanced, which this
@@ -868,7 +916,7 @@ void LightingStudioWindow::repopulateFromActiveProfile()
     {
         const QSignalBlocker blocker(globalEffectCombo_);
         while(globalEffectCombo_->count()>static_cast<int>(kEffectNames.size()))globalEffectCombo_->removeItem(globalEffectCombo_->count()-1);
-        for(const auto& definition : settings_.customEffects)globalEffectCombo_->addItem(QString::fromStdString(definition.name),QString::fromStdString("custom:"+definition.name));
+        const QSignalBlocker customBlock(customEffectCombo_);customEffectCombo_->clear();for(const auto& definition : settings_.customEffects)customEffectCombo_->addItem(QString::fromStdString(definition.name+(isBuiltInEffect(definition.name) && effectDefinition(definition.name,{}).pattern!=definition.pattern?" / "+effectDisplayName(definition.pattern):"")),QString::fromStdString("custom:"+definition.name));
         // No index-0 fallback here (unlike the row effect combos): a fresh
         // profile's globalEffect.effectName is "" (no global effect), and
         // displaying "StaticColor" for it made picking StaticColor a
@@ -876,8 +924,8 @@ void LightingStudioWindow::repopulateFromActiveProfile()
         // selected, a disabled color swatch, and no way to enable it short of
         // picking another effect first (Task 23 review, follow-up to
         // 17d9a4f). -1 shows an empty selection that matches the stored value.
-        const int idx = (profile->globalEffect.effectName.find("custom:") == 0 ? globalEffectCombo_->findData(QString::fromStdString(profile->globalEffect.effectName)) : globalEffectCombo_->findText(QString::fromStdString(profile->globalEffect.effectName)));
-        globalEffectCombo_->setCurrentIndex(idx);
+        const int idx = (profile->globalEffect.effectName.find("custom:") == 0 ? globalEffectCombo_->findData(QString::fromStdString(profile->globalEffect.effectName)) : globalEffectCombo_->findData(QString::fromStdString(visibleEffectName(profile->globalEffect.effectName))));
+        globalEffectCombo_->setCurrentIndex(idx);customEffectCombo_->setCurrentIndex(customEffectCombo_->findData(QString::fromStdString(profile->globalEffect.effectName)));
     }
     updateColorSwatch(globalColorButton_, profile->globalEffect.color);
     updateGlobalColorButtonEnabledState();
@@ -983,7 +1031,12 @@ void LightingStudioWindow::deleteActiveProfile()
 void LightingStudioWindow::onGlobalEffectComboChanged()
 {
     Profile* profile = settings_.activeProfile();
+    if(globalEffectCombo_->currentIndex()<0)return;
+    const QSignalBlocker customBlock(customEffectCombo_);customEffectCombo_->setCurrentIndex(-1);
+    // Fresh profiles have no chosen color yet; selecting a base must be visible.
+    if(profile->globalEffect.color.r==0 && profile->globalEffect.color.g==0 && profile->globalEffect.color.b==0)profile->globalEffect.color={255,255,255};
     profile->globalEffect.effectName = (globalEffectCombo_->currentData().isValid() ? globalEffectCombo_->currentData().toString() : globalEffectCombo_->currentText()).toStdString();
+    updateColorSwatch(globalColorButton_,profile->globalEffect.color);
     updateGlobalColorButtonEnabledState();
 
     applyGlobalEffectToCanvas(profile->globalEffect);
@@ -1045,7 +1098,7 @@ void LightingStudioWindow::setDeviceComponents(const std::string& name, const st
     defaultComponents_[name]=components;
     if(rows_.count(name) && components.size()==1){auto& cs=channelSettingsFor(name);
         // Migrate only the unreadable legacy footprint; preserve custom sizes and coordinates.
-        if(cs.placement.width==70 && cs.placement.height==40){const auto kind=deviceArtworkKind(components[0]);if(kind.startsWith("keyboard")){cs.placement.width=420;cs.placement.height=120;}else if(kind=="mouse"){cs.placement.width=80;cs.placement.height=130;}}
+        if(cs.placement.width==70 && cs.placement.height==40){const auto kind=deviceArtworkKind(components[0]);if(kind.startsWith("keyboard")){cs.placement.width=420;cs.placement.height=120;}else if(kind=="mouse"){cs.placement.width=80;cs.placement.height=130;}else if(kind=="ram"){cs.placement.width=140;cs.placement.height=40;}else if(kind=="gpu" || kind=="heatsink"){cs.placement.width=260;cs.placement.height=70;}}
     }
     // Registering detected defaults must not overwrite saved custom geometry
     // on non-selected outputs during startup.
@@ -1068,8 +1121,12 @@ bool LightingStudioWindow::configureComponents(const std::string& name, const st
     }
     if(!components.empty()) {
         const auto after=layoutBounds(components),before=layoutBounds(cs.components);
-        const double sx=cs.components.empty()?3.:(cs.placement.width-1)/qMax(1,before.right-before.left);
-        const double sy=cs.components.empty()?3.:(cs.placement.height-1)/qMax(1,before.bottom-before.top);
+        // Native LED-unit coordinates need magnifying to read on a pixel canvas, but a
+        // flat multiplier blows up with every extra chained component (e.g. three fans
+        // side by side); a single peripheral still needs more zoom than a wide chain.
+        const double initialScale=cs.components.empty()?qBound(1.2,260./qMax(1,after.right-after.left),3.):0.;
+        const double sx=cs.components.empty()?initialScale:(cs.placement.width-1)/qMax(1,before.right-before.left);
+        const double sy=cs.components.empty()?initialScale:(cs.placement.height-1)/qMax(1,before.bottom-before.top);
         cs.placement.width=qBound(20.,(after.right-after.left)*sx+1,1050.);
         cs.placement.x=qBound(0.,cs.placement.x,1100.-cs.placement.width);
         cs.placement.height=qBound(20.,(after.bottom-after.top)*sy+1,650.);
@@ -1094,8 +1151,8 @@ bool LightingStudioWindow::setRegionColor(const std::string& name, int index, Ms
 
 bool LightingStudioWindow::createCustomEffect(const CustomEffectDefinition& definition)
 {
-    if(QString::fromStdString(definition.name).trimmed().isEmpty() || QString::fromStdString(definition.name).size()>80 || definition.colors.size()<2 || definition.colors.size()>16
-        || !CustomEffectDefinition::validPattern(definition.pattern) || !CustomEffectDefinition::validPath(definition.path) || !definition.validStops()
+    if(isBuiltInEffect(definition.name) || QString::fromStdString(definition.name).trimmed().isEmpty() || QString::fromStdString(definition.name).size()>80 || definition.colors.size()<2 || definition.colors.size()>16
+        || !CustomEffectDefinition::validPattern(definition.pattern) || !CustomEffectDefinition::validPath(definition.path) || !definition.validStops() || !definition.validLayerSettings()
         || definition.periodMs<500 || definition.periodMs>120000 || definition.wavelength<40 || definition.wavelength>4000)return false;
     auto it=std::find_if(settings_.customEffects.begin(),settings_.customEffects.end(),[&](const auto& d){return d.name==definition.name;});
     if(it==settings_.customEffects.end()) { if(settings_.customEffects.size()>=64)return false;settings_.customEffects.push_back(definition); }
@@ -1126,16 +1183,16 @@ void LightingStudioWindow::updateSelectedDevice()
         QJsonArray signature;for(const auto& c:cs.components)signature.append(c.toJson());const QString key=QString::fromUtf8(QJsonDocument(signature).toJson(QJsonDocument::Compact))+(cs.hasCustomComponents()?"configured":"legacy");
         auto& row=rows_.at(name);if(key!=row.componentSignature){row.componentSignature=key;const int selected=list->currentRow();list->clear();int offset=0;
             for(size_t index=0;index<cs.components.size();++index){const auto& c=cs.components[index];
-                const QString title=QString::fromStdString(c.displayName);const QString details=QString("%1 addresses / %2 physical LEDs / wire %3-%4").arg(c.ledCount).arg(c.ledCount*c.physicalLedsPerAddress).arg(offset+1).arg(offset+c.ledCount);
+                const QString title=compactHardwareName(c);const QString details=hardwareLightingDescription(c)+QString(" / wire %1-%2").arg(offset+1).arg(offset+c.ledCount);
                 auto* item=new QListWidgetItem(list);item->setData(Qt::AccessibleTextRole,title+" / "+details);item->setSizeHint(QSize(180,76));item->setToolTip(QString::fromStdString(c.brand+" / "+c.productName));
                 auto* card=new QWidget(list);auto* cardLayout=new QHBoxLayout(card);cardLayout->setContentsMargins(8,4,8,4);
                 auto* icon=new QLabel(card);icon->setPixmap(hardwareIcon(c).pixmap(56,48));cardLayout->addWidget(icon);
                 auto* text=new QLabel(title+"\n"+details,card);text->setWordWrap(true);text->setAttribute(Qt::WA_TransparentForMouseEvents);cardLayout->addWidget(text,1);
-                auto* remove=new QPushButton("Remove",card);remove->setObjectName(QString("removeHardware:%1:%2").arg(QString::fromStdString(name)).arg(index));remove->setAccessibleName("Remove "+title+" from "+QString::fromStdString(name));cardLayout->addWidget(remove);
+                auto* remove=new QPushButton("Remove",card);remove->setObjectName(QString("removeHardware:%1:%2").arg(QString::fromStdString(name)).arg(index));remove->setAccessibleName("Remove "+title+" from "+QString::fromStdString(name));cardLayout->addWidget(remove);sizeStudioAction(remove);
                 connect(remove,&QPushButton::clicked,this,[this,name,index]{auto chain=channelSettingsFor(name).components;if(index>=chain.size())return;chain.erase(chain.begin()+index);configureComponents(name,chain);});
                 list->setItemWidget(item,card);offset+=c.ledCount;
             }
-            if(cs.components.empty())list->addItem(cs.hasCustomComponents()?"No components / output cleared":"No components yet. Click + Add component above.");else list->setCurrentRow(qBound(0,selected,int(cs.components.size())-1));
+            if(cs.components.empty())list->addItem(cs.hasCustomComponents()?"No components / output cleared":"No components yet. Click + Add hardware above.");else list->setCurrentRow(qBound(0,selected,int(cs.components.size())-1));
         }
     }
 }
@@ -1168,8 +1225,9 @@ bool LightingStudioWindow::editComponentGeometry(const std::string& name,const s
     if(old.size()!=components.size())return false;
     for(size_t i=0;i<old.size();++i)if(!components[i].valid() || components[i].ledCount!=old[i].ledCount)return false;
     const auto before=layoutBounds(old),after=layoutBounds(components);
-    // Retain the scene positions of unchanged LEDs when a sibling is moved or scaled.
-    if(cs.source==CanvasSource::GlobalFollow) {
+    // Only chains expand around edited components. A standalone LED arrangement
+    // must not resize its device artwork, especially a zero-height RAM light bar.
+    if(old.size()>1) {
         const double sx=(cs.placement.width-1)/qMax(1,before.right-before.left),sy=(cs.placement.height-1)/qMax(1,before.bottom-before.top);
         const double dx=(after.left+after.right-before.left-before.right)*.5*sx,dy=(after.top+after.bottom-before.top-before.bottom)*.5*sy;
         const double angle=cs.placement.rotation*3.141592653589793/180.;

@@ -254,12 +254,16 @@ transition math.
 
 ## Standalone app capability correction (2026-10-21)
 
-The app now treats IOShield (native zone 4) as native-only. Earlier hardware
+The 2026-10-21 app treated IOShield (native zone 4) as native-only. Earlier hardware
 checks recorded no visible response to 0x51 with either JPIPE1 or JPIPE2,
 even after arming Advanced mode. A catalog name or successful transport write
 must not be interpreted as working per-LED support. Saved Canvas assignments
-are clamped to Native by the existing UI capability validation.
+were clamped to Native by the UI capability validation at that time.
 
 The settings inspected during troubleshooting requested black for all board
 channels. New entries now default to steady white; existing choices remain
 unchanged. A separate red Hardware Check profile is used for visual verification.
+
+## Whole-zone Canvas fallback (2026-10-22)
+
+IOShield now accepts Canvas using one shared sampled color, streamed as Steady in zone 4 via report 0x50. This does not claim working per-LED 0x51 support. Writes are coalesced when unchanged and limited to 10 Hz; the store byte is always zero. Other zone states, including Advanced mode on addressable headers, are retained in every full report. Packet tests verify these properties; physical dynamic output still requires observation.

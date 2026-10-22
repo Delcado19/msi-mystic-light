@@ -131,8 +131,8 @@ void MsiMotherboardDriverTest::testZoneIndexMapping_pinsEachChannelToItsDocument
     QCOMPARE(hid.sentReports.back()[1 + 9 * 16], static_cast<uint8_t>(1)); // zone 9
 }
 
-// Pin supported Gen1Adv areas (0x51 bytes 2-3, big-endian), and reject
-// IOShield Canvas: the historical JPIPE1 hypothesis failed on hardware.
+// Pin supported Gen1Adv areas (0x51 bytes 2-3, big-endian).
+// IOShield uses volatile whole-zone 0x50, never the failed JPIPE1 hypothesis.
 void MsiMotherboardDriverTest::testGen1AdvAreaMapping_pinsEachChannelToItsDocumentedArea()
 {
     FakeHidDevice hid; hid.open(0x0DB0, 0x0076);
@@ -157,11 +157,16 @@ void MsiMotherboardDriverTest::testGen1AdvAreaMapping_pinsEachChannelToItsDocume
     QCOMPARE(hid.sentReports.back()[3], static_cast<uint8_t>(0x00));
 
     const auto before = hid.sentReports.size();
-    QVERIFY(!driver.supportsMode("IOShield", ChannelMode::Canvas));
+    QVERIFY(driver.supportsMode("IOShield", ChannelMode::Canvas));
     QVERIFY(driver.supportsMode("IOShield", ChannelMode::Native));
-    QVERIFY(!driver.setChannelMode("IOShield", ChannelMode::Canvas));
-    QVERIFY(!driver.pushCanvasColors("IOShield", {{1,2,3}}));
-    QCOMPARE(hid.sentReports.size(), before);
+    QVERIFY(driver.setChannelMode("IOShield", ChannelMode::Canvas));
+    QVERIFY(driver.pushCanvasColors("IOShield", {{1,2,3}}));
+    QCOMPARE(hid.sentReports.size(), before+1);
+    const auto report=hid.sentReports.back();QCOMPARE(report[0],uint8_t(0x50));QCOMPARE(report[289],uint8_t(0));
+    QCOMPARE(report[1+4*16],uint8_t(MsiLightingMode::Steady));QCOMPARE(report[2+4*16],uint8_t(1));QCOMPARE(report[3+4*16],uint8_t(2));QCOMPARE(report[4+4*16],uint8_t(3));
+    QCOMPARE(report[1],uint8_t(MsiLightingMode::Advanced));
+    QVERIFY(driver.pushCanvasColors("IOShield",{{1,2,3}}));QCOMPARE(hid.sentReports.size(),before+1);
+    QVERIFY(!driver.pushCanvasColors("IOShield",{}));
 
 }
 
@@ -264,7 +269,7 @@ void MsiMotherboardDriverTest::testCreateDefaultChannels_channelsHavePlaceholder
 
     std::map<std::string, int> expectedLedCount = {
         {"JARGB1", 120}, {"JARGB2", 120}, {"JARGB3", 120},
-        {"EZConnector", 120}, {"IOShield", 11}, {"JRGB1", 1},
+        {"EZConnector", 120}, {"IOShield", 1}, {"JRGB1", 1},
     };
     QCOMPARE(static_cast<int>(channels.size()), static_cast<int>(expectedLedCount.size()));
     for (const auto& ch : channels) {

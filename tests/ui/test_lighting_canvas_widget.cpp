@@ -39,6 +39,10 @@ class LightingCanvasWidgetTest : public QObject
 
 private slots:
     void testResizeAndRotationHandles();
+    void testIndividualComponentMove();
+    void testStandaloneDeviceMovesPlacement();
+    void testFlatRamUsesPlacementHandles();
+    void testIndividualComponentRotation();
     void testLedPathStillPaintsContinuousEffectBehindHardware();
     void testOpenGLPreviewPerformance();
     void testSetChannel_thenRemoveChannel_doesNotCrash();
@@ -47,6 +51,65 @@ private slots:
     void testPaintEvent_doesNotCrashWithNoChannelsRegistered();
     void testDragBoxFarPastWidgetEdge_clampsPlacementToVisibleBounds();
 };
+
+void LightingCanvasWidgetTest::testIndividualComponentRotation()
+{
+    LightingCanvasWidget widget;widget.resize(700,500);
+    const auto first=Component::makeFan(12,false),second=Component::makeFan(12,false,1);
+    widget.setChannel("Chain",{30,40,400,150,0},CanvasSource::GlobalFollow,nullptr);widget.setChannelComponents("Chain",{first,second});
+    std::vector<Component> changed;QObject::connect(&widget,&LightingCanvasWidget::componentGeometryChanged,[&](const std::string&,const std::vector<Component>& c){changed=c;});
+    widget.show();QVERIFY(QTest::qWaitForWindowExposed(&widget));widget.grabFramebuffer();
+    QTest::mouseClick(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(100,110));widget.grabFramebuffer();
+    QTest::mousePress(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(108,20));QTest::mouseMove(&widget,QPoint(220,115));QTest::mouseRelease(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(220,115));
+    QCOMPARE(changed.size(),size_t(2));QCOMPARE(changed[1].ledCoordinates,second.ledCoordinates);QCOMPARE(changed[0].ledMapping,first.ledMapping);
+    QVERIFY(changed[0].ledCoordinates!=first.ledCoordinates);QVERIFY(changed[0].ledCoordinates[0].first>70);QCOMPARE(changed[0].layoutDefaults,first.ledCoordinates);
+}
+
+void LightingCanvasWidgetTest::testIndividualComponentMove()
+{
+    LightingCanvasWidget widget;widget.resize(700,500);
+    const auto first=Component::makeFan(12,false),second=Component::makeFan(12,false,1);
+    widget.setChannel("Chain",{30,40,400,150,0},CanvasSource::GlobalFollow,nullptr);widget.setChannelComponents("Chain",{first,second});
+    std::vector<Component> changed;QObject::connect(&widget,&LightingCanvasWidget::componentGeometryChanged,[&](const std::string&,const std::vector<Component>& c){changed=c;});
+    widget.show();QVERIFY(QTest::qWaitForWindowExposed(&widget));widget.grabFramebuffer();
+    QTest::mousePress(&widget,Qt::LeftButton,Qt::ControlModifier,QPoint(100,110));QTest::mouseMove(&widget,QPoint(120,130));QTest::mouseRelease(&widget,Qt::LeftButton,Qt::ControlModifier,QPoint(120,130));
+    QCOMPARE(changed.size(),size_t(2));QCOMPARE(changed[1].ledCoordinates,second.ledCoordinates);QVERIFY(changed[0].ledCoordinates!=first.ledCoordinates);QCOMPARE(changed[0].ledMapping,first.ledMapping);
+}
+
+void LightingCanvasWidgetTest::testStandaloneDeviceMovesPlacement()
+{
+    for(const auto source:{CanvasSource::Independent,CanvasSource::GlobalFollow}) {
+        LightingCanvasWidget widget;widget.resize(700,500);
+        widget.setChannel("Fan",{100,100,150,150,0},source,nullptr);
+        widget.setChannelComponents("Fan",{Component::makeFan(12,false)});
+        widget.show();QVERIFY(QTest::qWaitForWindowExposed(&widget));widget.grabFramebuffer();
+        QSignalSpy moved(&widget,&LightingCanvasWidget::channelPlacementChanged);
+        QSignalSpy geometry(&widget,&LightingCanvasWidget::componentGeometryChanged);
+        QTest::mousePress(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(175,175));
+        QTest::mouseMove(&widget,QPoint(215,205));
+        QTest::mouseRelease(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(215,205));
+        QVERIFY(!moved.empty());QCOMPARE(geometry.count(),0);
+        const auto placement=moved.last()[1].value<CanvasPlacement>();
+        QCOMPARE(placement.x,140.);QCOMPARE(placement.y,130.);
+    }
+}
+
+void LightingCanvasWidgetTest::testFlatRamUsesPlacementHandles()
+{
+    LightingCanvasWidget widget;widget.resize(700,500);
+    auto ram=Component::makeGenericPlaceholder(8);ram.type="RAM";
+    for(int i=0;i<8;++i)ram.ledCoordinates[i]={i*18,0};
+    widget.setChannel("RAM",{100,100,180,40,0},CanvasSource::GlobalFollow,nullptr);
+    widget.setChannelComponents("RAM",{ram});widget.setSelectedChannel("RAM");
+    widget.show();QVERIFY(QTest::qWaitForWindowExposed(&widget));widget.grabFramebuffer();
+    QSignalSpy moved(&widget,&LightingCanvasWidget::channelPlacementChanged),geometry(&widget,&LightingCanvasWidget::componentGeometryChanged);
+    QTest::mouseClick(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(180,120));widget.grabFramebuffer();
+    QTest::mousePress(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(280,140));
+    QTest::mouseMove(&widget,QPoint(310,150));QTest::mouseRelease(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(310,150));
+    QVERIFY(!moved.empty());QCOMPARE(geometry.count(),0);
+    const auto placement=moved.last()[1].value<CanvasPlacement>();
+    QVERIFY(std::abs(placement.width/placement.height-4.5)<.001);
+}
 
 void LightingCanvasWidgetTest::testSetChannel_thenRemoveChannel_doesNotCrash()
 {
@@ -194,8 +257,8 @@ void LightingCanvasWidgetTest::testLedPathStillPaintsContinuousEffectBehindHardw
     QVERIFY(sample(180,100).red()>100 && sample(180,100).blue()>100);
     // Hardware remains movable while the full background, not LED dots, is visible.
     QSignalSpy moved(&widget,&LightingCanvasWidget::channelPlacementChanged);
-    QTest::mousePress(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(550,350));
-    QTest::mouseMove(&widget,QPoint(580,370));QTest::mouseRelease(&widget,Qt::LeftButton,Qt::NoModifier,QPoint(580,370));
+    QTest::mousePress(&widget,Qt::LeftButton,Qt::AltModifier,QPoint(550,350));
+    QTest::mouseMove(&widget,QPoint(580,370));QTest::mouseRelease(&widget,Qt::LeftButton,Qt::AltModifier,QPoint(580,370));
     QVERIFY(!moved.empty());
 }
 

@@ -1,4 +1,10 @@
 #include <QCheckBox>
+#include <QToolButton>
+#include <QTemporaryDir>
+#include "device/GigabyteAeroDriver.h"
+#include "device/OpenRgbRamDriver.h"
+#include <QStyleOptionSpinBox>
+#include <QStyle>
 #include "ui/LayoutEditor.h"
 #include "ui/HardwareLibrary.h"
 #include "ui/HardwarePicker.h"
@@ -95,6 +101,17 @@ class LightingStudioWindowTest : public QObject
 private slots:
     void testHardwareRemovalGeometryAndCalibration();
     void testLayoutEditorDragShapesAndReset();
+    void testLayerEditorAndStableTabs();
+    void testLayerPreviewPixelsAndSavedComposition();
+    void testLayerCenterDragAndSliders();
+    void testBaseProtectionAspectAndLayerRename();
+    void testStepperTargetsAndDrawnZone();
+    void testCompactActionsAndPreviewPause();
+    void testLayerNamesAfterDeletionAndLayoutScrolling();
+    void testGridCatalogAndGpuProtocol();
+    void testLayoutVisibilityAndGpuPersistence();
+    void testRamSdkDescriptorValidation();
+    void testRamGeometrySavePreservesFootprint();
     void testCustomHardwareDefinitionDialog();
     void testChannelPickerAddsMultipleAndRemovesInline();
     void testHardwarePickerFiltersAndRejectsOverCapacity();
@@ -437,7 +454,7 @@ void LightingStudioWindowTest::testColorButton_enabledOnlyWhenEffectUsesColor()
 
     auto* effectCombo = window.findChild<QComboBox*>(QStringLiteral("effect:GPU"));
     QVERIFY(effectCombo != nullptr);
-    const int rainbowIdx = effectCombo->findText(QStringLiteral("RainbowWave"));
+    const int rainbowIdx = effectCombo->findText(QStringLiteral("Scroll"));
     QVERIFY(rainbowIdx >= 0);
     effectCombo->setCurrentIndex(rainbowIdx);
     QVERIFY(!colorButton->isEnabled());
@@ -472,13 +489,13 @@ void LightingStudioWindowTest::testGlobalColorButton_enabledOnlyWhenEffectUsesCo
     QCOMPARE(globalEffectCombo->currentIndex(), -1); // display matches the stored "" -- no fake "StaticColor"
     QVERIFY(!globalColorButton->isEnabled());
 
-    const int staticIdx = globalEffectCombo->findText(QStringLiteral("StaticColor"));
+    const int staticIdx = globalEffectCombo->findData(QStringLiteral("StaticColor"));
     QVERIFY(staticIdx >= 0);
     globalEffectCombo->setCurrentIndex(staticIdx); // picked directly from the fresh state
     QVERIFY(globalColorButton->isEnabled());
     QCOMPARE(settings.activeProfile()->globalEffect.effectName, std::string("StaticColor"));
 
-    const int rainbowIdx = globalEffectCombo->findText(QStringLiteral("RainbowWave"));
+    const int rainbowIdx = globalEffectCombo->findText(QStringLiteral("Scroll"));
     QVERIFY(rainbowIdx >= 0);
     globalEffectCombo->setCurrentIndex(rainbowIdx);
     QVERIFY(!globalColorButton->isEnabled());
@@ -489,7 +506,7 @@ void LightingStudioWindowTest::testGlobalColorButton_enabledOnlyWhenEffectUsesCo
     window.setGlobalEffectColor(MsiColor{9, 8, 7});
     window.refreshFromSettings();
     QCOMPARE(settings.activeProfile()->globalEffect.color.b, static_cast<uint8_t>(7));
-    QCOMPARE(globalEffectCombo->currentText(), QStringLiteral("StaticColor"));
+    QCOMPARE(globalEffectCombo->currentText(), QStringLiteral("Solid color"));
     QVERIFY(globalColorButton->isEnabled());
     QVERIFY(globalColorButton->styleSheet().contains(QStringLiteral("#090807")));
 }
@@ -765,7 +782,7 @@ void LightingStudioWindowTest::testHardwareSelectionAndCustomEffectEditing()
     QVERIFY(window.createCustomEffect({"My palette",{{255,0,0},{0,0,255}},6000,720}));
     QCOMPARE(libraryChanges.count(),1);
     QCOMPARE(settings.activeProfile()->globalEffect.effectName,std::string("custom:My palette"));
-    auto* combo=window.findChild<QComboBox*>(QStringLiteral("globalEffectCombo"));
+    auto* combo=window.findChild<QComboBox*>(QStringLiteral("customEffectCombo"));
     QCOMPARE(combo->currentText(),QStringLiteral("My palette"));
     QVERIFY(!window.createCustomEffect({"Invalid",{{1,2,3}},0,0}));
     QCOMPARE(settings.customEffects.size(),size_t(1));
@@ -778,9 +795,9 @@ void LightingStudioWindowTest::testCustomEffectEditorDialogSavesRecipe()
     QTimer::singleShot(0,[&] {
         auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());if(!dialog)return;
         auto* name=dialog->findChild<QLineEdit*>(QStringLiteral("effectRecipeName"));
-        auto* library=dialog->findChild<QListWidget*>(QStringLiteral("patternLibrary"));
+        auto* library=dialog->findChild<QComboBox*>(QStringLiteral("patternLibrary"));
         if(!name || !library){dialog->reject();return;}
-        name->setText(QStringLiteral("Dialog recipe"));library->setCurrentRow(5);
+        name->setText(QStringLiteral("Dialog recipe"));library->setCurrentText("Plasma");
         const QString output=qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");
         if(!output.isEmpty())dialog->grab().save(output+QStringLiteral(".effect-editor.png"));
         dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
@@ -807,6 +824,9 @@ void LightingStudioWindowTest::testColorWheelRgbAndHexStaySynchronized()
 
 void LightingStudioWindowTest::testGradientDraggingAndPatternDrop()
 {
+    CustomEffectDefinition masked{"Zoned palette",{{255,0,0},{0,0,255}},6000,720};masked.zoneEnabled=true;masked.zoneX=900;
+    GradientStops maskedStops(&masked,nullptr);maskedStops.addStop(.25);QCOMPARE(masked.colors[1].r,uint8_t(128));QCOMPARE(masked.colors[1].b,uint8_t(128));
+
     CustomEffectDefinition d{"Test",{{255,0,0},{0,0,255}},6000,720};
     GradientStops stops(&d,nullptr);stops.resize(500,74);stops.show();
     const int x=12+int(d.stops[1]*476);
@@ -850,6 +870,191 @@ void LightingStudioWindowTest::testHardwareRemovalGeometryAndCalibration()
     const auto& catalog=hardwareLibrary();QVERIFY(catalog.size()>=5);for(const auto& c:catalog)QVERIFY(c.valid());qInfo()<<"Available hardware definitions:"<<catalog.size();
 }
 
+void LightingStudioWindowTest::testRamGeometrySavePreservesFootprint()
+{
+    Settings settings;LightingStudioWindow window(settings,{"XpgRam1"});
+    auto ram=Component::makeGenericPlaceholder(8);ram.type="RAM";
+    for(int i=0;i<8;++i)ram.ledCoordinates[i]={i*18,0};
+    window.setDeviceComponents("XpgRam1",{ram});
+    auto& saved=settings.activeProfile()->channelSettings[0];saved.placement={310,204,180,40,0};
+    for(int shape=0;shape<3;++shape){
+        for(int i=0;i<8;++i)ram.ledCoordinates[i]={i*20+100,shape==1?i*10+50:200};
+        QVERIFY(window.editComponentGeometry("XpgRam1",{ram}));
+        QCOMPARE(saved.placement.x,310.);QCOMPARE(saved.placement.y,204.);
+        QCOMPARE(saved.placement.width,180.);QCOMPARE(saved.placement.height,40.);
+        QCOMPARE(saved.components[0].ledCoordinates,ram.ledCoordinates);
+    }
+}
+
+void LightingStudioWindowTest::testRamSdkDescriptorValidation()
+{
+    QByteArray data;QDataStream out(&data,QIODevice::WriteOnly);out.setByteOrder(QDataStream::LittleEndian);
+    const auto text=[&](const char* value){const QByteArray bytes(value);out<<quint16(bytes.size()+1);out.writeRawData(bytes.constData(),bytes.size());out<<quint8(0);};
+    out<<quint32(0)<<quint32(1);text("ENE DRAM");text("ENE SMBus Device");text("AUDA0-E6K5-0101");text("");text("I2C: PawnIO SMBus PIIX4 0, address 0x71");
+    out<<quint16(1)<<quint32(0);text("Direct");for(int i=0;i<9;++i)out<<quint32(i==0?65535:i==8?1:0);out<<quint16(0);
+    out<<quint16(1);text("DRAM");out<<quint32(1)<<quint32(8)<<quint32(8)<<quint32(8)<<quint16(0);
+    out<<quint16(8);for(int i=0;i<8;++i){text("LED");out<<quint32(i);}out<<quint16(8);for(int i=0;i<8;++i)out<<quint32(0);
+    out.device()->seek(0);out<<quint32(data.size());const auto parsed=parseRamSdkDescriptor(data);QVERIFY(parsed);QCOMPARE(parsed->ledCount,8);QCOMPARE(parsed->directIndex,0);
+    for(int cut=0;cut<data.size();++cut)QVERIFY(!parseRamSdkDescriptor(data.left(cut)));
+    auto shortBody=data.left(data.size()-1);QDataStream rewrite(&shortBody,QIODevice::WriteOnly);rewrite.setByteOrder(QDataStream::LittleEndian);rewrite<<quint32(shortBody.size());QVERIFY(!parseRamSdkDescriptor(shortBody));
+    QFile config(":/studio/ram-controller.json");QVERIFY(config.open(QIODevice::ReadOnly));const auto snapshot=QJsonDocument::fromJson(config.readAll()).object();const auto detectors=snapshot["Detectors"].toObject()["detectors"].toObject();int enabled=0;for(auto it=detectors.begin();it!=detectors.end();++it)if(it.value().toBool()){++enabled;QCOMPARE(it.key(),QString("ENE SMBus DRAM"));}QCOMPARE(enabled,1);QVERIFY(!detectors["HID LampArray Device"].toBool());
+    auto wrong=data;wrong[4]=2;QVERIFY(!parseRamSdkDescriptor(wrong));
+    const auto colors=ramSdkColorPayload({{11,22,33}});QCOMPARE(colors.size(),10);QCOMPARE(uint8_t(colors[6]),uint8_t(11));QCOMPARE(uint8_t(colors[7]),uint8_t(22));QCOMPARE(uint8_t(colors[8]),uint8_t(33));
+}
+
+void LightingStudioWindowTest::testLayoutVisibilityAndGpuPersistence()
+{
+    Settings settings;LightingStudioWindow window(settings,{"GigabyteAero5080"},{{"GigabyteAero5080",{ChannelMode::Canvas}}});
+    const auto components=GigabyteAeroDriver::createDefaultChannel().components();window.setDeviceComponents("GigabyteAero5080",components);
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* eye=window.findChild<QToolButton*>("layoutVisible:GigabyteAero5080");QVERIFY(eye);
+    const auto buttonRect=QRect(eye->mapTo(window.findChild<QListWidget*>("deviceList")->viewport(),QPoint()),eye->size());
+    QVERIFY(window.findChild<QListWidget*>("deviceList")->visualItemRect(window.findChild<QListWidget*>("deviceList")->item(0)).contains(buttonRect));QSignalSpy assignment(&window,&LightingStudioWindow::channelAssignmentChanged);QSignalSpy presentation(&window,&LightingStudioWindow::layoutVisibilityChanged);
+    eye->click();QVERIFY(!window.canvas()->channelVisible("GigabyteAero5080"));QVERIFY(!settings.activeProfile()->channelSettings[0].layoutVisible);QCOMPARE(assignment.count(),0);QCOMPARE(presentation.count(),1);
+    settings.activeProfile()->channelSettings[0].components=components;settings.activeProfile()->channelSettings[0].componentsConfigured=true;
+    QTemporaryDir dir;QVERIFY(dir.isValid());const auto path=(dir.path()+"/settings.json").toStdString();QVERIFY(settings.saveToFile(path));Settings loaded;QVERIFY(loaded.loadFromFile(path));QVERIFY(!loaded.activeProfile()->channelSettings[0].layoutVisible);QCOMPARE(loaded.activeProfile()->channelSettings[0].components.size(),size_t(1));
+    window.refreshFromSettings();QVERIFY(!eye->isChecked());eye->click();QVERIFY(window.canvas()->channelVisible("GigabyteAero5080"));
+}
+
+void LightingStudioWindowTest::testGridCatalogAndGpuProtocol()
+{
+    LayoutEditor editor({Component::makeFan(6,true)});editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));QVERIFY(editor.isMaximized());
+    auto* grid=editor.findChild<QCheckBox*>("layoutSnapToGrid");QVERIFY(grid);grid->setChecked(true);editor.findChild<QSpinBox*>("layoutGridSpacing")->setValue(10);
+    auto* view=editor.findChild<QGraphicsView*>("componentLayoutView");QGraphicsItem* body=nullptr;QGraphicsItem* led=nullptr;for(auto* item:view->scene()->items()){if(!item->parentItem())body=item;if(item->data(0)=="LED")led=item;}QVERIFY(body && led);
+    body->setPos(23,37);QCOMPARE(body->pos(),QPointF(20,40));body->setRotation(30);body->setScale(1.4);led->setPos(23,37);
+    const auto scene=led->scenePos();QVERIFY(std::abs(scene.x()/10-std::round(scene.x()/10))<.001);QVERIFY(std::abs(scene.y()/10-std::round(scene.y()/10))<.001);
+    grid->setChecked(false);body->setPos(23,37);QCOMPARE(body->pos(),QPointF(23,37));
+    bool ram=false,paired=false;for(const auto& c:hardwareLibrary()){QVERIFY(c.valid());ram|=hardwareCategory(c)=="RAM";if(c.brand=="Phanteks" && c.type=="FanPaired" && c.productName.find("M25 Gen2")!=std::string::npos){QCOMPARE(c.ledCount,6);QCOMPARE(c.physicalLedsPerAddress,2);paired=true;}}QVERIFY(ram && paired);
+    HardwarePicker picker("JARGB1",hardwareLibrary(),120);auto* category=picker.findChild<QComboBox*>("hardwareCategory");category->setCurrentText("RAM");QVERIFY(!picker.findChild<QPushButton*>("confirmAddHardware")->isEnabled());
+    auto* search=picker.findChild<QLineEdit*>("hardwareSearch");category->setCurrentIndex(0);search->setText("Glacier One 360M25 Gen2");QVERIFY(!picker.findChild<QPushButton*>("confirmAddHardware")->isEnabled());picker.findChild<QSpinBox*>("hardwareVerifiedCount")->setValue(8);QVERIFY(picker.findChild<QPushButton*>("confirmAddHardware")->isEnabled());QCOMPARE(picker.component().ledCount,8);
+    const auto packet=aeroColorPacket({11,22,33});QCOMPARE(packet[0],uint8_t(0x16));QCOMPARE(packet[5],uint8_t(11));QCOMPARE(packet[6],uint8_t(22));QCOMPARE(packet[7],uint8_t(33));QCOMPARE(packet[9],uint8_t(0));QVERIFY(GigabyteAeroDriver::validSignature({1,1,1,0}));QVERIFY(!GigabyteAeroDriver::validSignature({0,1,1,0}));
+    GigabyteAeroDriver driver;QVERIFY(driver.supportsMode(GigabyteAeroDriver::kChannel,ChannelMode::Canvas));QVERIFY(!driver.pushCanvasColors(GigabyteAeroDriver::kChannel,{{1,2,3}}));
+}
+
+void LightingStudioWindowTest::testLayerNamesAfterDeletionAndLayoutScrolling()
+{
+    CustomEffectDefinition d{"Names",{{255,0,0},{0,0,255}},6000,720};EffectEditor editor(d);
+    QPushButton *add=nullptr,*remove=nullptr;for(auto* b:editor.findChildren<QPushButton*>()){if(b->text()=="+ Add layer")add=b;if(b->text()=="Remove")remove=b;}QVERIFY(add && remove);
+    add->click();add->click();auto* list=editor.findChild<QListWidget*>("effectLayers");list->setCurrentRow(1);remove->click();list->setCurrentRow(1);
+    auto* solo=dynamic_cast<EffectPreview*>(editor.findChild<QWidget*>("selectedLayerPreview"));QVERIFY(solo);QVERIFY(solo->caption.startsWith(list->currentItem()->text()+" / "));QCOMPARE(list->currentItem()->text(),QString("Layer 2"));
+    auto* name=editor.findChild<QLineEdit*>("layerName");name->setFocus();name->selectAll();QTest::keyClicks(name,"Accent");QVERIFY(solo->caption.startsWith("Accent / "));
+    add->click();QCOMPARE(list->count(),3);QVERIFY(list->item(1)->text()!=list->item(2)->text());
+    LayoutEditor layout({Component::makeFan(12,false)});layout.setStyleSheet(compactStudioControlsStyle());layout.show();QVERIFY(QTest::qWaitForWindowExposed(&layout));
+    auto* view=layout.findChild<QGraphicsView*>("componentLayoutView");QVERIFY(view);
+    QGraphicsItem* body=nullptr;for(auto* item:view->scene()->items())if(!item->parentItem()){body=item;break;}QVERIFY(body);
+    const auto oldRight=view->sceneRect().right();body->setPos(2000,0);body->setScale(5);QTRY_VERIFY(view->sceneRect().right()>oldRight+1000);
+    QTRY_VERIFY(view->horizontalScrollBar()->maximum()>view->horizontalScrollBar()->minimum());QTRY_VERIFY(view->horizontalScrollBar()->isVisible());
+    view->ensureVisible(body);QCoreApplication::processEvents();QVERIFY(view->mapToScene(view->viewport()->rect()).boundingRect().intersects(body->sceneBoundingRect()));
+}
+
+void LightingStudioWindowTest::testCompactActionsAndPreviewPause()
+{
+    CustomEffectDefinition recipe{"UI",{{255,0,0},{0,0,255}},6000,720};EffectEditor editor(recipe);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="Add color" || button->text()=="Remove color" || button->text()=="+ Add layer") {
+        QCOMPARE(button->sizePolicy().horizontalPolicy(),QSizePolicy::Maximum);
+        QVERIFY(button->height()>=32);QVERIFY(button->width()<editor.width()/3);
+    }
+    auto* pause=editor.findChild<QPushButton*>("pauseEffectPreview");QVERIFY(pause);pause->click();
+    for(auto* widget:editor.findChildren<QWidget*>())if(auto* preview=dynamic_cast<EffectPreview*>(widget))QVERIFY(preview->previewPaused());
+    pause->click();for(auto* widget:editor.findChildren<QWidget*>())if(auto* preview=dynamic_cast<EffectPreview*>(widget))QVERIFY(!preview->previewPaused());
+    Settings settings;LightingStudioWindow window(settings,{"RoccatVulcan"});window.setDeviceComponents("RoccatVulcan",RoccatVulcanDriver::createDefaultChannel().components());
+    auto& placement=settings.activeProfile()->channelSettings[0].placement;placement.width=70;placement.height=40;
+    auto* reset=window.findChild<QPushButton*>("resetDeviceSize:RoccatVulcan");QVERIFY(reset);reset->click();QCOMPARE(placement.width,420.);QCOMPARE(placement.height,120.);
+    auto* regions=window.findChild<QPushButton*>("openLedRegions:RoccatVulcan");QCOMPARE(regions->sizePolicy().horizontalPolicy(),QSizePolicy::Maximum);
+}
+
+void LightingStudioWindowTest::testStepperTargetsAndDrawnZone()
+{
+    CustomEffectDefinition d{"Input",{{255,0,0},{0,0,255}},6000,720};d.pattern="Color source";d.path="Canvas positions";EffectEditor editor(d);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    QVERIFY(editor.findChild<QComboBox*>("effectDirection")->isHidden());auto* motion=editor.findChild<QComboBox*>("sourceMotion");motion->setCurrentText("Ping-pong");QCOMPARE(editor.definition().sourceMotion,std::string("Ping-pong"));
+    const auto checkStepper=[&](QAbstractSpinBox* field){
+        editor.findChild<QScrollArea*>()->ensureWidgetVisible(field);QCoreApplication::processEvents();
+        QStyleOptionSpinBox option;option.initFrom(field);option.rect=field->rect();option.frame=field->hasFrame();option.buttonSymbols=field->buttonSymbols();option.stepEnabled=QAbstractSpinBox::StepUpEnabled|QAbstractSpinBox::StepDownEnabled;
+        const auto value=[&]{if(auto* integer=qobject_cast<QSpinBox*>(field))return double(integer->value());return qobject_cast<QDoubleSpinBox*>(field)->value();};
+        const double step=qobject_cast<QSpinBox*>(field)?qobject_cast<QSpinBox*>(field)->singleStep():qobject_cast<QDoubleSpinBox*>(field)->singleStep();
+        for(const auto control:{QStyle::SC_SpinBoxUp,QStyle::SC_SpinBoxDown}){const auto hit=field->style()->subControlRect(QStyle::CC_SpinBox,&option,control,field);QVERIFY(hit.width()>=24);QVERIFY(hit.height()>=14);
+            for(const auto point:{hit.topLeft()+QPoint(2,2),hit.bottomRight()-QPoint(2,2)}){const double before=value();QTest::mouseClick(field,Qt::LeftButton,Qt::NoModifier,point);const double expected=before+(control==QStyle::SC_SpinBoxUp?step:-step);QVERIFY(std::abs(value()-expected)<.0001);}}
+    };
+    checkStepper(editor.findChild<QSpinBox*>("effectScale"));checkStepper(editor.findChild<QDoubleSpinBox*>("effectDurationSeconds"));
+    auto* solo=dynamic_cast<EffectPreview*>(editor.findChild<QWidget*>("selectedLayerPreview"));const auto viewport=solo->sceneViewport();
+    auto* draw=editor.findChild<QPushButton*>("drawLayerZone");editor.findChild<QCheckBox*>("effectZone")->click();QVERIFY(draw->isChecked());const QPoint from(qRound(viewport.left()+viewport.width()*.2),qRound(viewport.top()+viewport.height()*.25));const QPoint to(qRound(viewport.left()+viewport.width()*.7),qRound(viewport.top()+viewport.height()*.75));
+    QTest::mousePress(solo,Qt::LeftButton,Qt::NoModifier,from);QTest::mouseMove(solo,to);QTest::mouseRelease(solo,Qt::LeftButton,Qt::NoModifier,to);
+    const auto result=editor.definition();QVERIFY(result.zoneEnabled);QVERIFY(std::abs(result.zoneX-220)<=5);QVERIFY(std::abs(result.zoneY-175)<=5);QVERIFY(std::abs(result.zoneWidth-550)<=8);QVERIFY(std::abs(result.zoneHeight-350)<=8);QVERIFY(!draw->isChecked());
+    draw->click();QTest::mousePress(solo,Qt::LeftButton,Qt::NoModifier,to);QTest::mouseMove(solo,from);QTest::mouseRelease(solo,Qt::LeftButton,Qt::NoModifier,from);QCOMPARE(editor.definition().zoneX,result.zoneX);QCOMPARE(editor.definition().zoneWidth,result.zoneWidth);
+}
+
+void LightingStudioWindowTest::testBaseProtectionAspectAndLayerRename()
+{
+    CustomEffectDefinition d{"Scroll",{{255,0,0},{0,0,255}},6000,720};d.pattern="Scroll";d.path="Canvas positions";
+    EffectEditor editor(d);editor.protectedBaseName="Scroll";bool saved=false;editor.saveEffect=[&](const auto&){saved=true;return true;};editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    editor.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();QVERIFY(!saved);QVERIFY(editor.isVisible());
+    for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="+ Add layer")button->click();auto* layer=editor.findChild<QLineEdit*>("layerName");layer->setFocus();layer->selectAll();QTest::keyClicks(layer,"Accent");
+    QCOMPARE(editor.definition().layers[0].name,std::string("Accent"));auto* stack=editor.findChild<QListWidget*>("effectLayers");stack->setCurrentRow(0);stack->setCurrentRow(1);QCOMPARE(layer->text(),QString("Accent"));
+    auto* combined=dynamic_cast<EffectPreview*>(editor.findChild<QWidget*>("effectPreview"));auto* solo=dynamic_cast<EffectPreview*>(editor.findChild<QWidget*>("selectedLayerPreview"));
+    for(auto* preview:{combined,solo}){const auto r=preview->sceneViewport();QVERIFY(std::abs(r.width()/r.height()-1100./700)<.0001);}
+    editor.findChild<QLineEdit*>("effectRecipeName")->setText("My scroll");editor.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();QVERIFY(saved);
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1"});QVERIFY(!window.createCustomEffect(d));d.name="My scroll";QVERIFY(window.createCustomEffect(d));auto* bases=window.findChild<QComboBox*>("globalEffectCombo");QCOMPARE(bases->findData("custom:My scroll"),-1);QVERIFY(window.findChild<QComboBox*>("customEffectCombo")->findData("custom:My scroll")>=0);
+}
+
+void LightingStudioWindowTest::testLayerCenterDragAndSliders()
+{
+    CustomEffectDefinition d{"Centers",{{255,0,0},{0,0,255}},6000,720};d.pattern="Radial";d.path="Canvas positions";
+    EffectEditor editor(d);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    auto* solo=dynamic_cast<EffectPreview*>(editor.findChild<QWidget*>("selectedLayerPreview"));QVERIFY(solo);QVERIFY(solo->caption.contains("Layer 0"));
+    const auto viewport=solo->sceneViewport();const QPoint target(qRound(viewport.left()+viewport.width()/4),qRound(viewport.top()+viewport.height()*3/4));QTest::mousePress(solo,Qt::LeftButton,Qt::NoModifier,solo->rect().center());QTest::mouseMove(solo,target);QTest::mouseRelease(solo,Qt::LeftButton,Qt::NoModifier,target);
+    QVERIFY(std::abs(editor.definition().centerX-275)<=5);QVERIFY(std::abs(editor.definition().centerY-525)<=5);
+    for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="+ Add layer")button->click();QVERIFY(solo->caption.contains("Layer 1"));
+    auto* pattern=editor.findChild<QComboBox*>("patternLibrary");pattern->setCurrentIndex(pattern->findData("Angular"));
+    auto* spread=editor.findChild<QSlider*>("effectSpreadSlider");QVERIFY(spread);spread->setValue(180);QCOMPARE(editor.definition().layers[0].spreadDegrees,180.);
+    auto* opacity=editor.findChild<QSlider*>("effectOpacitySlider");QVERIFY(opacity);opacity->setValue(35);QCOMPARE(editor.definition().layers[0].opacity,.35);
+    QCOMPARE(editor.definition().layers[0].centerX,550);QVERIFY(editor.definition().centerX!=550);
+}
+
+void LightingStudioWindowTest::testLayerPreviewPixelsAndSavedComposition()
+{
+    CustomEffectDefinition d{"Pixel composition",{{255,0,0},{255,0,0}},6000,720};d.pattern="Static gradient";d.path="Canvas positions";
+    EffectEditor editor(d);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    auto* layers=editor.findChild<QListWidget*>("effectLayers");auto* pattern=editor.findChild<QComboBox*>("patternLibrary");
+    for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="+ Add layer")button->click();
+    pattern->setCurrentText("Static gradient");
+    auto* combined=editor.findChild<QWidget*>("effectPreview");auto* solo=editor.findChild<QWidget*>("selectedLayerPreview");QVERIFY(combined && solo);
+    const auto sample=[](QWidget* widget){const auto image=widget->grab().toImage();const auto* preview=dynamic_cast<EffectPreview*>(widget);return image.pixelColor(qRound((preview->sceneViewport().left()+4)*image.devicePixelRatio()),image.height()/2);};
+    const auto mixed=sample(combined),blue=sample(solo);QVERIFY(mixed.red()>240 && mixed.blue()>240);QVERIFY(blue.blue()>240 && blue.red()<5);
+    layers->setCurrentRow(0);const auto red=sample(solo);QVERIFY(red.red()>240 && red.blue()<5);QCOMPARE(sample(combined),mixed);
+    layers->item(1)->setCheckState(Qt::Unchecked);const auto disabled=sample(combined);QVERIFY(disabled.red()>240 && disabled.blue()<5);
+    layers->item(1)->setCheckState(Qt::Checked);QCOMPARE(sample(combined),mixed);
+    CustomEffectDefinition saved;editor.saveEffect=[&](const auto& value){saved=value;return true;};editor.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
+    QCOMPARE(saved.layers.size(),size_t(1));QVERIFY(saved.layers[0].enabled);QCOMPARE(saved.layers[0].colors[1].b,uint8_t(0));
+    Settings settings;settings.customEffects={saved};QTemporaryDir dir;const auto file=dir.filePath("layers.json").toStdString();QVERIFY(settings.saveToFile(file));Settings loaded;QVERIFY(loaded.loadFromFile(file));
+    const auto output=buildEffect("custom:Pixel composition",{},0,0,loaded.customEffects);QVERIFY(output);const auto color=output->colorAt(0,350,0);QCOMPARE(color.r,uint8_t(255));QCOMPARE(color.b,uint8_t(255));
+    const QString path=qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");if(!path.isEmpty())editor.grab().save(path+".pixel-composition.png");
+}
+
+void LightingStudioWindowTest::testLayerEditorAndStableTabs()
+{
+    CustomEffectDefinition d{"Stack",{{255,0,0},{255,0,0}},6000,720};d.path="Canvas positions";
+    EffectEditor editor(d);auto* layers=editor.findChild<QListWidget*>("effectLayers");QVERIFY(layers);
+    for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="+ Add layer")button->click();
+    const QString screenshot=qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");if(!screenshot.isEmpty()){editor.show();QCoreApplication::processEvents();editor.grab().save(screenshot+".layer-stack.png");}
+    QCOMPARE(layers->count(),2);QCOMPARE(editor.definition().layers.size(),size_t(1));
+    auto* pattern=editor.findChild<QComboBox*>("patternLibrary");pattern->setCurrentIndex(pattern->findData("Radial"));QCOMPARE(editor.definition().pattern,std::string("Scroll"));QCOMPARE(editor.definition().layers[0].pattern,std::string("Radial"));QVERIFY(dynamic_cast<EffectPreview*>(editor.findChild<QWidget*>("selectedLayerPreview"))->caption.contains("Concentric rings"));
+    editor.show();QCoreApplication::processEvents();QVERIFY(editor.findChild<QComboBox*>("effectDirection")->isHidden());QVERIFY(!editor.findChild<QComboBox*>("effectRotationDirection")->isHidden());
+    editor.findChild<QLineEdit*>("effectRecipeName")->setFocus();
+    QWheelEvent wheel(QPointF(5,5),QPointF(pattern->mapToGlobal(QPoint(5,5))),QPoint(),QPoint(0,-120),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);QApplication::sendEvent(pattern,&wheel);QCOMPARE(pattern->currentData().toString(),QString("Radial"));
+    pattern->setCurrentText("Scroll");
+    const auto mixed=CustomGradientEffect(editor.definition()).colorAt(550,350,0);QCOMPARE(mixed.r,uint8_t(255));QVERIFY(mixed.b>0);
+    layers->setCurrentRow(0);QCOMPARE(pattern->currentText(),QString("Scroll"));layers->setCurrentRow(1);QCOMPARE(pattern->currentText(),QString("Scroll"));
+    auto* direction=editor.findChild<QComboBox*>("effectDirection");direction->setCurrentIndex(3);QCOMPARE(editor.definition().layers[0].angle,270.);
+    auto* zone=editor.findChild<QCheckBox*>("effectZone");zone->setChecked(true);QVERIFY(editor.definition().layers[0].zoneEnabled);
+    for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="+ Add layer")button->click();
+    QVERIFY(layers->model()->moveRow(QModelIndex(),1,QModelIndex(),3));
+    QCOMPARE(editor.definition().layers.size(),size_t(2));QVERIFY(editor.definition().layers[1].zoneEnabled);QVERIFY(!editor.definition().layers[0].zoneEnabled);
+
+    Settings settings;LightingStudioWindow window(settings,{"JARGB1"});window.resize(1440,880);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* views=window.findChild<QTabWidget*>("workspaceViews");const int y=views->mapTo(&window,QPoint()).y();
+    for(int tab:{1,2,0}){views->setCurrentIndex(tab);QCoreApplication::processEvents();QCOMPARE(views->mapTo(&window,QPoint()).y(),y);}
+}
+
 void LightingStudioWindowTest::testLayoutEditorDragShapesAndReset()
 {
     const auto fan=Component::makeFan(6,true);LayoutEditor editor({fan});editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
@@ -860,8 +1065,8 @@ void LightingStudioWindowTest::testLayoutEditorDragShapesAndReset()
     QTest::mousePress(view->viewport(),Qt::LeftButton,Qt::NoModifier,from);QTest::mouseMove(view->viewport(),to);QTest::mouseRelease(view->viewport(),Qt::LeftButton,Qt::NoModifier,to);
     QVERIFY(dot->pos()!=QPointF(fan.ledCoordinates[0].first,fan.ledCoordinates[0].second));
     QGraphicsItem* second=nullptr;for(auto* item:view->scene()->items())if(item->data(0).toString()=="LED" && item->data(1).toInt()==1){second=item;break;}QVERIFY(second);
-    dot->setSelected(true);second->setSelected(true);for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="Group selected LEDs")button->click();
-    QCOMPARE(dot->pos(),second->pos());dot->setSelected(false);second->setSelected(false);dot->setPos(dot->pos()+QPointF(10,5));QCOMPARE(dot->pos(),second->pos());
+    const auto siblingPosition=second->pos();dot->setPos(dot->pos()+QPointF(10,5));QCOMPARE(second->pos(),siblingPosition);
+    for(auto* button:editor.findChildren<QPushButton*>())QVERIFY(button->text()!="Group selected LEDs");
     auto* shape=editor.findChild<QComboBox*>("layoutShape");shape->setCurrentText("Rectangle");
     for(auto* button:editor.findChildren<QPushButton*>())if(button->text()=="Apply shape")button->click();
     const QString screenshot=qEnvironmentVariable("LIGHTING_STUDIO_SCREENSHOT");if(!screenshot.isEmpty())editor.grab().save(screenshot+".layout-editor.png");
@@ -885,11 +1090,12 @@ void LightingStudioWindowTest::testEditPresetColorsSurviveSaveAndReopen()
 {
     Settings settings;LightingStudioWindow window(settings,{"JARGB1"});
     auto* effects=window.findChild<QComboBox*>("globalEffectCombo");QVERIFY(effects);
-    effects->setCurrentIndex(effects->findText(QString("Aurora")));
+    effects->setCurrentIndex(effects->findText(QString("Scroll")));
     auto* edit=window.findChild<QPushButton*>("editEffectButton");QVERIFY(edit);
     QTimer::singleShot(0,[&]{
         auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());QVERIFY(dialog);
-        QCOMPARE(dialog->findChild<QLineEdit*>("effectRecipeName")->text(),QString("Aurora"));
+        QCOMPARE(dialog->findChild<QLineEdit*>("effectRecipeName")->text(),QString("Scroll copy"));
+        dialog->findChild<QComboBox*>("effectPalette")->setCurrentText("Aurora");
         QCOMPARE(dialog->findChild<QSpinBox*>("stopR")->value(),38);
         dialog->findChild<QSpinBox*>("stopR")->setValue(231);
         dialog->findChild<QSpinBox*>("stopG")->setValue(19);
@@ -929,6 +1135,11 @@ void LightingStudioWindowTest::testHardwarePickerFiltersAndRejectsOverCapacity()
     HardwarePicker picker("JARGB1",{Component::makeFan(6,true),Component::makeFan(12,false)},5);
     auto* add=picker.findChild<QPushButton*>("confirmAddHardware");QVERIFY(!add->isEnabled());
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("no such product");QVERIFY(!add->isEnabled());
+    auto strip=Component::makeGenericPlaceholder(30);strip.type="Strip";strip.productName=strip.displayName="Test strip";
+    HardwarePicker categorized("JARGB1",{Component::makeFan(6,true),strip},120);
+    auto* category=categorized.findChild<QComboBox*>("hardwareCategory");QVERIFY(category);category->setCurrentText("LED strips");
+    auto* products=categorized.findChild<QListWidget*>("hardwareProducts");QVERIFY(products->item(0)->isHidden());QVERIFY(!products->item(1)->isHidden());
+    categorized.findChild<QLineEdit*>("hardwareSearch")->setText("no such strip");QVERIFY(!categorized.findChild<QPushButton*>("confirmAddHardware")->isEnabled());
     HardwarePicker fits("JARGB2",{Component::makeFan(6,true)},18);
     auto* count=fits.findChild<QSpinBox*>("hardwareQuantity");count->setValue(120);QCOMPARE(count->value(),3);
     fits.findChild<QPushButton*>("confirmAddHardware")->click();QCOMPARE(fits.result(),int(QDialog::Accepted));
@@ -937,7 +1148,7 @@ void LightingStudioWindowTest::testHardwarePickerFiltersAndRejectsOverCapacity()
 
 void LightingStudioWindowTest::testFocusedNavigationAndArtworkResources()
 {
-    for(const auto* kind:{"fan","mouse","keyboard","keyboard-zones","strip","controller"}){QSvgRenderer image(QString(":/studio/devices/%1.svg").arg(kind));QVERIFY2(image.isValid(),kind);}
+    for(const auto* kind:{"fan","mouse","keyboard","keyboard-zones","strip","controller","aio","waterblock","case","cable","heatsink","desk","chair","strip-card","gpu","ram","motherboard"}){QSvgRenderer image(QString(":/studio/devices/%1.svg").arg(kind));QVERIFY2(image.isValid(),kind);}
     Settings settings;LightingStudioWindow window(settings,{"JARGB1"});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
     auto* views=window.findChild<QTabWidget*>("workspaceViews");QCOMPARE(views->count(),3);
     QCOMPARE(views->tabText(0),QString("Layout"));QCOMPARE(views->tabText(1),QString("Effects"));QCOMPARE(views->tabText(2),QString("Hardware"));

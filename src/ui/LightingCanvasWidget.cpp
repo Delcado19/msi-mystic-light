@@ -13,6 +13,9 @@
 #include <QDebug>
 #include <QShowEvent>
 #include <QHideEvent>
+#include <QSvgRenderer>
+#include <algorithm>
+#include <vector>
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -33,7 +36,7 @@ LightingCanvasWidget::LightingCanvasWidget(QWidget* parent)
     : QOpenGLWidget(parent)
 {
     setAccessibleName(QStringLiteral("Spatial lighting preview"));
-    setToolTip(QStringLiteral("Drag to move. Select, then drag the corner to resize proportionally or rotation arrow to rotate. Ctrl+wheel scales the component."));
+    setToolTip(QStringLiteral("Click a component to edit it individually. Alt+drag moves the chain. Select, then drag the corner to resize proportionally or rotation arrow to rotate. Ctrl+wheel scales the component."));
     setCursor(Qt::OpenHandCursor);
 #ifdef Q_OS_WIN
     BOOL animations = TRUE;
@@ -57,7 +60,7 @@ void LightingCanvasWidget::removeChannel(const std::string& channelName)
     // The box being dragged just disappeared out from under the cursor;
     // drop the stale drag state rather than keep moving a box that no
     // longer exists in channels_.
-    if (dragKind_ == DragTarget::Channel && draggedChannel_ == channelName) {
+    if (draggedChannel_ == channelName) {
         dragKind_ = DragTarget::None;
     }
 }
@@ -148,7 +151,9 @@ void LightingCanvasWidget::paintGL()
         painter.drawImage(QRect(0, 0, sw, sh), preview);
         painter.setOpacity(1.0);
     }
+    componentHits_.clear();
     for (const auto& [name, box] : channels_) {
+        if(hidden_.count(name))continue;
         const auto& placement=box.placement;const QRectF r(placement.x,placement.y,placement.width,placement.height);
         const bool selected=name==selectedChannel_;
         QTransform rotation;rotation.translate(r.center().x(),r.center().y());rotation.rotate(placement.rotation);rotation.translate(-r.center().x(),-r.center().y());
@@ -174,8 +179,31 @@ void LightingCanvasWidget::paintGL()
                 const double y=component.type=="KeyboardZones"?r.y():r.y()+(top-bounds.top)*(r.height()-1)/qMax(1,bounds.bottom-bounds.top);
                 const double w=qMax(12.,(right-left)*(r.width()-1)/qMax(1,bounds.right-bounds.left));
                 const double h=component.type=="KeyboardZones"?r.height():qMax(12.,(bottom-top)*(r.height()-1)/qMax(1,bounds.bottom-bounds.top));
-                const QRectF shape(x,y,w,h);
-                drawDeviceArtwork(painter,shape.adjusted(-w*.09,-h*.09,w*.09,h*.09),component);
+                // A one-zone GPU or I/O cover has no spatial LED extent, but its
+                // illustration still needs the full movable device footprint.
+                QRectF shape=component.ledCount==1?r:QRectF(x,y,w,h);
+                if(deviceArtworkKind(component)=="ram")shape.setHeight(r.height());
+                if(deviceArtworkKind(component)=="fan"){const double side=qMax(w,h);shape=QRectF(shape.center()-QPointF(side/2,side/2),QSizeF(side,side));}
+                const int componentIndex=int(&component-geometry->second.data());
+                componentHits_.push_back({name,componentIndex,shape});
+                if(selected && selectedComponent_==componentIndex){
+                    painter.setPen(QPen(QColor("#a8f3de"),1.5));painter.setBrush(Qt::NoBrush);painter.drawRect(shape.adjusted(-4,-4,4,4));
+                    painter.setBrush(QColor("#71e2c5"));painter.drawRect(QRectF(shape.bottomRight()-QPointF(5,5),QSizeF(10,10)));
+                    static QSvgRenderer icon(QStringLiteral(":/studio/rotate.svg"));icon.render(&painter,QRectF(shape.center().x()-10,shape.top()-30,20,20));
+                }
+                if(component.type=="Keyboard") {
+                    // keyboard.svg's own 600x175 aspect ratio doesn't match this
+                    // layout's actual shape, and QSvgRenderer::render(painter,rect)
+                    // fits it into rect preserving that aspect ratio -- letterboxed,
+                    // so the drawn border undershoots the key area on one axis: wide
+                    // gutters on the slack axis, keys poking past the border on the
+                    // constrained one. Draw the deck directly instead, sized to the
+                    // actual key bounds exactly, no aspect lock.
+                    painter.setPen(QPen(QColor("#8a9bb0"),1.4));painter.setBrush(QColor("#141e2b"));
+                    painter.drawRoundedRect(shape.adjusted(-w*.03,-h*.12,w*.03,h*.12),6,6);
+                } else {
+                    drawDeviceArtwork(painter,shape.adjusted(-w*.03,-h*.09,w*.03,h*.09),component);
+                }
                 const auto sample=box.source==CanvasSource::GlobalFollow?globalEffect_:box.ownEffect;
                 for(int led=0;led<component.ledCount;++led) {
                     if(component.ledNames[led].find("Wire slot")==0)continue;
@@ -204,14 +232,13 @@ void LightingCanvasWidget::paintGL()
                 }
             }
         }
-        if(selected){painter.setPen(QPen(QColor("#a8f3de"),2));painter.setBrush(Qt::NoBrush);painter.drawRoundedRect(r.adjusted(-4,-4,4,4),5,5);painter.setBrush(QColor("#71e2c5"));painter.drawRect(QRectF(r.right()-5,r.bottom()-5,10,10));painter.save();
-            painter.translate(r.center().x(),r.top()-20);
-            painter.setPen(QPen(QColor("#e4ecf7"),1.8,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
-            painter.setBrush(QColor("#17222e"));painter.drawEllipse(QPointF(0,0),10,10);
-            painter.setBrush(Qt::NoBrush);painter.drawArc(QRectF(-5,-5,10,10),30*16,285*16);
-            painter.drawPolyline(QPolygonF{QPointF(1,-6),QPointF(5,-5),QPointF(4,-1)});painter.restore();}
+        if(selected && selectedComponent_<0){painter.setPen(QPen(QColor("#a8f3de"),2));painter.setBrush(Qt::NoBrush);painter.drawRoundedRect(r.adjusted(-4,-4,4,4),5,5);painter.setBrush(QColor("#71e2c5"));painter.drawRect(QRectF(r.right()-5,r.bottom()-5,10,10));painter.save();
+            static QSvgRenderer rotateIcon(QStringLiteral(":/studio/rotate.svg"));
+            rotateIcon.render(&painter,QRectF(r.center().x()-10,r.top()-30,20,20));painter.restore();}
         painter.restore();
         painter.save();painter.resetTransform();
+        // Persistent labels on nearby hardware overlap; selection supplies context.
+        if(!selected){painter.restore();continue;}
         const QPoint anchor=sceneToWidget(rotation.map(QPointF(r.center().x(),r.bottom())).toPoint());
         const QRect textRect(anchor.x()-60,anchor.y()+6,120,23);painter.setPen(Qt::NoPen);painter.setBrush(QColor(16,22,30,230));painter.drawRoundedRect(textRect,5,5);
         painter.setPen(selected?QColor("#a8f3de"):QColor("#d5dfeb"));QFont f=font();f.setPointSize(9);painter.setFont(f);
@@ -246,15 +273,44 @@ void LightingCanvasWidget::mousePressEvent(QMouseEvent* event)
         }
     }
 
+    for(auto hit=componentHits_.rbegin();hit!=componentHits_.rend();++hit) {
+        if(!channels_.count(hit->channel) || hidden_.count(hit->channel))continue;
+        // Standalone devices use placement handles; flat RAM LED rows cannot define artwork height.
+        if(geometries_.at(hit->channel).size()==1)continue;
+        const auto& placement=channels_.at(hit->channel).placement;const QRectF frame(placement.x,placement.y,placement.width,placement.height);
+        QTransform rotation;rotation.translate(frame.center().x(),frame.center().y());rotation.rotate(placement.rotation);rotation.translate(-frame.center().x(),-frame.center().y());
+        const auto local=rotation.inverted().map(QPointF(pos));DragTarget kind=DragTarget::None;
+        const bool active=hit->channel==selectedChannel_ && hit->index==selectedComponent_;
+        if(active && QLineF(local,hit->rect.bottomRight()).length()<14)kind=DragTarget::ComponentResize;
+        else if(active && QLineF(local,QPointF(hit->rect.center().x(),hit->rect.top()-20)).length()<14)kind=DragTarget::ComponentRotate;
+        // A standalone device moves through placement; normalizing its LED bounds
+        // would otherwise cancel the visible translation for local effects.
+        else if(!(event->modifiers()&Qt::AltModifier) && geometries_.at(hit->channel).size()>1 && hit->rect.contains(local))kind=DragTarget::ComponentMove;
+        if(kind==DragTarget::None)continue;
+        dragKind_=kind;draggedChannel_=hit->channel;selectedComponent_=hit->index;dragComponents_=geometries_.at(hit->channel);dragStartPlacement_=placement;
+        for(auto& c:dragComponents_)if(c.layoutDefaults.empty())c.layoutDefaults=c.ledCoordinates;
+        const auto bounds=layoutBounds(dragComponents_);
+        const auto toLocal=[&](QPointF p){return QPointF(bounds.left+(p.x()-placement.x)*qMax(1,bounds.right-bounds.left)/(placement.width-1),bounds.top+(p.y()-placement.y)*qMax(1,bounds.bottom-bounds.top)/(placement.height-1));};
+        componentCenter_=toLocal(hit->rect.center());componentGrab_=toLocal(local);setSelectedChannel(hit->channel);emit channelSelected(hit->channel);update();return;
+    }
+    selectedComponent_=-1;
     for (auto it=channels_.rbegin();it!=channels_.rend();++it) {
+        if(hidden_.count(it->first))continue;
         const auto& p=it->second.placement;const QRectF r(p.x,p.y,p.width,p.height);
         QTransform rotation;rotation.translate(r.center().x(),r.center().y());rotation.rotate(p.rotation);rotation.translate(-r.center().x(),-r.center().y());
         const auto local=rotation.inverted().map(QPointF(pos));
         DragTarget kind=DragTarget::None;
-        if(it->first==selectedChannel_ && QLineF(local,r.bottomRight()).length()<10)kind=DragTarget::Resize;
-        else if(it->first==selectedChannel_ && QLineF(local,QPointF(r.center().x(),r.top()-20)).length()<10)kind=DragTarget::Rotate;
+        // A little larger than the drawn handle (10px radius): Apple's hit-target
+        // guidance calls for forgiveness around a small drag target, not a hitbox
+        // that matches the artwork pixel-for-pixel.
+        if(it->first==selectedChannel_ && QLineF(local,r.bottomRight()).length()<14)kind=DragTarget::Resize;
+        else if(it->first==selectedChannel_ && QLineF(local,QPointF(r.center().x(),r.top()-20)).length()<14)kind=DragTarget::Rotate;
         else if(r.contains(local))kind=DragTarget::Channel;
-        if(kind!=DragTarget::None){dragKind_=kind;draggedChannel_=it->first;dragStartPlacement_=p;setSelectedChannel(it->first);emit channelSelected(it->first);dragOffset_=pos-QPoint(qRound(p.x),qRound(p.y));setCursor(Qt::ClosedHandCursor);return;}
+        if(kind!=DragTarget::None){
+            dragKind_=kind;draggedChannel_=it->first;dragStartPlacement_=p;setSelectedChannel(it->first);emit channelSelected(it->first);dragOffset_=pos-QPoint(qRound(p.x),qRound(p.y));setCursor(Qt::ClosedHandCursor);
+            if(kind==DragTarget::Rotate){const QPointF center(p.x+p.width/2,p.y+p.height/2),grab=QPointF(pos)-center;dragStartAngle_=std::atan2(grab.y(),grab.x())*180./3.141592653589793;}
+            return;
+        }
     }
 
     dragKind_ = DragTarget::None;
@@ -264,6 +320,18 @@ void LightingCanvasWidget::mouseMoveEvent(QMouseEvent* event)
 {
     const QPoint pos = widgetToScene(event->position().toPoint());
 
+    if(dragKind_==DragTarget::ComponentMove || dragKind_==DragTarget::ComponentResize || dragKind_==DragTarget::ComponentRotate) {
+        if(!channels_.count(draggedChannel_) || selectedComponent_<0 || selectedComponent_>=int(dragComponents_.size())){dragKind_=DragTarget::None;return;}
+        const auto& placement=dragStartPlacement_;const QRectF frame(placement.x,placement.y,placement.width,placement.height);
+        QTransform rotation;rotation.translate(frame.center().x(),frame.center().y());rotation.rotate(placement.rotation);rotation.translate(-frame.center().x(),-frame.center().y());
+        const auto local=rotation.inverted().map(QPointF(pos));const auto bounds=layoutBounds(dragComponents_);
+        const QPointF point(bounds.left+(local.x()-placement.x)*qMax(1,bounds.right-bounds.left)/(placement.width-1),bounds.top+(local.y()-placement.y)*qMax(1,bounds.bottom-bounds.top)/(placement.height-1));
+        auto changed=dragComponents_;const auto delta=point-componentCenter_,initial=componentGrab_-componentCenter_;
+        const double factor=qBound(.1,std::hypot(delta.x(),delta.y())/qMax(1.,std::hypot(initial.x(),initial.y())),10.);
+        const double angle=std::atan2(delta.y(),delta.x())-std::atan2(initial.y(),initial.x());
+        for(auto& coord:changed[selectedComponent_].ledCoordinates){QPointF p(coord.first,coord.second);if(dragKind_==DragTarget::ComponentMove)p+=point-componentGrab_;else {p-=componentCenter_;if(dragKind_==DragTarget::ComponentResize)p*=factor;else p=QPointF(p.x()*std::cos(angle)-p.y()*std::sin(angle),p.x()*std::sin(angle)+p.y()*std::cos(angle));p+=componentCenter_;}coord={qBound(-100000,qRound(p.x()),100000),qBound(-100000,qRound(p.y()),100000)};}
+        geometries_[draggedChannel_]=changed;emit componentGeometryChanged(draggedChannel_,changed);update();return;
+    }
     if (dragKind_ == DragTarget::Channel) {
         auto it = channels_.find(draggedChannel_);
         if (it == channels_.end()) { dragKind_ = DragTarget::None; return; }
@@ -284,7 +352,13 @@ void LightingCanvasWidget::mouseMoveEvent(QMouseEvent* event)
     } else if(dragKind_==DragTarget::Resize || dragKind_==DragTarget::Rotate) {
         auto it=channels_.find(draggedChannel_);if(it==channels_.end())return;
         auto p=dragStartPlacement_;const QPointF center(p.x+p.width/2,p.y+p.height/2),delta=QPointF(pos)-center;
-        if(dragKind_==DragTarget::Rotate)p.rotation=std::atan2(delta.y(),delta.x())*180./3.141592653589793+90.;
+        if(dragKind_==DragTarget::Rotate) {
+            // Relative to the angle at grab, not the pointer's absolute angle from
+            // center -- otherwise any grab that isn't pixel-perfect on the handle
+            // snaps the box to the pointer's angle instead of tracking the drag.
+            const double currentAngle=std::atan2(delta.y(),delta.x())*180./3.141592653589793;
+            p.rotation=std::remainder(dragStartPlacement_.rotation+(currentAngle-dragStartAngle_),360.);
+        }
         else {
             const double angle=-p.rotation*3.141592653589793/180.;
             const double dx=delta.x()*std::cos(angle)-delta.y()*std::sin(angle),dy=delta.x()*std::sin(angle)+delta.y()*std::cos(angle);

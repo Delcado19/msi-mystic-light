@@ -39,8 +39,7 @@ const std::map<std::string, ChannelInfo>& channelTable()
         // three and still showed nothing. Keep the catalog-confirmed
         // native zone 4, but no supported per-LED area; see
         // docs/MB_800_HID_PROTOCOL.md.
-        // Do not advertise a known non-working mode: the UI clamps saved
-        // Canvas assignments back to Native for this board.
+        // Canvas uses a throttled whole-zone 0x50 fallback, not per-LED 0x51.
         {"IOShield",    {4, std::nullopt, 11}},
         {"JRGB1",       {9, std::nullopt,           1}},
     };
@@ -74,7 +73,9 @@ std::vector<Channel> MsiMotherboardDriver::createDefaultChannels()
         // the HID write itself succeeds. Every peripheral driver's createDefaultChannel()
         // already does this; this was the one place it was missed. Native mode (0x50)
         // never used colors(), which is why it kept "working" and hid the gap.
-        channels.back().addComponent(Component::makeGenericPlaceholder(ledLimit));
+        auto component=Component::makeGenericPlaceholder(name=="IOShield"?1:ledLimit);
+        if(name=="IOShield"){component.type="Motherboard";component.brand="MSI";component.productName=component.displayName="MPG B850 Edge TI / I/O shield";component.ledNames[0]="I/O shield / shared color zone";}
+        channels.back().addComponent(component);
     }
     return channels;
 }
@@ -85,11 +86,10 @@ bool MsiMotherboardDriver::supportsMode(const std::string& channelName, ChannelM
     if (it == channelTable().end()) {
         return false;
     }
-    // Canvas mode needs a working Gen1Adv area; IOShield and JRGB1 have
-    // none supported on this board, so they are native-mode only. Every
-    // known channel supports Native.
+    // IOShield can follow Canvas as one color zone through report 0x50.
+    // JRGB1 remains Native-only; addressable headers use report 0x51.
     if (mode == ChannelMode::Canvas) {
-        return it->second.gen1AdvArea.has_value();
+        return channelName=="IOShield" || it->second.gen1AdvArea.has_value();
     }
     return true;
 }
@@ -101,6 +101,7 @@ bool MsiMotherboardDriver::setChannelMode(const std::string& channelName, Channe
     }
     auto it = channelTable().find(channelName); // known to exist: supportsMode() already confirmed it
     channelModes_[channelName] = mode;
+    if(channelName=="IOShield")shieldSent_=false;
     // Live-hardware finding (2026-10-20): report 0x51 ("Gen1_Adv", per-LED
     // color data) is only honored by the firmware for a zone whose 0x50
     // record has lightingMode=Advanced (9) - the report's own name is the
@@ -136,7 +137,7 @@ bool MsiMotherboardDriver::setChannelMode(const std::string& channelName, Channe
     // differs from whatever was last applied under that same channel name --
     // not unconditionally once per switch. Still no cache needed here
     // either way, since every call that does arrive is a real mode change.
-    if (mode == ChannelMode::Canvas && hid_.isOpen()) {
+    if (mode == ChannelMode::Canvas && it->second.gen1AdvArea && hid_.isOpen()) {
         MsiZoneSettings& zone = zoneState_[it->second.zoneIndex];
         zone.lightingMode = MsiLightingMode::Advanced;
         const std::array<uint8_t, 290> report = BuildReport0x50(zoneState_);
@@ -197,6 +198,19 @@ bool MsiMotherboardDriver::pushCanvasColors(const std::string& channelName, cons
     }
     if (channelMode(channelName) != ChannelMode::Canvas) {
         return false;
+    }
+    if(channelName=="IOShield") {
+        if(colors.empty() || colors.size()>11)return false;
+        unsigned r=0,g=0,b=0;for(const auto& color:colors){r+=color.r;g+=color.g;b+=color.b;}
+        const MsiColor color{uint8_t(r/colors.size()),uint8_t(g/colors.size()),uint8_t(b/colors.size())};
+        const auto now=std::chrono::steady_clock::now();
+        if(shieldSent_ && ((color.r==shieldColor_.r && color.g==shieldColor_.g && color.b==shieldColor_.b) || now-shieldLastSend_<std::chrono::milliseconds(100)))return true;
+        // IO COVER has no verified 0x51 area: stream its single color via volatile
+        // 0x50 Steady updates, preserving every ARGB zone's Advanced mode.
+        auto& zone=zoneState_[it->second.zoneIndex];zone.lightingMode=MsiLightingMode::Steady;zone.color1=color;zone.colorCount=1;zone.brightness=5;zone.colorSelectionUser=true;
+        const auto report=BuildReport0x50(zoneState_,false);
+        if(!hid_.sendFeatureReport(report.data(),report.size()))return false;
+        shieldSent_=true;shieldLastSend_=now;shieldColor_=color;return true;
     }
     // Unreachable in practice: setChannelMode already refuses Canvas for a
     // channel with no Gen1Adv area. Guarded anyway so this method can never

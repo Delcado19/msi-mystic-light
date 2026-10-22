@@ -168,3 +168,182 @@ Emil review: direct response, fewer competing actions, one consistent illustrati
 system. Motion review removed unused selection-fade state; dragging and selection
 remain immediate. The functional color field retains pause/Windows-motion support.
 A complete screen-reader and alternative-theme audit remains outside this change.
+
+## Layered effects and readable hardware (2026-10-22)
+
+The component and live LED views use compact, clipped labels with full product
+names retained in tooltips and settings. The component editor fits after show,
+when its viewport has the final size. Hardware controls use Add hardware; the
+picker offers category filtering and original category-specific SVG illustrations.
+The current local catalog contains 200 valid installed SignalRGB metadata profiles
+and ten explicit generic templates. These describe ARGB topology, not additional
+USB drivers or proof of support for every vendor model.
+
+Custom effects support a base and up to eight flat overlays. Drag a pattern onto
+the editor preview to append an overlay; double-click its stack entry to edit,
+and drag entries to reorder. Screen, Add and Normal blending and opacity are
+applied in stack order. Color source produces a soft moving light field; two
+sources mix continuously where they overlap. Scroll supports eight direction
+presets and an arbitrary clockwise angle (0 right, 90 down), palette colors,
+cycle duration and size. Each layer can be clipped to a rectangular region in
+the 1100 by 700 scene. Existing recipes remain valid without layers. Saving
+preserves order, colors, stops, timing, direction, mixing and zone bounds.
+
+Ctrl-click a component in Layout to select it within its wire chain. Drag its
+body to move it, its corner to scale proportionally or its rotation arrow to
+rotate it. The same geometry drives preview and hardware; sibling LED positions
+and wire order are preserved by the shared editComponentGeometry path. The
+separate component editor remains available. Software LED grouping is removed;
+physical paired LEDs retain their actual electrical address relationship.
+
+The heading and help area reserve consistent height between tabs. The effect
+editor scrolls its controls while keeping Save and Cancel visible.
+
+## Effect semantics and individual rotation correction (2026-10-22)
+
+Scroll is the sole directional-gradient entry: Right, Down, Left, Up plus a
+free angle. Wave, Vertical and Diagonal are retained as compatibility names
+for old recipes and normalized when edited. Aurora/Ocean/Ember/Pastel/Polar/Sunset
+are palettes in the editor rather than duplicate effects. Saved legacy preset
+identifiers remain playable. Breathing modulates brightness without moving
+palette stops, both on scene coordinates and LED paths. Comet has a trailing
+head; Marquee has alternating illuminated segments; neither is edited as Sweep.
+Angular rainbow and concentric rings remain separate spatial effects.
+
+Click a component directly to select it within a chain, then use its own
+rotation arrow or scale handle. Alt-drag moves the entire chain. Only the active
+component handles are shown while it is selected. Baked LED coordinates and
+unchanged wire addresses persist; SVG orientation follows the reset geometry
+so rotation remains visible even on a circular LED arrangement. Regression
+tests drag the individual rotation handle and verify the sibling is unchanged.
+
+## Selected-layer inspector and whole-canvas breathing (2026-10-22)
+
+The editor uses a fixed layer list including the base, with one inspector for
+the selected layer and a preview of the committed composition. Changing the
+pattern, colors or parameters updates that layer only. Add/drop creates and
+selects an overlay; switching layers commits the previous layer before loading
+controls with blocked signals. Layer mixing and opacity are visible directly.
+Base cannot be removed or reordered above overlays. Save/Cancel remain fixed.
+
+Breathing is a uniform temporal crossfade through the chosen colors, with no
+spatial gradient or implicit black interval. Add black explicitly to the palette
+for a fade to darkness. The built-in single-color preset uses color and black.
+Scroll direction and angle never change a pattern. Circular patterns instead
+show inward/outward or clockwise/counterclockwise controls; angular and spiral
+patterns expose palette fan angle. Those attributes persist per layer.
+Fan illustrations and their canvas selection frames have square footprints.
+
+Wheel input over an unfocused inspector control scrolls the inspector instead
+of changing the effect or numeric value. Reordering commits before the model
+move and blocks selection reload until the order is settled, preserving each
+layer's parameters. Interaction tests cover selection, independent pattern edits,
+combined red/blue output, wheel protection and moving a zoned layer in the stack.
+
+## Pixel-tested combined and selected previews (2026-10-22)
+
+The editor shows the combined output and selected-layer solo preview separately.
+Selection changes the inspector and solo preview, while all checked layers remain
+active in the combined output. Checkboxes independently enable layers; this state
+persists and affects the runtime compositor. New layers use distinct seed colors
+and a color-to-black palette, so Scroll/Radial/Spiral are visible patterns rather
+than constant blue. Color source uses its first color as before. Existing palettes
+are retained. A widget-pixel regression switches layers, checks both previews,
+toggles an overlay, saves/reloads and checks the runtime factory's combined output.
+
+## Circular centers, numbered previews and effect labels (2026-10-22)
+
+The solo preview identifies the selected layer number (base is Layer 0).
+Drag its crosshair or click a new point to reposition a rings/color-wheel/spiral
+center in 1100x700 scene coordinates. Centers persist independently per layer
+and feed the same runtime sampling as the preview. Angle, fan angle, pattern
+spacing and opacity have synchronized sliders and exact numeric fields.
+
+Persisted IDs remain compatible. Visible names now describe behavior:
+Radial/SwirlCircles = Concentric rings, Angular/RadialRainbow = Color wheel,
+Marquee = Chase, StaticColor = Solid color, Breathing = Breathing / color crossfade.
+Scroll, Spiral, Plasma, Color source and Static gradient retain their names.
+Custom recipe names remain user-controlled, even when a name differs from its
+selected pattern. Tests cover center translation, pointer dragging, slider
+synchronization, preview numbering and settings roundtrips.
+
+The profile audit found a saved custom recipe named Spiral containing Scroll.
+Custom recipes whose names conflict with a different built-in pattern show the
+actual pattern as a suffix, e.g. Spiral / Scroll. Only explicit custom IDs select
+such recipes; they no longer replace a built-in effect with the same name.
+
+## Read-only bases and equal-aspect previews (2026-10-22)
+
+The primary effect selector contains built-in single-pattern bases only. Saved
+user recipes and layered compositions have a separate Your compositions selector.
+Built-ins remain immutable: Edit proposes a unique copy name, the dialog rejects
+the original/reserved name, and createCustomEffect rejects all built-in IDs.
+Existing recipes are kept; users can rename an old conflicting recipe when editing.
+
+Both editor previews have equal layout weight and render a fitted 1100:700 scene,
+matching the main layout canvas. The center crosshair uses that viewport for
+pointer conversion; letterboxing never stretches circles or changes coordinates.
+Layer name is editable in the inspector and survives selection changes and saving.
+
+Selecting a base initializes an otherwise black global color to white, rather
+than showing a blank default effect. Explicit custom palettes are retained.
+A custom comet starts with a visible tail/head phase rather than zero brightness
+at the first address. Tests inspect all base effects at time zero, preview aspect,
+copy protection, reserved IDs, renamed layers and saved-composition selection.
+
+## Compact controls and direct zone editing (2026-10-22)
+
+The shared StudioControls stylesheet defines visible 26x15 logical-pixel stepper
+buttons whose full area is clickable, with SVG arrows and hover feedback. It
+also reduces field padding, list-row padding and inspector gaps consistently
+across the main window and editor. Tests click opposing corners of both integer
+and decimal up/down buttons rather than testing only their arrow centers.
+
+Color source keeps angle and replaces direction presets with Sine, Cosine,
+Ping-pong and Static movement. The selected movement persists per layer. Sine
+is the legacy default. Draw zone arms a one-shot gesture on the selected-layer
+preview: drag a rectangle in either direction, see the clipping update during
+the drag, and retain exact numeric bounds afterward. The rectangle is clipped
+to the scene and does not change any other layer's zone. Selection changes
+cancel drawing mode. Frequent controls and pointer gestures respond directly,
+without decorative animation, following the Emil/Apple interaction review.
+
+The visual review also widens numeric readouts for unit suffixes, wraps long
+pattern names, refreshes the solo caption when the selected pattern changes,
+and isolates palette display/insertion from spatial masks and layer blending.
+A regression checks that adding a palette stop on a zoned effect interpolates
+the palette rather than inserting black from outside the mask.
+
+### Canvas drag regression
+
+Standalone devices move their canvas placement without rewriting LED coordinates. Component edits preserve sibling scene positions for every effect source, including independent effects and native mode. Regression coverage checks plain dragging with both independent and global sources.
+
+### Gaming visual hierarchy and action sizing
+
+Actions use content-sized widths with a minimum 32 logical pixel height. Color swatches remain expandable. Cyan active accents, graphite surfaces and restrained corner radii separate controls from the lighting field. Canvas labels appear only for the selected device to avoid overlapping nearby hardware. The effect badge uses public effect names.
+
+Effect Studio provides a shared pause for combined and solo previews and inherits the canvas pause preference. Hidden previews stop their timers; preview pause never changes hardware timing. Reset device size is explicit and preserves saved dimensions until invoked. Keyboard and mouse footprints use the existing default dimensions; other chains retain their aspect ratio within 180 scene units.
+
+Validation covers action width/height, shared preview pause, device size reset and existing canvas drag/rotation regressions. Direct editing remains immediate without decorative motion.
+
+### Layer identity and layout scroll bounds
+
+Solo previews use the saved layer name consistently after deletion, reordering and renaming. New layers choose an unused default name. Component layout scene bounds follow moved and scaled items so horizontal and vertical scrollbars can reach them. Horizontal wheel gestures retain native scrolling; vertical wheel zoom remains proportional. Regression coverage checks deleting a preceding layer, live renaming and reaching an enlarged component moved beyond the original scene.
+
+### Maximized layout, grid and installed hardware
+
+Component layout opens maximized with optional adjustable scene-space snapping. Concrete invoice-model templates and a RAM category now supplement installed SignalRGB metadata. Unverified pump/case counts require explicit entry. GPU and RAM cannot be attached to an ARGB header. See [installed hardware evidence and limits](INSTALLED_LIGHTING_HARDWARE.md). I/O cover follows Canvas through one volatile color zone; the exact Gigabyte AERO controller has a signature-gated NVAPI backend.
+
+### Device eyes, complete single-zone artwork and RAM output
+
+Device rows now provide an eye/eye-off toggle. Profile persistence records layout visibility separately from output settings; visibility changes do not re-arm hardware. Full placement rectangles represent single-zone GPUs and I/O covers so they remain visible and draggable. The two physically identified XPG Lancer Blade 24 GB modules each report eight light-bar addresses and have separate Canvas placements. A bounded protocol-v0 SDK adapter talks only to the isolated RAM helper; malformed, truncated or nonmatching descriptors are rejected. Helper configuration disables every other known detector and uses localhost only.
+
+Device rows reserve 38 logical pixels and use 32-pixel eye targets without inherited tool-button padding. The list draws selection only; the embedded label draws each device name once. Dedicated GPU artwork shows a graphics card rather than the generic heatsink. A geometry regression asserts that the eye stays inside its item rectangle.
+
+Effect-zone coordinates use compact 110-pixel fields with adjacent labels and trailing flexible space, keeping the label/value association clear in wide windows.
+
+Enabling the rectangular layer restriction immediately arms mouse drawing in the selected-layer preview. Draw zone arms it again for replacing the rectangle; reverse-direction drags are supported.
+
+Standalone device handles edit the placement rectangle, including flat RAM light bars. Component geometry handles are reserved for multi-component chains, preventing zero-height LED bounds from collapsing or inflating the saved device footprint.
+
+Saving a standalone device LED arrangement preserves its canvas position and artwork dimensions. Only multi-component chains recompute their outer footprint; flat-to-spatial and spatial-to-flat RAM edits are covered by a regression test.
