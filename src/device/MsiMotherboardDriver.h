@@ -6,6 +6,7 @@
 // lives in MsiMotherboardDriver.cpp); see docs/MB_800_HID_PROTOCOL.md for the
 // pinned topology this mapping is taken from.
 #pragma once
+#include <chrono>
 
 #include <array>
 #include <cstdint>
@@ -27,17 +28,17 @@ public:
     // docs/MB_800_HID_PROTOCOL.md: "JARGB1"/"JARGB2"/"JARGB3" (<=120 LEDs
     // each, zone indices 0/1/2, Gen1Adv areas JARGB1/JARGB2/JARGB3),
     // "EZConnector" (<=120 LEDs, zone index 3, Gen1Adv area JAF),
-    // "IOShield" (11 LEDs, zone index 4, native-mode only; 0x51 ineffective),
+    // "IOShield" (one shared color zone, index 4; Canvas uses volatile 0x50),
     // "JRGB1" (1 LED, zone index 9, native-mode only - not addressable
-    // per-LED, so Canvas mode is unsupported for these two channels and
+    // per-LED. JRGB1 remains Native-only; IOShield has a whole-zone Canvas fallback, and
     // setChannelMode("JRGB1", Canvas) returns false).
     static std::vector<Channel> createDefaultChannels();
 
     // Returns false (no-op) for an unknown channel name, or for a channel
-    // that has no Gen1Adv area ("JRGB1" and "IOShield") when mode is
+    // that has no supported Canvas path ("JRGB1") when mode is
     // Canvas: that channel isn't per-LED addressable.
     //
-    // Entering Canvas mode also sends one 0x50 report arming that zone's
+    // Entering an addressable header's Canvas mode sends one 0x50 report arming its
     // record to lightingMode=Advanced: live hardware testing (2026-10-20)
     // found the firmware only displays 0x51 per-LED data for a zone whose
     // 0x50 record is in Advanced mode (see MsiMotherboardDriver.cpp for the
@@ -47,7 +48,7 @@ public:
     ChannelMode channelMode(const std::string& channelName) const override;
 
     // Capability query (Task 23): false for an unknown channel; for Canvas,
-    // true only if the channel has a Gen1Adv area (every channel but
+    // true if the channel has a Gen1Adv area or the IOShield fallback (except
     // JRGB1); Native is always true for a known channel -- the exact same
     // rule setChannelMode's own early-return already encodes, read without
     // mutating anything.
@@ -60,7 +61,8 @@ public:
     // != Native.
     bool setNativeMode(const std::string& channelName, const NativeModeSettings& settings) override;
 
-    // Canvas mode only. Sends report 0x51 for this channel's Gen1Adv area.
+    // Canvas mode only. Headers use 0x51; IOShield streams one averaged color
+    // via volatile 0x50 at <=10 Hz, preserving the other zone states.
     // Returns false without sending if !hid.isOpen(), channelName is
     // unknown, channelMode(channelName) != Canvas, or colors.size()
     // exceeds this channel's LED limit (the last condition is a deliberate
@@ -73,4 +75,7 @@ private:
     IHidDevice& hid_;
     std::array<MsiZoneSettings, 18> zoneState_{}; // last-sent 0x50 state for ALL zones
     std::map<std::string, ChannelMode> channelModes_;
+    std::chrono::steady_clock::time_point shieldLastSend_{};
+    bool shieldSent_=false;
+    MsiColor shieldColor_{};
 };

@@ -95,6 +95,7 @@ public:
 signals:
     // Temporary hardware-only override; index -1 restores the saved assignment.
     void customEffectsChanged();
+    void layoutVisibilityChanged();
     void regionIdentificationRequested(const std::string& name, int index);
     // Fired whenever any row's mode/source/effect/placement/staticColor/
     // native lightingMode/native color1 changes (Task 23 added the last
@@ -209,6 +210,7 @@ private:
     QPushButton* renameProfileButton_ = nullptr;
     QPushButton* deleteProfileButton_ = nullptr;
     QComboBox* globalEffectCombo_ = nullptr;
+    QComboBox* customEffectCombo_ = nullptr;
     QPushButton* globalColorButton_ = nullptr;
     std::map<std::string, ChannelRow> rows_;
     QListWidget* deviceList_ = nullptr;

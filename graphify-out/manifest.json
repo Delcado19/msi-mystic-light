@@ -1,0 +1,842 @@
+{
+  "src/canvas/Canvas.cpp": {
+    "mtime": 1792577251.114079,
+    "seen": 1792577702.647494,
+    "ast_hash": "d060aea73e8cff25b0b0abad5ef51463",
+    "semantic_hash": ""
+  },
+  "src/canvas/Canvas.h": {
+    "mtime": 1792573838.7055016,
+    "seen": 1792574572.9711554,
+    "ast_hash": "ed5785102a302b6833234d8039e42696",
+    "semantic_hash": ""
+  },
+  "src/device/Channel.cpp": {
+    "mtime": 1792573018.092617,
+    "seen": 1792574572.9711587,
+    "ast_hash": "bf9028ed8ecfbe3564548c6d54b159e7",
+    "semantic_hash": ""
+  },
+  "src/device/Channel.h": {
+    "mtime": 1792574692.6286876,
+    "seen": 1792574777.704154,
+    "ast_hash": "12f7dff82bd8742d5a542dfb99d7fa1a",
+    "semantic_hash": ""
+  },
+  "src/device/Component.cpp": {
+    "mtime": 1792573018.091618,
+    "seen": 1792574572.9711623,
+    "ast_hash": "1e0b0d8c88a0178eb151c60828f1ee0e",
+    "semantic_hash": ""
+  },
+  "src/device/Component.h": {
+    "mtime": 1792576495.5528777,
+    "seen": 1792576640.102626,
+    "ast_hash": "e8b38ea413e5bf899217564ecadbee95",
+    "semantic_hash": ""
+  },
+  "src/device/DeviceTypes.h": {
+    "mtime": 1792430309.8775218,
+    "seen": 1792551017.7568438,
+    "ast_hash": "303ec11e7f4fa7f404698970b81ef6e8",
+    "semantic_hash": ""
+  },
+  "src/device/IDriver.h": {
+    "mtime": 1792520544.8677292,
+    "seen": 1792551017.756844,
+    "ast_hash": "15d99cd68d98345e471f095b164468af",
+    "semantic_hash": ""
+  },
+  "src/device/MsiMotherboardDriver.cpp": {
+    "mtime": 1792684922.6871445,
+    "seen": 1792685577.3874705,
+    "ast_hash": "c4088ae6f971ee8b4dc6761c30fb589e",
+    "semantic_hash": ""
+  },
+  "src/device/MsiMotherboardDriver.h": {
+    "mtime": 1792685459.1094594,
+    "seen": 1792685577.3874717,
+    "ast_hash": "1f464b9527e2d7a2ea954325ad0d050c",
+    "semantic_hash": ""
+  },
+  "src/device/RazerBasiliskDriver.cpp": {
+    "mtime": 1792565236.2502434,
+    "seen": 1792566834.95425,
+    "ast_hash": "85c9486b8ce8fb4054522e7a4e41287e",
+    "semantic_hash": ""
+  },
+  "src/device/RazerBasiliskDriver.h": {
+    "mtime": 1792520604.7636273,
+    "seen": 1792551017.7568462,
+    "ast_hash": "e2aa447da91a2f5011f53651fbbbfc3b",
+    "semantic_hash": ""
+  },
+  "src/device/RoccatKoneDriver.cpp": {
+    "mtime": 1792565157.2934244,
+    "seen": 1792566834.9542518,
+    "ast_hash": "247b118ee213920a1c7429e186e78ac5",
+    "semantic_hash": ""
+  },
+  "src/device/RoccatKoneDriver.h": {
+    "mtime": 1792520585.227625,
+    "seen": 1792551017.7568471,
+    "ast_hash": "ccda2da62650298c961f712baade5976",
+    "semantic_hash": ""
+  },
+  "src/device/RoccatVulcanDriver.cpp": {
+    "mtime": 1792573722.8101313,
+    "seen": 1792574572.9711702,
+    "ast_hash": "e27694c8fb76fed3a330e17adb3e36d3",
+    "semantic_hash": ""
+  },
+  "src/device/RoccatVulcanDriver.h": {
+    "mtime": 1792550688.0100644,
+    "seen": 1792551017.756848,
+    "ast_hash": "d4a46465b3600b7af0bdfaadc97104d9",
+    "semantic_hash": ""
+  },
+  "src/device/SteelSeriesApex3Driver.cpp": {
+    "mtime": 1792565236.2502434,
+    "seen": 1792566834.954255,
+    "ast_hash": "b580530ed92c42b7446de0d324405ba5",
+    "semantic_hash": ""
+  },
+  "src/device/SteelSeriesApex3Driver.h": {
+    "mtime": 1792520614.7899685,
+    "seen": 1792551017.7568488,
+    "ast_hash": "80b1b3a40b536d6cdfc7b3021cde5978",
+    "semantic_hash": ""
+  },
+  "src/effects/BreathingEffect.cpp": {
+    "mtime": 1792433691.0123308,
+    "seen": 1792551017.7568493,
+    "ast_hash": "45ece1af3768498229de340817bf57c5",
+    "semantic_hash": ""
+  },
+  "src/effects/BreathingEffect.h": {
+    "mtime": 1792433690.7648134,
+    "seen": 1792551017.7568498,
+    "ast_hash": "bace81a5b7bdde74cba7b153b58c5eda",
+    "semantic_hash": ""
+  },
+  "src/effects/CometEffect.cpp": {
+    "mtime": 1792434345.196593,
+    "seen": 1792551017.7568502,
+    "ast_hash": "1b510ee37f9d6bad0f6b5be4e71347d6",
+    "semantic_hash": ""
+  },
+  "src/effects/CometEffect.h": {
+    "mtime": 1792434278.432552,
+    "seen": 1792551017.7568507,
+    "ast_hash": "d45dfffd109ee1af36d2e0681e4d78db",
+    "semantic_hash": ""
+  },
+  "src/effects/HsvToRgb.h": {
+    "mtime": 1792565057.3755162,
+    "seen": 1792566834.954262,
+    "ast_hash": "0dfe4dbbb89b8a466cb683d4ef79fb4d",
+    "semantic_hash": ""
+  },
+  "src/effects/IEffect.h": {
+    "mtime": 1792575799.0649114,
+    "seen": 1792576640.102642,
+    "ast_hash": "cdadbee685bc246a3a36d1d74a3fce44",
+    "semantic_hash": ""
+  },
+  "src/effects/IPositionableEffect.h": {
+    "mtime": 1792433078.347596,
+    "seen": 1792551017.7568524,
+    "ast_hash": "c976ff7ee24851e74afbcf7cf49ab8c8",
+    "semantic_hash": ""
+  },
+  "src/effects/MarqueeEffect.cpp": {
+    "mtime": 1792434345.4901717,
+    "seen": 1792551017.756853,
+    "ast_hash": "9f6a27e88f3341c048c8950afa56cc02",
+    "semantic_hash": ""
+  },
+  "src/effects/MarqueeEffect.h": {
+    "mtime": 1792434278.7110045,
+    "seen": 1792551017.7568536,
+    "ast_hash": "3e0442a17b81a51ac6b7762fbc0c67d3",
+    "semantic_hash": ""
+  },
+  "src/effects/RadialRainbowEffect.cpp": {
+    "mtime": 1792565807.0455759,
+    "seen": 1792566834.9542654,
+    "ast_hash": "ee4b64f2e9b955b041bd370549e483ca",
+    "semantic_hash": ""
+  },
+  "src/effects/RadialRainbowEffect.h": {
+    "mtime": 1792433296.934447,
+    "seen": 1792551017.7568543,
+    "ast_hash": "bea0387d688d3f3aa7b31d99c5a1b1a4",
+    "semantic_hash": ""
+  },
+  "src/effects/RainbowWaveEffect.cpp": {
+    "mtime": 1792565057.3755162,
+    "seen": 1792566834.9542665,
+    "ast_hash": "a692010e0cf30943059bab1367467335",
+    "semantic_hash": ""
+  },
+  "src/effects/RainbowWaveEffect.h": {
+    "mtime": 1792565057.3755162,
+    "seen": 1792566834.954267,
+    "ast_hash": "46b48ffe3a417c4f2442db6d1845506e",
+    "semantic_hash": ""
+  },
+  "src/effects/SpiralEffect.cpp": {
+    "mtime": 1792565807.0455759,
+    "seen": 1792566834.9542677,
+    "ast_hash": "4c9651a9ed55951bbde899c70385c4b2",
+    "semantic_hash": ""
+  },
+  "src/effects/SpiralEffect.h": {
+    "mtime": 1792571503.524002,
+    "seen": 1792571782.130228,
+    "ast_hash": "d3a1bf0c15dfde4d78193550b6dfc540",
+    "semantic_hash": ""
+  },
+  "src/effects/StaticColorEffect.cpp": {
+    "mtime": 1792430044.0663884,
+    "seen": 1792551017.7568567,
+    "ast_hash": "b367fc1a06812e88d0e4d4bc221191d4",
+    "semantic_hash": ""
+  },
+  "src/effects/StaticColorEffect.h": {
+    "mtime": 1792430044.0663884,
+    "seen": 1792551017.7568572,
+    "ast_hash": "8a5e8eab08e7c5891e0095223e7ff373",
+    "semantic_hash": ""
+  },
+  "src/effects/SwirlCirclesEffect.cpp": {
+    "mtime": 1792570672.9459512,
+    "seen": 1792571183.8323057,
+    "ast_hash": "bd55b86749dd80659398b5e75ec7b2ae",
+    "semantic_hash": ""
+  },
+  "src/effects/SwirlCirclesEffect.h": {
+    "mtime": 1792571503.524002,
+    "seen": 1792571782.1302304,
+    "ast_hash": "b3edea77b0fea4972ca709fcbd0184e2",
+    "semantic_hash": ""
+  },
+  "src/hid/HidApiDevice.cpp": {
+    "mtime": 1792571403.1805623,
+    "seen": 1792571782.130232,
+    "ast_hash": "7d12ef6c8b03db034bd392afe82ce616",
+    "semantic_hash": ""
+  },
+  "src/hid/HidApiDevice.h": {
+    "mtime": 1792515805.1384478,
+    "seen": 1792551017.7568586,
+    "ast_hash": "352c1344d28aa4b0017ed1f3d379383a",
+    "semantic_hash": ""
+  },
+  "src/hid/IHidDevice.h": {
+    "mtime": 1792495912.0288918,
+    "seen": 1792551017.756859,
+    "ast_hash": "8b21fd2aed6b1b8d63c9160b9c56fc49",
+    "semantic_hash": ""
+  },
+  "src/main.cpp": {
+    "mtime": 1792687252.2595274,
+    "seen": 1792688122.5227592,
+    "ast_hash": "5a13cb46284a39d78cef7aabd86c69c1",
+    "semantic_hash": ""
+  },
+  "src/platform/win/AutostartWin.cpp": {
+    "mtime": 1792430044.0699153,
+    "seen": 1792551017.7568605,
+    "ast_hash": "8158470dcea7efdab252b56d49bc3ffd",
+    "semantic_hash": ""
+  },
+  "src/platform/win/AutostartWin.h": {
+    "mtime": 1792430044.0699153,
+    "seen": 1792551017.756861,
+    "ast_hash": "eaeb44da82f5a45cc89d8c1feebe8a21",
+    "semantic_hash": ""
+  },
+  "src/platform/win/IAutostart.h": {
+    "mtime": 1792430044.0699153,
+    "seen": 1792551017.756862,
+    "ast_hash": "f1be2b11f564f5758bcd5ec501bed5ec",
+    "semantic_hash": ""
+  },
+  "src/protocol/MsiProtocol.cpp": {
+    "mtime": 1792430044.07127,
+    "seen": 1792551017.7568624,
+    "ast_hash": "39e1878bf59f776f5a6d0050bb742eea",
+    "semantic_hash": ""
+  },
+  "src/protocol/MsiProtocol.h": {
+    "mtime": 1792430044.0722735,
+    "seen": 1792551017.7568629,
+    "ast_hash": "36e7c51acc02cb00b7a68f068de1a0c0",
+    "semantic_hash": ""
+  },
+  "src/protocol/RazerBasiliskProtocol.cpp": {
+    "mtime": 1792513185.1411262,
+    "seen": 1792551017.7568636,
+    "ast_hash": "aff707689213a29353cc453f578965ff",
+    "semantic_hash": ""
+  },
+  "src/protocol/RazerBasiliskProtocol.h": {
+    "mtime": 1792513180.5888402,
+    "seen": 1792551017.756864,
+    "ast_hash": "c49986fa7edeccc558f14a6791f5ad5c",
+    "semantic_hash": ""
+  },
+  "src/protocol/RoccatKoneProtocol.cpp": {
+    "mtime": 1792513144.7150583,
+    "seen": 1792551017.7568648,
+    "ast_hash": "4a0affcf1b133f270aed5bd536b4aeae",
+    "semantic_hash": ""
+  },
+  "src/protocol/RoccatKoneProtocol.h": {
+    "mtime": 1792513140.2491517,
+    "seen": 1792551017.7568653,
+    "ast_hash": "d86bf6c7c9039ccab757694b08d83199",
+    "semantic_hash": ""
+  },
+  "src/protocol/RoccatVulcanProtocol.cpp": {
+    "mtime": 1792650185.3569877,
+    "seen": 1792650216.898554,
+    "ast_hash": "71598620b47dd509e546edce6a37d0d6",
+    "semantic_hash": ""
+  },
+  "src/protocol/RoccatVulcanProtocol.h": {
+    "mtime": 1792513171.270308,
+    "seen": 1792551017.756866,
+    "ast_hash": "b75463184cb267bd510ebb23a02b09a5",
+    "semantic_hash": ""
+  },
+  "src/protocol/SteelSeriesApex3Protocol.cpp": {
+    "mtime": 1792513193.898249,
+    "seen": 1792551017.7568665,
+    "ast_hash": "101b78d2270f39f7bde73563fefa0e7d",
+    "semantic_hash": ""
+  },
+  "src/protocol/SteelSeriesApex3Protocol.h": {
+    "mtime": 1792513189.4932213,
+    "seen": 1792551017.7568672,
+    "ast_hash": "8914cc10b274ae2fc03afc61157be4a2",
+    "semantic_hash": ""
+  },
+  "src/settings/Settings.cpp": {
+    "mtime": 1792686976.32298,
+    "seen": 1792688122.522778,
+    "ast_hash": "cc96744bf881c909764a3086ff4c323e",
+    "semantic_hash": ""
+  },
+  "src/settings/Settings.h": {
+    "mtime": 1792686354.906461,
+    "seen": 1792688122.52278,
+    "ast_hash": "2b2639433e0e04b976c42a901bca3ccf",
+    "semantic_hash": ""
+  },
+  "src/ui/LightingCanvasWidget.cpp": {
+    "mtime": 1792689451.6079962,
+    "seen": 1792689483.0744193,
+    "ast_hash": "e919e884952f3872a05b31567327d37e",
+    "semantic_hash": ""
+  },
+  "src/ui/LightingCanvasWidget.h": {
+    "mtime": 1792686354.9074583,
+    "seen": 1792688122.5227928,
+    "ast_hash": "3b06d3ab7ae1ecca07f94c781c6f8f45",
+    "semantic_hash": ""
+  },
+  "src/ui/LightingStudioWindow.cpp": {
+    "mtime": 1792689655.8873053,
+    "seen": 1792689676.7930195,
+    "ast_hash": "20cfe204c833e3fa483f97bad657a1bb",
+    "semantic_hash": ""
+  },
+  "src/ui/LightingStudioWindow.h": {
+    "mtime": 1792686354.907961,
+    "seen": 1792688122.522795,
+    "ast_hash": "bfa3c839d7dfb103e5049973ebdb9a14",
+    "semantic_hash": ""
+  },
+  "src/ui/TrayApp.cpp": {
+    "mtime": 1792472386.4612331,
+    "seen": 1792551017.7568712,
+    "ast_hash": "de2be6dc72f90fc39d87af4f12cd800b",
+    "semantic_hash": ""
+  },
+  "src/ui/TrayApp.h": {
+    "mtime": 1792471950.6877432,
+    "seen": 1792551017.7568717,
+    "ast_hash": "ad327daacd9ed6a1d48ea080bb04279c",
+    "semantic_hash": ""
+  },
+  "tests/canvas/FakeEffect.h": {
+    "mtime": 1792430044.0752738,
+    "seen": 1792551017.7568722,
+    "ast_hash": "a41f6f2064c04f41bb3f8321c96a3037",
+    "semantic_hash": ""
+  },
+  "tests/canvas/test_canvas.cpp": {
+    "mtime": 1792577479.7172866,
+    "seen": 1792577702.6475666,
+    "ast_hash": "51c4187590bab78b0b4bd62c613edad8",
+    "semantic_hash": ""
+  },
+  "tests/device/test_channel.cpp": {
+    "mtime": 1792565553.8610244,
+    "seen": 1792566834.9542909,
+    "ast_hash": "b011d8f1b813d6e2442fb3c1584ac118",
+    "semantic_hash": ""
+  },
+  "tests/device/test_component.cpp": {
+    "mtime": 1792576504.784016,
+    "seen": 1792576640.1026742,
+    "ast_hash": "13e589590e41f675373697c49ebfca6a",
+    "semantic_hash": ""
+  },
+  "tests/device/test_msi_motherboard_driver.cpp": {
+    "mtime": 1792685459.1099596,
+    "seen": 1792685577.3875234,
+    "ast_hash": "8176476b2014df40ad955503802dd71d",
+    "semantic_hash": ""
+  },
+  "tests/device/test_razer_basilisk_driver.cpp": {
+    "mtime": 1792520688.1551263,
+    "seen": 1792551017.756875,
+    "ast_hash": "c5de09eae6b5f5bc325d6255a7f15998",
+    "semantic_hash": ""
+  },
+  "tests/device/test_roccat_kone_driver.cpp": {
+    "mtime": 1792520673.8815634,
+    "seen": 1792551017.7568755,
+    "ast_hash": "ca7d6de64269def31e13137e5ed250f2",
+    "semantic_hash": ""
+  },
+  "tests/device/test_roccat_vulcan_driver.cpp": {
+    "mtime": 1792574692.6281884,
+    "seen": 1792574777.7042093,
+    "ast_hash": "d6fd4d15e823736979cad60b4cfb31dd",
+    "semantic_hash": ""
+  },
+  "tests/device/test_steelseries_apex3_driver.cpp": {
+    "mtime": 1792520697.3178928,
+    "seen": 1792551017.7568762,
+    "ast_hash": "ee73c654adb4c6de9f5b899a6f6bec54",
+    "semantic_hash": ""
+  },
+  "tests/effects/test_effects.cpp": {
+    "mtime": 1792659552.5705822,
+    "seen": 1792659904.0451329,
+    "ast_hash": "c4d322a84357fd9ba134992021f7a5be",
+    "semantic_hash": ""
+  },
+  "tests/hid/FakeHidDevice.h": {
+    "mtime": 1792515822.6655276,
+    "seen": 1792551017.7568774,
+    "ast_hash": "e4cf64bfbd72f2949e48502ccd140391",
+    "semantic_hash": ""
+  },
+  "tests/hid/test_fake_hid_device.cpp": {
+    "mtime": 1792515836.5249505,
+    "seen": 1792551017.756878,
+    "ast_hash": "58a318ac03e74c95d60834ebc8a8f1d6",
+    "semantic_hash": ""
+  },
+  "tests/platform/test_autostart.cpp": {
+    "mtime": 1792430044.079778,
+    "seen": 1792551017.7568784,
+    "ast_hash": "7034065ad1c33a0f47713964814a0b65",
+    "semantic_hash": ""
+  },
+  "tests/protocol/test_msi_protocol.cpp": {
+    "mtime": 1792430044.080783,
+    "seen": 1792551017.756879,
+    "ast_hash": "e1348634efcdf2bd35e559de4241a9aa",
+    "semantic_hash": ""
+  },
+  "tests/protocol/test_razer_basilisk_protocol.cpp": {
+    "mtime": 1792437254.2191637,
+    "seen": 1792551017.7568796,
+    "ast_hash": "91405ff7b22bbbb3c47e00a8ff24fd42",
+    "semantic_hash": ""
+  },
+  "tests/protocol/test_roccat_kone_protocol.cpp": {
+    "mtime": 1792435870.059749,
+    "seen": 1792551017.7568798,
+    "ast_hash": "44052404136eb5177c1341518c0ac0cb",
+    "semantic_hash": ""
+  },
+  "tests/protocol/test_roccat_vulcan_protocol.cpp": {
+    "mtime": 1792650185.3579857,
+    "seen": 1792650216.8985786,
+    "ast_hash": "c24d17a5d313a62c046a1a23cc70597b",
+    "semantic_hash": ""
+  },
+  "tests/protocol/test_steelseries_apex3_protocol.cpp": {
+    "mtime": 1792435230.4643064,
+    "seen": 1792551017.756881,
+    "ast_hash": "d8bd69d2df62b700b5e8c4f2bc9621f7",
+    "semantic_hash": ""
+  },
+  "tests/scaffold/test_scaffold.cpp": {
+    "mtime": 1792430044.080783,
+    "seen": 1792551017.7568815,
+    "ast_hash": "9026e08511972a2d1db43bc224186954",
+    "semantic_hash": ""
+  },
+  "tests/settings/test_settings.cpp": {
+    "mtime": 1792659552.571082,
+    "seen": 1792659904.0451388,
+    "ast_hash": "6abef144243bcb8b2c3c7473944dddaa",
+    "semantic_hash": ""
+  },
+  "tests/ui/test_lighting_canvas_widget.cpp": {
+    "mtime": 1792689451.608498,
+    "seen": 1792689483.0744734,
+    "ast_hash": "45c82fb78c88460788ab9dabfb918ccd",
+    "semantic_hash": ""
+  },
+  "tests/ui/test_lighting_studio_window.cpp": {
+    "mtime": 1792689655.887806,
+    "seen": 1792689676.793055,
+    "ast_hash": "5673c1703425b16a70160086fc2fbcd2",
+    "semantic_hash": ""
+  },
+  "tests/ui/test_tray_app.cpp": {
+    "mtime": 1792472386.4622328,
+    "seen": 1792551017.7568834,
+    "ast_hash": "c4f19d6dd030bfedff3c6621f1f7df19",
+    "semantic_hash": ""
+  },
+  "vcpkg.json": {
+    "mtime": 1792430044.08329,
+    "seen": 1792551017.7568839,
+    "ast_hash": "f3c7f59f3b3825926725b256d1c2475f",
+    "semantic_hash": ""
+  },
+  "CMakeLists.txt": {
+    "mtime": 1792686976.3139696,
+    "seen": 1792688122.522837,
+    "ast_hash": "70b4d54c08bedb8ac667762c8f77e6f0",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1792687339.31431,
+    "seen": 1792688122.522838,
+    "ast_hash": "65026df29b00553cce73a97f42422825",
+    "semantic_hash": ""
+  },
+  "docs/ARCHITECTURE.md": {
+    "mtime": 1792430044.056249,
+    "seen": 1792551017.7568862,
+    "ast_hash": "55f0a0251a0693e00a0d018c5b98d6c8",
+    "semantic_hash": ""
+  },
+  "docs/MB_800_HID_PROTOCOL.md": {
+    "mtime": 1792685459.1089597,
+    "seen": 1792685577.3875413,
+    "ast_hash": "e10cda5a8217b7d4eca2bbb3d7345c45",
+    "semantic_hash": ""
+  },
+  "docs/NETWORK_PROTOCOL.md": {
+    "mtime": 1792430044.057761,
+    "seen": 1792551017.7568874,
+    "ast_hash": "94fda8cd8aa799099a6f6dc1d65a90eb",
+    "semantic_hash": ""
+  },
+  "docs/ONLINE_DATA_CATALOG.md": {
+    "mtime": 1792430044.057761,
+    "seen": 1792551017.7568882,
+    "ast_hash": "63f33fa8c0972899bcb310e258db667c",
+    "semantic_hash": ""
+  },
+  "docs/OPENRGB_UPSTREAM_DRAFT.md": {
+    "mtime": 1792430044.0587597,
+    "seen": 1792551017.7568886,
+    "ast_hash": "9c5cdb51f7ab81c225d6544b4e3bffd7",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-18-v1-skeleton.md": {
+    "mtime": 1792430044.0597584,
+    "seen": 1792551017.756889,
+    "ast_hash": "701b5b41777fc701f237f0f9c1e11c1c",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-19-lighting-studio.md": {
+    "mtime": 1792430223.201689,
+    "seen": 1792551017.7568896,
+    "ast_hash": "8facf0c9f721899cb9743b806d1b4101",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-18-standalone-lighting-app-design.md": {
+    "mtime": 1792507619.5956097,
+    "seen": 1792551017.75689,
+    "ast_hash": "277d40d91b2e0d4dd18f05ba573ca604",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-19-lighting-studio-design.md": {
+    "mtime": 1792430108.2317424,
+    "seen": 1792551017.7568905,
+    "ast_hash": "2e592c412d81993d8316579545c33b9d",
+    "semantic_hash": ""
+  },
+  "tests/CMakeLists.txt": {
+    "mtime": 1792579588.3518262,
+    "seen": 1792579781.0899298,
+    "ast_hash": "031a3a11f046b8079c3e3ea1b7ee3b26",
+    "semantic_hash": ""
+  },
+  "docs/UI_REDESIGN_2026.md": {
+    "mtime": 1792689655.8883054,
+    "seen": 1792689676.7930722,
+    "ast_hash": "5203f236ebfb51cc86d375ada6fc070b",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/chevron.svg": {
+    "mtime": 1792553375.321903,
+    "seen": 1792553629.0771658,
+    "ast_hash": "15b3003aac27e614542347d028c5e2f5",
+    "semantic_hash": ""
+  },
+  "src/effects/CustomGradientEffect.h": {
+    "mtime": 1792659399.6055646,
+    "seen": 1792659904.045086,
+    "ast_hash": "270ec0a6062d8545b5965542c9ed71b1",
+    "semantic_hash": ""
+  },
+  "src/effects/EffectFactory.h": {
+    "mtime": 1792657057.3389287,
+    "seen": 1792657106.7313495,
+    "ast_hash": "dcb63d92cb4c371bb2e395812f185fbf",
+    "semantic_hash": ""
+  },
+  "src/ui/DeviceLedWidget.h": {
+    "mtime": 1792651658.3765526,
+    "seen": 1792652404.2748013,
+    "ast_hash": "c7260b43c7def1b8480c5c88121df468",
+    "semantic_hash": ""
+  },
+  "docs/COMPONENTS_AND_EFFECTS.md": {
+    "mtime": 1792650185.3584855,
+    "seen": 1792650216.8985872,
+    "ast_hash": "5eb380af7781b5c21360af8d05ff7c07",
+    "semantic_hash": ""
+  },
+  "src/hid/HardwareWorker.h": {
+    "mtime": 1792570782.0832677,
+    "seen": 1792571183.8323078,
+    "ast_hash": "a8045e8353003a3b42f6abcc14c0dca5",
+    "semantic_hash": ""
+  },
+  "src/ui/ColorPicker.h": {
+    "mtime": 1792571086.794593,
+    "seen": 1792571183.832322,
+    "ast_hash": "3ea05982c495aa7c44ffabe716abc444",
+    "semantic_hash": ""
+  },
+  "src/ui/EffectEditor.h": {
+    "mtime": 1792688718.7011654,
+    "seen": 1792688735.6946976,
+    "ast_hash": "b9dacd5386dd0e687ed1ae9c81d047a6",
+    "semantic_hash": ""
+  },
+  "src/effects/EffectClock.h": {
+    "mtime": 1792571341.6205838,
+    "seen": 1792571782.1302185,
+    "ast_hash": "7b6b9bd727b5c7fc8c66f93c306ebda4",
+    "semantic_hash": ""
+  },
+  "src/canvas/LayoutGeometry.h": {
+    "mtime": 1792573075.996271,
+    "seen": 1792574572.9711576,
+    "ast_hash": "9518e5714927b5c90a61542565eb1f5a",
+    "semantic_hash": ""
+  },
+  "src/ui/HardwareLibrary.h": {
+    "mtime": 1792687588.683058,
+    "seen": 1792688122.522787,
+    "ast_hash": "180489786697c8ccc3638139a8e0be28",
+    "semantic_hash": ""
+  },
+  "src/ui/LayoutEditor.h": {
+    "mtime": 1792684809.9807944,
+    "seen": 1792685577.3875136,
+    "ast_hash": "82de669c38d2056928d02f8c6a7bfe9e",
+    "semantic_hash": ""
+  },
+  "src/ui/HardwarePicker.h": {
+    "mtime": 1792687885.252424,
+    "seen": 1792688122.5227885,
+    "ast_hash": "ef9c4df8d8b28623783dbdf59e4436eb",
+    "semantic_hash": ""
+  },
+  "src/ui/DeviceArtwork.h": {
+    "mtime": 1792687885.2519157,
+    "seen": 1792688122.5227826,
+    "ast_hash": "30c117015c39bf6e57af52d60b389388",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/controller.svg": {
+    "mtime": 1792578723.8253517,
+    "seen": 1792579781.0899317,
+    "ast_hash": "947d9675bf7091d4dd9b4d83a1887909",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/fan.svg": {
+    "mtime": 1792600170.3391109,
+    "seen": 1792649704.1628916,
+    "ast_hash": "93ddb9bb9875bc045e22db10662c9387",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/keyboard-zones.svg": {
+    "mtime": 1792579307.585284,
+    "seen": 1792579781.0899336,
+    "ast_hash": "a82022e7e62db7e60c47de311dca5fb4",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/keyboard.svg": {
+    "mtime": 1792578723.82485,
+    "seen": 1792579781.0899346,
+    "ast_hash": "97c0972482fa85dca24d0b5662ed6caf",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/mouse.svg": {
+    "mtime": 1792578723.82485,
+    "seen": 1792579781.0899353,
+    "ast_hash": "7ae5cbae00159dd737d81256415c7f84",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/strip.svg": {
+    "mtime": 1792578723.8253517,
+    "seen": 1792579781.089936,
+    "ast_hash": "975b6fe8147f585e049d72286dd6adf1",
+    "semantic_hash": ""
+  },
+  ".github/workflows/ci.yml": {
+    "mtime": 1792594002.2076976,
+    "seen": 1792649704.162859,
+    "ast_hash": "05cc0a8a1cfc94eaed099f5730295935",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/rotate.svg": {
+    "mtime": 1792600203.6003287,
+    "seen": 1792649704.162898,
+    "ast_hash": "0f1d7b56a6a98473527b13f7ef7a8153",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/aio.svg": {
+    "mtime": 1792651746.9025123,
+    "seen": 1792652404.2748656,
+    "ast_hash": "39bfd96ff6fe31082285ffbf08610931",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/cable.svg": {
+    "mtime": 1792651746.9035332,
+    "seen": 1792652404.274867,
+    "ast_hash": "b3c2f6dfc5a6268112f2ea1d4b1bc2c0",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/case.svg": {
+    "mtime": 1792651746.9025123,
+    "seen": 1792652404.274868,
+    "ast_hash": "e3d4c39431321b1ae6bbefeacb18392d",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/chair.svg": {
+    "mtime": 1792651746.9045415,
+    "seen": 1792652404.274869,
+    "ast_hash": "a2fbc4abd6cc0e13dfd5f9faa2e74987",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/desk.svg": {
+    "mtime": 1792651746.9045415,
+    "seen": 1792652404.2748723,
+    "ast_hash": "4a4b0323c0ee3be34cead2e217386955",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/heatsink.svg": {
+    "mtime": 1792651746.904041,
+    "seen": 1792652404.2748752,
+    "ast_hash": "e2642538fa1d9f3e464dd04fdddf19a7",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/strip-card.svg": {
+    "mtime": 1792651746.9050412,
+    "seen": 1792652404.274882,
+    "ast_hash": "a10cd14f73eabd4edfcc5e912a2ea2e6",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/waterblock.svg": {
+    "mtime": 1792651746.9025123,
+    "seen": 1792652404.2748847,
+    "ast_hash": "7aa4e9f26cf565570cb62fa1a4c98af1",
+    "semantic_hash": ""
+  },
+  "src/ui/StudioControls.h": {
+    "mtime": 1792683763.0509675,
+    "seen": 1792683802.0444918,
+    "ast_hash": "591156acf9dc1404c983291b78e575c6",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/up.svg": {
+    "mtime": 1792659399.6090643,
+    "seen": 1792659904.0451658,
+    "ast_hash": "c5aec83311a1b2093a627f7be7f2ab6e",
+    "semantic_hash": ""
+  },
+  "src/device/GigabyteAeroDriver.h": {
+    "mtime": 1792685459.1104598,
+    "seen": 1792685577.387468,
+    "ast_hash": "35125402d4a37ae5015f6f040b0c9426",
+    "semantic_hash": ""
+  },
+  "docs/INSTALLED_LIGHTING_HARDWARE.md": {
+    "mtime": 1792687339.31431,
+    "seen": 1792688122.5228426,
+    "ast_hash": "511e6d8f80f11e2cf69939f3e7face01",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/motherboard.svg": {
+    "mtime": 1792685027.221042,
+    "seen": 1792685577.387556,
+    "ast_hash": "675a5554d4300e56c3e00e2112a737c6",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/ram.svg": {
+    "mtime": 1792685027.2205405,
+    "seen": 1792685577.3875573,
+    "ast_hash": "1b6d5ef15ffd0637e6e52d523a697fb4",
+    "semantic_hash": ""
+  },
+  "src/device/OpenRgbRamDriver.h": {
+    "mtime": 1792687588.683565,
+    "seen": 1792688122.5227065,
+    "ast_hash": "3c254a45a162f84388b04d3ded18e0ec",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/ram-controller.json": {
+    "mtime": 1792687252.2515092,
+    "seen": 1792688122.522801,
+    "ast_hash": "956a065be07f31c5178aecad98e9b7b2",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/devices/gpu.svg": {
+    "mtime": 1792687885.252424,
+    "seen": 1792688122.5228708,
+    "ast_hash": "003a516377b47902b52d39ec1f86ba8d",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/eye-off.svg": {
+    "mtime": 1792686354.9104593,
+    "seen": 1792688122.522887,
+    "ast_hash": "39e99f653f7ef0ee806b9c8eb826c73e",
+    "semantic_hash": ""
+  },
+  "src/ui/assets/eye.svg": {
+    "mtime": 1792686354.9099586,
+    "seen": 1792688122.522888,
+    "ast_hash": "88bcab9a6d39d3d4f5a25e4d824887c5",
+    "semantic_hash": ""
+  }
+}

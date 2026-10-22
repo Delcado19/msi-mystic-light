@@ -1,5 +1,7 @@
 #include "effects/EffectClock.h"
 #include "hid/HardwareWorker.h"
+#include "device/GigabyteAeroDriver.h"
+#include "device/OpenRgbRamDriver.h"
 // Application entry point: wires together every device driver (the MSI
 // motherboard plus the four peripherals added by the Lighting Studio plan),
 // the Canvas render loop, Settings persistence, the Lighting Studio window,
@@ -190,6 +192,7 @@ bool channelSettingsNeedFullReapply(const ChannelSettings& previous, const Chann
 {
     ChannelSettings previousIgnoringPlacement = previous;
     ChannelSettings nextIgnoringPlacement = next;
+    previousIgnoringPlacement.layoutVisible=true;nextIgnoringPlacement.layoutVisible=true;
     previousIgnoringPlacement.placement = CanvasPlacement{};
     nextIgnoringPlacement.placement = CanvasPlacement{};
     return !(previousIgnoringPlacement == nextIgnoringPlacement);
@@ -400,6 +403,12 @@ int main(int argc, char** argv)
     SteelSeriesApex3Driver apex3Driver(apex3Hid);
     RoccatVulcanDriver vulcanDriver(vulcanControlHid, vulcanLedHid);
 
+    OpenRgbRamDriver ramDriver;
+    if(!ramDriver.open() && startRamControllerHelper()) {
+        QElapsedTimer wait;wait.start();
+        while(wait.elapsed()<20000){QThread::msleep(200);if(ramDriver.open())break;}
+    }
+    GigabyteAeroDriver aeroDriver;const bool aeroAvailable=aeroDriver.open();
     std::map<std::string, Channel> channels;
     std::map<std::string, IDriver*> driversByChannel;
     for (Channel& channel : MsiMotherboardDriver::createDefaultChannels()) {
@@ -412,6 +421,8 @@ int main(int argc, char** argv)
         driversByChannel[name] = driver;
         channels.emplace(std::move(name), std::move(channel));
     };
+    for(auto& channel:ramDriver.channels())addPeripheralChannel(std::move(channel),&ramDriver);
+    if(aeroAvailable)addPeripheralChannel(GigabyteAeroDriver::createDefaultChannel(), &aeroDriver);
     addPeripheralChannel(RoccatVulcanDriver::createDefaultChannel(), &vulcanDriver);
     addPeripheralChannel(RoccatKoneDriver::createDefaultChannel(), &koneDriver);
     addPeripheralChannel(RazerBasiliskDriver::createDefaultChannel(), &basiliskDriver);
@@ -514,6 +525,7 @@ int main(int argc, char** argv)
     // protecting the OS from load -- there's just no reason to poll faster
     // than a human plug-in event needs to be noticed in.
     HardwareWorker hardware;
+    ramDriver.moveToThread(hardware.context()->thread());
     QTimer reconnectTimer;
     QObject::connect(&reconnectTimer, &QTimer::timeout,
         [&]() {
@@ -577,6 +589,7 @@ int main(int argc, char** argv)
         studio.setPersistenceStatus(settings.saveToFile(settingsPath.toStdString()));
     });
 
+    QObject::connect(&studio,&LightingStudioWindow::layoutVisibilityChanged,[&saveDebounceTimer]{saveDebounceTimer.start();});
     QObject::connect(&studio,&LightingStudioWindow::customEffectsChanged,[&] {
       studio.setPersistenceStatus(settings.saveToFile(settingsPath.toStdString()));
       hardware.post([settings=settings,&canvas]() mutable {
@@ -751,6 +764,7 @@ int main(int argc, char** argv)
     // Drain queued restoration edits before quitting; then no HID owner outlives
     // the channel/driver objects declared above it.
     QMetaObject::invokeMethod(hardware.context(),[]{},Qt::BlockingQueuedConnection);
+    QMetaObject::invokeMethod(hardware.context(),[&ramDriver]{ramDriver.close();},Qt::BlockingQueuedConnection);
     hardware.stop();
     return result;
 }

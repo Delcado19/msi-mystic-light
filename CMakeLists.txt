@@ -8,10 +8,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 COMPONENTS Core Widgets OpenGLWidgets Svg Test REQUIRED)
+find_package(Qt6 COMPONENTS Core Widgets OpenGLWidgets Svg Network Test REQUIRED)
 find_package(hidapi CONFIG REQUIRED)
 # Preview widgets use Qt's OpenGL paint engine for texture scaling/compositing.
-link_libraries(Qt6::OpenGLWidgets Qt6::Svg)
+link_libraries(Qt6::OpenGLWidgets Qt6::Svg Qt6::Network)
 
 add_executable(MsiMysticLightApp src/ui/studio.qrc src/main.cpp src/hid/HidApiDevice.cpp src/protocol/MsiProtocol.cpp src/protocol/RoccatVulcanProtocol.cpp src/protocol/RoccatKoneProtocol.cpp src/protocol/RazerBasiliskProtocol.cpp src/protocol/SteelSeriesApex3Protocol.cpp src/device/Component.cpp src/device/Channel.cpp src/device/MsiMotherboardDriver.cpp src/device/RoccatVulcanDriver.cpp src/device/RoccatKoneDriver.cpp src/device/RazerBasiliskDriver.cpp src/device/SteelSeriesApex3Driver.cpp src/effects/StaticColorEffect.cpp src/effects/RainbowWaveEffect.cpp src/effects/BreathingEffect.cpp src/effects/RadialRainbowEffect.cpp src/effects/SpiralEffect.cpp src/effects/CometEffect.cpp src/effects/MarqueeEffect.cpp src/effects/SwirlCirclesEffect.cpp src/canvas/Canvas.cpp src/settings/Settings.cpp src/ui/TrayApp.cpp src/ui/LightingCanvasWidget.cpp src/ui/LightingStudioWindow.cpp src/platform/win/AutostartWin.cpp)
 target_include_directories(MsiMysticLightApp PRIVATE src)

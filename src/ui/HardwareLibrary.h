@@ -12,6 +12,22 @@ inline const std::vector<Component>& hardwareLibrary() {
         std::vector<Component> result={Component::makeFan(6,true),Component::makeFan(12,false),Component::makeFan(16,false)};
         for(auto& c:result)c.displayName=c.productName+" / "+std::to_string(c.ledCount)+" addresses";
         for(int count:{30,60}){auto c=Component::makeGenericPlaceholder(count);c.type="Strip";c.productName=c.displayName="Generic strip / "+std::to_string(count)+" LEDs";result.push_back(c);}
+        // Generic templates are explicitly configurable, not vendor protocol support.
+        for(const auto& type:{"AIO","Water Block","Case","Cable","Heatsink"}){auto c=Component::makeGenericPlaceholder(12);c.type=type;c.productName=c.displayName=std::string("Generic ")+type+" / 12 addresses";c.arrange(std::string(type)=="AIO" || std::string(type)=="Water Block"?"Circle":"Rectangle");c.layoutDefaults=c.ledCoordinates;result.push_back(c);}
+        const auto genericCount=result.size();
+        // Invoice models, independently checked against manufacturer pages. M25
+        // pairing follows the user's observed six addresses / twelve physical LEDs.
+        for(const auto* variant:{"M25 Gen2 120 White","M25 Gen2 120 Reverse White"}){auto c=Component::makeFan(6,true);c.brand="Phanteks";c.productName=c.displayName=variant;result.push_back(c);}
+        for(const auto& entry:std::vector<std::pair<std::string,std::string>>{{"Glacier One 360M25 Gen2 / pump","AIO"},{"NV5 MK2 / PSU shroud strip","Case"}}){
+            auto c=Component::makeGenericPlaceholder(1);c.brand=entry.second=="RAM"?"ADATA XPG":"Phanteks";c.productName=c.displayName=entry.first;c.type=entry.second+" (count required)";result.push_back(c);
+        }
+        // Eight light-bar addresses were read from both actual ENE descriptors.
+        {auto c=Component::makeGenericPlaceholder(8);c.brand="ADATA XPG";c.productName=c.displayName="XPG Lancer Blade RGB DDR5 / 24 GB module";c.type="RAM";result.push_back(c);}
+        {auto c=Component::makeGenericPlaceholder(1);c.brand="Gigabyte";c.productName=c.displayName="RTX 5080 AERO OC / logo zone";c.type="GPU";result.push_back(c);}
+        {auto c=Component::makeGenericPlaceholder(1);c.brand="MSI";c.productName=c.displayName="MPG B850 Edge TI / I/O shield zone";c.type="Motherboard";result.push_back(c);}
+        // Installed product models precede generic templates in the add picker.
+        std::rotate(result.begin(),result.begin()+genericCount,result.end());
+        const auto builtins=result.size();
         // Read installed component metadata only. No SignalRGB runtime, effects,
         // images or binaries are copied or executed; selected definitions persist.
         QDir engine(qEnvironmentVariable("LOCALAPPDATA")+"/VortxEngine");
@@ -26,7 +42,7 @@ inline const std::vector<Component>& hardwareLibrary() {
             }
             break;
         }
-        std::sort(result.begin()+5,result.end(),[](const auto& a,const auto& b){return a.displayName<b.displayName;});return result;
+        std::sort(result.begin()+builtins,result.end(),[](const auto& a,const auto& b){return a.displayName<b.displayName;});return result;
     }();return catalog;
 }
 

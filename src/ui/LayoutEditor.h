@@ -1,5 +1,10 @@
 #pragma once
 #include "device/Component.h"
+#include "ui/DeviceArtwork.h"
+#include <QTimer>
+#include <QCheckBox>
+#include <QSpinBox>
+#include <QScrollBar>
 #include <QDialog>
 #include <QGraphicsView>
 #include <QGraphicsSceneMouseEvent>
@@ -14,6 +19,7 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QWheelEvent>
+#include <QSvgRenderer>
 #include <cmath>
 #include <memory>
 
@@ -28,11 +34,9 @@ public:
 protected:
     void paint(QPainter* painter,const QStyleOptionGraphicsItem* option,QWidget* widget)override {
         if(!rotate_){QGraphicsEllipseItem::paint(painter,option,widget);return;}
+        static QSvgRenderer renderer(QStringLiteral(":/studio/rotate.svg"));
         painter->setRenderHint(QPainter::Antialiasing);
-        painter->setPen(QPen(QColor("#e4ecf7"),1.8,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
-        painter->setBrush(brush());painter->drawEllipse(rect());painter->setBrush(Qt::NoBrush);
-        painter->drawArc(QRectF(-5,-5,10,10),30*16,285*16);
-        painter->drawPolyline(QPolygonF{QPointF(1,-6),QPointF(5,-5),QPointF(4,-1)});
+        renderer.render(painter,rect());
     }
     void mousePressEvent(QGraphicsSceneMouseEvent* e)override {
         owner_->setSelected(true);center_=owner_->mapToScene(owner_->transformOriginPoint());
@@ -52,75 +56,92 @@ class LayoutView : public QGraphicsView {
 public:
     using QGraphicsView::QGraphicsView;
 protected:
-    void wheelEvent(QWheelEvent* e)override {const double factor=e->angleDelta().y()>0?1.12:1/1.12;if(transform().m11()*factor>.1 && transform().m11()*factor<12)scale(factor,factor);e->accept();}
+    void drawBackground(QPainter* painter,const QRectF& area)override {
+        QGraphicsView::drawBackground(painter,area);if(!scene()->property("snapToGrid").toBool())return;
+        const int step=scene()->property("gridSpacing").toInt();if(step<1 || area.width()/step+area.height()/step>3000)return;
+        painter->setPen(QPen(QColor("#283749"),0));
+        for(double x=std::floor(area.left()/step)*step;x<=area.right();x+=step)painter->drawLine(QPointF(x,area.top()),QPointF(x,area.bottom()));
+        for(double y=std::floor(area.top()/step)*step;y<=area.bottom();y+=step)painter->drawLine(QPointF(area.left(),y),QPointF(area.right(),y));
+    }
+    void wheelEvent(QWheelEvent* e)override {
+        if(e->angleDelta().x()!=0 || (e->modifiers()&Qt::ShiftModifier)){QGraphicsView::wheelEvent(e);return;}
+        const double factor=e->angleDelta().y()>0?1.12:1/1.12;if(transform().m11()*factor>.1 && transform().m11()*factor<12)scale(factor,factor);e->accept();}
 };
 
-// LEDs grouped via "Group selected LEDs" share one physical sample point:
-// dragging any member moves the rest of the group by the same delta. The
-// syncing flag lives on the shared group, not per item: a per-item flag only
-// guards that item's own propagation loop, so the member being dragged by
-// the loop would re-enter and apply the delta to the dragged item a second
-// time once its own itemChange fired.
-class LedPoint;
-struct LedGroup{std::vector<LedPoint*> members;bool syncing=false;};
-class LedPoint : public QGraphicsEllipseItem {
-public:
-    using QGraphicsEllipseItem::QGraphicsEllipseItem;
-    std::shared_ptr<LedGroup> group;
-    QPointF lastPos;
-protected:
-    QVariant itemChange(GraphicsItemChange change,const QVariant& value)override {
-        if(change==ItemPositionHasChanged) {
-            const auto newPos=value.toPointF();
-            if(group && !group->syncing) {
-                group->syncing=true;const auto delta=newPos-lastPos;
-                for(auto* other:group->members)if(other!=this)other->setPos(other->pos()+delta);
-                group->syncing=false;
-            }
-            lastPos=newPos;
-        }
-        return QGraphicsEllipseItem::itemChange(change,value);
-    }
-};
+// Snap in scene coordinates, including LEDs inside rotated/scaled components.
+inline QVariant snappedLayoutPosition(QGraphicsItem* item,const QVariant& value) {
+    if(!item->scene() || !item->scene()->property("snapToGrid").toBool())return value;
+    const int step=item->scene()->property("gridSpacing").toInt();if(step<1)return value;
+    auto point=item->parentItem()?item->parentItem()->mapToScene(value.toPointF()):value.toPointF();
+    point=QPointF(std::round(point.x()/step)*step,std::round(point.y()/step)*step);
+    return item->parentItem()?item->parentItem()->mapFromScene(point):point;
+}
+class LedPoint : public QGraphicsEllipseItem {public:using QGraphicsEllipseItem::QGraphicsEllipseItem;
+protected:QVariant itemChange(GraphicsItemChange change,const QVariant& value)override {return QGraphicsEllipseItem::itemChange(change,change==ItemPositionChange?snappedLayoutPosition(this,value):value);}};
+class LayoutComponentItem : public QGraphicsRectItem {public:using QGraphicsRectItem::QGraphicsRectItem;
+protected:QVariant itemChange(GraphicsItemChange change,const QVariant& value)override {return QGraphicsRectItem::itemChange(change,change==ItemPositionChange?snappedLayoutPosition(this,value):value);}};
 
 // Coordinates are baked back only on Save; cancelling never changes wire order,
 // overrides, or the live scene. LED positions, not image decoration, drive effects.
 class LayoutEditor : public QDialog {
 public:
     explicit LayoutEditor(std::vector<Component> components,QWidget* parent=nullptr):QDialog(parent),components_(std::move(components)) {
-        setWindowTitle("Component and LED layout");resize(920,680);auto* root=new QVBoxLayout(this);
+        setWindowTitle("Component and LED layout");resize(920,680);setWindowState(windowState()|Qt::WindowMaximized);auto* root=new QVBoxLayout(this);
         auto* help=new QLabel("Drag component frames to move them. Corner handle: resize proportionally; rotation arrow: rotate. Drag fan/strip LEDs individually. Wheel: zoom.",this);help->setWordWrap(true);root->addWidget(help);
         auto* bar=new QHBoxLayout;root->addLayout(bar);selection_=new QComboBox(this);selection_->setObjectName("layoutComponent");
         for(const auto& c:components_)selection_->addItem(QString::fromStdString(c.displayName));bar->addWidget(selection_,1);
         auto* shapes=new QComboBox(this);shapes->setObjectName("layoutShape");shapes->addItems({"Line","Circle","Ellipse","Rectangle"});bar->addWidget(shapes);
         auto* arrange=new QPushButton("Apply shape",this);bar->addWidget(arrange);
         auto* reset=new QPushButton("Reset layout",this);reset->setObjectName("resetComponentLayout");bar->addWidget(reset);
-        auto* group=new QPushButton("Group selected LEDs",this);bar->addWidget(group);
-        scene_=new QGraphicsScene(this);view_=new LayoutView(scene_,this);view_->setObjectName("componentLayoutView");view_->setRenderHint(QPainter::Antialiasing);view_->setBackgroundBrush(QColor("#10161e"));view_->setDragMode(QGraphicsView::RubberBandDrag);root->addWidget(view_,1);
+        scene_=new QGraphicsScene(this);view_=new LayoutView(scene_,this);view_->setObjectName("componentLayoutView");view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);view_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);view_->setRenderHint(QPainter::Antialiasing);view_->setBackgroundBrush(QColor("#10161e"));view_->setDragMode(QGraphicsView::RubberBandDrag);root->addWidget(view_,1);
         auto* controls=new QHBoxLayout;root->addLayout(controls);
+        auto* snap=new QCheckBox("Snap to grid",this);snap->setObjectName("layoutSnapToGrid");controls->addWidget(snap);
+        auto* spacing=new QSpinBox(this);spacing->setObjectName("layoutGridSpacing");spacing->setRange(1,100);spacing->setValue(10);spacing->setSuffix(" units");controls->addWidget(spacing);scene_->setProperty("gridSpacing",10);
+        connect(snap,&QCheckBox::toggled,this,[this](bool on){scene_->setProperty("snapToGrid",on);view_->viewport()->update();});
+        connect(spacing,&QSpinBox::valueChanged,this,[this](int value){scene_->setProperty("gridSpacing",value);view_->viewport()->update();});
         auto* size=new QDoubleSpinBox(this);size->setObjectName("componentScale");size->setRange(.1,10);size->setSingleStep(.1);size->setValue(1);controls->addWidget(new QLabel("Component scale",this));controls->addWidget(size);
-        auto* rotation=new QDoubleSpinBox(this);rotation->setObjectName("componentRotation");rotation->setRange(-360,360);rotation->setSuffix(" deg");controls->addWidget(new QLabel("Rotation",this));controls->addWidget(rotation);
+        auto* rotation=new QDoubleSpinBox(this);rotation->setObjectName("componentRotation");rotation->setRange(-360,360);rotation->setSuffix(QString::fromUtf8("\xc2\xb0"));controls->addWidget(new QLabel("Rotation",this));controls->addWidget(rotation);
         auto* fit=new QPushButton("Fit view",this);controls->addWidget(fit);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Save|QDialogButtonBox::Cancel,this);root->addWidget(buttons);
         rebuild();
         connect(arrange,&QPushButton::clicked,this,[this,shapes]{capture();const int index=selection_->currentIndex();if(index>=0 && components_[index].type!="Keyboard" && components_[index].type!="KeyboardZones"){components_[index].arrange(shapes->currentText().toStdString());rebuild();}});
         connect(reset,&QPushButton::clicked,this,[this]{capture();const int index=selection_->currentIndex();if(index>=0){components_[index].resetLayout();rebuild();}});
-        connect(group,&QPushButton::clicked,this,[this]{
-            QList<LedPoint*> selected;
-            for(auto* item:scene_->selectedItems())if(auto* led=dynamic_cast<LedPoint*>(item))selected.push_back(led);
-            if(selected.size()<2)return;
-            const auto target=selected.first()->pos();
-            for(auto* led:selected)led->setPos(target);
-            auto grp=std::make_shared<LedGroup>();grp->members.assign(selected.begin(),selected.end());
-            for(auto* led:selected){led->group=grp;led->lastPos=led->pos();}
-        });
         connect(size,&QDoubleSpinBox::valueChanged,this,[this](double v){const int i=selection_->currentIndex();if(i>=0 && i<int(bodies_.size()))bodies_[i]->setScale(v);});
         connect(rotation,&QDoubleSpinBox::valueChanged,this,[this](double v){const int i=selection_->currentIndex();if(i>=0 && i<int(bodies_.size()))bodies_[i]->setRotation(v);});
-        connect(fit,&QPushButton::clicked,this,[this]{view_->fitInView(scene_->itemsBoundingRect().adjusted(-30,-30,30,30),Qt::KeepAspectRatio);});
+        // Dragging the corner/rotation handles changes scale/rotation directly on the
+        // QGraphicsItem, bypassing the spinboxes; mirror it back so the readout never
+        // goes stale, and re-sync on selection change since each component has its own.
+        const auto syncSpinboxes=[this,size,rotation]{
+            const int i=selection_->currentIndex();if(i<0 || i>=int(bodies_.size()))return;
+            const QSignalBlocker b1(size),b2(rotation);size->setValue(bodies_[i]->scale());rotation->setValue(bodies_[i]->rotation());
+        };
+        connect(scene_,&QGraphicsScene::changed,this,syncSpinboxes);
+        // The initial explicit scene rect must follow moved/scaled items, or
+        // scrollbars cannot reach components dragged beyond the original bounds.
+        connect(scene_,&QGraphicsScene::changed,this,[this]{
+            const auto bounds=scene_->itemsBoundingRect().adjusted(-80,-80,80,80);
+            if(scene_->sceneRect()!=bounds)scene_->setSceneRect(bounds);
+        });
+        connect(selection_,&QComboBox::currentIndexChanged,this,syncSpinboxes);
+        connect(fit,&QPushButton::clicked,this,[this]{view_->fitInView(componentBounds().adjusted(-30,-30,30,30),Qt::KeepAspectRatio);});
         connect(buttons,&QDialogButtonBox::accepted,this,[this]{capture();accept();});connect(buttons,&QDialogButtonBox::rejected,this,&QDialog::reject);
     }
     const std::vector<Component>& components()const{return components_;}
+protected:
+    void showEvent(QShowEvent* event)override {
+        QDialog::showEvent(event);
+        // Fit after the dialog receives its actual viewport size, not constructor geometry.
+        QTimer::singleShot(0,this,[this]{view_->fitInView(componentBounds().adjusted(-30,-30,30,30),Qt::KeepAspectRatio);});
+    }
 private:
+    // itemsBoundingRect() also sweeps up the fixed-pixel-size handle/label
+    // children (ItemIgnoresTransformations): their reported scene bounds grow
+    // or shrink with the parent's scale/rotation even though they always draw
+    // at the same screen size, so a scaled or rotated component threw the fit
+    // off. The component frames carry the real, correctly transformed geometry.
+    QRectF componentBounds()const{
+        QRectF bounds;for(auto* body:bodies_)bounds=bounds.united(body->sceneBoundingRect());return bounds;
+    }
     void capture() {
         for(size_t c=0;c<components_.size();++c)for(int i=0;i<components_[c].ledCount;++i)if(points_[c][i]) {
             const auto p=points_[c][i]->scenePos();components_[c].ledCoordinates[i]={qBound(-100000,qRound(p.x()),100000),qBound(-100000,qRound(p.y()),100000)};
@@ -136,9 +157,9 @@ private:
             // through the item transform, without changing saved wire coordinates.
             const bool keyboard=c.type=="Keyboard" || c.type=="KeyboardZones";
             const double radius=keyboard?.35:3.5,padding=keyboard?1.:12.;
-            auto* body=new QGraphicsRectItem(QRectF(left-padding,top-padding,qMax(1,right-left)+padding*2,qMax(1,bottom-top)+padding*2));
-            body->setPen(QPen(QColor("#536b80"),0));body->setBrush(QColor(30,43,58,90));body->setFlags(QGraphicsItem::ItemIsMovable|QGraphicsItem::ItemIsSelectable);body->setTransformOriginPoint(body->rect().center());scene_->addItem(body);bodies_.push_back(body);
-            auto* title=new QGraphicsSimpleTextItem(QString::fromStdString(c.displayName),body);title->setBrush(QColor("#a9b4c3"));title->setFlag(QGraphicsItem::ItemIgnoresTransformations);title->setPos(left,top-padding-18);
+            auto* body=new LayoutComponentItem(QRectF(left-padding,top-padding,qMax(1,right-left)+padding*2,qMax(1,bottom-top)+padding*2));
+            body->setPen(QPen(QColor("#536b80"),0));body->setBrush(QColor(30,43,58,90));body->setFlags(QGraphicsItem::ItemIsMovable|QGraphicsItem::ItemIsSelectable|QGraphicsItem::ItemSendsGeometryChanges);body->setTransformOriginPoint(body->rect().center());scene_->addItem(body);bodies_.push_back(body);
+            auto* title=new QGraphicsSimpleTextItem(QFontMetrics(font()).elidedText(compactHardwareName(c),Qt::ElideRight,qMax(40,int(body->rect().width()))),body);title->setToolTip(QString::fromStdString(c.displayName));title->setBrush(QColor("#a9b4c3"));title->setPos(left,top-padding-18);
             std::vector<QGraphicsEllipseItem*> points(c.ledCount,nullptr);
             for(int i=0;i<c.ledCount;++i) {
                 if(c.ledNames[i].find("Wire slot")==0)continue;
@@ -149,7 +170,7 @@ private:
             }
             points_.push_back(std::move(points));new ComponentTransformHandle(body,false);new ComponentTransformHandle(body,true);
         }
-        scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-80,-80,80,80));view_->fitInView(scene_->sceneRect(),Qt::KeepAspectRatio);
+        scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-80,-80,80,80));view_->fitInView(componentBounds().adjusted(-30,-30,30,30),Qt::KeepAspectRatio);
     }
     std::vector<Component> components_;QGraphicsScene* scene_;LayoutView* view_;QComboBox* selection_;
     std::vector<QGraphicsRectItem*> bodies_;std::vector<std::vector<QGraphicsEllipseItem*>> points_;

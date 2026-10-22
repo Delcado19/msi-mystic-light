@@ -496,6 +496,8 @@ void SettingsTest::testComponentsOverridesAndCustomEffectsRoundTrip()
     source.hardwareCatalog={Component::makeFan(6,true)};
     source.customEffects={{"Mine",{{255,0,0},{0,128,255}},9000,1000}};
     source.customEffects[0].pattern="Plasma";source.customEffects[0].stops={.1,.7};
+    CustomEffectDefinition layer{"Source",{{0,0,255},{0,0,255}},7000,300};layer.pattern="Color source";layer.angle=135;layer.sourceMotion="Ping-pong";layer.centerX=240;layer.centerY=180;layer.reverse=true;layer.spreadDegrees=120;layer.opacity=.4;layer.zoneEnabled=true;layer.zoneX=55;layer.zoneWidth=250;
+    source.customEffects[0].layers={layer};
     const auto file=directory.filePath("settings.json").toStdString();QVERIFY(source.saveToFile(file));
     Settings restored;QVERIFY(restored.loadFromFile(file));QVERIFY(source.profiles==restored.profiles);
     QCOMPARE(restored.hardwareCatalog.size(),size_t(1));QVERIFY(restored.profiles[0].channelSettings[1].hasCustomComponents());
@@ -503,6 +505,8 @@ void SettingsTest::testComponentsOverridesAndCustomEffectsRoundTrip()
     QCOMPARE(restored.customEffects[0].colors[1].g,uint8_t(128));
     QCOMPARE(restored.customEffects[0].pattern,std::string("Plasma"));
     QCOMPARE(restored.customEffects[0].stops,source.customEffects[0].stops);
+    QCOMPARE(restored.customEffects[0].layers.size(),size_t(1));
+    const auto& layerCopy=restored.customEffects[0].layers[0];QCOMPARE(layerCopy.angle,135.);QVERIFY(layerCopy.reverse);QCOMPARE(layerCopy.centerX,240);QCOMPARE(layerCopy.sourceMotion,std::string("Ping-pong"));QCOMPARE(layerCopy.centerY,180);QCOMPARE(layerCopy.spreadDegrees,120.);QCOMPARE(layerCopy.opacity,.4);QCOMPARE(layerCopy.zoneX,55);QCOMPARE(layerCopy.zoneWidth,250);QVERIFY(layerCopy.zoneEnabled);
     source.customEffects[0].pattern="Unknown";source.customEffects[0].stops={.9,.2};
     QVERIFY(source.saveToFile(file));QVERIFY(restored.loadFromFile(file));
     QCOMPARE(restored.customEffects[0].pattern,std::string("Wave"));QVERIFY(restored.customEffects[0].stops.empty());
