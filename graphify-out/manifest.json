@@ -12,9 +12,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792239163.2348602,
-    "seen": 1792511845.1511006,
-    "ast_hash": "21af0c07c2042d910eda882db8b5dd18",
+    "mtime": 1792730116.8170013,
+    "seen": 1792730118.2417884,
+    "ast_hash": "6fb40ba53433587ce8e8ce4ef374ea0e",
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
@@ -69,6 +69,48 @@
     "mtime": 1792429442.3970313,
     "seen": 1792511845.1511068,
     "ast_hash": "01fa9394ad68ecf639f058d9e3ffbb80",
+    "semantic_hash": ""
+  },
+  "src/main.cpp": {
+    "mtime": 1792729844.138355,
+    "seen": 1792729951.806021,
+    "ast_hash": "ae76c8f7bbf92f3a53cf65d65e78d4e5",
+    "semantic_hash": ""
+  },
+  "src/protocol/MsiProtocol.cpp": {
+    "mtime": 1792729845.2800472,
+    "seen": 1792729951.8060226,
+    "ast_hash": "5631c9a318feb32e68076069276ac1cf",
+    "semantic_hash": ""
+  },
+  "src/protocol/MsiProtocol.h": {
+    "mtime": 1792729844.9984136,
+    "seen": 1792729951.8060234,
+    "ast_hash": "6bf38c84d0795c0d2d74327abe8d4d23",
+    "semantic_hash": ""
+  },
+  "tests/protocol/test_msi_protocol.cpp": {
+    "mtime": 1792729847.0348954,
+    "seen": 1792729951.806024,
+    "ast_hash": "d465b81608b65692f30770b443632fcb",
+    "semantic_hash": ""
+  },
+  "CMakeLists.txt": {
+    "mtime": 1792729843.2382958,
+    "seen": 1792729951.8060265,
+    "ast_hash": "d650870f4ff1ff4866c55433dfeab5bf",
+    "semantic_hash": ""
+  },
+  "CONTINUE.md": {
+    "mtime": 1792730104.5092053,
+    "seen": 1792730118.2417872,
+    "ast_hash": "303d7e9c1def343a4fec3caba7f4338e",
+    "semantic_hash": ""
+  },
+  "tests/CMakeLists.txt": {
+    "mtime": 1792730083.1889725,
+    "seen": 1792730118.241796,
+    "ast_hash": "dd9e109bba7e14bdea9c518c11678bab",
     "semantic_hash": ""
   }
 }

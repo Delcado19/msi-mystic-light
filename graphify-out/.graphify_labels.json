@@ -1,1 +1,16 @@
-{"0": "Lighting Studio Implementation", "1": "Lighting Studio Design", "2": "Project Scaffolding and Drivers", "3": "Documentation and Protocols", "4": "Standalone App Design", "5": "MSI Mainboard LED Protocol", "6": "Mystic Light Network Interfaces", "7": "Mystic Light System Architecture", "8": "Device Data and Decryption", "9": "Skeleton Implementation Plan", "10": "Development Tools"}
+{
+  "0": "Lighting Studio Implementation Plan",
+  "1": "Lighting Studio Design",
+  "2": "File Structure",
+  "3": "README.md",
+  "4": "Standalone App Design",
+  "5": "MSI Mainboard LED Protocol",
+  "6": "Mystic Light Network Interfaces",
+  "7": "Mystic Light System Architecture",
+  "8": "BuildReport0x51",
+  "9": "MsiGen1AdvArea",
+  "10": "Development Tools",
+  "11": "MsiZoneSettings",
+  "12": "MsiLightingMode",
+  "13": "main.cpp"
+}
