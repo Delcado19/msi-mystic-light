@@ -15,6 +15,21 @@
 - Physical calibration/device behavior and clean-machine VC runtime remain unqualified.
 
 
+## Current remaining qualification
+
+- Verify output/calibration on each real controller and peripheral using the
+  explicit report-consent gate. Fake transport tests do not establish physical
+  color, LED mapping, unplug timing or firmware behavior.
+- Check the complete portable folder on a clean Windows installation with the
+  supported Visual C++ runtime; the current package was tested on this workstation.
+- Repository downloads/script-driver compatibility and automatic attached-LED
+  discovery remain separate work, not features of the current application.
+
+## Historical implementation log
+
+The entries below describe earlier increments. Their pending/unimplemented and
+uncommitted statements are historical; the current status above supersedes them.
+
 ## Worker output scheduler (2026-10-23)
 
 - Added OutputScheduler: QObject control/status with one standard-library worker,
@@ -371,7 +386,7 @@ timeout. Direct application startup also passed outside CTest.
   and test macros. Compiler/CTest results are the validation source, not graph
   completeness. Working changes have not been committed or pushed yet.
 
-## Next steps (updated)
+## Historical next steps (superseded)
 
 SignalRGB group research is recorded in `docs/SIGNALRGB_REPOSITORY_RESEARCH.md`.
 All 16 public projects were inventoried; the central repository's newer beta
