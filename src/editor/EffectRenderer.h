@@ -7,7 +7,7 @@
 
 enum class EffectKind {
     StaticColor, LinearGradient, RadialGradient, ConicalGradient, Stripes, Waves,
-    Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon, Image, Rain, Orbit, Fireflies, Burst
+    Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon, Image, Rain, Orbit, Fireflies, Burst, Paint
 };
 struct EffectDefinition {
     EffectKind kind;

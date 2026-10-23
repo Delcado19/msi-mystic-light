@@ -9,6 +9,11 @@ class LightingCanvas : public QWidget {
     Q_OBJECT
 public:
     enum class Context { Layout, Effects };
+    enum class Tool { Move, Pencil, Line, Rectangle, Ellipse, Gradient, Fill, Eraser };
+    Tool tool() const { return drawingTool_; }
+    void setTool(Tool tool) { cancelGesture(); drawingTool_=tool; setCursor(tool==Tool::Move ? Qt::ArrowCursor : Qt::CrossCursor); }
+    void setDrawing(QColor color,double width,bool filled) { drawColor_=color; drawWidth_=width; filled_=filled; }
+    void setPreviewOnly() { previewOnly_=true; setMinimumHeight(160); setFocusPolicy(Qt::NoFocus); }
     enum class MaskTool { Brush, Gradient };
     LightingCanvas(LightingDocument& document, Context context, QWidget* parent = nullptr);
     Context context() const { return context_; }
@@ -26,6 +31,9 @@ public:
 signals:
     void selectionChanged();
     void effectGestureStarted();
+    void gestureEnded();
+    void maskEditingRequested();
+    void editingError(const QString& message);
     void addRequested();
 protected:
     void resizeEvent(QResizeEvent*) override;
@@ -39,6 +47,9 @@ protected:
 private:
     bool selectedPlacement(const QUuid& id) const;
     void cancelGesture();
+    void beginDrawing(QPointF point);
+    void updateDrawing(QPointF point);
+    QPointF paintPoint(QPointF point) const;
     void updateEffectGesture(QPointF point);
     QPointF offset() const;
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
@@ -46,7 +57,12 @@ private:
     Context context_;
     QImage rendered_, workingMask_;
     QPushButton* emptyAction_;
-    bool autoFit_ = true;
+    bool autoFit_ = true, previewOnly_=false, drawing_=false, filled_=true;
+    Tool drawingTool_=Tool::Move;
+    QColor drawColor_=Qt::white;
+    double drawWidth_=6;
+    QImage drawingBase_;
+    QRectF previewBounds_{0,0,640,400};
     QUuid selected_, previewChannel_;
     bool maskTarget_ = false, showMask_ = false, dragging_ = false, panning_ = false;
     MaskTool tool_ = MaskTool::Brush;

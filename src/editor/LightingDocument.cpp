@@ -103,6 +103,15 @@ QUuid LightingDocument::addLayer(EffectKind effect)
     return layer.id;
 }
 
+QUuid LightingDocument::addPaintLayer()
+{
+    EffectLayer layer; layer.effect=EffectKind::Paint; layer.name="Layer "+QString::number(state_.layers.size()+1);
+    layer.extent=canvasSize(); layer.mask=whiteMask();
+    // A null source is a transparent canvas until the first drawing gesture.
+    edit("New layer",[&](LightingState& state) { state.layers.append(layer); });
+    return layer.id;
+}
+
 QUuid LightingDocument::importImage(const QString& fileName)
 {
     QFile file(fileName);
@@ -258,10 +267,11 @@ void LightingDocument::save(const QString& fileName, bool markClean)
         for (const auto& color : layer.colorCycle) cycle.append(color.name(QColor::HexArgb));
         advanced.insert("colorCycle", cycle); advanced.insert("maskLinked", layer.maskLinked);
         advanced.insert("crop", QJsonArray{layer.crop.x(), layer.crop.y(), layer.crop.width(), layer.crop.height()});
+        QJsonArray positions; for(double position:layer.gradientPositions) positions.append(position);
         QJsonArray gradient; for(const auto& color:layer.gradientColors) gradient.append(color.name(QColor::HexArgb));
         QJsonArray targets; for (const auto& id : layer.channelTargets) targets.append(id.toString());
         layers.append(QJsonObject{{"id", layer.id.toString()},
-            {"gradientColors", gradient}, {"targets", layer.allChannels ? QJsonValue(QJsonValue::Null) : QJsonValue(targets)}, {"name", layer.name},
+            {"gradientPositions",positions}, {"gradientColors", gradient}, {"targets", layer.allChannels ? QJsonValue(QJsonValue::Null) : QJsonValue(targets)}, {"name", layer.name},
             {"color", layer.color.name(QColor::HexArgb)}, {"visible", layer.visible},
             {"transparency", layer.transparency}, {"blend", static_cast<int>(layer.blend)},
             {"effect", QJsonObject{{"type", effectDefinition(layer.effect).id},
@@ -278,8 +288,8 @@ void LightingDocument::save(const QString& fileName, bool markClean)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()},
             {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
-    // Version 10 adds variable-length gradient colors; earlier projects keep their two-color rendering.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 10}, {"width", 640}, {"height", 400},
+    // Version 11 adds movable gradient stops and paint sources; old evenly spaced gradients retain their rendering.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 11}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -299,7 +309,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -331,6 +341,14 @@ void LightingDocument::load(const QString& fileName)
             blend < 0 || blend > 3 || std::floor(blend) != blend)
             throw std::invalid_argument("Invalid layer properties");
         EffectLayer layer;
+        if(schema>=11) {
+            const auto positions=json.value("gradientPositions");
+            if(!positions.isArray() || positions.toArray().size()>16) throw std::invalid_argument("Invalid gradient positions");
+            for(const auto& position:positions.toArray()) {
+                if(!position.isDouble()) throw std::invalid_argument("Invalid gradient position");
+                layer.gradientPositions.append(position.toDouble());
+            }
+        } else if(json.contains("gradientPositions")) throw std::invalid_argument("Gradient positions require schema 11");
         if(schema>=10) {
             const auto stops=json.value("gradientColors");
             if(!stops.isArray() || stops.toArray().size()>16) throw std::invalid_argument("Invalid gradient colors");
@@ -371,6 +389,7 @@ void LightingDocument::load(const QString& fileName)
         } else if (json.contains("effect")) {
             throw std::invalid_argument("Effect parameters require document schema 2");
         }
+        if(schema<11 && layer.effect==EffectKind::Paint) throw std::invalid_argument("Paint layers require schema 11");
         if (schema < 3 && (layer.effect == EffectKind::Image || json.contains("imagePng")))
             throw std::invalid_argument("Images require document schema 3");
         if (schema >= 3) {

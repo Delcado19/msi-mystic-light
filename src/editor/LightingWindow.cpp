@@ -1,4 +1,7 @@
 #include "LightingWindow.h"
+#include "HardwarePicker.h"
+#include <QSplitter>
+#include <QButtonGroup>
 #include "ComponentEditor.h"
 #include "ChannelEditor.h"
 #include "StudioWidgets.h"
@@ -7,6 +10,7 @@
 #include <QToolButton>
 #include <QStyle>
 #include <QSplitter>
+#include <QButtonGroup>
 #include <QStyledItemDelegate>
 #include <QApplication>
 #include <QActionGroup>
@@ -130,11 +134,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     redo->setShortcuts({QKeySequence::Redo, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)});
     editMenu->addAction(redo);
     auto* toolbar = addToolBar("History"); toolbar->setObjectName("historyToolbar");
-    toolbar->setMovable(false);
+    toolbar->setMovable(false); toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    open->setIcon(studioToolIcon("open")); save->setIcon(studioToolIcon("save"));
+    undo->setIcon(studioToolIcon("undo")); redo->setIcon(studioToolIcon("redo"));
     toolbar->addAction(open); toolbar->addAction(save); toolbar->addSeparator();
     // Keep dynamic undo descriptions in the menu, not in a toolbar that steals canvas width.
     auto* undoButton=new QToolButton; undoButton->setDefaultAction(undo); undoButton->setText("Undo"); toolbar->addWidget(undoButton);
     auto* redoButton=new QToolButton; redoButton->setDefaultAction(redo); redoButton->setText("Redo"); toolbar->addWidget(redoButton);
+    undoButton->setToolButtonStyle(Qt::ToolButtonIconOnly); redoButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
     connect(undo,&QAction::changed,undoButton,[undoButton] { undoButton->setText("Undo"); });
     connect(redo,&QAction::changed,redoButton,[redoButton] { redoButton->setText("Redo"); });
 
@@ -146,7 +153,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     layoutCanvas_->setObjectName("layoutCanvas");
     effectsCanvas_->setObjectName("effectsCanvas");
     tabs_->addTab(layoutCanvas_, "Layout");
-    tabs_->addTab(effectsCanvas_, "Effects");
+    auto* effectWorkspace=new QSplitter(Qt::Vertical); effectWorkspace->setObjectName("effectWorkspace");
+    hardwarePreview_=new LightingCanvas(document_,LightingCanvas::Context::Layout); hardwarePreview_->setObjectName("hardwareLivePreview"); hardwarePreview_->setPreviewOnly();
+    effectWorkspace->addWidget(effectsCanvas_); effectWorkspace->addWidget(hardwarePreview_); effectWorkspace->setStretchFactor(0,4); effectWorkspace->setStretchFactor(1,1); effectWorkspace->setSizes({560,180});
+    tabs_->addTab(effectWorkspace, "Effects");
     applicationPages_=new QStackedWidget; applicationPages_->setObjectName("applicationPages");
     applicationPages_->addWidget(tabs_); setCentralWidget(applicationPages_);
     auto* outputDialog=new QDialog(this); outputDialog->setObjectName("outputDialog");
@@ -255,8 +265,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* layoutHint=new QLabel("Select a header to move its group, or a child to move one component.");
     layoutHint->setWordWrap(true); layoutHint->setProperty("muted",true); layoutControls->addWidget(layoutHint);
     auto* placementPrecision=new QWidget; auto* placementForm = new QFormLayout(placementPrecision);
-    auto* placementSection=disclosure(layoutControls,"Precise placement",placementPrecision);
-    placementSection->findChild<QToolButton*>()->setChecked(true);
+    auto* placementSection=disclosure(layoutControls,"Precise placement",placementPrecision); placementSection->setObjectName("placementSection");
+    placementSection->findChild<QToolButton*>()->setChecked(false);
     const QStringList placementLabels{"Position X", "Position Y", "Scale X %", "Scale Y %", "Rotation deg"};
     for (int i = 0; i < placementLabels.size(); ++i) {
         auto* control = new QDoubleSpinBox;
@@ -306,7 +316,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     headerControls->setContentsMargins(0,0,0,0);
     headerTitle_=new QLabel("Select a header"); headerTitle_->setProperty("heading",true); headerControls->addWidget(headerTitle_);
     headerSummary_=new QLabel; headerSummary_->setWordWrap(true); headerSummary_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); headerControls->addWidget(headerSummary_);
-    button(headerControls,"Add fans / strips",[this] { addHeaderComponents(); })->setObjectName("addHeaderComponents");
+    auto* addHardware=new QPushButton("Hardware..."); addHardware->setObjectName("addHeaderComponents");
+    addHardware->setToolTip("Choose products and quantities to attach to a detected header"); toolbar->addWidget(addHardware);
+    connect(addHardware,&QPushButton::clicked,this,[this] { addHeaderComponents(); });
     button(headerControls,"Header settings",[this] {
         if(selectedHeader_.isEmpty()) return;
         try {
@@ -352,12 +364,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* effectPanel = new QWidget;
     auto* effectControls = new QVBoxLayout(effectPanel);
     effectControls->setContentsMargins(14,12,14,12); effectControls->setSpacing(10);
-    previewOverview_=new QLabel; previewOverview_->setObjectName("compositionPreview");
-    previewOverview_->setFixedSize(96,60);
-    previewOverview_->setAlignment(Qt::AlignCenter); previewOverview_->setToolTip("Live composition preview for the selected output channel");
-    auto* inspectorHeading=new QHBoxLayout; effectControls->addLayout(inspectorHeading);
-    inspectorHeading->addWidget(previewOverview_);
-    inspectorTitle_=new QLabel("Select a layer"); inspectorTitle_->setProperty("heading",true); inspectorTitle_->setWordWrap(true); inspectorHeading->addWidget(inspectorTitle_,1);
+    inspectorTitle_=new QLabel("Select a layer"); inspectorTitle_->setProperty("heading",true); inspectorTitle_->setWordWrap(true); effectControls->addWidget(inspectorTitle_);
     inspectorTabs_=new QTabWidget; inspectorTabs_->setObjectName("layerInspectorTabs");
     effectControls->addWidget(inspectorTabs_);
     auto* appearance=new QWidget; auto* appearanceControls=new QVBoxLayout(appearance); appearanceControls->setContentsMargins(0,12,0,0); appearanceControls->setSpacing(12);
@@ -371,10 +378,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     addPanel(effectPanel);
     button(layerStack, "New layer", [this] {
         if (document_.state().layers.size() >= 64) { statusBar()->showMessage("Document limit: 64 layers."); return; }
-        const auto kind=chooseEffect(this); if(!kind) return;
         editingMask_=false; inspectorTabs_->setCurrentIndex(0);
-        selectedLayer_=document_.addLayer(*kind); refresh();
-    })->setProperty("primary",true);
+        selectedLayer_=document_.addPaintLayer(); refresh();
+    })->setObjectName("newLayer");
+    button(layerStack,"Presets...",[this] {
+        if(document_.state().layers.size()>=64) return;
+        const auto kind=chooseEffect(this); if(!kind) return;
+        editingMask_=false; inspectorTabs_->setCurrentIndex(0); selectedLayer_=document_.addLayer(*kind); inspectorTabs_->setCurrentIndex(isParticle(*kind) ? 1 : 0); refresh();
+    })->setObjectName("effectPresets");
     button(layerStack, "Import image...", [this] {
         const auto file = QFileDialog::getOpenFileName(this, "Import image", {}, "Images (*.png *.jpg *.jpeg *.gif *.bmp *.webp)");
         if (file.isEmpty()) return;
@@ -452,6 +463,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             state.layers.removeIf([&](const auto& layer) { return layer.id == id; });
         });
     });
+    auto* createActions=new QHBoxLayout; auto* manageActions=new QHBoxLayout;
+    for(auto* control:layersPanel->findChildren<QPushButton*>(QString{},Qt::FindDirectChildrenOnly)) {
+        if(control->text()=="New layer" || control->text()=="Presets...") { layerStack->removeWidget(control); createActions->addWidget(control); }
+        if(control->text()=="Duplicate layer" || control->text()=="Delete layer") { layerStack->removeWidget(control); manageActions->addWidget(control); }
+    }
+    layerStack->insertLayout(0,createActions); layerStack->addLayout(manageActions);
     auto* form = new QFormLayout;
     appearanceControls->addLayout(form);
     transparency_ = new QSlider(Qt::Horizontal);
@@ -497,17 +514,27 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         });
     });
     color_=new ColorEditor; color_->setObjectName("effectColor"); appearanceControls->addWidget(color_);
-    connect(color_,&ColorEditor::colorChanged,this,[this](QColor color) { updateLayer("Effect color",[color](auto& layer) { layer.color=color; }); });
+    connect(color_,&ColorEditor::colorChanged,this,[this](QColor color) {
+        foreground_=color;
+        // Brush color is tool state; changing it must not recolor a procedural source under the brush.
+        if(effectsCanvas_->tool()==LightingCanvas::Tool::Move)
+            for(const auto& layer:document_.state().layers) if(layer.id==selectedLayer_ && layer.effect!=EffectKind::Paint)
+                { updateLayer("Effect color",[color](auto& selected) { selected.color=color; }); break; }
+    });
     secondaryColor_=new ColorEditor; secondaryColor_->setObjectName("secondaryEffectColor"); appearanceControls->addWidget(secondaryColor_);
     connect(secondaryColor_,&ColorEditor::colorChanged,this,[this](QColor color) { updateLayer("Secondary color",[color](auto& layer) { layer.secondaryColor=color; }); });
-    gradientColors_=new ColorListEditor(2,16); gradientColors_->setObjectName("gradientColors"); appearanceControls->addWidget(gradientColors_);
-    connect(gradientColors_,&ColorListEditor::colorsChanged,this,[this](const QVector<QColor>& colors) {
-        updateLayer("Gradient colors",[colors](auto& layer) { layer.gradientColors=colors; layer.color=colors.first(); layer.secondaryColor=colors.last(); });
+    gradientColors_=new ColorListEditor(2,16); gradientColors_->setGradientMode(); gradientColors_->setObjectName("gradientColors"); appearanceControls->addWidget(gradientColors_);
+    connect(gradientColors_,&ColorListEditor::stopsChanged,this,[this] {
+        const auto colors=gradientColors_->colors(); const auto positions=gradientColors_->positions();
+        updateLayer("Gradient stops",[colors,positions](auto& layer) { layer.gradientColors=colors; layer.gradientPositions=positions; layer.color=colors.first(); layer.secondaryColor=colors.last(); });
     });
+    connect(gradientColors_,&ColorListEditor::gestureStarted,this,[this] { document_.history()->beginMacro("Gradient stop"); });
+    connect(gradientColors_,&ColorListEditor::gestureFinished,this,[this] { document_.history()->endMacro(); });
     effectType_ = new QComboBox;
     effectType_->setObjectName("selectedEffectType");
     for (const auto& definition : effectDefinitions())
-        effectType_->addItem(definition.label, static_cast<int>(definition.kind));
+        if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Image)
+            effectType_->addItem(isParticle(definition.kind) ? QString(definition.label).replace("Particle ","") : definition.label, static_cast<int>(definition.kind));
     appearanceControls->addWidget(effectType_);
     connect(effectType_, &QComboBox::currentIndexChanged, this, [this](int) {
         const auto kind = static_cast<EffectKind>(effectType_->currentData().toInt());
@@ -532,30 +559,32 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             updateLayer("Animation rates", [=](auto& layer) { layer.spin = spin; layer.pulse = pulse; layer.hueShift = hue; });
         });
     }
-    auto* advancedContent=new QWidget; auto* advancedForm=new QGridLayout(advancedContent); advancedForm->setContentsMargins(0,0,0,0);
-    int advancedIndex=0;
-    for (const auto& parameter : advancedParameters()) {
-        auto* value = new QDoubleSpinBox; value->setObjectName(parameter.id);
-        value->setRange(parameter.minimum,parameter.maximum);
-        value->setDecimals(parameter.id == "particleCount" || parameter.id == "particleSeed" ? 0 : 2);
-        value->setKeyboardTracking(false); advanced_.append(value);
-        auto* label=new QLabel(parameter.label); label->setWordWrap(true); label->setMaximumWidth(86);
-        value->setFixedWidth(72); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label)));
-        const int column=(advancedIndex/6)*2,row=advancedIndex%6; ++advancedIndex;
-        advancedForm->addWidget(label,row,column); advancedForm->addWidget(value,row,column+1);
-        connect(value,&QDoubleSpinBox::valueChanged,this,[this,member=parameter.member](double number) {
-            updateLayer("Effect parameter",[=](auto& layer) { layer.*member = number; });
-        });
-    }
-    colorCycle_=new ColorListEditor(2,16); colorCycle_->setObjectName("colorCycle");
-    advancedForm->addWidget(new QLabel("Color cycle palette"),6,0,1,4);
-    advancedForm->addWidget(colorCycle_,7,0,1,4);
-    connect(colorCycle_,&ColorListEditor::colorsChanged,this,[this](const QVector<QColor>& colors) {
-        updateLayer("Cycle colors",[colors](auto& layer) { layer.colorCycle=colors; });
-    });
-    motionControls->addWidget(new QLabel("Play preview to see motion on the canvas."));
     motionControls->addWidget(animationControls_);
-    motionControls->addWidget(advancedContent);
+    auto* particles=new QWidget; particles->setObjectName("particleParameters"); auto* particleForm=new QFormLayout(particles); particleForm->setContentsMargins(0,0,0,0);
+    motionControls->addWidget(particles);
+    auto* advancedContent=new QWidget; auto* advancedForm=new QGridLayout(advancedContent); advancedForm->setContentsMargins(0,0,0,0);
+    int detailIndex=0;
+    for(const auto& parameter:advancedParameters()) {
+        auto* value=new QDoubleSpinBox; value->setObjectName(parameter.id); value->setRange(parameter.minimum,parameter.maximum);
+        value->setDecimals(parameter.id=="particleCount" || parameter.id=="particleSeed" ? 0 : 2); value->setKeyboardTracking(false); advanced_.append(value);
+        const bool primary=parameter.id=="particleCount" || parameter.id=="particleSpeed" || parameter.id=="particleSize";
+        if(primary) {
+            auto* field=sliderField(value); value->setProperty("visibilityContainer",QVariant::fromValue(static_cast<QObject*>(field)));
+            auto* label=new QLabel(parameter.label); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label))); particleForm->addRow(label,field);
+        } else {
+            auto* label=new QLabel(parameter.label); label->setWordWrap(true); value->setFixedWidth(72); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label)));
+            advancedForm->addWidget(label,detailIndex,0); advancedForm->addWidget(value,detailIndex++,1);
+        }
+        connect(value,&QDoubleSpinBox::valueChanged,this,[this,member=parameter.member](double number) { updateLayer("Effect parameter",[=](auto& layer) { layer.*member=number; }); });
+    }
+    auto* details=disclosure(motionControls,"Advanced motion",advancedContent); details->setObjectName("advancedMotion");
+    colorCycle_=new ColorListEditor(2,16); colorCycle_->setObjectName("colorCycle");
+    disclosure(motionControls,"Color cycle palette",colorCycle_);
+    connect(colorCycle_,&ColorListEditor::colorsChanged,this,[this](const QVector<QColor>& colors) { updateLayer("Cycle colors",[colors](auto& layer) { layer.colorCycle=colors; }); });
+    connect(colorCycle_,&ColorListEditor::gestureStarted,this,[this] { document_.history()->beginMacro("Cycle color"); });
+    connect(colorCycle_,&ColorListEditor::gestureFinished,this,[this] { document_.history()->endMacro(); });
+    effectType_->setProperty("appearanceContainer",QVariant::fromValue(static_cast<QObject*>(appearance)));
+    effectType_->setProperty("motionContainer",QVariant::fromValue(static_cast<QObject*>(motion)));
     motionControls->addStretch();
     maskLinked_ = new QCheckBox("Link mask to effect"); maskLinked_->setObjectName("maskLinked");
     maskControls->addWidget(maskLinked_);
@@ -578,7 +607,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     }
     auto* cropSection=disclosure(appearanceControls,"Precise image crop",cropControls_);
     cropSection->setObjectName("cropSection");
-    cropSection->findChild<QToolButton*>()->setChecked(true);
+    cropSection->findChild<QToolButton*>()->setChecked(false);
     auto* resetCrop=button(appearanceControls,"Reset image crop",[this] { updateLayer("Reset crop",[](auto& layer) { layer.crop={0,0,1,1}; }); });
     resetCrop->setObjectName("resetCrop");
 
@@ -615,7 +644,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     }
     auto* geometrySection=disclosure(appearanceControls,"Precise transform",geometryControls_);
     geometrySection->setObjectName("geometrySection");
-    geometrySection->findChild<QToolButton*>()->setChecked(true);
+    geometrySection->findChild<QToolButton*>()->setChecked(false);
     repetitions_ = new QSpinBox;
     repetitions_->setObjectName("effectRepetitions");
     repetitions_->setRange(1, 64);
@@ -624,57 +653,35 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(repetitions_, &QSpinBox::valueChanged, this, [this](int value) {
         updateLayer("Effect repetitions", [value](auto& layer) { layer.repetitions = value; });
     });
-    effectTarget_ = button(appearanceControls, "Edit effect", [this] { editingMask_ = false; inspectorTabs_->setCurrentIndex(0); findChild<QCheckBox*>("cropTool")->setChecked(false); effectsCanvas_->setCropTool(false); refreshProperties(); });
-    maskTarget_ = button(appearanceControls, "Edit mask", [this] { editingMask_ = true; inspectorTabs_->setCurrentIndex(2); refreshProperties(); });
-    effectTarget_->setCheckable(true); maskTarget_->setCheckable(true);
-    auto* tools = new QToolBar("Effect tools", this);
-    tools->setObjectName("effectTools");
-    tools->setAllowedAreas(Qt::LeftToolBarArea);
-    tools->setMovable(false);
-    addToolBar(Qt::LeftToolBarArea, tools);
-    appearanceControls->removeWidget(effectTarget_); appearanceControls->removeWidget(maskTarget_);
-    effectTarget_->setText("Move"); effectTarget_->setToolTip("Move or transform the selected effect (V)"); effectTarget_->setShortcut(QKeySequence(Qt::Key_V));
-    maskTarget_->setText("Brush"); maskTarget_->setToolTip("Paint the layer mask (B)"); maskTarget_->setShortcut(QKeySequence(Qt::Key_B));
-    effectTarget_->setObjectName("moveEffectTool"); maskTarget_->setObjectName("paintMaskTool");
-    effectTarget_->setAccessibleName("Move effect"); maskTarget_->setAccessibleName("Paint mask");
-    effectTarget_->setText(""); maskTarget_->setText("");
-    effectTarget_->setIcon(studioToolIcon("move")); maskTarget_->setIcon(studioToolIcon("brush"));
-    effectTarget_->setFixedSize(42,42); maskTarget_->setFixedSize(42,42);
-    tools->addWidget(effectTarget_); tools->addWidget(maskTarget_);
-    auto* cropTool=new QCheckBox; cropTool->setObjectName("cropTool"); cropTool->setParent(this); cropTool->hide();
-    auto* cropButton=new QToolButton; cropButton->setIcon(studioToolIcon("crop")); cropButton->setCheckable(true); cropButton->setFixedSize(42,42);
-    cropButton->setObjectName("cropImageTool");
-    cropButton->setToolTip("Crop image on canvas (C)"); cropButton->setAccessibleName("Crop image"); cropButton->setShortcut(QKeySequence(Qt::Key_C)); tools->addWidget(cropButton);
-    connect(cropButton,&QToolButton::toggled,cropTool,&QCheckBox::setChecked);
-    connect(cropTool,&QCheckBox::toggled,cropButton,&QToolButton::setChecked);
-    connect(cropTool,&QCheckBox::toggled,this,[this](bool crop) {
-        if (crop) editingMask_=false;
-        effectsCanvas_->setCropTool(crop); refreshProperties();
-    });
-    connect(effectsCanvas_,&LightingCanvas::effectGestureStarted,this,[this] {
-        // Source geometry is authored at base time, not at a channel's offset clock.
-        playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0);
-    });
-    auto* effectPalette=new QWidget; auto* paletteGrid=new QGridLayout(effectPalette); paletteGrid->setContentsMargins(0,8,0,0); paletteGrid->setSpacing(4);
-    int effectIndex=0;
-    for(const auto& definition:effectDefinitions()) {
-        auto* tool=new QToolButton; tool->setObjectName("addEffect_"+definition.id); tool->setFixedSize(34,34);
-        EffectLayer sample; sample.effect=definition.kind; sample.color=QColor("#91aaff"); sample.secondaryColor=QColor("#ff91ba");
-        tool->setIcon(QIcon(QPixmap::fromImage(renderEffect(sample,1).copy(QRect(180,60,280,280)).scaled(28,28,Qt::KeepAspectRatio,Qt::SmoothTransformation))));
-        if(definition.kind==EffectKind::Image) tool->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
-        tool->setStyleSheet("QToolButton { padding: 2px; }"); tool->setIconSize({28,28}); tool->setAccessibleName("Add "+definition.label); tool->setToolTip("Add "+definition.label+" as a new effect layer with its own mask.");
-        connect(tool,&QToolButton::clicked,this,[this,kind=definition.kind] {
-            if(kind==EffectKind::Image) {
-                for(auto* control:findChildren<QPushButton*>()) if(control->text()=="Import image...") { control->click(); break; }
-            } else if(document_.state().layers.size()<64) {
-                editingMask_=false; inspectorTabs_->setCurrentIndex(0); selectedLayer_=document_.addLayer(kind); refresh();
-            }
-        });
-        paletteGrid->addWidget(tool,effectIndex/2,effectIndex%2); ++effectIndex;
+    auto* tools=new QToolBar("Drawing tools",this); tools->setObjectName("effectTools"); tools->setMovable(false);
+    tools->setAllowedAreas(Qt::LeftToolBarArea); addToolBar(Qt::LeftToolBarArea,tools);
+    auto* toolGroup=new QButtonGroup(this); toolGroup->setExclusive(true);
+    const QStringList toolNames{"Move", "Pencil", "Line", "Rectangle", "Ellipse", "Gradient", "Fill", "Eraser"};
+    const QList<int> keys{Qt::Key_V,Qt::Key_B,Qt::Key_L,Qt::Key_U,Qt::Key_O,Qt::Key_G,Qt::Key_F,Qt::Key_E};
+    for(int index=0;index<toolNames.size();++index) {
+        auto* tool=new QPushButton; tool->setObjectName(index==0 ? "moveEffectTool" : toolNames[index].toLower()+"Tool"); tool->setFixedSize(40,40);
+        tool->setIcon(studioToolIcon(toolNames[index].toLower())); tool->setCheckable(true); tool->setShortcut(QKeySequence(keys[index]));
+        tool->setToolTip(toolNames[index]+" ("+QChar(keys[index])+")"); tool->setAccessibleName(toolNames[index]); tools->addWidget(tool); toolGroup->addButton(tool,index);
+        if(index==0) { effectTarget_=tool; tool->setChecked(true); }
+        connect(tool,&QPushButton::clicked,this,[this,index] { effectsCanvas_->setCropTool(false); findChild<QCheckBox*>("cropTool")->setChecked(false); effectsCanvas_->setTool(static_cast<LightingCanvas::Tool>(index)); refreshProperties(); });
     }
-    tools->addSeparator(); tools->addWidget(effectPalette);
-    tools->hide();
-    connect(tabs_, &QTabWidget::currentChanged, tools, [tools](int index) { tools->setVisible(index == 1); });
+    auto* cropTool=new QCheckBox; cropTool->setObjectName("cropTool"); cropTool->setParent(this); cropTool->hide();
+    auto* cropButton=new QToolButton; cropButton->setIcon(studioToolIcon("crop")); cropButton->setCheckable(true); cropButton->setFixedSize(40,40); cropButton->setObjectName("cropImageTool");
+    cropButton->setToolTip("Crop imported image (C)"); cropButton->setAccessibleName("Crop image"); cropButton->setShortcut(QKeySequence(Qt::Key_C)); tools->addWidget(cropButton);
+    connect(cropButton,&QToolButton::toggled,cropTool,&QCheckBox::setChecked); connect(cropTool,&QCheckBox::toggled,cropButton,&QToolButton::setChecked);
+    connect(cropTool,&QCheckBox::toggled,this,[this](bool crop) { if(crop) { editingMask_=false; effectsCanvas_->setTool(LightingCanvas::Tool::Move); } effectsCanvas_->setCropTool(crop); });
+    connect(effectsCanvas_,&LightingCanvas::effectGestureStarted,this,[this] { resumePreview_=playing_->isChecked() && !editingMask_; playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0); });
+    connect(effectsCanvas_,&LightingCanvas::maskEditingRequested,this,[this] { inspectorTabs_->setCurrentIndex(2); });
+    connect(effectsCanvas_,&LightingCanvas::editingError,this,[this](const QString& message) { statusBar()->showMessage(message,8000); });
+    connect(effectsCanvas_,&LightingCanvas::gestureEnded,this,[this] { if(resumePreview_ && !editingMask_) playing_->setChecked(true); resumePreview_=false; });
+    connect(effectsCanvas_,&LightingCanvas::selectionChanged,this,[this] {
+        if(selectedLayer_!=effectsCanvas_->selection()) { selectedLayer_=effectsCanvas_->selection(); refresh(); }
+    });
+    auto* toolOptions=new QToolBar("Tool options",this); toolOptions->setObjectName("drawingOptions"); toolOptions->setMovable(false); addToolBarBreak(); addToolBar(toolOptions);
+    appearanceControls->removeWidget(color_); color_->setMaximumWidth(190); toolOptions->addWidget(color_)->setObjectName("foregroundColorAction");
+    auto* shapeFill=new QCheckBox("Filled shapes"); shapeFill->setObjectName("shapeFill"); shapeFill->setChecked(true); toolOptions->addWidget(shapeFill)->setObjectName("shapeFillAction");
+    tools->hide(); toolOptions->hide();
+    connect(tabs_,&QTabWidget::currentChanged,this,[this,tools](int index) { tools->setVisible(index==1); refreshToolOptions(); });
     maskEnabled_ = new QCheckBox("Enable mask");
     maskControls->addWidget(maskEnabled_);
     connect(maskEnabled_, &QCheckBox::toggled, this, [this](bool enabled) {
@@ -683,19 +690,18 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* showMask = new QCheckBox("Show grayscale mask");
     maskControls->addWidget(showMask);
     connect(showMask, &QCheckBox::toggled, effectsCanvas_, &LightingCanvas::setShowMask);
-    auto* maskTool = new QComboBox;
-    maskTool->addItems({"Mask brush", "Mask gradient · black → white"});
-    maskControls->addWidget(maskTool);
-    connect(maskTool, &QComboBox::currentIndexChanged, this, [this](int index) {
-        effectsCanvas_->setMaskTool(static_cast<LightingCanvas::MaskTool>(index));
-    });
     auto* brushForm = new QFormLayout;
     maskControls->addLayout(brushForm);
     auto spin = [brushForm](const QString& name, int low, int high, int value) {
         auto* control = new QDoubleSpinBox; control->setDecimals(0); control->setRange(low, high); control->setValue(value); control->setAccessibleName(name);
         brushForm->addRow(name, sliderField(control)); return control;
     };
-    auto* size = spin("Brush diameter", 2, 320, 60);
+    auto* size=new QDoubleSpinBox; size->setAccessibleName("Brush diameter"); size->setObjectName("brushDiameter"); size->setRange(1,320); size->setValue(6); size->setSuffix(" px"); size->setFixedWidth(90);
+    toolOptions->addWidget(new QLabel("  Stroke "))->setObjectName("strokeLabelAction"); toolOptions->addWidget(size)->setObjectName("strokeSizeAction");
+    const auto syncDrawing=[this,size,shapeFill] { effectsCanvas_->setDrawing(color_->color(),size->value(),shapeFill->isChecked()); };
+    connect(color_,&ColorEditor::colorChanged,this,[syncDrawing] { syncDrawing(); }); connect(size,&QDoubleSpinBox::valueChanged,this,[syncDrawing] { syncDrawing(); }); connect(shapeFill,&QCheckBox::toggled,this,[syncDrawing] { syncDrawing(); });
+    syncDrawing();
+    auto* toolHint=new QLabel; toolHint->setObjectName("toolHint"); toolHint->setProperty("muted",true); toolOptions->addWidget(toolHint);
     auto* hardness = spin("Hardness %", 0, 100, 30);
     auto* brushOpacity = spin("Brush opacity %", 0, 100, 100);
     auto* gray = spin("Mask gray", 0, 255, 0);
@@ -708,7 +714,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     button(maskControls, "Fill mask black", [this] { updateLayer("Hide layer with mask", [](auto& layer) { layer.mask.fill(0); }); });
     button(maskControls, "Invert mask", [this] { updateLayer("Invert mask", [](auto& layer) { layer.mask.invertPixels(); }); });
     maskControls->addStretch(); appearanceControls->addStretch(); effectControls->addStretch();
-    auto* layerHint=new QLabel("Drag to reorder. Double-click a name to rename.\nSelect a source or mask thumbnail to edit it.");
+    auto* layerHint=new QLabel("Drag to reorder. Double-click to rename.\nClick the mask thumbnail to edit transparency.");
     layerHint->setWordWrap(true); layerHint->setProperty("muted",true); layerStack->addWidget(layerHint);
     connect(tabs_, &QTabWidget::currentChanged, sidebarContexts, &QStackedWidget::setCurrentIndex);
     connect(tabs_, &QTabWidget::currentChanged, contexts, &QStackedWidget::setCurrentIndex);
@@ -742,6 +748,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     resizeDocks({sidebarDock,dock},{260,390},Qt::Horizontal);
     installParameterTooltips(this);
     refresh();
+    playing_->setChecked(true);
 }
 
 void LightingWindow::updateLayer(const QString& label, const std::function<void(EffectLayer&)>& operation)
@@ -782,7 +789,7 @@ ChannelAssignment LightingWindow::selectedHeaderAssignment() const
 void LightingWindow::refreshHeader()
 {
     const bool selected=!selectedHeader_.isEmpty();
-    findChild<QPushButton*>("addHeaderComponents")->setEnabled(selected);
+    findChild<QPushButton*>("addHeaderComponents")->setEnabled(true);
     findChild<QPushButton*>("headerSettings")->setEnabled(selected);
     if(!selected) { headerTitle_->setText("No header selected"); headerSummary_->setText("Detected headers appear on the left. Select one to attach your components."); return; }
     const auto assignment=selectedHeaderAssignment();
@@ -791,6 +798,10 @@ void LightingWindow::refreshHeader()
     int leds=0;
     for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements)
         if(placement.id==id) leds+=document_.catalog()[placement.componentId].positions.size();
+    for(const auto& placement:document_.state().placements) if(placement.id==layoutCanvas_->selection()) {
+        const auto& component=document_.catalog()[placement.componentId]; headerTitle_->setText(component.name);
+        headerSummary_->setText(QString("%1 / %2 LEDs\nDrag this component on the layout canvas.").arg(assignment.channelId).arg(component.positions.size())); return;
+    }
     headerTitle_->setText(assignment.channelId);
     headerSummary_->setText(QString("%1\n%2 components / %3 of %4 LEDs\n%5").arg(profile.name).arg(assignment.placements.size()).arg(leds).arg(channel.maxLeds)
         .arg(channel.direct ? "Effects canvas supported" : "Native lighting only"));
@@ -798,64 +809,36 @@ void LightingWindow::refreshHeader()
 
 void LightingWindow::addHeaderComponents()
 {
-    if(selectedHeader_.isEmpty()) { statusBar()->showMessage("Select a detected header on the left, or refresh headers after connecting your controller."); return; }
-    const auto assignment=selectedHeaderAssignment();
-    const auto& channel=assignmentChannel(assignmentProfile(document_.profiles(),assignment.profileId),assignment.channelId);
-    QDialog dialog(this); dialog.setObjectName("attachComponentsDialog"); dialog.setWindowTitle("Attach components to "+assignment.channelId);
-    auto* layout=new QVBoxLayout(&dialog);
-    auto* hint=new QLabel("Enter the components connected in physical chain order: fans first, then strips. LED counts must match your hardware.");
-    hint->setWordWrap(true); layout->addWidget(hint);
-    auto* form=new QFormLayout; layout->addLayout(form);
-    auto spin=[&](const QString& name,const QString& label,int minimum,int maximum,int value) {
-        auto* control=new QSpinBox; control->setObjectName(name); control->setRange(minimum,maximum); control->setValue(value); form->addRow(label,control); return control;
-    };
-    auto* fans=spin("fanCount","Fans",0,64,1);
-    auto* fanLeds=spin("fanLeds","LEDs per fan",1,channel.maxLeds,8);
-    auto* strips=spin("stripCount","Strips",0,64,0);
-    auto* stripLeds=spin("stripLeds","LEDs per strip",1,channel.maxLeds,8);
-    fans->setToolTip("Number of fans to append to this header's physical chain.");
-    strips->setToolTip("Number of strips to append after the fans. Reorder the chain in Header settings if needed.");
-    fanLeds->setToolTip("Actual addressable LED count of each fan; use the manufacturer's specification.");
-    stripLeds->setToolTip("Actual addressable LED count of each strip; total LEDs must fit this header's capacity.");
-    auto* error=new QLabel; error->setObjectName("attachError"); error->setWordWrap(true); layout->addWidget(error);
-    auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel); layout->addWidget(buttons);
-    buttons->button(QDialogButtonBox::Ok)->setText("Attach components");
-    connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
-    connect(buttons,&QDialogButtonBox::accepted,&dialog,[&,assignment] {
-        if(fans->value()+strips->value()==0) { error->setText("Choose at least one component."); return; }
-        try {
-            // Geometry, chain and instances share one undo command; capacity failure leaves everything untouched.
-            document_.edit("Attach fans and strips",[&](LightingState& state) {
-                auto updated=assignment;
-                for(int kind=0;kind<2;++kind) {
-                    const int count=kind==0 ? fans->value() : strips->value(), leds=kind==0 ? fanLeds->value() : stripLeds->value();
-                    if(count==0) continue;
-                    ComponentDefinition definition; definition.id=QString("generic.%1.%2").arg(kind==0 ? "fan" : "strip").arg(leds);
-                    definition.name=QString("%1 (%2 LEDs)").arg(kind==0 ? "Fan" : "Strip").arg(leds);
-                    // Catalog units become 20 canvas pixels in componentPoints().
-                    for(int led=0;led<leds;++led) {
-                        const double angle=6.283185307179586*led/leds;
-                        definition.positions.append(kind==0 ? QPointF(1.3+1.3*std::cos(angle),1.3+1.3*std::sin(angle)) : QPointF(led*0.4,0));
-                        definition.mapping.append(led);
-                    }
-                    // Existing document geometry with this ID remains authoritative.
-                    if(!state.components.contains(definition.id)) state.components.insert(definition.id,definition);
-                    else if(state.components[definition.id].positions.size()!=leds)
-                        throw std::invalid_argument("Existing component geometry has a different LED count; edit it in Component library first");
-                    for(int n=0;n<count;++n) {
-                        ComponentPlacement placement; placement.componentId=definition.id;
-                        const int index=state.placements.size(); placement.origin={40.0+(index%7)*80,40.0+(index/7)*80};
-                        state.placements.append(placement); updated.placements.append(placement.id);
-                    }
-                }
-                bool replaced=false;
-                for(auto& existing:state.assignments) if(existing.id==updated.id) { existing=updated; replaced=true; }
-                if(!replaced) state.assignments.append(updated);
-            });
-            dialog.accept();
-        } catch(const std::exception& failure) { error->setText(QString::fromUtf8(failure.what())); }
-    });
-    installParameterTooltips(&dialog); dialog.exec();
+    QVector<HeaderChoice> choices;
+    for(int i=0;i<components_->topLevelItemCount();++i) {
+        const auto data=components_->topLevelItem(i)->data(0,Qt::UserRole+1).toMap(); if(data.isEmpty()) continue;
+        const auto& profile=assignmentProfile(document_.profiles(),data.value("profileId").toString());
+        const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
+        int used=0;
+        for(const auto& assignment:document_.state().assignments) if(assignment.profileId==profile.id && assignment.endpoint==data.value("path") && assignment.channelId==channel.id)
+            for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements) if(placement.id==id) used+=document_.catalog()[placement.componentId].positions.size();
+        choices.append({profile.name+" / "+channel.id,data,channel.maxLeds-used,channel.fixedLeds ? channel.fixedLeds-used : 0});
+    }
+    HardwarePicker picker(document_.catalog(),choices,selectedHeader_,this);
+    if(picker.exec()!=QDialog::Accepted) return;
+    selectedHeader_=picker.header(); const auto assignment=selectedHeaderAssignment();
+    try {
+        const auto component=picker.component(); const int count=picker.quantity();
+        document_.edit("Attach hardware",[&](LightingState& state) {
+            if(!state.components.contains(component.id) && state.components.size()>=256) throw std::invalid_argument("Component definition limit reached");
+            if(!state.components.contains(component.id)) state.components.insert(component.id,component);
+            auto updated=assignment;
+            QRectF bounds; for(const auto& point:component.positions) bounds=bounds.united(QRectF(point,QSizeF(.001,.001)));
+            const double scale=3.0/std::max(3.0,std::max(bounds.width(),bounds.height()));
+            for(int index=0;index<count;++index) {
+                ComponentPlacement placement; placement.componentId=component.id; const int position=state.placements.size();
+                placement.scale={scale,scale}; placement.origin={50.0+(position%7)*80-bounds.left()*20*scale,60.0+(position/7)*80-bounds.top()*20*scale};
+                state.placements.append(placement); updated.placements.append(placement.id);
+            }
+            bool replaced=false; for(auto& existing:state.assignments) if(existing.id==updated.id) { existing=updated; replaced=true; }
+            if(!replaced) state.assignments.append(updated);
+        });
+    } catch(const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),8000); }
 }
 
 void LightingWindow::refreshPlacement()
@@ -864,6 +847,7 @@ void LightingWindow::refreshPlacement()
     for (const auto& placement : document_.state().placements)
         if (placement.id == layoutCanvas_->selection()) selected = &placement;
     findChild<QPushButton*>("removeComponent")->setEnabled(selected!=nullptr);
+    findChild<QWidget*>("placementSection")->setVisible(selected!=nullptr);
     for (int i = 0; i < placementControls_.size(); ++i) {
         const QSignalBlocker block(placementControls_[i]);
         placementControls_[i]->setEnabled(selected != nullptr);
@@ -981,11 +965,28 @@ void LightingWindow::updatePreview()
     previewFrame_=document_.render(seconds); // Canonical global composition for default-clock output channels.
     const auto displayed=channel.isNull() ? previewFrame_ : document_.renderForChannel(channel,seconds);
     const double localTime=channel.isNull() ? seconds : document_.channelTime(channel,seconds);
-    layoutCanvas_->setPreviewFrame(displayed,localTime,channel); effectsCanvas_->setPreviewFrame(displayed,localTime,channel);
-    QImage overview(displayed.size(),QImage::Format_ARGB32_Premultiplied); overview.fill(QColor("#161920"));
-    { QPainter painter(&overview); painter.drawImage(0,0,displayed); }
-    previewOverview_->setPixmap(QPixmap::fromImage(overview).scaled(96,60,Qt::KeepAspectRatio,Qt::SmoothTransformation));
+    layoutCanvas_->setPreviewFrame(previewFrame_,seconds); effectsCanvas_->setPreviewFrame(displayed,localTime,channel); hardwarePreview_->setPreviewFrame(previewFrame_,seconds);
     emit previewFrameChanged(previewFrame_);
+}
+
+void LightingWindow::refreshToolOptions()
+{
+    auto* options=findChild<QToolBar*>("drawingOptions"); if(!options) return;
+    const EffectLayer* selected=nullptr;
+    for(const auto& layer:document_.state().layers) if(layer.id==selectedLayer_) selected=&layer;
+    const auto tool=effectsCanvas_->tool();
+    const bool drawing=tool!=LightingCanvas::Tool::Move && tool!=LightingCanvas::Tool::Eraser && (tool!=LightingCanvas::Tool::Gradient || !selected || !isGradient(selected->effect));
+    const bool color=!editingMask_ && (drawing || (selected && selected->effect!=EffectKind::Image && !isGradient(selected->effect)));
+    const bool stroke=tool!=LightingCanvas::Tool::Move && tool!=LightingCanvas::Tool::Gradient && tool!=LightingCanvas::Tool::Fill;
+    const bool shape=tool==LightingCanvas::Tool::Rectangle || tool==LightingCanvas::Tool::Ellipse;
+    findChild<QAction*>("foregroundColorAction")->setVisible(color);
+    findChild<QAction*>("shapeFillAction")->setVisible(shape);
+    findChild<QAction*>("strokeLabelAction")->setVisible(stroke);
+    findChild<QAction*>("strokeSizeAction")->setVisible(stroke);
+    const QStringList hints{"Move: drag the selected layer", "Pencil: draw on the canvas", "Line: drag from start to end", "Rectangle: drag to draw", "Ellipse: drag to draw", "Gradient: drag to set direction; edit stops in Properties", "Fill: click a connected area", "Eraser: remove pixels or hide the source mask"};
+    findChild<QLabel*>("toolHint")->setText("  "+hints[int(tool)]);
+    // Photoshop-style options keep a stable row so switching tools never shifts the canvas under the pointer.
+    options->setVisible(tabs_->currentIndex()==1);
 }
 
 void LightingWindow::refreshProperties()
@@ -1007,14 +1008,15 @@ void LightingWindow::refreshProperties()
     }
     effectsCanvas_->select(selectedLayer_);
     effectsCanvas_->setMaskTarget(editingMask_);
-    effectTarget_->setChecked(!editingMask_); maskTarget_->setChecked(editingMask_);
-    for (QWidget* widget : std::initializer_list<QWidget*>{transparency_, blend_, color_, gradientColors_, effectTarget_, maskTarget_, maskEnabled_})
+
+    for (QWidget* widget : std::initializer_list<QWidget*>{transparency_, blend_, color_, gradientColors_, maskEnabled_})
         widget->setEnabled(selected != nullptr);
     if (editingMask_) { playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0); }
     playing_->setEnabled(!editingMask_);
     inspectorTabs_->setEnabled(selected!=nullptr);
     inspectorTitle_->setText(selected ? effectDefinition(selected->effect).label : "Select a layer");
     animationControls_->setVisible(selected && !editingMask_);
+    findChild<QWidget*>("particleParameters")->setVisible(selected && isParticle(selected->effect));
     findChild<QPushButton*>("resetCrop")->setVisible(selected && !editingMask_ && selected->effect==EffectKind::Image);
     findChild<QWidget*>("cropSection")->setVisible(selected && !editingMask_ && selected->effect == EffectKind::Image);
     maskLinked_->setEnabled(selected != nullptr);
@@ -1023,6 +1025,14 @@ void LightingWindow::refreshProperties()
     cropTool->setEnabled(selected && !editingMask_ && selected->effect==EffectKind::Image && !selected->image.isNull());
     findChild<QToolButton*>("cropImageTool")->setEnabled(cropTool->isEnabled());
     effectType_->setEnabled(selected && !editingMask_);
+    effectType_->setVisible(selected && !editingMask_ && (isParticle(selected->effect) || isGradient(selected->effect)));
+    if(selected && (isParticle(selected->effect) || isGradient(selected->effect))) {
+        auto* host=qobject_cast<QWidget*>(effectType_->property(isParticle(selected->effect) ? "motionContainer" : "appearanceContainer").value<QObject*>());
+        if(effectType_->parentWidget()!=host) qobject_cast<QVBoxLayout*>(host->layout())->insertWidget(0,effectType_);
+        effectType_->clear();
+        for(const auto& definition:effectDefinitions()) if(isParticle(selected->effect) ? isParticle(definition.kind) : isGradient(definition.kind))
+            effectType_->addItem(QString(definition.label).replace("Particle ",""),static_cast<int>(definition.kind));
+    }
     color_->setVisible(!editingMask_ && selected && selected->effect != EffectKind::Image && !isGradient(selected->effect));
     gradientColors_->setVisible(selected && !editingMask_ && isGradient(selected->effect));
     imageFit_->setVisible(selected && !editingMask_ && selected->effect == EffectKind::Image);
@@ -1039,11 +1049,11 @@ void LightingWindow::refreshProperties()
             const QSignalBlocker block(animation_[i]); animation_[i]->setValue(rates[i]);
         }
         animation_[0]->setEnabled(selected->effect != EffectKind::StaticColor);
-        animation_[2]->setEnabled(true);
+        animation_[2]->setEnabled(selected->effect!=EffectKind::Image && selected->effect!=EffectKind::Paint);
         const QSignalBlocker blockLink(maskLinked_), blockCycle(colorCycle_);
         maskLinked_->setChecked(selected->maskLinked);
         colorCycle_->setColors(selected->colorCycle);
-        gradientColors_->setColors(selected->gradientColors.isEmpty() ? QVector<QColor>{selected->color,selected->secondaryColor} : selected->gradientColors);
+        gradientColors_->setStops(selected->gradientColors.isEmpty() ? QVector<QColor>{selected->color,selected->secondaryColor} : selected->gradientColors,selected->gradientPositions);
         colorCycle_->setEnabled(selected->effect != EffectKind::Image);
         const auto& parameters = advancedParameters();
         for (int i=0;i<advanced_.size();++i) {
@@ -1051,6 +1061,7 @@ void LightingWindow::refreshProperties()
             const bool particle = parameters[i].id.startsWith("particle");
             const bool show = !particle || isParticle(selected->effect);
             advanced_[i]->setVisible(show);
+            if(auto* field=qobject_cast<QWidget*>(advanced_[i]->property("visibilityContainer").value<QObject*>())) field->setVisible(show);
             if(auto* label=qobject_cast<QWidget*>(advanced_[i]->property("parameterLabel").value<QObject*>())) label->setVisible(show);
             advanced_[i]->setEnabled((!particle || isParticle(selected->effect)) &&
                 (parameters[i].id != "cycleRate" || selected->effect != EffectKind::Image));
@@ -1059,7 +1070,9 @@ void LightingWindow::refreshProperties()
         for (int i=0;i<4;++i) { const QSignalBlocker block(crop_[i]); crop_[i]->setValue(crop[i]); }
         const QSignalBlocker blockFit(imageFit_);
         imageFit_->setCurrentIndex(selected->imageFill ? 1 : 0);
-        color_->setColor(selected->color);
+        const bool brush=effectsCanvas_->tool()!=LightingCanvas::Tool::Move || selected->effect==EffectKind::Paint;
+        color_->setColor(brush ? foreground_ : selected->color);
+        effectsCanvas_->setDrawing(brush ? foreground_ : selected->color,findChild<QDoubleSpinBox*>("brushDiameter")->value(),findChild<QCheckBox*>("shapeFill")->isChecked());
         maskEnabled_->setChecked(selected->maskEnabled);
         effectType_->setCurrentIndex(effectType_->findData(static_cast<int>(selected->effect)));
         secondaryColor_->setColor(selected->secondaryColor);
@@ -1073,6 +1086,7 @@ void LightingWindow::refreshProperties()
             selected->effect != EffectKind::Stripes && selected->effect != EffectKind::Waves);
     }
     syncSliderFields(this);
+    refreshToolOptions();
 }
 
 void LightingWindow::closeEvent(QCloseEvent* event)

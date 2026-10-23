@@ -17,3 +17,9 @@ Qt Core/Gui/Widgets, JPEG/GIF and the Windows platform plugin are supplied by
 the user's matching dynamically linked Qt SDK, under Qt's respective licenses.
 HIDAPI is separately supplied by the configured HIDAPI installation; see README.
 Research references do not add runtime code or change these licenses.
+
+Optional component metadata is read from a user's existing local VortxEngine
+installation for compatibility. Only validated selected geometry and LED mapping
+are embedded in the user's project. No SignalRGB application code, scripts,
+effects, images or binaries are distributed or executed by this integration.
+Product names identify compatible hardware; no affiliation is implied.

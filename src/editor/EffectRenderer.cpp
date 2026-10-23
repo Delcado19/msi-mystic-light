@@ -36,6 +36,7 @@ QRgb interpolate(QRgb from, QRgb to, double t)
 const QVector<EffectDefinition>& effectDefinitions()
 {
     static const QVector<EffectDefinition> definitions{
+        {EffectKind::Paint, "paint", "Paint layer"},
         {EffectKind::StaticColor, "static", "Static Color"},
         {EffectKind::LinearGradient, "linear", "Linear Gradient"},
         {EffectKind::RadialGradient, "radial", "Radial Gradient"},
@@ -85,8 +86,18 @@ const QVector<EffectParameter>& advancedParameters()
 void validateEffect(const EffectLayer& layer)
 {
     effectDefinition(layer.effect);
+    if(layer.effect==EffectKind::Paint && !layer.image.isNull() && layer.image.size()!=LightingDocument::canvasSize())
+        throw std::invalid_argument("Paint sources must match the canvas size");
     if(!layer.gradientColors.isEmpty() && (layer.gradientColors.size()<2 || layer.gradientColors.size()>16))
         throw std::invalid_argument("Gradients require 2..16 colors");
+    if(!layer.gradientPositions.isEmpty()) {
+        if(layer.gradientPositions.size()!=(layer.gradientColors.isEmpty() ? 2 : layer.gradientColors.size())) throw std::invalid_argument("Gradient stop count mismatch");
+        double before=-1;
+        for(double position:layer.gradientPositions) {
+            if(!std::isfinite(position) || position<0 || position>1 || position<=before) throw std::invalid_argument("Gradient stops must increase within 0..1");
+            before=position;
+        }
+    }
     for(const auto& color:layer.gradientColors) if(!color.isValid()) throw std::invalid_argument("Invalid gradient color");
     for (const auto& parameter : advancedParameters()) {
         const double value = layer.*(parameter.member);
@@ -124,7 +135,7 @@ static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
     QImage image(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     if (layer.effect == EffectKind::StaticColor) { image.fill(layer.color); return image; }
-    if (layer.effect == EffectKind::Image) {
+    if (layer.effect == EffectKind::Image || layer.effect == EffectKind::Paint) {
         if (layer.image.isNull()) return image;
         QPainter painter(&image);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
@@ -163,9 +174,17 @@ static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
                 case EffectKind::Waves: t = (1 - std::cos(2 * pi * t * layer.repetitions)) / 2; break;
                 default: break;
                 }
-                const double position=std::clamp(t,0.0,1.0)*(stops.size()-1);
-                const int stop=std::min(int(position),int(stops.size()-2));
-                row[x]=interpolate(stops[stop],stops[stop+1],position-stop);
+                if(layer.gradientPositions.isEmpty()) {
+                    const double position=std::clamp(t,0.0,1.0)*(stops.size()-1);
+                    const int stop=std::min(int(position),int(stops.size()-2));
+                    row[x]=interpolate(stops[stop],stops[stop+1],position-stop);
+                } else {
+                    const auto& positions=layer.gradientPositions;
+                    int right=int(std::upper_bound(positions.begin(),positions.end(),t)-positions.begin());
+                    if(right==0) row[x]=stops.first();
+                    else if(right==stops.size()) row[x]=stops.last();
+                    else row[x]=interpolate(stops[right-1],stops[right],(t-positions[right-1])/(positions[right]-positions[right-1]));
+                }
             }
         }
         return image;

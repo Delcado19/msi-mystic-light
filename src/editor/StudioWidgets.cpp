@@ -15,6 +15,14 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPainter>
+#include <QMouseEvent>
+#include <QKeyEvent>
+#include <QHideEvent>
+#include <QLinearGradient>
+#include <QTimer>
+#include <QElapsedTimer>
+#include <QCheckBox>
+#include <QStyle>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSlider>
@@ -32,14 +40,19 @@ void applyStudioStyle(QWidget* window)
         QMenuBar, QToolBar, QStatusBar { background: #202229; spacing: 8px; }
         QMenuBar { padding: 4px; }
         QMenuBar::item:selected, QMenu::item:selected { background: #35436a; }
-        QToolBar { border: 0; padding: 6px; }
+        QToolBar { border: 0; border-bottom: 1px solid #30353f; padding: 5px; }
+        QToolBar#effectTools { border-right: 1px solid #30353f; background: #1b1e24; spacing: 5px; }
+        QToolBar#effectTools QPushButton { border-color: transparent; background: transparent; }
+        QToolBar#effectTools QPushButton:hover { background: #303845; }
+        QToolBar#effectTools QPushButton:checked { background: #344866; border-color: #8da8cd; }
+        QSplitter::handle { background: #313741; height: 5px; }
         QDockWidget { font-weight: 600; }
-        QDockWidget::title { padding: 12px; background: #202229; }
+        QDockWidget::title { padding: 8px 12px; background: #202229; }
         QTabWidget::pane { border: 0; }
         QTabBar::tab { padding: 10px 18px; color: #b6bdcd; background: #202229; border-bottom: 2px solid transparent; }
         QTabBar::tab:selected { color: #f4f6ff; border-bottom-color: #8eaaff; background: #2c303b; }
         QScrollArea { border: 0; }
-        QPushButton, QToolButton { background: #323640; border: 1px solid #454b59; border-radius: 6px; padding: 7px 10px; }
+        QPushButton, QToolButton { background: #323640; border: 1px solid #454b59; border-radius: 6px; padding: 6px 10px; }
         QPushButton:hover, QToolButton:hover { background: #41495a; }
         QPushButton:pressed, QToolButton:pressed, QToolButton:checked, QPushButton:checked { background: #3c4c76; border-color: #8eaaff; }
         QPushButton:disabled, QToolButton:disabled { color: #8b92a1; background: #292c33; border-color: #343842; }
@@ -58,6 +71,7 @@ void applyStudioStyle(QWidget* window)
         QCheckBox { spacing: 8px; padding: 4px 0; }
         QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #717b91; border-radius: 3px; background: #1d2027; }
         QCheckBox::indicator:checked { background: #91aaff; border-color: #c1d0ff; }
+        QLabel { background: transparent; }
         QLabel[muted="true"] { color: #b6bdcd; }
         QLabel[heading="true"] { font-size: 16px; font-weight: 600; padding: 6px 0; }
         QToolButton[disclosure="true"] { text-align: left; background: transparent; border: 0; border-top: 1px solid #3a3e49; border-radius: 0; padding: 12px 0; }
@@ -110,12 +124,12 @@ std::optional<EffectKind> chooseEffect(QWidget* parent)
     auto* list=new QListWidget; list->setObjectName("effectGalleryItems"); list->setViewMode(QListView::IconMode);
     list->setMovement(QListView::Static); list->setResizeMode(QListView::Adjust); list->setIconSize({112,70}); list->setGridSize({150,116});
     for(const auto& definition:effectDefinitions()) {
-        if(definition.kind==EffectKind::Image) continue; // Images use Import, so choosing an effect never creates an empty image layer.
+        if(definition.kind==EffectKind::Image || definition.kind==EffectKind::Paint || definition.kind==EffectKind::Orbit || definition.kind==EffectKind::Fireflies || definition.kind==EffectKind::Burst) continue; // Images use Import, so choosing an effect never creates an empty image layer.
         EffectLayer layer; layer.effect=definition.kind; layer.color=QColor("#91aaff"); layer.secondaryColor=QColor("#ff91ba");
         // Gallery and canvas use the same source renderer, not approximate marketing thumbnails.
         QPixmap preview(112,70); preview.fill(QColor("#171b25")); QPainter painter(&preview);
         painter.drawImage(preview.rect(),renderEffect(layer,1)); painter.end();
-        auto* item=new QListWidgetItem(QIcon(preview),definition.label,list); item->setData(Qt::UserRole,static_cast<int>(definition.kind));
+        auto* item=new QListWidgetItem(QIcon(preview),definition.kind==EffectKind::Rain ? "Particles" : definition.label,list); item->setData(Qt::UserRole,static_cast<int>(definition.kind));
         item->setToolTip("Add "+definition.label+" with a white mask"); item->setTextAlignment(Qt::AlignCenter);
     }
     layout->addWidget(list,1); auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
@@ -128,6 +142,14 @@ std::optional<EffectKind> chooseEffect(QWidget* parent)
         }
         list->setCurrentItem(first); buttons->button(QDialogButtonBox::Ok)->setEnabled(first!=nullptr);
     });
+    auto* animate=new QCheckBox("Animate selected preset"); animate->setChecked(dialog.style()->styleHint(QStyle::SH_Widget_Animate)); layout->insertWidget(3,animate);
+    QElapsedTimer clock; clock.start(); QTimer previewTimer; previewTimer.setInterval(100);
+    QObject::connect(&previewTimer,&QTimer::timeout,list,[list,animate,&clock] {
+        if(!animate->isChecked() || !list->currentItem()) return;
+        const auto kind=static_cast<EffectKind>(list->currentItem()->data(Qt::UserRole).toInt()); if(!isParticle(kind)) return;
+        EffectLayer sample; sample.effect=kind; sample.color=QColor("#91aaff"); sample.secondaryColor=QColor("#ff91ba");
+        list->currentItem()->setIcon(QIcon(QPixmap::fromImage(renderEffect(sample,clock.elapsed()/1000.0).scaled(112,70,Qt::IgnoreAspectRatio,Qt::SmoothTransformation))));
+    }); previewTimer.start();
     QObject::connect(list,&QListWidget::itemDoubleClicked,&dialog,&QDialog::accept);
     QObject::connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
     QObject::connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
@@ -140,13 +162,24 @@ QIcon studioToolIcon(const QString& name)
 {
     QPixmap pixmap(24,24); pixmap.fill(Qt::transparent); QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing); painter.setPen(QPen(QColor("#e0e8fc"),1.7,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
-    if(name=="move") {
+    if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }
+    else if(name=="save") { painter.drawRect(4,3,16,18); painter.drawRect(7,3,10,6); painter.drawRect(7,14,10,7); }
+    else if(name=="undo" || name=="redo") { if(name=="redo") { painter.translate(24,0); painter.scale(-1,1); } painter.drawLine(4,9,9,4); painter.drawLine(4,9,9,14); painter.drawArc(QRectF(5,8,15,12),0,180*16); }
+    else if(name=="move") {
         painter.drawLine(12,3,12,21); painter.drawLine(3,12,21,12);
         for(int i=0;i<4;++i) { painter.save(); painter.translate(12,12); painter.rotate(90*i); painter.drawLine(0,-9,-3,-6); painter.drawLine(0,-9,3,-6); painter.restore(); }
     } else if(name=="brush") {
         painter.drawLine(9,15,18,4); painter.drawLine(12,17,21,6); painter.drawLine(18,4,21,6);
         painter.drawEllipse(QRectF(4,15,7,6)); painter.drawLine(4,18,2,22);
-    } else {
+    } else if(name=="pencil") {
+        painter.drawLine(5,19,18,4); painter.drawLine(8,21,21,6); painter.drawLine(18,4,21,6); painter.drawLine(5,19,4,22); painter.drawLine(4,22,8,21);
+    } else if(name=="line") painter.drawLine(4,20,20,4);
+    else if(name=="rectangle") painter.drawRect(QRectF(4,5,16,14));
+    else if(name=="ellipse") painter.drawEllipse(QRectF(4,4,16,16));
+    else if(name=="gradient") { QLinearGradient gradient(4,12,20,12); gradient.setColorAt(0,Qt::white); gradient.setColorAt(1,QColor("#414957")); painter.setBrush(gradient); painter.drawRect(QRectF(3,5,18,14)); }
+    else if(name=="fill") { QPolygonF bucket; bucket<<QPointF(5,10)<<QPointF(12,3)<<QPointF(20,11)<<QPointF(12,19); painter.drawPolygon(bucket); painter.drawLine(4,10,14,10); painter.drawLine(19,15,21,20); }
+    else if(name=="eraser") { QPolygonF eraser; eraser<<QPointF(3,15)<<QPointF(13,4)<<QPointF(21,11)<<QPointF(12,21)<<QPointF(9,21); painter.drawPolygon(eraser); painter.drawLine(9,10,17,17); }
+    else {
         painter.drawLine(6,2,6,18); painter.drawLine(6,18,22,18); painter.drawLine(2,6,18,6); painter.drawLine(18,6,18,22);
     }
     return QIcon(pixmap);
@@ -178,39 +211,124 @@ void ColorEditor::setColor(QColor color)
     color_=color; hex_->setText(color.name(QColor::HexRgb).toUpper());
     QPixmap icon(26,18); icon.fill(color); picker_->setIcon(QIcon(icon)); picker_->setIconSize({26,18});
 }
+namespace {
+class PaletteStrip : public QWidget {
+public:
+    QVector<QColor> colors; QVector<double> positions; int selected=0; bool gradient=false, dragging=false;
+    std::function<void(int)> select;
+    std::function<void(double)> move, add;
+    std::function<void()> begin,end,remove;
+    PaletteStrip(QWidget* parent):QWidget(parent) { setMinimumHeight(66); setFocusPolicy(Qt::StrongFocus); setAccessibleName("Color stops: drag to move, double click to add, Delete to remove"); }
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this); p.setRenderHint(QPainter::Antialiasing);
+        const QRectF bar(12,8,width()-24,28);
+        QLinearGradient ramp(bar.topLeft(),bar.topRight());
+        for(int i=0;i<colors.size();++i) ramp.setColorAt(positions.value(i),colors[i]);
+        p.setPen(QPen(QColor("#565c6a"),1)); p.setBrush(ramp); p.drawRoundedRect(bar,5,5);
+        for(int i=0;i<colors.size();++i) {
+            const QPointF point(12+positions[i]*(width()-24),47);
+            p.setPen(QPen(i==selected ? QColor("#e8eeff") : QColor("#777f91"),i==selected ? 2.5 : 1));
+            p.setBrush(colors[i]); p.drawEllipse(point,7,8);
+            if(i==selected) { p.setPen(QColor("#b6caff")); p.drawLine(point+QPointF(0,11),point+QPointF(0,15)); }
+        }
+    }
+    int hit(QPointF point) const {
+        for(int i=0;i<positions.size();++i) if(std::abs(point.x()-(12+positions[i]*(width()-24)))<11) return i;
+        return -1;
+    }
+    double position(QPointF point) const { return std::clamp((point.x()-12)/std::max(1,width()-24),0.0,1.0); }
+    void mousePressEvent(QMouseEvent* e) override {
+        if(e->button()!=Qt::LeftButton) return;
+        setFocus(); const int i=hit(e->position());
+        if(i<0) return; select(i); dragging=gradient; if(dragging) begin();
+    }
+    void mouseMoveEvent(QMouseEvent* e) override { if(dragging) move(position(e->position())); }
+    void mouseReleaseEvent(QMouseEvent*) override { if(dragging) { dragging=false; end(); } }
+    void hideEvent(QHideEvent*) override { if(dragging) { dragging=false; end(); } }
+    void mouseDoubleClickEvent(QMouseEvent* e) override { if(gradient && hit(e->position())<0) add(position(e->position())); }
+    void keyPressEvent(QKeyEvent* e) override {
+        if(e->key()==Qt::Key_Delete) remove();
+        else if(e->key()==Qt::Key_Left || e->key()==Qt::Key_Right) select(std::clamp(selected+(e->key()==Qt::Key_Left ? -1 : 1),0,int(colors.size()-1)));
+        else QWidget::keyPressEvent(e);
+    }
+};
+}
 ColorListEditor::ColorListEditor(int minimum,int maximum,QWidget* parent)
     : QWidget(parent),minimum_(minimum),maximum_(maximum)
 {
-    auto* layout=new QVBoxLayout(this); layout->setContentsMargins(0,0,0,0); layout->setSpacing(6);
-    auto* scroll=new QScrollArea; scroll->setWidgetResizable(true); scroll->setMaximumHeight(156);
-    rows_=new QWidget; new QVBoxLayout(rows_); rows_->layout()->setContentsMargins(0,0,4,0);
-    scroll->setWidget(rows_); layout->addWidget(scroll);
-    auto* actions=new QHBoxLayout; add_=new QPushButton("Add color"); remove_=new QPushButton("Remove last");
+    auto* layout=new QVBoxLayout(this); layout->setContentsMargins(0,0,0,0); layout->setSpacing(8);
+    auto* strip=new PaletteStrip(this); rows_=strip; strip->setObjectName("colorStopBar"); layout->addWidget(strip);
+    selectedColor_=new ColorEditor; selectedColor_->setObjectName("selectedStopColor"); layout->addWidget(selectedColor_);
+    connect(selectedColor_,&ColorEditor::colorChanged,this,[this](QColor color) {
+        if(selected_>=colors_.size()) return; colors_[selected_]=color; rebuild(); emit colorsChanged(colors_); emit stopsChanged();
+    });
+    for(int channel=0;channel<3;++channel) {
+        auto* row=new QHBoxLayout; auto* label=new QLabel(QString("RGB")[channel]); row->addWidget(label);
+        auto* slider=new QSlider(Qt::Horizontal); slider->setRange(0,255); slider->setObjectName(QString("stop%1").arg(QString("RGB")[channel]));
+        slider->setAccessibleName(QString("Selected stop %1").arg(QString("RGB")[channel]));
+        slider->setToolTip("Adjust this RGB channel of the selected color stop."); row->addWidget(slider,1);
+        auto* value=new QLabel; value->setFixedWidth(28); row->addWidget(value); rgbValues_.append(value); layout->addLayout(row); rgb_.append(slider);
+        connect(slider,&QSlider::sliderPressed,this,&ColorListEditor::gestureStarted);
+        connect(slider,&QSlider::sliderReleased,this,&ColorListEditor::gestureFinished);
+        connect(slider,&QSlider::valueChanged,this,[this,channel](int value) {
+            if(selected_>=colors_.size()) return;
+            auto color=colors_[selected_]; if(channel==0) color.setRed(value); if(channel==1) color.setGreen(value); if(channel==2) color.setBlue(value);
+            colors_[selected_]=color; rebuild(); emit colorsChanged(colors_); emit stopsChanged();
+        });
+    }
+    auto* actions=new QHBoxLayout; add_=new QPushButton("Add"); remove_=new QPushButton("Remove");
+    add_->setObjectName("addColorStop"); remove_->setObjectName("removeColorStop");
     actions->addWidget(add_); actions->addWidget(remove_); layout->addLayout(actions);
-    add_->setToolTip("Add another color to this palette.");
-    remove_->setToolTip("Remove the last color while retaining the minimum number required by this effect.");
     connect(add_,&QPushButton::clicked,this,[this] {
-        if(colors_.size()>=maximum_) return; colors_.append(Qt::white); rebuild(); emit colorsChanged(colors_);
+        if(colors_.size()==1) { positions_[0]=0; addStop(1); return; }
+        double gap=-1,position=.5;
+        for(int i=0;i+1<positions_.size();++i) if(positions_[i+1]-positions_[i]>gap) { gap=positions_[i+1]-positions_[i]; position=(positions_[i]+positions_[i+1])/2; }
+        addStop(position);
     });
-    connect(remove_,&QPushButton::clicked,this,[this] {
-        if(colors_.size()<=minimum_) return; colors_.removeLast(); rebuild(); emit colorsChanged(colors_);
-    });
+    connect(remove_,&QPushButton::clicked,this,&ColorListEditor::removeStop);
+    strip->select=[this](int index) { selected_=index; rebuild(); };
+    strip->move=[this](double position) {
+        const double lo=selected_ ? positions_[selected_-1]+.001 : 0, hi=selected_+1<positions_.size() ? positions_[selected_+1]-.001 : 1;
+        if(hi<lo) return; positions_[selected_]=std::clamp(position,lo,hi); rebuild(); emit stopsChanged();
+    };
+    strip->begin=[this] { emit gestureStarted(); }; strip->end=[this] { emit gestureFinished(); };
+    strip->add=[this](double position) { addStop(position); }; strip->remove=[this] { removeStop(); };
 }
-void ColorListEditor::setColors(const QVector<QColor>& colors)
+void ColorListEditor::setColors(const QVector<QColor>& colors) { setStops(colors,{}); }
+void ColorListEditor::setStops(const QVector<QColor>& colors,const QVector<double>& positions)
 {
-    if(colors_==colors) return; colors_=colors; rebuild();
+    colors_=colors; positions_=positions;
+    if(positions_.size()!=colors_.size()) { positions_.clear(); for(int i=0;i<colors_.size();++i) positions_.append(colors_.size()==1 ? .5 : i/double(colors_.size()-1)); }
+    selected_=std::clamp(selected_,0,std::max(0,int(colors_.size()-1))); rebuild();
+}
+void ColorListEditor::addStop(double position)
+{
+    if(colors_.size()>=maximum_) return;
+    position=std::clamp(position,0.0,1.0);
+    for(double existing:positions_) if(std::abs(existing-position)<.001) return;
+    const int index=int(std::lower_bound(positions_.begin(),positions_.end(),position)-positions_.begin());
+    QColor color=Qt::white;
+    if(index>0 && index<colors_.size()) {
+        const double t=(position-positions_[index-1])/(positions_[index]-positions_[index-1]);
+        const auto a=colors_[index-1], b=colors_[index]; color=QColor(qRound(a.red()+(b.red()-a.red())*t),qRound(a.green()+(b.green()-a.green())*t),qRound(a.blue()+(b.blue()-a.blue())*t));
+    }
+    colors_.insert(index,color); positions_.insert(index,position); selected_=index; rebuild(); emit colorsChanged(colors_); emit stopsChanged();
+}
+void ColorListEditor::removeStop()
+{
+    if(colors_.size()<=minimum_) return;
+    colors_.removeAt(selected_); positions_.removeAt(selected_); selected_=std::min(selected_,int(colors_.size()-1));
+    rebuild(); emit colorsChanged(colors_); emit stopsChanged();
 }
 void ColorListEditor::rebuild()
 {
-    auto* layout=qobject_cast<QVBoxLayout*>(rows_->layout());
-    while(auto* item=layout->takeAt(0)) { if(item->widget()) item->widget()->deleteLater(); delete item; }
-    for(int i=0;i<colors_.size();++i) {
-        auto* editor=new ColorEditor; editor->setColor(colors_[i]); layout->addWidget(editor);
-        connect(editor,&ColorEditor::colorChanged,this,[this,i](QColor color) {
-            if(i>=colors_.size()) return; colors_[i]=color; emit colorsChanged(colors_);
-        });
+    auto* strip=static_cast<PaletteStrip*>(rows_); strip->colors=colors_; strip->positions=positions_; strip->selected=selected_; strip->gradient=gradient_; strip->update();
+    selectedColor_->setEnabled(!colors_.isEmpty());
+    if(!colors_.isEmpty()) {
+        const auto color=colors_[selected_]; selectedColor_->setColor(color); const int values[]{color.red(),color.green(),color.blue()};
+        for(int i=0;i<3;++i) { const QSignalBlocker block(rgb_[i]); rgb_[i]->setValue(values[i]); rgbValues_[i]->setText(QString::number(values[i])); }
     }
-    rows_->setMinimumHeight(colors_.size()*36); add_->setEnabled(colors_.size()<maximum_); remove_->setEnabled(colors_.size()>minimum_);
+    add_->setEnabled(colors_.size()<maximum_); remove_->setEnabled(colors_.size()>minimum_);
 }
 
 void installParameterTooltips(QWidget* root)
@@ -249,7 +367,7 @@ void installParameterTooltips(QWidget* root)
         if(id.startsWith("imageCrop")) description=crop.value(id.mid(9).toInt());
         if(description.isEmpty() && qobject_cast<QAbstractSpinBox*>(widget)) {
             const auto name=widget->accessibleName();
-            if(name=="Brush diameter") description="Mask brush diameter in canvas pixels. The outline on the canvas shows its size.";
+            if(name=="Brush diameter") description="Drawing and mask stroke diameter in canvas pixels.";
             if(name=="Hardness %") description="Mask brush edge hardness. 0% gives a soft falloff; 100% gives a hard edge.";
             if(name=="Brush opacity %") description="Brush strength per stroke. Lower values build transparency gradually.";
             if(name=="Mask gray") description="Mask coverage: 0 hides, 255 reveals, intermediate values partially reveal the layer.";

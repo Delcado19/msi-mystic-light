@@ -47,7 +47,7 @@ if(WIN32)
     target_link_libraries(lighting_startup PRIVATE user32)
 endif()
 
-add_library(lighting_editor src/editor/StudioWidgets.cpp src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
+add_library(lighting_editor src/editor/HardwarePicker.cpp src/editor/StudioWidgets.cpp src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
 target_include_directories(lighting_editor PUBLIC src)
 target_link_libraries(lighting_editor PUBLIC lighting_modules Qt6::Widgets)
 

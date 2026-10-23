@@ -83,7 +83,7 @@ private slots:
 };
 void OutputUiTest::applicationDevicePage()
 {
-    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document()); window.findChild<QPushButton*>("playPreview")->setChecked(false);
     auto record=std::make_shared<Record>();
     auto* panel=new OutputPanel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; },&window);
     window.installOutputPanel(panel); QObject::connect(panel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
@@ -140,7 +140,7 @@ void OutputUiTest::reviewReports()
 }
 void OutputUiTest::liveEditsAndConfigurationStop()
 {
-    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document()); window.findChild<QPushButton*>("playPreview")->setChecked(false);
     auto record=std::make_shared<Record>(); int authorizations=0;
     OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
         ++authorizations; return QVector<OutputConnection>{connection(frames[0],record)};
@@ -171,7 +171,7 @@ void OutputUiTest::liveEditsAndConfigurationStop()
 }
 void OutputUiTest::cancelAndChangedReview()
 {
-    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document()); window.findChild<QPushButton*>("playPreview")->setChecked(false);
     OutputPanel cancelled(window,[](QWidget*,const QVector<OutputFrame>&) { return QVector<OutputConnection>{}; });
     cancelled.findChild<QPushButton*>("startOutput")->click();
     QVERIFY(cancelled.findChild<QLabel*>("outputStatus")->text().contains("cancelled"));
@@ -189,7 +189,7 @@ void OutputUiTest::cancelAndChangedReview()
 }
 void OutputUiTest::unplugAndRestart()
 {
-    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document()); window.findChild<QPushButton*>("playPreview")->setChecked(false);
     auto present=std::make_shared<std::atomic_bool>(true); auto record=std::make_shared<Record>(); int reviews=0;
     OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
         ++reviews; return QVector<OutputConnection>{connection(frames[0],record,[present] { return present->load(); })};

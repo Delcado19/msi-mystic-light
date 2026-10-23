@@ -53,6 +53,7 @@ private:
     QVariantMap selectedHeader_;
     QLabel *headerTitle_, *headerSummary_;
     void refreshProperties();
+    void refreshToolOptions();
     void updatePreview();
     void refreshPlacement();
     void updateLayer(const QString& label, const std::function<void(EffectLayer&)>& operation);
@@ -60,7 +61,7 @@ private:
     bool confirmDiscard();
     LightingDocument document_;
     QImage previewFrame_;
-    LightingCanvas *layoutCanvas_, *effectsCanvas_;
+    LightingCanvas *layoutCanvas_, *effectsCanvas_, *hardwarePreview_;
     QTabWidget* tabs_;
     QStackedWidget* applicationPages_;
     QVBoxLayout* deviceOutput_;
@@ -68,7 +69,6 @@ private:
     QTreeWidget* components_;
     QTabWidget* inspectorTabs_;
     QLabel* inspectorTitle_;
-    QLabel* previewOverview_;
     QComboBox *catalog_, *blend_;
     QComboBox* effectType_;
     QComboBox* previewChannel_;
@@ -82,7 +82,8 @@ private:
     QSpinBox* repetitions_;
     QSlider* transparency_;
     ColorEditor* color_;
-    QPushButton *effectTarget_, *maskTarget_;
+    QColor foreground_=Qt::white;
+    QPushButton *effectTarget_;
     QCheckBox* maskEnabled_;
     QComboBox* imageFit_;
     QWidget* animationControls_;
@@ -96,6 +97,6 @@ private:
     QElapsedTimer previewClock_;
     double playbackStart_ = 0;
     QUuid selectedLayer_;
-    bool editingMask_ = false;
+    bool editingMask_ = false, resumePreview_=false;
     QString fileName_;
 };

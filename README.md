@@ -15,7 +15,7 @@ research documents describe behavior and byte layouts in our own words.
 - [`CONTINUE.md`](CONTINUE.md) — implementation status, validation, and next steps.
 - [`docs/SIGNALRGB_REPOSITORY_RESEARCH.md`](docs/SIGNALRGB_REPOSITORY_RESEARCH.md) — pinned public-repository research on components, plugins, add-ons, and MSI discovery.
 
-![Lighting Studio workspace](docs/images/lighting-studio.png)
+![Lighting Studio workspace](docs/images/studio-workspace.png)
 
 ## Standalone app implementation
 
@@ -30,12 +30,16 @@ repository downloads remain separate work. Layout and Effects have separate view
 with component authoring, layered effects, soft masks, transparency and blend modes,
 undo/redo, portable projects, per-layer channel targets and independent channel clocks.
 The app opens on Layout and automatically lists supported controllers and their headers.
-Select a header, attach quantities of fans and strips with their LED counts, then
-arrange the header group or individual components. Effects
-has an always-visible source toolbar, layered canvas and complete contextual
-properties; Layout shows only physical components. All colors use picker + RGB
-hex controls. Gradients support 2..16 colors with Add/Remove controls.
-See the [header layout screenshot](docs/images/header-layout.png),
+Hardware opens the searchable product picker with categories, quantities and physical
+LED mappings. Header groups and individual components can be arranged independently.
+Effects has standard drawing tools: pencil, line, rectangle, ellipse, gradient,
+fill, eraser and move/crop. New layer creates a transparent paint layer immediately;
+Presets is the single entry point for procedural effects. A persistent live hardware
+preview shows the lighting while authoring. Particle motion patterns share one
+parameter inspector. Gradients have movable color stops, RGB sliders and Add/Remove;
+color pickers and optional exact RGB hex values remain available.
+See the [complete workspace](docs/images/studio-workspace.png),
+[hardware picker](docs/images/hardware-picker.png), and [header layout](docs/images/header-layout.png),
 [editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
 
 Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio/`

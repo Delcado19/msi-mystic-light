@@ -1,5 +1,41 @@
 # Implementation status
 
+## Drawing workflow, product picker and live hardware preview (2026-10-23)
+
+Supersedes the source-icon toolbox and generic fan/strip dialog below. New layer
+creates a transparent Paint source without a dialog. Standard drawing tools edit
+pixels/masks; Presets is the sole procedural-source chooser. Particles form one
+gallery family with shared controls and a contextual motion pattern. Gradients
+use draggable stops, RGB sliders and Add/Remove for the selected stop. Schema 11
+stores paint pixels/gradientPositions and preserves old project rendering.
+
+Restored the original searchable hardware picker, product cards, categories,
+quantities, M25 models and data-only installed component metadata. Validate and
+normalize imported geometry without changing wire order; dedicated RAM/GPU/board
+models are excluded from ARGB attachment. One attachment is an atomic undo edit.
+
+Effects has a persistent fitted live hardware pane with sampled channel scopes
+and clocks. Preview starts playing; authoring temporarily resets/pauses base time
+and resumes prior playback on commit/cancel. No automatic HID start/reconnect.
+Session layout format 3 resets obsolete toolbars while keeping projects/geometry.
+
+Validation: Release build/next and Debug build/multi pass 14/14 CTest each.
+Native Windows editor passes 32/32, output UI 8/8. Checks cover paint drawing,
+flood fill, pixel/mask erasing, gradient-stop dragging/undo, source-color isolation,
+source/paint persistence and invalid input/layer-cap guards; the hardware adapter
+rejects invalid mappings and dedicated products. Pixel assertions verify that
+channel-scoped hardware previews show distinct per-channel colors at Windows DPI.
+
+Native screenshots: docs/images/studio-workspace.png, hardware-picker.png,
+header-layout.png and lighting-properties.png. Prepared app and ZIP were refreshed;
+EXE bytes match the build/folder/archive, ZIP CRC validation passes, required HIDAPI,
+Qt platform and driver files are included. Packaged --inspect and --scan exit 0
+with only Windows on PATH. The scan identifies this B850 Edge TI and one endpoint.
+No hardware writes, physical color calibration or clean-machine test performed.
+The graph was refreshed (1659 nodes/3297 edges, 7 existing parser warnings).
+
+
+
 ## Header-based application workflow (2026-10-23)
 
 Supersedes the Devices-page navigation below. Layout opens first, discovers

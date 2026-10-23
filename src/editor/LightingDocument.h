@@ -18,6 +18,7 @@ struct EffectLayer {
     EffectKind effect = EffectKind::StaticColor;
     QColor secondaryColor = Qt::black;
     QVector<QColor> gradientColors; // Empty preserves the legacy two-color gradient. Otherwise 2..16 evenly spaced stops.
+    QVector<double> gradientPositions; // Empty means evenly spaced, preserving schemas 1..10.
     QPointF center{320, 200};
     QSizeF extent{240, 240};
     double rotation = 0;
@@ -66,6 +67,7 @@ public:
     QUndoStack* history() { return &history_; }
     void edit(const QString& label, const std::function<void(LightingState&)>& operation);
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
+    QUuid addPaintLayer();
     QUuid importImage(const QString& fileName);
     void defineComponent(const ComponentDefinition& component, bool replace = false);
     void importComponent(const QString& fileName);

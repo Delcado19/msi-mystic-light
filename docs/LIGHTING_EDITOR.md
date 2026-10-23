@@ -2,34 +2,56 @@
 
 ## Visual workspace
 
-The app opens on Layout. Controllers are discovered automatically using installed profiles;
-all their headers appear in the left tree. Switch between Layout and Effects in the main toolbar. Add a layer from the searchable effect gallery or
-import an image. The left sidebar shows named layers with an effect-type subtitle
-and independent source/mask thumbnails. Drag to reorder, double-click to rename,
-and use the visibility checkbox to compare layers.
+The app opens on Layout. Read-only discovery lists all supported headers in the
+left tree. Hardware opens one searchable product picker with categories, quantities
+and header selection. It restores the original studio's product-oriented workflow,
+including the M25 models, generic fans/strips and validated installed component
+metadata. Browsing works offline; adding requires an available or saved header.
+No product selection starts output.
 
-The center is the editable canvas; it fits the available space until manually
-panned or zoomed. Use Fit canvas / Ctrl+0 to reset. Move (V), Mask brush (B) and
-image crop (C) act on the selected layer. A brush outline shows the painted area.
-The right inspector keeps a compact live overview and separates Effect, Motion and Mask.
-Common motion/brush values use sliders. Transform/crop sections start open, and
-the Motion page uses a compact grid so its parameters and color palette fit at
-desktop size. Hover parameter controls for units, behavior and special values. Play/Pause previews animation without
-altering the document. View can hide panels or reset the workspace.
+Layout edits physical component placement. Effects is a separate authoring canvas
+with a persistent, independently fitted live hardware preview below it. The splitter
+resizes these two views. The hardware pane shows sampled component colors, including
+layer channel targets and channel clocks; it is a software preview, not device readback.
+Native firmware preview uses the configured first color, not a firmware simulation.
 
-Layout keeps headers and their component chains on the left, the spatial canvas in
-the center, and settings for the selected header/component on the right. The neutral
-layout background does not display the effect raster. Select a header and use Add
-fans / strips to attach quantities with explicit LED counts. Header settings exposes
-native firmware controls or the existing editable physical chain and channel clock.
-The Component library disclosure retains custom geometry creation/import.
+New layer immediately creates a transparent Paint layer with a white mask. There is
+no effect-selection dialog. Presets is the only procedural-source gallery; Import
+image handles image files. The gallery shows Particles once, with motion patterns
+chosen in its contextual inspector. Layers show source and mask thumbnails, effect
+type, visibility and name. Drag to reorder; double-click to rename.
 
-Output: Stopped/Connecting/Running/Faulted opens a separate output window inside
-the same application. It occupies no persistent canvas area. Closing this window
-does not stop output; use Stop output explicitly. Review/start and Stop use the existing transport pipeline;
-adding layers or playing alone does not authorize a connection. See the
-[design review](EDITOR_DESIGN_REVIEW.md) and [output contract](OUTPUT_SESSION.md).
+The left toolbar contains Move (V), Pencil (B), Line (L), Rectangle (U), Ellipse (O),
+Gradient (G), Fill (F), Eraser (E), and Crop (C). Shapes support filled/outlined drawing.
+Tool options show only applicable color, stroke and shape controls. A stroke or shape
+commits one pixel edit on release; Escape discards the draft. Fill floods connected
+pixels of the same color, and erasing removes source alpha. On a procedural/image source, Eraser selects
+the existing mask and hides coverage instead of flattening the source. Drawing on a procedural
+source creates a separate paint layer instead of flattening the source.
 
+Gradient draws a linear gradient along a drag. On an empty paint layer it turns that
+layer into an editable gradient; an existing painted image is preserved in its own
+layer. Its inspector offers draggable color points, Add/Remove for the selected stop,
+RGB sliders, a color picker and an optional exact hex value. Stop drags are one undo
+step, and Add samples the existing gradient at the insertion position.
+
+Click a layer's mask thumbnail (or the Mask inspector tab), then use the same drawing
+tools on coverage. Mask Pencil honors hardness and opacity; Eraser hides coverage.
+The Gradient tool draws black-to-white mask coverage. White reveals, black hides,
+and gray supports smooth partial transparency. Pixel brushes and mask strokes remain
+independent of procedural source parameters.
+
+Preview starts playing automatically and can be paused. Source gestures temporarily
+pause/reset to base time, then resume previous playback after commit/cancel; mask
+editing stays at base time. Preview time never changes the saved document. It does
+not authorize hardware output. The effect, motion and mask inspectors expose the
+current task; numeric transforms and additional motion parameters are disclosures.
+Particle motion patterns share Count, Speed and Radius sliders; seed and spatial
+motion remain in Advanced motion. No decorative animation delays tools or shortcuts.
+
+Output: Stopped/Connecting/Running/Faulted opens an on-demand output window. Closing
+it does not stop output; use Stop output. Review/start and Stop retain the existing
+exact-report approval and transport pipeline. See [output](OUTPUT_SESSION.md).
 
 Launch `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
 Normal startup runs the existing process-conflict dialog first. Neither editor
@@ -38,12 +60,21 @@ exclusive tabs in one Lighting category, with independent selection/zoom/pan.
 
 ## Layout
 
-Select a detected header and choose Add fans / strips. The dialog appends fans first,
-then strips; use Header settings to reorder a mixed physical chain. Generic fans
-use circular LED geometry, strips a straight sequential chain. Counts must match
-real hardware; they are not inferred from the controller descriptor. Capacity/fixed
-LED limits are validated atomically, including the new geometry and placements.
-Cancel or invalid capacity leaves the document untouched. One undo removes the batch.
+Select a header and open Hardware. Search/filter product cards, choose quantity,
+and add them to that header's physical chain. Generic products allow the actual
+addressable LED count to be set; named product mappings retain their count and
+wire permutation. The original M25 pairing uses six addresses for twelve physical
+LEDs. Imported dedicated-controller products (RAM/GPU/motherboard) are excluded
+from the ARGB attachment catalog. Custom document components remain available.
+
+Installed metadata is read from the newest installed VortxEngine component folder,
+with bounded reads and topology validation. No upstream scripts, effects, drivers,
+artwork or network resources are loaded. Imported geometry is normalized to layout
+units without changing LED order. Only a selected product is embedded in the project.
+
+Each accepted quantity is one validated undo transaction. Header capacity and fixed
+counts are checked in the picker and by the document. Header settings reorders a
+mixed physical chain and edits native mode/channel clocks. Cancel changes nothing.
 
 Header groups and their individual components appear in the layout tree. Select a
 header to drag or nudge its complete chain; select a child to move one component.
@@ -60,10 +91,10 @@ a running output session still monitors endpoint presence independently.
 
 ## Layers and masks
 
-New layer creates the selected effect with an independent white grayscale mask.
+New layer creates a transparent paint source with an independent white grayscale mask.
 The top panel row is the top composited layer. Rename by editing the name,
 toggle visibility, drag to reorder, duplicate or delete. Effect/mask thumbnails
-select the target; Edit effect and Edit mask are also in the left toolbar.
+select the target. Drawing tools operate on the selected source or mask.
 Changing effect types preserves ID, mask, geometry, settings and embedded pixels.
 
 Transparency has its own slider: 0% fully visible, 100% fully transparent.
@@ -83,7 +114,7 @@ Masks default to canvas coordinates. Link mask to effect makes geometry edits
 move/rotate/scale the mask, and animation follows drift/spin/zoom/warp. Geometry
 edits resample the linked mask; undo restores the prior pixels. Spatial motion
 is evaluated from original stored pixels during preview. For predictable brush
-coordinates, Edit mask pauses/resets time to zero and edits the base mask with
+coordinates, Mask editing pauses/resets time to zero and edits the base mask with
 the selected layer's warp/link projection suspended in that view. Leaving mask
 editing restores the normal linked projection. No mask data is discarded.
 
@@ -93,14 +124,14 @@ Available sources: Static Color; Linear, Radial and Conical Gradient; Stripes;
 Waves; Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon;
 Image; Particle Rain, Particle Orbit, Fireflies and Particle Burst.
 
-Gradients use 2..16 evenly spaced colors, interpolated in premultiplied space
+Gradients use 2..16 movable color stops, interpolated in premultiplied space
 to avoid transparent-stop halos. Stripes alternate colors and Waves interpolate
 sinusoidally; repetitions are editable. Conical gradients start along positive
 X and progress clockwise, with a seam. Linear/radial gradients clamp; patterns
 repeat. Shapes use antialiased fixed templates (five-point star, fixed ring
 thickness and fixed moon cutout).
 
-Select Edit effect, then drag inside the selected source's yellow frame to
+Select Move, then drag inside the selected source's yellow frame to
 move it. Four corner grips resize about its center; the external circular grip
 rotates. Direct gestures pause/reset the preview clock before editing. Numeric
 center, width, height and rotation provide keyboard-accessible alternatives.
@@ -124,7 +155,7 @@ the left toolbar and drag a rectangle over the visible image to select a new
 source region; drag again to refine it. The normalized left/top/width/height
 fields provide precise crop coordinates. Reset image crop restores the whole
 source. All crop operations retain original pixels, and undo restores previous
-selections. Select Edit effect to leave the crop tool and restore transform grips.
+selections. Select Move to leave the crop tool and restore transform grips.
 
 ## Motion and color
 
@@ -175,12 +206,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 10, including placements, ordered layer
+Save/Open uses `.lighting.json` schema 11, including placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..9 remain readable with their original
+and advanced persistence. Schemas 1..10 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 10; older versions reject it instead of silently losing effects.
+schema 11; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -321,16 +352,20 @@ update approved software channels live. Output-configuration changes or opening
 a project stop output; restart requires review. See [output session](OUTPUT_SESSION.md). No
 physical calibration or device-behavior qualification is claimed.
 
-## RGB colors, gradient stops and wrapping (schema 10)
+## Colors, paint sources and gradient stops (schema 11)
 
-Every color editor uses a visual picker and a #RRGGBB field. Invalid/incomplete
-hex input does not change the color. There are no CSV/array color-entry fields:
-source colors, gradient stops, color cycles and native firmware palettes share
-the same editor. Alpha remains controlled by layer transparency and masks.
-Gradients support 2..16 evenly spaced colors using Add color / Remove last.
-Color cycles retain 2..16 colors; firmware palettes retain 1..4 opaque RGB colors.
-Schema 10 persists gradientColors. Schemas 1..9 use their original two-color
-stops; older schema numbers reject the new field rather than discarding it.
+Every color editor provides a picker and optional #RRGGBB value; invalid or
+incomplete hex input leaves the color unchanged. Palettes use a color strip with
+selection, RGB sliders and Add/Remove instead of per-color numeric rows. Gradient
+strips also support dragging stop positions. Palette limits remain 2..16 colors for
+gradients/cycles and 1..4 opaque colors for firmware.
+
+Schema 11 adds gradientPositions and the Paint source type. Paint pixels are embedded
+losslessly at canvas resolution, under the shared image budget. A null Paint image is
+transparent. Schema 10 gradients keep evenly spaced colors when positions are absent;
+schemas 1..9 retain their original two-color gradients. New fields under older schema
+numbers are rejected rather than silently discarded. Schema 11 is not writable by
+older application versions; keep a backup when editing shared projects.
 
 Effect geometry and absolute-time drift wrap horizontally and vertically across
 the 640x400 canvas. Intersecting neighboring source copies are drawn before

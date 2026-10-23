@@ -6,7 +6,10 @@ Do not copy only the EXE. Microsoft Visual C++ x64 runtime must be installed.
 
 Output starts only after explicit review and confirmation in the Output
 window. Layout opens with automatic header discovery. Attach fans/strips to a
-header, then arrange its group or individual components. Layout and Effects are
+header using Hardware, then arrange its group or individual components.
+New layer is a blank paint layer. Standard drawing tools are on the left;
+procedural sources are in Presets. Gradients use draggable stops and RGB sliders.
+Effects includes a persistent live hardware preview. Layout and Effects are
 separate workspaces in the same window. Stop leaves the last hardware state. Device behavior/calibration has
 not been physically qualified. No automatic reconnect or output on startup.
 
