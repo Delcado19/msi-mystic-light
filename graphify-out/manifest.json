@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792759297.8538013,
-    "seen": 1792759452.6027794,
-    "ast_hash": "538c3b94f9d7f4d6113a156663a1140f",
+    "mtime": 1792760319.181439,
+    "seen": 1792760412.2805953,
+    "ast_hash": "d01118af29eca078f296e87652572b10",
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "src/main.cpp": {
-    "mtime": 1792752309.7237442,
-    "seen": 1792752840.1181736,
-    "ast_hash": "180da9615b0366a92c35190738746e73",
+    "mtime": 1792760095.5039432,
+    "seen": 1792760412.2805715,
+    "ast_hash": "30b395ea83fa89877b432020a804506d",
     "semantic_hash": ""
   },
   "src/protocol/MsiProtocol.cpp": {
@@ -90,15 +90,15 @@
     "semantic_hash": ""
   },
   "CMakeLists.txt": {
-    "mtime": 1792759160.928578,
-    "seen": 1792759452.6027763,
-    "ast_hash": "05da74fdbf01233998493e4e175cafe8",
+    "mtime": 1792760095.5013995,
+    "seen": 1792760412.2805934,
+    "ast_hash": "bbbb6ede07579ed9fd7d0f0a63932f0a",
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792759450.1124,
-    "seen": 1792759452.6027772,
-    "ast_hash": "1630ad277f9d22011a75a0472a71212e",
+    "mtime": 1792760409.8928895,
+    "seen": 1792760412.280594,
+    "ast_hash": "78cbdb27c59265a8208fcbfa35cfe691",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -228,9 +228,9 @@
     "semantic_hash": ""
   },
   "docs/HARDWARE_MODULES.md": {
-    "mtime": 1792752837.5695455,
-    "seen": 1792752840.1181982,
-    "ast_hash": "b20d6679b6ba9556ff04a8bfd1e9a5e2",
+    "mtime": 1792760409.8848884,
+    "seen": 1792760412.280597,
+    "ast_hash": "4c43337fd46746b2300eafbf4465aba4",
     "semantic_hash": ""
   },
   "components/generic-strip-8.json": {
@@ -330,39 +330,39 @@
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1792759297.8522801,
-    "seen": 1792759452.6027312,
-    "ast_hash": "b0c6724da56409e43542f8cff436902d",
+    "mtime": 1792760212.9376452,
+    "seen": 1792760412.2805643,
+    "ast_hash": "48e46bac2bf612b37cb348104569aaf2",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1792759078.637784,
-    "seen": 1792759452.6027331,
-    "ast_hash": "eac3f3d3cd08bd227ef0f9c2bc297336",
+    "mtime": 1792760212.9366443,
+    "seen": 1792760412.280565,
+    "ast_hash": "0732842baa905f0f004b9a139f9feb37",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1792759160.9290774,
-    "seen": 1792759452.602734,
-    "ast_hash": "c94e4ebc133d768befc6dc912b4782cd",
+    "mtime": 1792760319.1789405,
+    "seen": 1792760412.280566,
+    "ast_hash": "9203dea4b91a20f46e8e6f94c9f11b5d",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1792758015.5999424,
-    "seen": 1792758157.6251078,
-    "ast_hash": "9948bd37ac4c27ee724b6ab09c6f8531",
+    "mtime": 1792760095.5024152,
+    "seen": 1792760412.280567,
+    "ast_hash": "6419a3be4f1874d947f80df795f217aa",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1792759388.9189396,
-    "seen": 1792759452.6027591,
-    "ast_hash": "004afa8fea9bbebdd313f29c92d1a5f1",
+    "mtime": 1792760319.180442,
+    "seen": 1792760412.280582,
+    "ast_hash": "ff7f50ec982d918221b2ccf5ce7553ea",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1792759388.9199376,
-    "seen": 1792759452.602785,
-    "ast_hash": "9d3cfdea8eba88e54bd07fdcf25022e3",
+    "mtime": 1792760409.8853908,
+    "seen": 1792760412.2805977,
+    "ast_hash": "45418ad570c29bbcf78f24f7e5f840f0",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -429,6 +429,30 @@
     "mtime": 1792759160.9270778,
     "seen": 1792759452.6027231,
     "ast_hash": "b99611a939570f3bef3aeb49162f0978",
+    "semantic_hash": ""
+  },
+  "src/editor/ChannelAssignment.cpp": {
+    "mtime": 1792759992.5189958,
+    "seen": 1792760412.280553,
+    "ast_hash": "3d25b73ffa07c089c862dc1411f78013",
+    "semantic_hash": ""
+  },
+  "src/editor/ChannelAssignment.h": {
+    "mtime": 1792760319.179939,
+    "seen": 1792760412.2805548,
+    "ast_hash": "33752a7095626af21a1a77bee90ea652",
+    "semantic_hash": ""
+  },
+  "src/editor/ChannelEditor.cpp": {
+    "mtime": 1792760095.4938958,
+    "seen": 1792760412.2805557,
+    "ast_hash": "eaa4d8dd59b63e80f2d2d09959bf72db",
+    "semantic_hash": ""
+  },
+  "src/editor/ChannelEditor.h": {
+    "mtime": 1792760095.4933884,
+    "seen": 1792760412.280557,
+    "ast_hash": "51485621b0e7e3697b31f9cd401c6d65",
     "semantic_hash": ""
   }
 }

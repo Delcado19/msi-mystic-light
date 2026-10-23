@@ -20,7 +20,7 @@ class LightingWindow : public QMainWindow {
     Q_OBJECT
 public:
     LightingWindow(ComponentCatalog catalog,
-        std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr);
+        std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {});
     LightingDocument& document() { return document_; }
 protected:
     void closeEvent(QCloseEvent*) override;
@@ -35,6 +35,7 @@ private:
     LightingCanvas *layoutCanvas_, *effectsCanvas_;
     QTabWidget* tabs_;
     QTreeWidget* layers_;
+    QTreeWidget* assignments_;
     QComboBox *catalog_, *blend_;
     QComboBox* effectType_;
     QPushButton* secondaryColor_;

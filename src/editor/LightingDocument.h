@@ -2,6 +2,7 @@
 
 #include "components/ComponentCatalog.h"
 #include "EffectRenderer.h"
+#include "ChannelAssignment.h"
 #include <QColor>
 #include <QImage>
 #include <QObject>
@@ -43,6 +44,7 @@ struct ComponentPlacement {
     double rotation = 0; // Degrees around the component origin, after scaling catalog coordinates.
 };
 struct LightingState {
+    QVector<ChannelAssignment> assignments;
     ComponentCatalog components; // Document-owned geometry participates in undo and portable saves.
     QVector<ComponentPlacement> placements;
     QVector<EffectLayer> layers; // Bottom to top; panel presentation is reversed.
@@ -52,10 +54,11 @@ struct LightingState {
 class LightingDocument : public QObject {
     Q_OBJECT
 public:
-    explicit LightingDocument(ComponentCatalog catalog, QObject* parent = nullptr);
+    explicit LightingDocument(ComponentCatalog catalog, QObject* parent = nullptr, QVector<DeviceProfile> profiles = {});
     static QSize canvasSize() { return {640, 400}; }
     const ComponentCatalog& catalog() const { return state_.components; }
     const LightingState& state() const { return state_; }
+    const QVector<DeviceProfile>& profiles() const { return profiles_; }
     QUndoStack* history() { return &history_; }
     void edit(const QString& label, const std::function<void(LightingState&)>& operation);
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
@@ -66,6 +69,8 @@ public:
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
     // Per-instance wire order, opaque RGB over black; caller may reuse one composed frame.
     QMap<QUuid, QVector<QColor>> sampleComponents(const QImage& frame) const;
+    void assignChannel(const ChannelAssignment& assignment);
+    QMap<QUuid, QVector<QColor>> sampleChannels(const QImage& frame) const;
     QImage render(double seconds = 0) const;
     static QImage render(const LightingState& state, double seconds = 0);
     static QImage whiteMask();
@@ -77,6 +82,8 @@ public:
 signals:
     void changed();
 private:
+    QVector<QColor> sampleComponent(const ComponentPlacement& placement, const QImage& premultiplied) const;
+    const QVector<DeviceProfile> profiles_;
     const ComponentCatalog initialCatalog_;
     LightingState state_;
     QUndoStack history_;

@@ -134,12 +134,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 7, including placements, ordered layer
+Save/Open uses `.lighting.json` schema 8, including placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..6 remain readable with their original
+and advanced persistence. Schemas 1..7 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 7; older versions reject it instead of silently losing effects.
+schema 8; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -159,9 +159,9 @@ the catalog loaded at startup. Viewports/time/selection are session context.
 
 The accepted image/shape/gradient/motion/color/particle authoring increment is
 implemented. Component geometry creation/edit/import, placement transforms and
-component sampling are also implemented. Separate future work includes channel
-assignment/targets, native-mode controls, reconnect handling, scheduling and hardware
-output, autosave and automatic session restoration. Keyframes, multistop gradient
+component sampling, staged channel assignments and native-mode settings are also
+implemented. Separate future work includes per-layer channel targets, reconnect
+handling, scheduling, hardware output, autosave and automatic session restoration. Keyframes, multistop gradient
 editing and animated image playback are not claimed by this increment.
 
 ## Verification
@@ -220,3 +220,40 @@ malformed embedded IDs before replacing live state/history. Schemas 1..6 remain
 readable using the original startup catalog. Embedded geometry under an older
 schema is rejected rather than silently discarded. This editor changes local
 data only; it does not download a repository or configure attached hardware.
+
+## Staged channel configuration
+
+In Layout, scan supported devices, explicitly choose a profile/endpoint and one
+of its channels, then **Configure channel**. The dialog selects **Native firmware**
+or **Software canvas**, plus an ordered component chain. Append existing Layout
+instances and reorder them by dragging or the Up/Down buttons. Each instance may
+belong to only one channel; repeated products require separate Layout instances.
+A software channel needs Direct Mode support and a nonempty chain. All chains
+respect maximum capacity and any fixed LED count. Native channels may omit
+geometry. Unassign a component before deleting it; invalid geometry changes that
+would exceed an assigned channel's capacity are rejected without altering undo.
+
+Native settings include a profile-supported mode, 1..4 opaque RGB colors,
+brightness 0..5, speed 0..2 and direction, matching the current driver contract.
+Native settings are disabled in Software mode and retained when switching back.
+Nothing is sent to hardware. Selecting a candidate, applying a dialog, loading a
+project and playing the preview do not open a transport or change firmware modes.
+The assignments list can edit saved entries even when the endpoint is absent;
+remove an assignment to release its component instances. Accepted changes and
+removal participate in undo/redo and project dirty state.
+
+Schema 8 stores assignment UUIDs, exact endpoint paths, profile/channel IDs,
+explicit modes, native parameters and placement UUIDs in physical chain order.
+Device profiles must still be installed and valid; unavailable profiles reject
+load atomically. Schemas 1..7 migrate with no assignments. Assignment fields under
+older schema numbers are rejected. At most 256 assignments are allowed, one per
+endpoint/channel; one endpoint cannot use conflicting profiles. Stored endpoint
+paths identify intended targets, not verified connections or permission to write.
+
+`sampleChannels(frame)` returns only software assignments, keyed by assignment
+UUID, using one supplied composed canvas. It concatenates each instance's local
+wire-order RGB values in chain order; it does not apply the wire permutation a
+second time. Native assignments are absent. This increment uses the shared full
+composition for every software channel. Per-layer channel targeting, independent
+channel timelines, transport connections, scheduling/calibration and output are
+separate work; saving staged native settings does not run an effect on a device.

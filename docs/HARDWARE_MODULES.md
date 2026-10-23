@@ -164,8 +164,10 @@ IDs and chains exceeding `maxLeds`, and requires an exact total for channels wit
 It returns logical-to-channel-wire indices without sending frames. Definitions
 and assignments express user configuration, not detected topology. Parallel
 splitters that mirror a signal must not be represented as independent sequential
-LEDs. User assignment UI, persistence, rendering, remote installation, source
-provenance and catalog override layers remain separate increments.
+LEDs. The offline editor now persists explicit per-channel Native/Software
+assignments, native parameters and physical instance order, with sampled
+software-chain RGB output. See LIGHTING_EDITOR.md. Transport output, remote
+installation, source provenance and catalog override layers remain separate work.
 
 Component tests cover permutations, geometry, malformed/missing fields, file
 limits, duplicate catalog IDs, repeated products, capacity and fixed-count

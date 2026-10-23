@@ -1,5 +1,6 @@
 #include "LightingWindow.h"
 #include "ComponentEditor.h"
+#include "ChannelEditor.h"
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QColorDialog>
@@ -55,8 +56,8 @@ QIcon colorIcon(QColor color)
 }
 
 LightingWindow::LightingWindow(ComponentCatalog catalog,
-    std::function<QVector<ProfileCandidate>()> scan, QWidget* parent)
-    : QMainWindow(parent), document_(std::move(catalog))
+    std::function<QVector<ProfileCandidate>()> scan, QWidget* parent, QVector<DeviceProfile> profiles)
+    : QMainWindow(parent), document_(std::move(catalog), nullptr, std::move(profiles))
 {
     setWindowTitle("Lighting — MSI Mystic Light Standalone");
     resize(1200, 760);
@@ -148,10 +149,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     button(layoutControls, "Remove selected component", [this] {
         const auto id = layoutCanvas_->selection();
         if (id.isNull()) return;
-        document_.edit("Remove component", [&](LightingState& state) {
-            state.placements.removeIf([&](const auto& placement) { return placement.id == id; });
-        });
-        layoutCanvas_->select({});
+        try {
+            document_.edit("Remove component", [&](LightingState& state) {
+                state.placements.removeIf([&](const auto& placement) { return placement.id == id; });
+            });
+            layoutCanvas_->select({});
+        } catch (const std::exception& error) {
+            statusBar()->showMessage("Remove this instance from its channel chain first. " + QString::fromUtf8(error.what()), 6000);
+        }
     });
     auto* placementForm = new QFormLayout;
     layoutControls->addLayout(placementForm);
@@ -211,7 +216,49 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         }
     });
     layoutControls->addWidget(candidates);
-    layoutControls->addWidget(new QLabel("Selection does not connect or assign channels."));
+    auto* channelChoice = new QComboBox; channelChoice->setObjectName("profileChannels");
+    layoutControls->addWidget(channelChoice);
+    connect(candidates, &QComboBox::currentIndexChanged, this, [this,candidates,channelChoice] {
+        channelChoice->clear();
+        const auto profileId=candidates->currentData().toMap().value("profileId").toString();
+        for(const auto& profile:document_.profiles()) if(profile.id==profileId)
+            for(const auto& channel:profile.channels) channelChoice->addItem(channel.id,channel.id);
+    });
+    button(layoutControls, "Configure channel", [this,candidates,channelChoice] {
+        if(channelChoice->currentIndex()<0) return;
+        const auto data=candidates->currentData().toMap();
+        ChannelAssignment assignment; assignment.endpoint=data.value("path").toString();
+        assignment.profileId=data.value("profileId").toString(); assignment.channelId=channelChoice->currentData().toString();
+        for(const auto& existing:document_.state().assignments)
+            if(existing.endpoint==assignment.endpoint && existing.channelId==assignment.channelId && existing.profileId==assignment.profileId) assignment=existing;
+        try {
+            ChannelEditor editor(document_,assignment,this);
+            if(editor.exec()==QDialog::Accepted) document_.assignChannel(editor.assignment());
+        } catch(const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
+    });
+    assignments_=new QTreeWidget; assignments_->setObjectName("channelAssignments");
+    assignments_->setHeaderLabels({"Channel", "Mode", "Instances"}); assignments_->setMinimumHeight(140); assignments_->setMaximumHeight(240);
+    layoutControls->addWidget(assignments_);
+    button(layoutControls, "Edit assigned channel", [this] {
+        if(!assignments_->currentItem()) return;
+        const auto id=assignments_->currentItem()->data(0,Qt::UserRole).toUuid();
+        // Copy before opening the dialog; its accepted edit can invalidate document references.
+        for(const auto assignment:document_.state().assignments) if(assignment.id==id) {
+            try {
+                ChannelEditor editor(document_,assignment,this);
+                if(editor.exec()==QDialog::Accepted) document_.assignChannel(editor.assignment());
+            } catch(const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
+            break;
+        }
+    });
+    button(layoutControls, "Remove channel assignment", [this] {
+        if(!assignments_->currentItem()) return;
+        const auto id=assignments_->currentItem()->data(0,Qt::UserRole).toUuid();
+        document_.edit("Remove channel assignment", [&](LightingState& state) {
+            state.assignments.removeIf([&](const auto& item) { return item.id==id; });
+        });
+    });
+    layoutControls->addWidget(new QLabel("Assignments are staged only. No device is connected or written."));
 
     auto* previewToolbar = addToolBar("Preview");
     playing_ = new QCheckBox("Play preview"); playing_->setObjectName("playPreview");
@@ -520,7 +567,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     button(effectControls, "Fill mask white", [this] { updateLayer("Reveal layer", [](auto& layer) { layer.mask.fill(255); }); });
     button(effectControls, "Fill mask black", [this] { updateLayer("Hide layer with mask", [](auto& layer) { layer.mask.fill(0); }); });
     button(effectControls, "Invert mask", [this] { updateLayer("Invert mask", [](auto& layer) { layer.mask.invertPixels(); }); });
-    auto* note = new QLabel("Offline effect preview\nNo hardware output or channel assignments yet.\nWheel zooms; middle drag pans; Escape cancels strokes.");
+    auto* note = new QLabel("Offline effect preview\nChannel assignments are staged; no hardware output yet.\nWheel zooms; middle drag pans; Escape cancels strokes.");
     note->setWordWrap(true);
     effectControls->addWidget(note);
     connect(tabs_, &QTabWidget::currentChanged, contexts, &QStackedWidget::setCurrentIndex);
@@ -563,6 +610,13 @@ void LightingWindow::refreshPlacement()
 void LightingWindow::refresh()
 {
     refreshPlacement();
+    const auto selectedAssignment=assignments_->currentItem() ? assignments_->currentItem()->data(0,Qt::UserRole).toUuid() : QUuid{};
+    assignments_->clear();
+    for(const auto& assignment:document_.state().assignments) {
+        auto* item=new QTreeWidgetItem(assignments_,{assignment.channelId,assignment.software ? "Software" : "Native",QString::number(assignment.placements.size())});
+        item->setData(0,Qt::UserRole,assignment.id); item->setToolTip(0,assignment.profileId+"\n"+assignment.endpoint);
+        if(assignment.id==selectedAssignment) assignments_->setCurrentItem(item);
+    }
     const auto currentComponent = catalog_->currentData();
     {
         const QSignalBlocker block(catalog_); catalog_->clear();

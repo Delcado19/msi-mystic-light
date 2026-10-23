@@ -1,5 +1,27 @@
 # Implementation status
 
+## Staged channel assignment and native settings (2026-10-23)
+
+- Added profile/endpoint/channel selection, Native/Software dialog, physical
+  component-chain append/remove/reorder and persisted native parameters.
+- One instance belongs to one channel; capacity, fixed counts, direct support,
+  profile conflicts, duplicate assignments and supported native modes are checked
+  before state/history changes. Assigned instance deletion/capacity-breaking
+  geometry edits fail safely. Saved assignments remain editable without a scan.
+- Schema 8 stores assignments and native settings; schemas 1..7 migrate with no
+  assignments. Unsupported profiles or malformed assignments preserve live state.
+- Added sampleChannels(frame): one shared composed frame, local wire order once,
+  physical chain concatenation, opaque RGB over black. Native channels are absent.
+- Validation: Release and Debug each passed 10/10 CTest entries; native Windows
+  editor passed 25/25 Qt Test cases. Inspected the native channel dialog screenshot.
+  Checks include chain order/permutations, alpha, native exclusion, invalid
+  capacity/fixed counts, conflict rejection, atomic load, schema 7 migration,
+  undo/redo and configuring an existing assignment through fake discovery.
+- Staging only: no devices opened/written, no firmware mode switched by preview
+  or edits. Remaining: per-layer channel targets/independent timelines, hardware
+  connection, conflict/confirmation gate, reconnect, scheduling/calibration,
+  output qualification and session/tray behavior.
+
 ## Component authoring and portable geometry (2026-10-23)
 
 - Added Create/Edit geometry table and JSON import in Layout. Existing IDs are

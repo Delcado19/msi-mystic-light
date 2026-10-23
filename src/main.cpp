@@ -99,7 +99,7 @@ int main(int argc, char** argv)
     // connection must pass the conflict gate even when started with --editor.
     LightingWindow window(catalog, [availableProfiles] {
         return findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
-    });
+    }, nullptr, availableProfiles);
     window.show();
     return app.exec();
 }

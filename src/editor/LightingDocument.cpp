@@ -54,8 +54,8 @@ void validate(const LightingState& state)
 }
 }
 
-LightingDocument::LightingDocument(ComponentCatalog catalog, QObject* parent)
-    : QObject(parent), initialCatalog_(std::move(catalog))
+LightingDocument::LightingDocument(ComponentCatalog catalog, QObject* parent, QVector<DeviceProfile> profiles)
+    : QObject(parent), profiles_(std::move(profiles)), initialCatalog_(std::move(catalog))
 {
     if (initialCatalog_.size() > 256) throw std::invalid_argument("Catalog limit: 256 definitions");
     state_.components = initialCatalog_;
@@ -78,6 +78,7 @@ void LightingDocument::edit(const QString& label, const std::function<void(Light
     validate(after);
     for (const auto& placement : after.placements)
         if (!after.components.contains(placement.componentId)) throw std::invalid_argument("Unknown component");
+    validateChannelAssignments(after, profiles_);
     history_.push(new DocumentEdit(label, [this, before = state_, after](bool forward) {
         state_ = forward ? after : before;
         emit changed();
@@ -170,30 +171,60 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleComponents(const QImage& fr
     const auto rgb = frame.convertToFormat(QImage::Format_ARGB32_Premultiplied);
     QMap<QUuid, QVector<QColor>> result;
     for (const auto& placement : state_.placements) {
-        const auto points = componentPoints(placement);
-        const auto& definition = catalog()[placement.componentId];
-        if (definition.mapping.size() != points.size()) throw std::invalid_argument("Component geometry/mapping length mismatch");
-        // In-memory catalogs bypass the JSON parser; validate before indexing output colors.
-        const auto mapping = channelMapping(ChannelProfile{"sampling", 65535}, {placement.componentId}, catalog());
-        QVector<QColor> colors(points.size(), QColor(Qt::black));
-        for (qsizetype i = 0; i < points.size(); ++i) {
-            const auto point = points[i];
-            // Test floating bounds before conversion: off-canvas and very large origins stay black.
-            if (point.x() >= 0 && point.y() >= 0 && point.x() < rgb.width() && point.y() < rgb.height()) {
-                const auto pixel = rgb.pixel(int(point.x()), int(point.y()));
-                colors[mapping[i]] = QColor(qRed(pixel), qGreen(pixel), qBlue(pixel));
-            }
-        }
-        result.insert(placement.id, colors);
+        result.insert(placement.id, sampleComponent(placement, rgb));
     }
     return result;
+}
+
+QVector<QColor> LightingDocument::sampleComponent(const ComponentPlacement& placement, const QImage& rgb) const
+{
+    const auto points = componentPoints(placement);
+    if (catalog()[placement.componentId].mapping.size() != points.size())
+        throw std::invalid_argument("Component geometry/mapping length mismatch");
+    const auto mapping = channelMapping(ChannelProfile{"sampling", 65535}, {placement.componentId}, catalog());
+    QVector<QColor> colors(points.size(), QColor(Qt::black));
+    for (qsizetype i = 0; i < points.size(); ++i) {
+        const auto point = points[i];
+        // Check floating bounds before converting potentially huge off-canvas coordinates.
+        if (point.x() >= 0 && point.y() >= 0 && point.x() < rgb.width() && point.y() < rgb.height()) {
+            const auto pixel = rgb.pixel(int(point.x()), int(point.y()));
+            colors[mapping[i]] = QColor(qRed(pixel), qGreen(pixel), qBlue(pixel));
+        }
+    }
+    return colors;
+}
+
+void LightingDocument::assignChannel(const ChannelAssignment& assignment)
+{
+    edit("Configure channel", [&](LightingState& state) {
+        for (auto& existing : state.assignments) if (existing.id == assignment.id) { existing = assignment; return; }
+        state.assignments.append(assignment);
+    });
+}
+
+QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& frame) const
+{
+    if (frame.size() != canvasSize()) throw std::invalid_argument("Sampling requires a canvas-sized frame");
+    validateChannelAssignments(state_, profiles_);
+    const auto rgb = frame.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QMap<QUuid, QVector<QColor>> result;
+    for (const auto& assignment : state_.assignments) if (assignment.software) {
+        QVector<QColor> chain;
+        for (const auto& id : assignment.placements)
+            for (const auto& placement : state_.placements) if (placement.id == id)
+                chain.append(sampleComponent(placement, rgb));
+        result.insert(assignment.id, chain);
+    }
+    return result; // Native channels are deliberately absent, never overwritten with sampled colors.
 }
 
 QImage LightingDocument::render(double seconds) const { return render(state_, seconds); }
 
 void LightingDocument::save(const QString& fileName)
 {
-    QJsonArray layers, placements, components;
+    QJsonArray layers, placements, components, assignments;
+    validateChannelAssignments(state_, profiles_);
+    for (const auto& assignment : state_.assignments) assignments.append(channelAssignmentJson(assignment));
     for (const auto& component : catalog()) components.append(component.toJson());
     for (const auto& layer : state_.layers) {
         QByteArray png;
@@ -227,9 +258,9 @@ void LightingDocument::save(const QString& fileName)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()},
             {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
-    // Version 7 embeds document geometry; installed catalogs cannot alter a reopened project.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 7}, {"width", 640}, {"height", 400},
-        {"layers", layers}, {"placements", placements}, {"components", components}}).toJson();
+    // Version 8 adds staged channel assignments; loading never opens or configures devices.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 8}, {"width", 640}, {"height", 400},
+        {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
     // Atomic replacement preserves an existing project if writing/commit fails.
@@ -248,7 +279,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -384,7 +415,18 @@ void LightingDocument::load(const QString& fileName)
         if (!candidate.components.contains(placement.componentId)) throw std::invalid_argument("Document requires an unavailable component");
         candidate.placements.append(placement);
     }
+    if (schema >= 8) {
+        if (!root.value("assignments").isArray() || root.value("assignments").toArray().size() > 256)
+            throw std::invalid_argument("Invalid channel assignment array");
+        for (const auto& entry : root.value("assignments").toArray()) {
+            if (!entry.isObject()) throw std::invalid_argument("Invalid channel assignment");
+            candidate.assignments.append(parseChannelAssignment(entry.toObject()));
+        }
+    } else if (root.contains("assignments")) {
+        throw std::invalid_argument("Channel assignments require schema 8");
+    }
     validate(candidate);
+    validateChannelAssignments(candidate, profiles_);
     // Parse/validate everything before replacing the live document and undo history.
     state_ = std::move(candidate);
     history_.clear();
