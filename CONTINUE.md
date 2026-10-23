@@ -22,17 +22,35 @@ CTest verification ran outside the agent sandbox: inside it, Qt's offscreen
 platform plugin was not discoverable and the app test hit its 15-second
 timeout. Direct application startup also passed outside CTest.
 
+## Completed: HID transport (2026-10-23)
+
+- Added `IHidDevice`, the owning `HidApiDevice` adapter, and test-only
+  `FakeHidDevice`. Failed fake opens leave the fake closed, correcting the
+  inconsistent example in the historical plan.
+- HIDAPI initializes once per process before wrappers finish construction;
+  its shutdown follows wrapper destruction. Closing one wrapper does not
+  shut down another. Wrappers cannot be copied.
+- Closed handles, null/empty buffers, oversized buffers, short writes and
+  HIDAPI errors return failure. Reopening closes the previous handle first.
+- Added HIDAPI SDK discovery through `hidapi_ROOT`; validated against the
+  existing x64 HIDAPI 0.14 SDK beside OpenRGB, without copying vendor code.
+- Built the production transport static library. Four CTest entries passed
+  outside the sandbox: protocol, backend doubles, initialization failure in
+  a separate process, and Qt app startup. No devices were opened.
+- Backend tests compile the real adapter with replacement HIDAPI functions;
+  actual HIDAPI DLL loading and real-device behavior remain unverified.
+
 ## Next steps
 
-Continue the v1 plan at Task 3: `IHidDevice`, fake transport, and the real
-HIDAPI adapter; then Components, Channels, and the motherboard driver.
+Continue the v1 plan at Task 4: Components, then Channels and the motherboard
+driver. The transport remains disconnected from the application scaffold.
 Tasks 4–12 (device model, effects, renderer, persistence, tray, autostart,
 integration and hardware verification) remain unimplemented.
 Lighting Studio is a subsequent increment, not part of this scaffold.
 
 Differences from the historical implementation plan:
 
-- HIDAPI discovery/linking is deferred until the transport actually uses it.
+- HIDAPI discovery was added with the transport rather than the scaffold.
 - The real protocol suite replaces the arithmetic-only scaffold test.
 - Encoders reject invalid settings instead of silently masking their bits.
 - Plan checkboxes are retained as historical instructions, not an up-to-date

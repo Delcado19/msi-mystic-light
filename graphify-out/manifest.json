@@ -12,9 +12,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792730116.8170013,
-    "seen": 1792730118.2417884,
-    "ast_hash": "6fb40ba53433587ce8e8ce4ef374ea0e",
+    "mtime": 1792730787.7733972,
+    "seen": 1792730807.4512858,
+    "ast_hash": "0318f879077f59ed66ad46dadaf1567e",
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
@@ -96,21 +96,51 @@
     "semantic_hash": ""
   },
   "CMakeLists.txt": {
-    "mtime": 1792729843.2382958,
-    "seen": 1792729951.8060265,
-    "ast_hash": "d650870f4ff1ff4866c55433dfeab5bf",
+    "mtime": 1792730682.854313,
+    "seen": 1792730807.4512844,
+    "ast_hash": "c34dd6ad14b631be46c4689df8941925",
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792730104.5092053,
-    "seen": 1792730118.2417872,
-    "ast_hash": "303d7e9c1def343a4fec3caba7f4338e",
+    "mtime": 1792730788.0875406,
+    "seen": 1792730807.451285,
+    "ast_hash": "0d855caa4f72b115623cc8b6e5fb4d16",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
-    "mtime": 1792730083.1889725,
-    "seen": 1792730118.241796,
-    "ast_hash": "dd9e109bba7e14bdea9c518c11678bab",
+    "mtime": 1792730740.3709161,
+    "seen": 1792730807.451293,
+    "ast_hash": "d50fa62059bea292e47c919fc5423ac6",
+    "semantic_hash": ""
+  },
+  "src/hid/HidApiDevice.cpp": {
+    "mtime": 1792730684.3566163,
+    "seen": 1792730807.4512734,
+    "ast_hash": "b9fca7179925d7a37edbd5a1b75cce49",
+    "semantic_hash": ""
+  },
+  "src/hid/HidApiDevice.h": {
+    "mtime": 1792730684.0601747,
+    "seen": 1792730807.4512753,
+    "ast_hash": "13f6e9e6edef1bd02aaf663e13ea2242",
+    "semantic_hash": ""
+  },
+  "src/hid/IHidDevice.h": {
+    "mtime": 1792730683.7617788,
+    "seen": 1792730807.451276,
+    "ast_hash": "8c42f66863bf8f5b0b2061ac98208c2f",
+    "semantic_hash": ""
+  },
+  "tests/hid/FakeHidDevice.h": {
+    "mtime": 1792730685.292174,
+    "seen": 1792730807.451281,
+    "ast_hash": "bbb1edae24a5048c73082103c3772156",
+    "semantic_hash": ""
+  },
+  "tests/hid/test_hid_backend.cpp": {
+    "mtime": 1792730787.478067,
+    "seen": 1792730807.451282,
+    "ast_hash": "a1ef86cc2f1835f77f4bd864ab4a58f5",
     "semantic_hash": ""
   }
 }

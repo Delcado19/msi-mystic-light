@@ -37,8 +37,19 @@ cmake --build build/ninja
 ctest --test-dir build/ninja --output-on-failure
 ```
 
-HIDAPI will be required when the real transport is implemented. It is not
-linked into the current scaffold. Qt must remain dynamically linked.
+The HID transport library and test fake are implemented separately from the
+application. Transport tests replace HIDAPI functions at link time, covering
+initialization failure, failed opens, repeated close/reopen, invalid buffers,
+short writes, and multiple wrapper lifetimes without touching hardware.
+The scaffold still does not construct a transport or load HIDAPI.
+
+HIDAPI headers and a library are now required to build the transport. If they
+are not on CMake's search path, add `-Dhidapi_ROOT=C:/path/to/hidapi-sdk`
+to the configure command; the root should contain `include/hidapi.h` and
+`lib/hidapi.lib` (or `x64/hidapi.lib` on Windows). The validated local SDK is
+the existing `../OpenRGB/OpenRGB/dependencies/hidapi-win` directory; no
+OpenRGB application code is linked or copied. Deployment of the HIDAPI DLL
+is deferred until application integration. Qt must remain dynamically linked.
 
 Original project code is licensed under GPL-2.0-or-later; see [LICENSE](LICENSE).
 Qt remains under its own license. Research references do not relicense vendor
