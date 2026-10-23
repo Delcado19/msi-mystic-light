@@ -26,6 +26,7 @@ public:
     void setCropTool(bool enabled) { cancelGesture(); cropTool_ = enabled; update(); }
     void setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel = {});
     void fitToView();
+    void zoomBy(double factor);
     QPointF viewportPoint(QPointF canvas) const;
     QPointF canvasPoint(QPointF viewport) const;
 signals:
@@ -46,6 +47,8 @@ protected:
     void hideEvent(QHideEvent*) override;
 private:
     bool selectedPlacement(const QUuid& id) const;
+    QRectF selectionBounds() const;
+    ComponentPlacement previewPlacement(ComponentPlacement placement) const;
     void cancelGesture();
     void beginDrawing(QPointF point);
     void updateDrawing(QPointF point);
@@ -61,7 +64,7 @@ private:
     Tool drawingTool_=Tool::Move;
     QColor drawColor_=Qt::white;
     double drawWidth_=6;
-    QImage drawingBase_;
+    QImage drawingBase_, fillReference_;
     QRectF previewBounds_{0,0,640,400};
     QUuid selected_, previewChannel_;
     bool maskTarget_ = false, showMask_ = false, dragging_ = false, panning_ = false;
@@ -71,6 +74,8 @@ private:
     double seconds_ = 0;
     bool cropTool_ = false;
     int handle_ = 0;
+    QRectF layoutBounds_;
+    double layoutScale_=1, layoutRotation_=0;
     std::optional<EffectLayer> originalEffect_, workingEffect_;
     int gray_ = 0;
 };

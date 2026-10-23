@@ -1,5 +1,53 @@
 # Implementation status
 
+## Restore layout and peripheral regressions (2026-10-23)
+
+Supersedes the neutral Layout and detached output window below. Layout renders the
+live raster behind groups, with dashed group bounds, corner scale and rotation
+handles, body dragging and explicit zoom controls. Component definitions and the
+real OutputPanel live in Hardware. Empty hardware preview space is returned to
+Effects. Standard tools remain; Shapes and effects is the source gallery.
+
+Gradient arrows remain editable after release; radial/conical controls retain
+their source type and center/radius semantics. Fill now samples the selected
+procedural/image source as its region boundary, painting only that connected
+region on a transparent layer above the source. Paint fills include a small edge
+color tolerance and explicit visited storage. Tooltips explain results and units;
+palette cycle rate is beside its colors rather than hidden in another section.
+
+Restored original Kone, Basilisk, Apex 3 and Vulcan protocol encoders and shipped
+exact selector profiles/default geometry. Dedicated devices are discovered into
+Layout automatically, never represented as fan/strip attachments. Vulcan requires
+one unique control/LED pair of the same PID; both exact paths are reviewed and
+revalidated. API 2 adds HID output transfers, retaining API 1 feature-report slots;
+old hosts reject the new module metadata. No automatic hardware writes/reconnect.
+
+A new empty session can recover original hardware layout/native commands from
+%APPDATA%/MsiMysticLightApp/settings.json. Hardware also offers explicit import.
+Imports are bounded, atomic, undoable and preserve source files/wire permutations;
+existing assignments take precedence. Actual previous settings were checked
+read-only against the fresh scan: six supported chains (JARGB1 6 addresses,
+JARGB2 24, JARGB3 30, JRGB1 native, Basilisk 11, Vulcan 144). Discovery additionally
+finds Apex 3. The packaged scan matches four device endpoints.
+
+Validation: Release build/next and Debug build/multi each passed 15/15 CTest.
+Native Windows editor 34/34 and output UI 8/8 pass. New coverage exercises source-
+bounded fill, radial/linear arrow editing, group transforms/undo, hardware import,
+HID output short writes, peripheral reports and ambiguous Vulcan pairing.
+Native screenshots updated, including docs/images/hardware-workspace.png.
+Graph refreshed: 1771 nodes/3559 edges; nine parser limitations, including two
+new Qt-related declaration files. Prepared folder/ZIP refreshed, required files
+and ZIP CRC checked, source/folder/archive EXE bytes match. Packaged --inspect
+and --scan pass with Windows-only PATH. EXE SHA256:
+cca33c7186c7e052a00921282324b1cdcb5bf825c16944a2b90036a913a89c45.
+
+Remaining limits: no real HID writes or physical color/fan verification, and no
+clean-machine runtime qualification. Old custom-effect recipes are preserved but
+not converted by hardware-only recovery. The old worktree's GPU/RAM integrations
+and IOShield software-average fallback are outside the modular host; do not claim
+complete parity with every feature of the old Lighting Studio application.
+
+
 ## Drawing workflow, product picker and live hardware preview (2026-10-23)
 
 Supersedes the source-icon toolbox and generic fan/strip dialog below. New layer

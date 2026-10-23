@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QFileInfo>
 #include <algorithm>
 #include <stdexcept>
 #include <QCommandLineParser>
@@ -143,6 +144,10 @@ int main(int argc, char** argv)
         return QMessageBox::question(&window,"Recover unsaved project","Recover the unsaved project from the previous session?",
             QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes)==QMessageBox::Yes;
     });
+    // The editor used a new settings namespace; restore existing chains rather than silently starting empty.
+    const auto previous=qEnvironmentVariable("APPDATA")+"/MsiMysticLightApp/settings.json";
+    if(window.projectFile().isEmpty() && window.document().state().assignments.isEmpty() && QFileInfo::exists(previous))
+        window.restoreLegacyHardware(previous);
     window.findChild<QAction*>("workspaceLayout")->trigger();
     window.show();
     return app.exec();

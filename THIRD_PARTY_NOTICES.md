@@ -23,3 +23,9 @@ installation for compatibility. Only validated selected geometry and LED mapping
 are embedded in the user's project. No SignalRGB application code, scripts,
 effects, images or binaries are distributed or executed by this integration.
 Product names identify compatible hardware; no affiliation is implied.
+
+Restored peripheral protocol encoders retain their GPL-2.0-or-later headers and
+OpenRGB provenance from the original Lighting Studio source worktree. They cover
+Roccat Kone/Vulcan, Razer Basilisk V3 and SteelSeries Apex 3. The Vulcan ISO geometry
+also derives from OpenRGB's RoccatVulcan120AimoLayouts, as documented in the original
+RoccatVulcanDriver. See LICENSE and the detailed source-header attribution.

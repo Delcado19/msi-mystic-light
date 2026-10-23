@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "kone-2e27",
+  "driverId": "lighting.peripherals",
+  "name": "RoccatKone",
+  "match": {
+    "vendorId": 7805,
+    "productId": 11815,
+    "interfaceNumber": 0,
+    "usagePage": 11
+  },
+  "channels": [
+    {
+      "id": "RoccatKone",
+      "maxLeds": 11,
+      "fixedLeds": 11,
+      "direct": true,
+      "nativeModes": [],
+      "address": {
+        "protocol": "kone",
+        "componentId": "peripheral.kone"
+      }
+    }
+  ]
+}

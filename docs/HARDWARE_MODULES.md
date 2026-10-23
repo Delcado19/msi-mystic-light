@@ -1,7 +1,8 @@
 # Hardware modules
 
 The app loads local Qt driver plugins and validates independent JSON device
-profiles. The first plugin is `msi.gen1`; no device is opened at startup.
+profiles. Bundled plugins are `msi.gen1` and `lighting.peripherals` (Roccat
+Vulcan/Kone, Razer Basilisk V3, SteelSeries Apex 3). No device is opened at startup.
 
 See [SignalRGB repository research](SIGNALRGB_REPOSITORY_RESEARCH.md) for the
 2026-10-23 review of all 16 public projects and the master/Development/beta
@@ -61,7 +62,7 @@ For a new protocol:
 1. Implement `IDriverModule` and `IDriver` from `src/modules/IDriverModule.h`.
 2. Export the module using `Q_PLUGIN_METADATA` and `Q_INTERFACES`, as in
    `modules/msi-gen1/MsiModule.cpp`.
-3. Embed metadata containing a unique `id`, integer `apiVersion: 1`, and a
+3. Embed metadata containing a unique `id`, integer `apiVersion: 1` (feature reports) or `2` (output reports), and a
    nonempty release `version`. The interface IID is
    `org.msi-mystic-light.DriverModule/1.0`.
 4. Validate profile addresses/capabilities without touching devices. Use the
@@ -117,7 +118,9 @@ added to resolve this question.
 
 ## Compatibility and trust
 
-API version 1 uses a Qt/C++ plugin boundary. Build modules with the matching
+API versions 1 and 2 use a Qt/C++ plugin boundary. API 2 adds output-report
+transport support after the existing feature-report vtable slot. Feature-only
+API 1 modules remain loadable; old hosts reject API 2 peripheral modules. Build modules with the matching
 app SDK, compatible MSVC runtime/toolchain, architecture and Qt build.
 The IID/API metadata gate is checked before instantiation; Qt performs its
 own plugin compatibility checks on load. This is not a toolchain-independent

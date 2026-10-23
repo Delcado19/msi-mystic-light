@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "basilisk-0099",
+  "driverId": "lighting.peripherals",
+  "name": "RazerBasiliskV3",
+  "match": {
+    "vendorId": 5426,
+    "productId": 153,
+    "interfaceNumber": 3,
+    "usagePage": 12
+  },
+  "channels": [
+    {
+      "id": "RazerBasiliskV3",
+      "maxLeds": 11,
+      "fixedLeds": 11,
+      "direct": true,
+      "nativeModes": [],
+      "address": {
+        "protocol": "basilisk",
+        "componentId": "peripheral.basilisk"
+      }
+    }
+  ]
+}

@@ -30,16 +30,33 @@ repository downloads remain separate work. Layout and Effects have separate view
 with component authoring, layered effects, soft masks, transparency and blend modes,
 undo/redo, portable projects, per-layer channel targets and independent channel clocks.
 The app opens on Layout and automatically lists supported controllers and their headers.
-Hardware opens the searchable product picker with categories, quantities and physical
-LED mappings. Header groups and individual components can be arranged independently.
+Hardware has its own workspace for attachment, component definitions and output.
+Its searchable picker supplies product categories, quantities and physical LED mappings. Header groups and individual components can be arranged independently.
 Effects has standard drawing tools: pencil, line, rectangle, ellipse, gradient,
 fill, eraser and move/crop. New layer creates a transparent paint layer immediately;
-Presets is the single entry point for procedural effects. A persistent live hardware
+Shapes and effects is the single gallery for procedural sources, including heart/star shapes and particles. A persistent live hardware
 preview shows the lighting while authoring. Particle motion patterns share one
 parameter inspector. Gradients have movable color stops, RGB sliders and Add/Remove;
 color pickers and optional exact RGB hex values remain available.
+Layout again shows the running effect behind component groups, with visible group
+boundaries, corner resize and rotation handles. Zoom in/out and Fit are explicit.
+Gradient arrows remain editable after drawing; the fill tool handles connected
+paint areas with a small edge-color tolerance.
+
+The restored peripheral module detects Roccat Vulcan 100/120 Aimo, Roccat Kone Aimo,
+Razer Basilisk V3 and SteelSeries Apex 3, with dedicated keyboard/mouse geometry.
+Output reports and Vulcan's paired interfaces use the same exact-report review
+and stop/fault pipeline as the motherboard. API 2 modules require the extended
+output-report transport; API 1 feature-report modules remain compatible.
+
+A new session can restore hardware chains from the original Lighting Studio
+settings without editing that file. Hardware also offers an explicit import.
+This imports geometry, wire order and supported native commands; **old custom
+effect recipes are not converted**. Existing projects and assignments take precedence.
+Actual device lighting/color calibration still needs physical confirmation.
+
 See the [complete workspace](docs/images/studio-workspace.png),
-[hardware picker](docs/images/hardware-picker.png), and [header layout](docs/images/header-layout.png),
+[hardware picker](docs/images/hardware-picker.png), [Hardware workspace](docs/images/hardware-workspace.png), and [header layout](docs/images/header-layout.png),
 [editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
 
 Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio/`
@@ -50,7 +67,7 @@ Keep the entire Release folder together: `hidapi.dll`, Qt DLLs, plugins and cata
 are runtime dependencies. A missing `hidapi.dll` means the runtime folder is incomplete;
 rebuild/copy the full folder. Do not download unrelated DLLs. See `PORTABLE_README.txt`.
 
-`Output > Review and start output` exposes explicit review/start and stop controls. Each start
+The Hardware workspace contains **Review and start output** and **Stop output**. Each start
 resolves process conflicts, revalidates the exact endpoint and shows initial report
 bytes for consent before opening HID. Worker output is bounded and faults stop all
 endpoints; reconnect requires another review. Effect edits update approved software channels live. Output-configuration changes and opening projects stop output.

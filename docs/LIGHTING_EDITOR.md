@@ -3,20 +3,20 @@
 ## Visual workspace
 
 The app opens on Layout. Read-only discovery lists all supported headers in the
-left tree. Hardware opens one searchable product picker with categories, quantities
-and header selection. It restores the original studio's product-oriented workflow,
+left tree. Hardware is a separate workspace containing attachment, component definitions and
+the actual output controls. Its product picker has categories, quantities and header selection. It restores the original studio's product-oriented workflow,
 including the M25 models, generic fans/strips and validated installed component
 metadata. Browsing works offline; adding requires an available or saved header.
 No product selection starts output.
 
 Layout edits physical component placement. Effects is a separate authoring canvas
-with a persistent, independently fitted live hardware preview below it. The splitter
+with an independently fitted live hardware preview below it. The splitter
 resizes these two views. The hardware pane shows sampled component colors, including
 layer channel targets and channel clocks; it is a software preview, not device readback.
 Native firmware preview uses the configured first color, not a firmware simulation.
 
 New layer immediately creates a transparent Paint layer with a white mask. There is
-no effect-selection dialog. Presets is the only procedural-source gallery; Import
+no effect-selection dialog. Shapes and effects is the only procedural-source gallery; Import
 image handles image files. The gallery shows Particles once, with motion patterns
 chosen in its contextual inspector. Layers show source and mask thumbnails, effect
 type, visibility and name. Drag to reorder; double-click to rename.
@@ -47,10 +47,10 @@ editing stays at base time. Preview time never changes the saved document. It do
 not authorize hardware output. The effect, motion and mask inspectors expose the
 current task; numeric transforms and additional motion parameters are disclosures.
 Particle motion patterns share Count, Speed and Radius sliders; seed and spatial
-motion remain in Advanced motion. No decorative animation delays tools or shortcuts.
+motion remain in More animation settings. No decorative animation delays tools or shortcuts.
 
-Output: Stopped/Connecting/Running/Faulted opens an on-demand output window. Closing
-it does not stop output; use Stop output. Review/start and Stop retain the existing
+Output: Stopped/Connecting/Running/Faulted opens the Hardware workspace.
+Changing workspace does not stop output; use Stop output. Review/start and Stop retain the existing
 exact-report approval and transport pipeline. See [output](OUTPUT_SESSION.md).
 
 Launch `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
@@ -78,10 +78,13 @@ mixed physical chain and edits native mode/channel clocks. Cancel changes nothin
 
 Header groups and their individual components appear in the layout tree. Select a
 header to drag or nudge its complete chain; select a child to move one component.
+Dashed group boundaries remain visible. Drag the selected frame corners to resize
+and its round handle to rotate the complete selection, with one undo step.
+The live effect raster stays visible behind the geometry; only placements are edited.
 Arrow keys move one unit, Shift+arrows ten. Removing a component removes it from
 its chain too; removing the last member removes an empty software assignment and
-its explicit layer targets atomically. Wire indices appear beside LEDs. Wheel
-zooms; middle drag pans. Effects and masks are authored exclusively in Effects.
+its explicit layer targets atomically. Wire indices stay in the component geometry editor to keep the normal layout uncluttered. Wheel
+zooms; explicit Zoom in/out and Fit controls also exist; middle drag pans. Effects and masks are authored exclusively in Effects.
 
 Discovery reads descriptors and OS board identity without opening HID. Refresh
 headers repeats discovery and deduplicates profile/endpoint/header matches. Saved
@@ -373,3 +376,44 @@ clipping, so partial shapes/images/particles reappear at the opposite edge.
 Linked masks use periodic inverse sampling with bilinear coverage; fixed masks
 stay in canvas coordinates. Wave distortion wraps its rows too. This is source
 behavior shared by preview and software output, not a canvas-only visual trick.
+
+## Restored hardware and drawing workflow (2026-10-23)
+
+The hardware preview hides when no components are configured, returning that space
+to the effect canvas.
+
+The Hardware workspace owns the component library and the actual OutputPanel;
+there is no permanent bottom output area in Layout/Effects and no detached output
+window. The current effect remains the Layout background so sampling is visible.
+The Gradient tool leaves an arrow with two draggable endpoints. Radial/conical
+sources retain their type and use the center as the starting handle. Fill targets
+connected paint pixels, matching transparent coverage and tolerating small edge
+color differences; visited pixels keep similar replacement colors from looping.
+On a procedural/image source, Fill uses that source raster to find the connected
+region and places the result on a new transparent paint layer; the original source
+stays editable. It no longer fills a blank new layer indiscriminately.
+The foreground picker remains available while drawing over a gradient source.
+
+The peripheral module restores the original pure protocol encoders for Kone Aimo,
+Basilisk V3, Apex 3 and Vulcan 100/120. Discovery adds dedicated keyboard/mouse
+geometry automatically, never fan/strip models. It does not open HID. Apex uses
+output reports with brightness 100; Kone and Basilisk use feature reports. Vulcan
+uses a uniquely matched control/LED pair of the same PID, requiring review of both
+exact paths before opening either. Multiple identical Vulcans fail with an explicit
+pairing error rather than choosing the first interface. API 2 metadata prevents
+old hosts from loading the new output-report module; API 1 transport slots remain
+unchanged for old feature-only modules. No reconnect or automatic output is added.
+
+On a new session without a loaded project/assignments, the original settings file
+at `%APPDATA%/MsiMysticLightApp/settings.json` can restore the active profile's
+supported component chains and native commands. The import binds to fresh exact
+endpoint discovery, preserves wire permutations, rescales the original 1100x700
+sampling footprint to 640x400, validates atomically, and never modifies the source.
+Existing assignments are kept; ambiguous/unavailable endpoints are reported.
+The Hardware import action also supports explicit recovery into an existing setup.
+**This is hardware/layout recovery, not an old custom-effect recipe converter.**
+The import status explicitly asks for an effect before starting software output.
+Old recipes remain available in their original file.
+
+Reference: [Paint.NET gradient control nubs](https://mail.getpaint.net/doc/latest/GradientTool.html)
+and [move/resize controls](https://mail.getpaint.net/doc/latest/MoveTools.html).

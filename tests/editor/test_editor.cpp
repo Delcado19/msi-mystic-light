@@ -4,6 +4,7 @@
 #include "editor/AppSession.h"
 #include "editor/StudioWidgets.h"
 #include "editor/HardwarePicker.h"
+#include "editor/LegacyHardware.h"
 #include <QStackedWidget>
 #include <QToolButton>
 #include <QListWidget>
@@ -80,6 +81,8 @@ EffectLayer layer(QColor color)
 class EditorTest : public QObject {
     Q_OBJECT
 private slots:
+    void restoredLayoutAndDrawing();
+    void legacyHardware();
     void periodicEffectsAndGradientStops();
     void globalColorControls();
     void drawingTools();
@@ -149,6 +152,59 @@ void EditorTest::hardwareLibrary()
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Dedicated RAM"); QVERIFY(!list->currentItem());
 }
 
+void EditorTest::legacyHardware()
+{
+    QTemporaryDir directory; const auto path=directory.filePath("settings.json");
+    QJsonObject component{{"DisplayName","Saved fan"},{"LedCount",3},{"LedMapping",QJsonArray{2,0,1}},
+        {"LedCoordinates",QJsonArray{QJsonArray{0,0},QJsonArray{50,0},QJsonArray{100,50}}}};
+    QJsonObject saved{{"channelName","Direct"},{"components",QJsonArray{component}},
+        {"placement",QJsonObject{{"x",110},{"y",70},{"width",101},{"height",51},{"rotation",0}}}};
+    auto write=[&](QJsonObject channel) { QFile file(path); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(QJsonObject{{"activeProfile","Saved"},{"profiles",QJsonArray{QJsonObject{{"name","Saved"},{"channels",QJsonArray{channel}}}}}}).toJson()); };
+    write(saved); LightingDocument document({},nullptr,{channelProfile()}); DeviceIdentity identity; identity.path="exact-test-endpoint";
+    const QVector<ProfileCandidate> candidates{{identity,"test.device"}};
+    const auto notes=importLegacyHardware(document,path,candidates); QVERIFY(notes.first().contains("1 channel"));
+    QCOMPARE(document.state().assignments.size(),1); QCOMPARE(document.state().assignments[0].endpoint,identity.path);
+    const auto definition=document.catalog().first(); QCOMPARE(definition.mapping,QVector<int>({2,0,1}));
+    QVERIFY(QLineF(document.componentPoints(document.state().placements[0])[0],QPointF(64,40)).length()<.01);
+    document.history()->undo(); QVERIFY(document.state().placements.isEmpty());
+    component["LedMapping"]=QJsonArray{0,0,1}; saved["components"]=QJsonArray{component}; write(saved);
+    QVERIFY_EXCEPTION_THROWN(importLegacyHardware(document,path,candidates),std::invalid_argument);
+    QVERIFY(document.state().placements.isEmpty());
+}
+
+void EditorTest::restoredLayoutAndDrawing()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()});
+    window.resize(1440,900); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    window.findChild<QAction*>("workspaceEffects")->trigger(); window.findChild<QPushButton*>("newLayer")->click();
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");
+    auto* color=window.findChild<ColorEditor*>("effectColor"); QVERIFY(color);
+    auto setColor=[&](QString value) { auto* hex=color->findChild<QLineEdit*>("rgbHex"); hex->setText(value); QMetaObject::invokeMethod(hex,"editingFinished",Qt::DirectConnection); };
+    auto drag=[&](LightingCanvas* target,QPointF a,QPointF b) { QTest::mousePress(target,Qt::LeftButton,Qt::NoModifier,target->viewportPoint(a).toPoint()); QTest::mouseMove(target,target->viewportPoint(b).toPoint()); QTest::mouseRelease(target,Qt::LeftButton,Qt::NoModifier,target->viewportPoint(b).toPoint()); };
+    window.findChild<QPushButton*>("rectangleTool")->click(); setColor("#ff0000"); drag(canvas,{80,80},{200,180});
+    window.findChild<QPushButton*>("fillTool")->click(); setColor("#0000ff"); QVERIFY(color->isVisible()); drag(canvas,{130,120},{130,120});
+    QCOMPARE(window.document().render().pixelColor(130,120),QColor(Qt::blue));
+    window.findChild<QPushButton*>("gradientTool")->click(); drag(canvas,{40,240},{500,240});
+    const auto gradient=window.document().state().layers.last();
+    drag(canvas,{500,240},{400,330});
+    const auto adjusted=window.document().state().layers.last(); QVERIFY(adjusted.rotation>10);
+    QVERIFY(QLineF(effectTransform(adjusted).map(QPointF(-.5,0)),QPointF(40,240)).length()<3);
+    window.document().history()->undo(); QCOMPARE(window.document().state().layers.last().center,gradient.center);
+    const auto one=window.document().addComponent("test.strip"),two=window.document().addComponent("test.strip");
+    window.document().edit("Space components",[&](auto& state) { state.placements[0].origin={150,120}; state.placements[1].origin={250,180}; });
+    ChannelAssignment chain; chain.endpoint="fake"; chain.profileId="test.device"; chain.channelId="Direct"; chain.software=true; chain.placements={one,two}; window.document().assignChannel(chain);
+    window.findChild<QAction*>("workspaceLayout")->trigger(); auto* layout=window.findChild<LightingCanvas*>("layoutCanvas"); layout->select(chain.id);
+    drag(layout,{135,105},{90,70}); QVERIFY(window.document().state().placements[0].scale.width()>1.1);
+    window.document().history()->undo(); QCOMPARE(window.document().state().placements[0].scale,QSizeF(1,1));
+    drag(layout,{220,81},{310,155}); QVERIFY(std::abs(window.document().state().placements[0].rotation)>30);
+    window.document().history()->undo(); QCOMPARE(window.document().state().placements[0].rotation,0.0);
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/restored-layout.png"));
+    window.findChild<QAction*>("workspaceHardware")->trigger(); QVERIFY(window.findChild<QComboBox*>("componentCatalog")->isVisible()); QVERIFY(!layout->isVisible());
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/restored-hardware.png"));
+    window.document().history()->setClean();
+}
+
 void EditorTest::drawingTools()
 {
     LightingDocument document(catalog()); const auto id=document.addPaintLayer();
@@ -164,6 +220,10 @@ void EditorTest::drawingTools()
     QCOMPARE(document.history()->count(),2); document.history()->undo(); QCOMPARE(document.render().pixelColor(120,120).alpha(),0); document.history()->redo();
     canvas.setDrawing(Qt::blue,12,true); drag(LightingCanvas::Tool::Fill,{120,120},{120,120});
     QCOMPARE(document.render().pixelColor(120,120),QColor(Qt::blue)); QCOMPARE(document.render().pixelColor(300,300).alpha(),0);
+    document.edit("Similar edge colors",[](auto& state) { state.layers[0].image.setPixelColor(121,120,QColor(0,0,235)); });
+    canvas.setDrawing(QColor(0,0,245),12,true); drag(LightingCanvas::Tool::Fill,{120,120},{120,120});
+    QCOMPARE(document.render().pixelColor(121,120),QColor(0,0,245));
+    document.history()->undo(); document.history()->undo(); canvas.setDrawing(Qt::blue,12,true);
     drag(LightingCanvas::Tool::Eraser,{110,120},{150,120}); QCOMPARE(document.render().pixelColor(130,120).alpha(),0);
     document.history()->undo(); QCOMPARE(document.render().pixelColor(130,120),QColor(Qt::blue));
     drag(LightingCanvas::Tool::Line,{250,250},{300,250}); QVERIFY(document.render().pixelColor(275,250).blue()>200);
@@ -184,6 +244,21 @@ void EditorTest::drawingTools()
     LightingCanvas capped(limited,LightingCanvas::Context::Effects); capped.resize(800,600); capped.show(); capped.setTool(LightingCanvas::Tool::Pencil);
     QSignalSpy errors(&capped,&LightingCanvas::editingError); QTest::mouseClick(&capped,Qt::LeftButton,Qt::NoModifier,capped.viewportPoint({320,200}).toPoint());
     QCOMPARE(errors.count(),1); QCOMPARE(limited.state().layers.size(),64);
+    const auto heart=document.addLayer(EffectKind::Heart); canvas.select(heart); canvas.setMaskTarget(false); canvas.setDrawing(Qt::green,6,true);
+    drag(LightingCanvas::Tool::Fill,{320,200},{320,200});
+    QCOMPARE(document.state().layers[2].effect,EffectKind::Heart);
+    QCOMPARE(document.state().layers.last().effect,EffectKind::Paint);
+    QCOMPARE(document.state().layers.last().image.pixelColor(320,200),QColor(Qt::green));
+    QCOMPARE(document.state().layers.last().image.pixelColor(10,10).alpha(),0);
+    document.history()->undo(); document.history()->undo(); document.history()->undo();
+    const auto radial=document.addLayer(EffectKind::RadialGradient); canvas.select(radial); canvas.setMaskTarget(false);
+    drag(LightingCanvas::Tool::Gradient,{200,180},{400,200});
+    QCOMPARE(document.state().layers.last().effect,EffectKind::RadialGradient);
+    QVERIFY(QLineF(document.state().layers.last().center,QPointF(200,180)).length()<2);
+    drag(LightingCanvas::Tool::Gradient,{400,200},{350,380});
+    QVERIFY(QLineF(document.state().layers.last().center,QPointF(200,180)).length()<2);
+    QVERIFY(document.state().layers.last().rotation>45);
+    document.history()->undo(); document.history()->undo(); document.history()->undo();
     canvas.select(document.state().layers.last().id); canvas.setMaskTarget(false);
     drag(LightingCanvas::Tool::Eraser,{320,200},{330,200});
     QCOMPARE(document.state().layers.last().effect,EffectKind::LinearGradient);
@@ -245,12 +320,12 @@ void EditorTest::visualWorkspace()
     QVERIFY(!window.findChild<QDoubleSpinBox*>("effectGeometry0")->isVisible());
     QVERIFY(!window.findChild<QDoubleSpinBox*>("particleSeed")->isVisible());
     const auto old=window.previewFrame(); window.findChild<QSlider*>("layerTransparency")->setValue(80);
-    QVERIFY(window.previewFrame()!=old); QVERIFY(window.findChild<LightingCanvas*>("hardwareLivePreview")->isVisible());
+    QVERIFY(window.previewFrame()!=old); QVERIFY(!window.findChild<LightingCanvas*>("hardwareLivePreview")->isVisible());
     window.document().history()->undo(); QCOMPARE(window.previewFrame(),old);
     QSignalSpy output(&window,&LightingWindow::outputRequested);
     window.findChild<QAction*>("reviewOutput")->trigger(); QCOMPARE(output.count(),1);
     QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),0);
-    window.findChild<QDialog*>("outputDialog")->hide();
+    QCOMPARE(window.findChild<QTabWidget*>("lightingViews")->currentIndex(),2);
     window.findChild<QAction*>("workspaceEffects")->trigger();
     tabs->setCurrentIndex(2);
     window.findChild<QPushButton*>("pencilTool")->click();
@@ -787,7 +862,7 @@ void EditorTest::separateEditingContexts()
     auto* tabs = window.findChild<QTabWidget*>("lightingViews");
     auto* layout = window.findChild<LightingCanvas*>("layoutCanvas");
     auto* effects = window.findChild<LightingCanvas*>("effectsCanvas");
-    QCOMPARE(tabs->count(), 2);
+    QCOMPARE(tabs->count(), 3);
     tabs->setCurrentIndex(0);
     QVERIFY(layout->isVisible()); QVERIFY(!effects->isVisible());
     layout->select(placement);

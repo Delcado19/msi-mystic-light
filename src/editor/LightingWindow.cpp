@@ -1,5 +1,8 @@
 #include "LightingWindow.h"
 #include "HardwarePicker.h"
+#include "LegacyHardware.h"
+#include <QStandardPaths>
+#include <QDir>
 #include <QSplitter>
 #include <QButtonGroup>
 #include "ComponentEditor.h"
@@ -159,10 +162,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     tabs_->addTab(effectWorkspace, "Effects");
     applicationPages_=new QStackedWidget; applicationPages_->setObjectName("applicationPages");
     applicationPages_->addWidget(tabs_); setCentralWidget(applicationPages_);
-    auto* outputDialog=new QDialog(this); outputDialog->setObjectName("outputDialog");
-    outputDialog->setWindowTitle("Hardware output"); outputDialog->resize(760,540);
-    deviceOutput_=new QVBoxLayout(outputDialog);
-    connect(this,&LightingWindow::outputRequested,outputDialog,[outputDialog] { outputDialog->show(); outputDialog->raise(); outputDialog->activateWindow(); });
+    connect(this,&LightingWindow::outputRequested,this,[this] { findChild<QAction*>("workspaceHardware")->trigger(); });
 
     auto* dock = new QDockWidget("Properties", this); dock->setObjectName("propertiesDock");
     dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -247,7 +247,27 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     removeComponent->setObjectName("removeComponent");
     auto* library=new QWidget; auto* libraryControls=new QVBoxLayout(library); libraryControls->setContentsMargins(0,0,0,0);
     while(auto* item=layoutControls->takeAt(0)) { if(item->widget()) libraryControls->addWidget(item->widget()); delete item; }
-    disclosure(componentStack,"Component library",library);
+    auto* hardwarePage=new QWidget; hardwarePage->setObjectName("hardwarePage");
+    auto* hardwareColumns=new QHBoxLayout(hardwarePage); hardwareColumns->setContentsMargins(28,24,28,24); hardwareColumns->setSpacing(28);
+    auto* hardwareOptions=new QWidget; auto* hardwareControls=new QVBoxLayout(hardwareOptions); hardwareControls->setContentsMargins(0,0,0,0);
+    auto* hardwareOutput=new QWidget; deviceOutput_=new QVBoxLayout(hardwareOutput); deviceOutput_->setContentsMargins(0,0,0,0);
+    hardwareColumns->addWidget(hardwareOptions,1); hardwareColumns->addWidget(hardwareOutput,2);
+    auto* hardwareTitle=new QLabel("Hardware"); hardwareTitle->setProperty("heading",true); hardwareControls->addWidget(hardwareTitle);
+    auto* hardwareHelp=new QLabel("Select a detected header, then attach your fans and strips. Configure component definitions here; arrange their positions in Layout.");
+    hardwareHelp->setWordWrap(true); hardwareControls->addWidget(hardwareHelp);
+    auto* attachHardware=button(hardwareControls,"Attach fans or strips...",[this] { addHeaderComponents(); }); attachHardware->setObjectName("attachHardware");
+    attachHardware->setToolTip("Choose a motherboard header and attach the products connected to it. This records the chain; output starts separately after report review.");
+    hardwareControls->addWidget(library);
+    button(hardwareControls,"Import previous hardware layout...",[this] {
+        const auto path=QFileDialog::getOpenFileName(this,"Import previous Lighting Studio hardware",qEnvironmentVariable("APPDATA")+"/MsiMysticLightApp/settings.json","Previous settings (*.json)");
+        if(!path.isEmpty()) restoreLegacyHardware(path);
+    });
+    auto* hardwareStatus=new QLabel("Output is stopped. Screen preview does not send colors to hardware. Attach or restore your chains, then review and start output.");
+    hardwareStatus->setObjectName("hardwareStatus"); hardwareStatus->setWordWrap(true); hardwareControls->addWidget(hardwareStatus);
+    hardwareControls->addStretch();
+
+    auto* hardwareScroll=new QScrollArea; hardwareScroll->setWidgetResizable(true); hardwareScroll->setWidget(hardwarePage);
+    tabs_->addTab(hardwareScroll,"Hardware");
     components_=new QTreeWidget; components_->setObjectName("layoutComponents");
     components_->setHeaderHidden(true); components_->setRootIsDecorated(true); componentStack->insertWidget(0,components_,1);
     connect(components_,&QTreeWidget::currentItemChanged,this,[this](QTreeWidgetItem* item) {
@@ -262,11 +282,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         layoutCanvas_->select(item->data(0,Qt::UserRole).toUuid());
     });
     auto* layoutTitle=new QLabel("Arrange your lighting"); layoutTitle->setProperty("heading",true); layoutControls->addWidget(layoutTitle);
-    auto* layoutHint=new QLabel("Select a header to move its group, or a child to move one component.");
+    auto* layoutHint=new QLabel("Select a group or component. Drag its corners to resize, the round handle to rotate, or its LEDs to move.");
     layoutHint->setWordWrap(true); layoutHint->setProperty("muted",true); layoutControls->addWidget(layoutHint);
     auto* placementPrecision=new QWidget; auto* placementForm = new QFormLayout(placementPrecision);
-    auto* placementSection=disclosure(layoutControls,"Precise placement",placementPrecision); placementSection->setObjectName("placementSection");
-    placementSection->findChild<QToolButton*>()->setChecked(false);
+    auto* placementSection=disclosure(layoutControls,"Position, size and rotation",placementPrecision); placementSection->setObjectName("placementSection");
+    placementSection->findChild<QToolButton*>()->setChecked(true);
     const QStringList placementLabels{"Position X", "Position Y", "Scale X %", "Scale Y %", "Rotation deg"};
     for (int i = 0; i < placementLabels.size(); ++i) {
         auto* control = new QDoubleSpinBox;
@@ -305,7 +325,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         refreshHeader();
     });
     layoutControls->addWidget(removeComponent);
-    auto* instructions = new QLabel("Drag LEDs to move their component.\nArrow keys move; Shift moves by 10.\nWheel zooms; middle drag pans.\n\nLayout changes sampling positions only.");
+    auto* instructions = new QLabel("Drag a component or group to move it.\nDrag corners to resize; the circle rotates.\nArrow keys move; Shift moves by 10.\nWheel zooms; middle drag pans.\n\nLayout changes sampling positions only.");
     instructions->setWordWrap(true);
     instructions->setProperty("muted",true);
     layoutControls->addWidget(instructions);
@@ -316,8 +336,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     headerControls->setContentsMargins(0,0,0,0);
     headerTitle_=new QLabel("Select a header"); headerTitle_->setProperty("heading",true); headerControls->addWidget(headerTitle_);
     headerSummary_=new QLabel; headerSummary_->setWordWrap(true); headerSummary_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); headerControls->addWidget(headerSummary_);
-    auto* addHardware=new QPushButton("Hardware..."); addHardware->setObjectName("addHeaderComponents");
-    addHardware->setToolTip("Choose products and quantities to attach to a detected header"); toolbar->addWidget(addHardware);
+    auto* addHardware=new QPushButton("Attach fans or strips..."); addHardware->setObjectName("addHeaderComponents");
+    addHardware->setToolTip("Choose products and quantities to attach to a detected header"); hardwareControls->insertWidget(2,addHardware); attachHardware->hide();
     connect(addHardware,&QPushButton::clicked,this,[this] { addHeaderComponents(); });
     button(headerControls,"Header settings",[this] {
         if(selectedHeader_.isEmpty()) return;
@@ -327,7 +347,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         } catch(const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
     })->setObjectName("headerSettings");
     layoutControls->insertWidget(0,headerPanel);
-    button(componentStack,"Refresh headers",[this] { scanHeaders(); })->setObjectName("refreshHeaders");
+    button(hardwareControls,"Refresh headers",[this] { scanHeaders(); })->setObjectName("refreshHeaders");
     scan_=std::move(scan);
     QTimer::singleShot(0,this,[this] { scanHeaders(); });
 
@@ -344,6 +364,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     previewChannel_->addItem("All layers",QUuid{}); previewToolbar->addWidget(previewChannel_);
     auto* fit=previewToolbar->addAction("Fit canvas"); fit->setObjectName("fitCanvas"); fit->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
     connect(fit,&QAction::triggered,this,[this] { (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->fitToView(); });
+    for(const auto& zoom:QVector<QPair<QString,double>>{{"Zoom out",1/1.2},{"Zoom in",1.2}}) {
+        auto* action=previewToolbar->addAction(zoom.first); action->setToolTip(zoom.first+" (mouse wheel also zooms)");
+        connect(action,&QAction::triggered,this,[this,factor=zoom.second] { (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->zoomBy(factor); });
+    }
     auto* output=previewToolbar->addAction("Output: Stopped"); output->setObjectName("reviewOutput");
     output->setToolTip("Review channel assignments, connect devices or stop output");
     previewToolbar->removeAction(output); toolbar->addSeparator(); toolbar->addAction(output);
@@ -381,7 +405,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         editingMask_=false; inspectorTabs_->setCurrentIndex(0);
         selectedLayer_=document_.addPaintLayer(); refresh();
     })->setObjectName("newLayer");
-    button(layerStack,"Presets...",[this] {
+    button(layerStack,"Shapes and effects...",[this] {
         if(document_.state().layers.size()>=64) return;
         const auto kind=chooseEffect(this); if(!kind) return;
         editingMask_=false; inspectorTabs_->setCurrentIndex(0); selectedLayer_=document_.addLayer(*kind); inspectorTabs_->setCurrentIndex(isParticle(*kind) ? 1 : 0); refresh();
@@ -465,10 +489,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     auto* createActions=new QHBoxLayout; auto* manageActions=new QHBoxLayout;
     for(auto* control:layersPanel->findChildren<QPushButton*>(QString{},Qt::FindDirectChildrenOnly)) {
-        if(control->text()=="New layer" || control->text()=="Presets...") { layerStack->removeWidget(control); createActions->addWidget(control); }
+
         if(control->text()=="Duplicate layer" || control->text()=="Delete layer") { layerStack->removeWidget(control); manageActions->addWidget(control); }
     }
-    layerStack->insertLayout(0,createActions); layerStack->addLayout(manageActions);
+    delete createActions; layerStack->addLayout(manageActions);
     auto* form = new QFormLayout;
     appearanceControls->addLayout(form);
     transparency_ = new QSlider(Qt::Horizontal);
@@ -546,7 +570,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     animationControls_ = new QWidget;
     auto* animationForm = new QFormLayout(animationControls_);
     animationForm->setContentsMargins(0, 0, 0, 0);
-    const QStringList animationLabels{"Spin deg/s", "Pulse Hz", "Hue deg/s"};
+    const QStringList animationLabels{"Rotation / sec", "Flashes / sec", "Color shift / sec"};
     for (int i = 0; i < 3; ++i) {
         auto* value = new QDoubleSpinBox;
         value->setObjectName("animationRate" + QString::number(i));
@@ -571,15 +595,21 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         if(primary) {
             auto* field=sliderField(value); value->setProperty("visibilityContainer",QVariant::fromValue(static_cast<QObject*>(field)));
             auto* label=new QLabel(parameter.label); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label))); particleForm->addRow(label,field);
-        } else {
+        } else if(parameter.id!="cycleRate") {
             auto* label=new QLabel(parameter.label); label->setWordWrap(true); value->setFixedWidth(72); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label)));
             advancedForm->addWidget(label,detailIndex,0); advancedForm->addWidget(value,detailIndex++,1);
         }
         connect(value,&QDoubleSpinBox::valueChanged,this,[this,member=parameter.member](double number) { updateLayer("Effect parameter",[=](auto& layer) { layer.*member=number; }); });
     }
-    auto* details=disclosure(motionControls,"Advanced motion",advancedContent); details->setObjectName("advancedMotion");
+    auto* details=disclosure(motionControls,"More animation settings",advancedContent); details->setObjectName("advancedMotion");
     colorCycle_=new ColorListEditor(2,16); colorCycle_->setObjectName("colorCycle");
-    disclosure(motionControls,"Color cycle palette",colorCycle_);
+    auto* cycleContent=new QWidget; auto* cycleControls=new QVBoxLayout(cycleContent);
+    auto* cycleHint=new QLabel("Fade through these colors over time. Set loops / sec above zero to animate; zero uses the normal effect colors.");
+    cycleHint->setWordWrap(true); cycleControls->addWidget(cycleHint);
+    auto* cycleForm=new QFormLayout; cycleControls->addLayout(cycleForm);
+    for(auto* value:advanced_) if(value->objectName()=="cycleRate") cycleForm->addRow("Palette loops / sec",sliderField(value));
+    cycleControls->addWidget(colorCycle_);
+    disclosure(motionControls,"Animate through these colors",cycleContent);
     connect(colorCycle_,&ColorListEditor::colorsChanged,this,[this](const QVector<QColor>& colors) { updateLayer("Cycle colors",[colors](auto& layer) { layer.colorCycle=colors; }); });
     connect(colorCycle_,&ColorListEditor::gestureStarted,this,[this] { document_.history()->beginMacro("Cycle color"); });
     connect(colorCycle_,&ColorListEditor::gestureFinished,this,[this] { document_.history()->endMacro(); });
@@ -642,7 +672,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             });
         });
     }
-    auto* geometrySection=disclosure(appearanceControls,"Precise transform",geometryControls_);
+    auto* geometrySection=disclosure(appearanceControls,"Position and size (optional)",geometryControls_);
     geometrySection->setObjectName("geometrySection");
     geometrySection->findChild<QToolButton*>()->setChecked(false);
     repetitions_ = new QSpinBox;
@@ -661,7 +691,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     for(int index=0;index<toolNames.size();++index) {
         auto* tool=new QPushButton; tool->setObjectName(index==0 ? "moveEffectTool" : toolNames[index].toLower()+"Tool"); tool->setFixedSize(40,40);
         tool->setIcon(studioToolIcon(toolNames[index].toLower())); tool->setCheckable(true); tool->setShortcut(QKeySequence(keys[index]));
-        tool->setToolTip(toolNames[index]+" ("+QChar(keys[index])+")"); tool->setAccessibleName(toolNames[index]); tools->addWidget(tool); toolGroup->addButton(tool,index);
+        const QStringList descriptions{"Move the selected layer. Drag corners to resize and the round handle to rotate.","Draw on the active paint layer. Procedural effects receive a new paint layer.","Drag from the start to the end of a straight line.","Drag a rectangle. Use Filled shapes for a solid shape.","Drag an ellipse. Use Filled shapes for a solid shape.","Drag to set a gradient. Afterwards drag either arrow endpoint to change its length and direction.","Fill a connected area with the foreground color. On a procedural or image source, place only that region on a new paint layer above it.","Erase paint pixels. On a procedural effect, erase its mask so the effect stays editable."};
+        tool->setToolTip(toolNames[index]+" ("+QChar(keys[index])+")\n"+descriptions[index]); tool->setAccessibleName(toolNames[index]); tools->addWidget(tool); toolGroup->addButton(tool,index);
         if(index==0) { effectTarget_=tool; tool->setChecked(true); }
         connect(tool,&QPushButton::clicked,this,[this,index] { effectsCanvas_->setCropTool(false); findChild<QCheckBox*>("cropTool")->setChecked(false); effectsCanvas_->setTool(static_cast<LightingCanvas::Tool>(index)); refreshProperties(); });
     }
@@ -716,8 +747,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     maskControls->addStretch(); appearanceControls->addStretch(); effectControls->addStretch();
     auto* layerHint=new QLabel("Drag to reorder. Double-click to rename.\nClick the mask thumbnail to edit transparency.");
     layerHint->setWordWrap(true); layerHint->setProperty("muted",true); layerStack->addWidget(layerHint);
-    connect(tabs_, &QTabWidget::currentChanged, sidebarContexts, &QStackedWidget::setCurrentIndex);
-    connect(tabs_, &QTabWidget::currentChanged, contexts, &QStackedWidget::setCurrentIndex);
+    connect(tabs_, &QTabWidget::currentChanged,this,[sidebarContexts,contexts,sidebarDock,dock](int index) {
+        sidebarDock->setVisible(index!=2); dock->setVisible(index!=2);
+        if(index<2) { sidebarContexts->setCurrentIndex(index); contexts->setCurrentIndex(index); }
+    });
     connect(effectsCanvas_,&LightingCanvas::addRequested,this,[this] {
         for(auto* control:findChildren<QPushButton*>()) if(control->text()=="New layer") { control->click(); break; }
     });
@@ -735,14 +768,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     auto* navigation=addToolBar("Workspace"); navigation->setObjectName("workspaceNavigation"); navigation->setMovable(false);
     insertToolBar(toolbar,navigation); auto* group=new QActionGroup(this); group->setExclusive(true);
-    const QStringList sections{"Layout", "Effects"};
-    for(int index=0;index<2;++index) {
+    const QStringList sections{"Layout", "Effects", "Hardware"};
+    for(int index=0;index<3;++index) {
         auto* action=navigation->addAction(sections[index]); action->setObjectName("workspace"+sections[index]); action->setCheckable(true); group->addAction(action);
         connect(action,&QAction::triggered,this,[this,index,tools,previewToolbar] {
-            tabs_->setCurrentIndex(index); previewToolbar->show(); tools->setVisible(index==1);
+            tabs_->setCurrentIndex(index); previewToolbar->setVisible(index!=2); tools->setVisible(index==1);
         });
     }
-    connect(tabs_,&QTabWidget::currentChanged,this,[this](int index) { findChild<QAction*>(index==0 ? "workspaceLayout" : "workspaceEffects")->setChecked(true); });
+    connect(tabs_,&QTabWidget::currentChanged,this,[this](int index) { findChild<QAction*>(index==0 ? "workspaceLayout" : index==1 ? "workspaceEffects" : "workspaceHardware")->setChecked(true); });
     tabs_->tabBar()->hide();
     findChild<QAction*>("workspaceLayout")->trigger();
     resizeDocks({sidebarDock,dock},{260,390},Qt::Horizontal);
@@ -764,10 +797,37 @@ void LightingWindow::updateLayer(const QString& label, const std::function<void(
     }
 }
 
+void LightingWindow::restoreLegacyHardware(const QString& path)
+{
+    try {
+        const auto notes=importLegacyHardware(document_,path,scan_());
+        findChild<QLabel*>("hardwareStatus")->setText(notes.join("\n"));
+        statusBar()->showMessage(notes.first(),15000);
+    } catch(const std::exception& error) { findChild<QLabel*>("hardwareStatus")->setText("Restore failed: "+QString::fromUtf8(error.what())); }
+}
+
 void LightingWindow::scanHeaders()
 {
     try {
-        discovered_=scan_(); refresh();
+        discovered_=scan_();
+        for(const auto& candidate:discovered_) {
+            const auto& profile=assignmentProfile(document_.profiles(),candidate.profileId);
+            if(profile.driverId!="lighting.peripherals") continue;
+            for(const auto& channel:profile.channels) {
+                bool configured=false;
+                for(const auto& assignment:document_.state().assignments) if(assignment.endpoint==candidate.device.path && assignment.channelId==channel.id) configured=true;
+                const auto componentId=channel.address.value("componentId").toString();
+                if(configured || !document_.catalog().contains(componentId)) continue;
+                document_.edit("Detect keyboard or mouse",[&](LightingState& state) {
+                    ComponentPlacement placement; placement.componentId=componentId;
+                    placement.origin={80.0+100*(state.placements.size()%5),260.0};
+                    ChannelAssignment assignment; assignment.endpoint=candidate.device.path; assignment.profileId=profile.id;
+                    assignment.channelId=channel.id; assignment.software=true; assignment.placements={placement.id};
+                    state.placements.append(placement); state.assignments.append(assignment);
+                });
+            }
+        }
+        refresh();
         statusBar()->showMessage(discovered_.isEmpty() ? "No supported controller detected. Saved layouts remain available." : "Controllers detected. Select a header to attach fans and strips.");
     } catch(const std::exception& error) {
         statusBar()->showMessage("Header discovery failed: "+QString::fromUtf8(error.what()));
@@ -813,6 +873,7 @@ void LightingWindow::addHeaderComponents()
     for(int i=0;i<components_->topLevelItemCount();++i) {
         const auto data=components_->topLevelItem(i)->data(0,Qt::UserRole+1).toMap(); if(data.isEmpty()) continue;
         const auto& profile=assignmentProfile(document_.profiles(),data.value("profileId").toString());
+        if(profile.driverId=="lighting.peripherals") continue; // Dedicated devices are detected, never attached to ARGB headers.
         const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
         int used=0;
         for(const auto& assignment:document_.state().assignments) if(assignment.profileId==profile.id && assignment.endpoint==data.value("path") && assignment.channelId==channel.id)
@@ -861,6 +922,7 @@ void LightingWindow::refreshPlacement()
 
 void LightingWindow::refresh()
 {
+    hardwarePreview_->setVisible(!document_.state().placements.isEmpty()); // Give the space back to authoring when there is no hardware to preview.
     refreshPlacement();
     {
         const QSignalBlocker block(components_); components_->clear();
@@ -979,11 +1041,11 @@ void LightingWindow::refreshToolOptions()
     const bool color=!editingMask_ && (drawing || (selected && selected->effect!=EffectKind::Image && !isGradient(selected->effect)));
     const bool stroke=tool!=LightingCanvas::Tool::Move && tool!=LightingCanvas::Tool::Gradient && tool!=LightingCanvas::Tool::Fill;
     const bool shape=tool==LightingCanvas::Tool::Rectangle || tool==LightingCanvas::Tool::Ellipse;
-    findChild<QAction*>("foregroundColorAction")->setVisible(color);
+    findChild<QAction*>("foregroundColorAction")->setVisible(color); color_->setVisible(color);
     findChild<QAction*>("shapeFillAction")->setVisible(shape);
     findChild<QAction*>("strokeLabelAction")->setVisible(stroke);
     findChild<QAction*>("strokeSizeAction")->setVisible(stroke);
-    const QStringList hints{"Move: drag the selected layer", "Pencil: draw on the canvas", "Line: drag from start to end", "Rectangle: drag to draw", "Ellipse: drag to draw", "Gradient: drag to set direction; edit stops in Properties", "Fill: click a connected area", "Eraser: remove pixels or hide the source mask"};
+    const QStringList hints{"Move: drag the selected layer", "Pencil: draw on the canvas", "Line: drag from start to end", "Rectangle: drag to draw", "Ellipse: drag to draw", "Gradient: drag an arrow; drag either endpoint to adjust", "Fill: click a connected area", "Eraser: remove pixels or hide the source mask"};
     findChild<QLabel*>("toolHint")->setText("  "+hints[int(tool)]);
     // Photoshop-style options keep a stable row so switching tools never shifts the canvas under the pointer.
     options->setVisible(tabs_->currentIndex()==1);

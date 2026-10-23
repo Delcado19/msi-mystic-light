@@ -64,3 +64,19 @@ rendering. Installed component metadata is bounded, validated, normalized and
 selected data only; no external scripts or images are executed/copied. Existing
 output review, exact endpoint matching, report consent, live RGB scope checks and
 stop-on-topology-change remain intact. UI tests use fake endpoints/transports.
+
+## Regression repair
+
+| Before | After | Why |
+| --- | --- | --- |
+| Layout conceals the effect raster | Animated raster beneath physical groups | Show where each component samples color |
+| Group movement without visible frame | Dashed group frames and resize/rotation handles | Direct manipulation needs visible affordances |
+| Component library crowds Layout | Hardware workspace contains library and real output controls | Keep each workspace focused on its task |
+| Gradient direction needs another transform tool | Persistent draggable gradient arrow | Follow Paint.NET's established control-nub interaction |
+| Fill requires identical pixel values | Connected fill with edge tolerance and explicit visited pixels | Handle antialiased colors safely |
+| Technical Motion labels and detached cycle rate | Action-oriented labels, examples in tooltips, palette rate beside colors | Explain the visible result and its activation |
+| MSI-only host loses keyboards/mice | Original peripheral encoders under the reviewed output pipeline | Restore hardware functionality alongside the editor |
+
+References: https://mail.getpaint.net/doc/latest/GradientTool.html and
+https://mail.getpaint.net/doc/latest/MoveTools.html. Tool gestures remain immediate;
+no ornamental transitions are added to frequently used editing actions.

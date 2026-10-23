@@ -49,6 +49,8 @@ hid_device_info* HID_API_CALL hid_enumerate(unsigned short, unsigned short)
 void HID_API_CALL hid_free_enumeration(hid_device_info*) { ++freeCalls; }
 const wchar_t* HID_API_CALL hid_error(hid_device*) { return enumFails ? L"Enumeration error" : nullptr; }
 void HID_API_CALL hid_close(hid_device*) { ++closeCalls; }
+int HID_API_CALL hid_write(hid_device*, const unsigned char* data, size_t length)
+{ ++sendCalls; lastReport.assign(data,data+length); return sendResult == -2 ? static_cast<int>(length) : sendResult; }
 int HID_API_CALL hid_send_feature_report(hid_device*, const unsigned char* data, size_t length)
 {
     ++sendCalls;
@@ -130,6 +132,12 @@ private slots:
         device.close();
         QVERIFY(!device.sendFeatureReport(report, sizeof(report)));
         QCOMPARE(sendCalls, 5);
+        QVERIFY(!device.writeOutputReport(report,sizeof(report)));
+        QVERIFY(device.open(1,2)); sendResult=-2;
+        QVERIFY(device.writeOutputReport(report,sizeof(report)));
+        QVERIFY(!device.writeOutputReport(nullptr,sizeof(report)));
+        sendResult=2; QVERIFY(!device.writeOutputReport(report,sizeof(report)));
+        QCOMPARE(sendCalls,7);
     }
 
     void fakeFailures()

@@ -118,9 +118,9 @@ std::optional<EffectKind> chooseEffect(QWidget* parent)
 {
     QDialog dialog(parent); dialog.setObjectName("effectGallery"); dialog.setWindowTitle("Add an effect layer"); dialog.resize(720,530);
     auto* layout=new QVBoxLayout(&dialog); layout->setContentsMargins(24,20,24,20); layout->setSpacing(12);
-    auto* title=new QLabel("Choose an effect"); title->setProperty("heading",true); layout->addWidget(title);
+    auto* title=new QLabel("Shapes, particles and effects"); title->setProperty("heading",true); layout->addWidget(title);
     auto* subtitle=new QLabel("Each effect becomes a layer with its own editable mask."); subtitle->setProperty("muted",true); layout->addWidget(subtitle);
-    auto* search=new QLineEdit; search->setPlaceholderText("Search effects..."); search->setObjectName("effectSearch"); layout->addWidget(search);
+    auto* search=new QLineEdit; search->setPlaceholderText("Search: heart, star, particles, gradient..."); search->setObjectName("effectSearch"); layout->addWidget(search);
     auto* list=new QListWidget; list->setObjectName("effectGalleryItems"); list->setViewMode(QListView::IconMode);
     list->setMovement(QListView::Static); list->setResizeMode(QListView::Adjust); list->setIconSize({112,70}); list->setGridSize({150,116});
     for(const auto& definition:effectDefinitions()) {
@@ -334,9 +334,9 @@ void ColorListEditor::rebuild()
 void installParameterTooltips(QWidget* root)
 {
     const QMap<QString,QString> descriptions{
-        {"animationRate0","Rotation speed in degrees per second. Negative values reverse the rotation."},
-        {"animationRate1","Pulse frequency in cycles per second (Hz). Zero disables pulsing."},
-        {"animationRate2","Hue rotation in degrees per second. Gray and white stay achromatic."},
+        {"animationRate0","Turn the layer continuously: 90 means a quarter turn each second; -90 turns the other way. Zero stops rotation."},
+        {"animationRate1","Flash the layer on and off. 1 means one flash each second; 0.5 means one every two seconds. Zero leaves brightness steady."},
+        {"animationRate2","Shift the source through the color wheel: 60 completes a cycle in six seconds. White and gray have no hue to shift. Zero keeps the source colors."},
         {"driftX","Horizontal speed in canvas pixels per second. Effects wrap from one edge to the opposite edge."},
         {"driftY","Vertical speed in canvas pixels per second. Effects wrap from one edge to the opposite edge."},
         {"zoom","Periodic size variation as a percentage of the base size. Zero keeps size constant."},

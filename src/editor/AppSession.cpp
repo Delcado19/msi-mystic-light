@@ -28,7 +28,7 @@ AppSession::AppSession(LightingWindow& window,QSettings& settings,QString recove
 void AppSession::persist()
 {
     settings_.setValue("window/geometry",window_.saveGeometry());
-    settings_.setValue("window/state",window_.saveState(3));
+    settings_.setValue("window/state",window_.saveState(4));
     settings_.setValue("project/path",window_.projectFile()); settings_.sync();
 }
 bool AppSession::writeRecovery()
@@ -44,8 +44,8 @@ bool AppSession::writeRecovery()
 void AppSession::restore(const std::function<bool()>& recover)
 {
     window_.restoreGeometry(settings_.value("window/geometry").toByteArray());
-    // Version 3 resets obsolete effect-icon toolbars; project files and window geometry remain intact.
-    window_.restoreState(settings_.value("window/state").toByteArray(),3);
+    // Version 4 resets obsolete dock/toolbars after restoring the Hardware workspace; project files and window geometry remain intact.
+    window_.restoreState(settings_.value("window/state").toByteArray(),4);
     const auto original=settings_.value("project/path").toString();
     const bool available=QFileInfo::exists(recoveryFile_);
     const bool recovering=available && recover && recover();

@@ -26,7 +26,7 @@ bool ModuleRegistry::load(const QString& fileName, QString* error)
     // Inspect metadata before instantiating executable code. This is an ABI
     // compatibility check, not a signature or a sandbox for untrusted plugins.
     if (metadata.value("IID").toString() != DRIVER_MODULE_IID ||
-        manifest.value("apiVersion").toDouble() != 1 || id.trimmed().isEmpty() ||
+        (manifest.value("apiVersion").toDouble() != 1 && manifest.value("apiVersion").toDouble() != 2) || id.trimmed().isEmpty() ||
         manifest.value("version").toString().isEmpty())
         return fail(error, "Incompatible or incomplete module metadata: " + fileName);
     for (const auto& entry : entries_) {

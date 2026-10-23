@@ -34,11 +34,33 @@ target_link_libraries(msi_gen1_module PRIVATE Qt6::Core msi_protocol)
 set_target_properties(msi_gen1_module PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
+add_library(peripherals_module MODULE modules/peripherals/PeripheralModule.cpp
+    src/protocol/RoccatKoneProtocol.cpp src/protocol/RazerBasiliskProtocol.cpp
+    src/protocol/SteelSeriesApex3Protocol.cpp src/protocol/RoccatVulcanProtocol.cpp)
+target_include_directories(peripherals_module PRIVATE src)
+target_link_libraries(peripherals_module PRIVATE Qt6::Core)
+set_target_properties(peripherals_module PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
+file(GLOB peripheral_profiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiles/*-*.json")
+foreach(profile IN LISTS peripheral_profiles)
+    if(profile MATCHES "msi-mpg")
+        continue()
+    endif()
+    get_filename_component(profile_name "${profile}" NAME)
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/profiles/${profile_name}" INPUT "${profile}")
+endforeach()
+
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/profiles/msi-mpg-b850-edge-ti-wifi.json"
     INPUT "${CMAKE_CURRENT_SOURCE_DIR}/profiles/msi-mpg-b850-edge-ti-wifi.json")
 
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/generic-strip-8.json"
     INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/generic-strip-8.json")
+
+foreach(component IN ITEMS vulcan apex3 kone basilisk)
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/peripheral-${component}.json"
+        INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/peripheral-${component}.json")
+endforeach()
 
 add_library(lighting_startup src/startup/ConflictProcesses.cpp src/startup/ConflictDialog.cpp)
 target_include_directories(lighting_startup PUBLIC src)
@@ -47,7 +69,7 @@ if(WIN32)
     target_link_libraries(lighting_startup PRIVATE user32)
 endif()
 
-add_library(lighting_editor src/editor/HardwarePicker.cpp src/editor/StudioWidgets.cpp src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
+add_library(lighting_editor src/editor/LegacyHardware.cpp src/editor/HardwarePicker.cpp src/editor/StudioWidgets.cpp src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
 target_include_directories(lighting_editor PUBLIC src)
 target_link_libraries(lighting_editor PUBLIC lighting_modules Qt6::Widgets)
 
@@ -62,7 +84,7 @@ target_link_libraries(lighting_output_ui PUBLIC lighting_output lighting_startup
 add_executable(msi_mystic_light src/main.cpp)
 set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
 target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor lighting_output_ui)
-add_dependencies(msi_mystic_light msi_gen1_module)
+add_dependencies(msi_mystic_light msi_gen1_module peripherals_module)
 if(WIN32)
     # A matching SDK plugin is preferred; the documented source build supplies SDKs without ImageFormats.
     set(WEBP_PLUGIN_HINTS "${Qt6_DIR}/../../../plugins/imageformats")

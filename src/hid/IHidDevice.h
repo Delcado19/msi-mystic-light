@@ -12,4 +12,7 @@ public:
     // Byte 0 includes the report ID. True means the entire report was sent;
     // closed devices, invalid buffers, short writes and OS errors return false.
     virtual bool sendFeatureReport(const std::uint8_t* report, std::size_t length) = 0;
+    // Append transport methods to preserve API 1 feature-report vtable slots.
+    // Modules using output reports require host API 2; old hosts reject their metadata.
+    virtual bool writeOutputReport(const std::uint8_t*, std::size_t) { return false; }
 };

@@ -90,3 +90,9 @@ bool HidApiDevice::sendFeatureReport(const std::uint8_t* report, std::size_t len
         length > static_cast<std::size_t>(std::numeric_limits<int>::max())) return false;
     return hid_send_feature_report(handle_, report, length) == static_cast<int>(length);
 }
+
+bool HidApiDevice::writeOutputReport(const std::uint8_t* report, std::size_t length)
+{
+    if (!handle_ || !report || length == 0 || length > static_cast<std::size_t>(std::numeric_limits<int>::max())) return false;
+    return hid_write(handle_, report, length) == static_cast<int>(length);
+}

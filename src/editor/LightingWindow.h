@@ -32,6 +32,7 @@ public:
     double previewSeconds() const;
     void setOutputState(const QString& state);
     void installOutputPanel(QWidget* panel);
+    void restoreLegacyHardware(const QString& path);
     QString projectFile() const { return fileName_; }
     void loadProject(const QString& path, bool recovered = false, const QString& original = {});
     const QImage& previewFrame() const { return previewFrame_; }

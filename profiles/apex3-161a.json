@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "apex3-161a",
+  "driverId": "lighting.peripherals",
+  "name": "SteelSeriesApex3",
+  "match": {
+    "vendorId": 4152,
+    "productId": 5658,
+    "interfaceNumber": 3
+  },
+  "channels": [
+    {
+      "id": "SteelSeriesApex3",
+      "maxLeds": 10,
+      "fixedLeds": 10,
+      "direct": true,
+      "nativeModes": [],
+      "address": {
+        "protocol": "apex3",
+        "componentId": "peripheral.apex3"
+      }
+    }
+  ]
+}

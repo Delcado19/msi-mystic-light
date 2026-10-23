@@ -28,6 +28,7 @@ public:
     bool openPath(const std::string& path);
     void close() override;
     bool isOpen() const override;
+    bool writeOutputReport(const std::uint8_t* report, std::size_t length) override;
     bool sendFeatureReport(const std::uint8_t* report, std::size_t length) override;
 
 private:

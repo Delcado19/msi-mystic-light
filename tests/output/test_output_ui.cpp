@@ -91,14 +91,13 @@ void OutputUiTest::applicationDevicePage()
     window.findChild<QAction*>("reviewOutput")->trigger();
     QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),0); QVERIFY(panel->isVisible());
     QCoreApplication::processEvents();
-    QVERIFY(window.findChild<QToolBar*>("previewToolbar")->isVisible());
+    QVERIFY(!window.findChild<QToolBar*>("previewToolbar")->isVisible());
     QVERIFY(!window.findChild<QDockWidget*>("hardwareOutputDock")); QVERIFY(!window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/application-devices.png"));
     panel->findChild<QPushButton*>("startOutput")->click(); QTRY_VERIFY(state(*panel,"Running")); QTRY_COMPARE(record->writes(),2);
-    window.findChild<QDialog*>("outputDialog")->hide();
     window.findChild<QAction*>("workspaceLayout")->trigger();
     auto* layout=window.findChild<LightingCanvas*>("layoutCanvas"); QVERIFY(layout->isVisible());
-    QCOMPARE(layout->grab().toImage().pixelColor(layout->viewportPoint({320,200}).toPoint()),QColor("#252b35"));
+    QCOMPARE(layout->grab().toImage().pixelColor(layout->viewportPoint({320,200}).toPoint()),QColor(1,2,3));
     window.findChild<QAction*>("workspaceEffects")->trigger(); QVERIFY(window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     panel->stopOutput(); QTRY_VERIFY(state(*panel,"Stopped")); window.document().history()->setClean();
 }

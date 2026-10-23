@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "vulcan-3098",
+  "driverId": "lighting.peripherals",
+  "name": "RoccatVulcan",
+  "match": {
+    "vendorId": 7805,
+    "productId": 12440,
+    "interfaceNumber": 3,
+    "usagePage": 1
+  },
+  "channels": [
+    {
+      "id": "RoccatVulcan",
+      "maxLeds": 144,
+      "fixedLeds": 144,
+      "direct": true,
+      "nativeModes": [],
+      "address": {
+        "protocol": "vulcan",
+        "componentId": "peripheral.vulcan"
+      }
+    }
+  ]
+}

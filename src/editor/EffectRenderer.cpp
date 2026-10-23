@@ -68,17 +68,17 @@ bool isParticle(EffectKind kind) { return kind >= EffectKind::Rain && kind <= Ef
 const QVector<EffectParameter>& advancedParameters()
 {
     static const QVector<EffectParameter> parameters{
-        {"driftX", "Drift X px/s", &EffectLayer::driftX, -500, 500},
-        {"driftY", "Drift Y px/s", &EffectLayer::driftY, -500, 500},
-        {"zoom", "Zoom amplitude %", &EffectLayer::zoom, 0, 90},
-        {"warp", "Warp amplitude px", &EffectLayer::warp, 0, 100},
-        {"breathe", "Breathe Hz", &EffectLayer::breathe, 0, 10},
-        {"trails", "Trail seconds", &EffectLayer::trails, 0, 2},
-        {"cycleRate", "Color cycles/s", &EffectLayer::cycleRate, 0, 10},
+        {"driftX", "Move horizontally / sec", &EffectLayer::driftX, -500, 500},
+        {"driftY", "Move vertically / sec", &EffectLayer::driftY, -500, 500},
+        {"zoom", "Size change %", &EffectLayer::zoom, 0, 90},
+        {"warp", "Wave distortion", &EffectLayer::warp, 0, 100},
+        {"breathe", "Size pulses / sec", &EffectLayer::breathe, 0, 10},
+        {"trails", "Trail length (sec)", &EffectLayer::trails, 0, 2},
+        {"cycleRate", "Palette loops / sec", &EffectLayer::cycleRate, 0, 10},
         {"particleCount", "Particle count", &EffectLayer::particleCount, 1, 400},
-        {"particleSeed", "Particle seed", &EffectLayer::particleSeed, 0, 1000000},
-        {"particleSpeed", "Particle speed", &EffectLayer::particleSpeed, 0, 500},
-        {"particleSize", "Particle radius px", &EffectLayer::particleSize, 1, 40}
+        {"particleSeed", "Random pattern", &EffectLayer::particleSeed, 0, 1000000},
+        {"particleSpeed", "Movement speed", &EffectLayer::particleSpeed, 0, 500},
+        {"particleSize", "Particle size", &EffectLayer::particleSize, 1, 40}
     };
     return parameters;
 }

@@ -104,3 +104,16 @@ if(WIN32)
         "-DSOURCE_DLL=${HIDAPI_RUNTIME_DLL}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_hidapi_runtime.cmake")
 endif()
+
+add_executable(test_peripherals output/test_peripherals.cpp)
+target_link_libraries(test_peripherals PRIVATE lighting_output_ui Qt6::Test)
+target_compile_definitions(test_peripherals PRIVATE
+    PERIPHERAL_MODULE_PATH="$<TARGET_FILE:peripherals_module>"
+    PROFILE_DIRECTORY="${PROJECT_SOURCE_DIR}/profiles")
+add_dependencies(test_peripherals peripherals_module)
+add_test(NAME peripheral_reports COMMAND test_peripherals)
+if(WIN32)
+    add_custom_command(TARGET test_peripherals POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:test_peripherals> $<TARGET_FILE_DIR:test_peripherals>
+        COMMAND_EXPAND_LISTS)
+endif()
