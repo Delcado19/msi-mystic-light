@@ -28,27 +28,27 @@ module is `msi.gen1`, with an explicit B850 Edge TI board profile.
 Data-only component definitions and validated channel-chain mappings are also
 implemented. The bundled generic 8-LED strip demonstrates adding a product
 without changing a driver. Use `--component-dir` for another local catalog;
-repository downloads and live hardware output remain pending. Layout includes
-a staged per-channel Native/Software assignment UI, physical component-chain
-ordering and native effect settings. Assignments persist but never connect or write.
-An offline editor now provides separate Layout/Effects views, component creation/import and geometry editing, scalable/rotatable catalog
-components, Static Color/gradient/shape/image layers, soft masks, transparency/blend controls, motion/color animation, seeded particles/trails, direct canvas transforms/cropping,
-undo/redo and portable project save/load with embedded component definitions. See [`docs/LIGHTING_EDITOR.md`](docs/LIGHTING_EDITOR.md).
-Run `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
+repository downloads remain separate work. Layout and Effects have separate views,
+with component authoring, layered effects, soft masks, transparency and blend modes,
+undo/redo, portable projects, per-layer channel targets and independent channel clocks.
+See [editor documentation](docs/LIGHTING_EDITOR.md).
 
-The first implementation increment provides a C++17/CMake project, a Qt6
-application scaffold, and pure encoders for the 290-byte `0x50` and 727-byte
-`0x51` reports. Qt Test covers byte layouts, option flags, transient versus
-persistent settings, LED count boundaries, and invalid input rejection.
-The executable initializes Qt, checks potential process conflicts, validates
-local modules/profiles/components and opens the editor. Diagnostic commands
-`--inspect` and `--scan` exit after their checks. The app
-does not yet provide a tray UI, open HID devices, or send any reports.
-A tested [output-session backend](docs/OUTPUT_SESSION.md) now prepares driver
-frames, coalesces pending output and handles write faults/explicit reconnect.
-A worker scheduler now paces output, cancels queued work and rejects stale runs;
-GUI connection and real-device qualification remain pending.
-Hardware support remains unverified for this implementation.
+Start **`Start-Lighting.cmd`**, or `build/ninja/Release/msi_mystic_light.exe`.
+The old `build/ninja/msi_mystic_light.exe` is not the supported entry point.
+Keep the entire Release folder together: `hidapi.dll`, Qt DLLs, plugins and catalogs
+are runtime dependencies. A missing `hidapi.dll` means the runtime folder is incomplete;
+rebuild/copy the full folder. Do not download unrelated DLLs. See `PORTABLE_README.txt`.
+
+`View > Hardware output` exposes explicit review/start and stop controls. Each start
+resolves process conflicts, revalidates the exact endpoint and shows initial report
+bytes for consent before opening HID. Worker output is bounded and faults stop all
+endpoints; reconnect requires another review. Document edits stop authorized output.
+MSI configuration writes contain all 18 zones; unassigned firmware settings are not
+read back or preserved. Stop holds the last state. See [output](docs/OUTPUT_SESSION.md).
+Autosave/recovery, last-project/window restoration and a tray menu are implemented;
+startup never resumes output. `--editor` skips only the startup conflict dialog.
+`--inspect` validates local catalogs and `--scan` performs read-only discovery.
+Hardware behavior and calibration remain physically unverified.
 
 Build from an x64 Visual Studio developer prompt with CMake, Ninja, and a
 shared Qt6 installation available (adjust the Qt path for your machine).
@@ -70,8 +70,7 @@ The HID transport library and test fake are implemented separately from the
 application. Transport tests replace HIDAPI functions at link time, covering
 initialization failure, failed opens, repeated close/reopen, invalid buffers,
 short writes, and multiple wrapper lifetimes without touching hardware.
-The app links the HIDAPI runtime for optional descriptor enumeration; it does
-not construct or open a device transport.
+The app links HIDAPI for descriptor enumeration and explicitly authorized output.
 
 HIDAPI headers and a library are now required to build the transport. If they
 are not on CMake's search path, add `-Dhidapi_ROOT=C:/path/to/hidapi-sdk`

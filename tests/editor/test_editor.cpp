@@ -1,6 +1,7 @@
 #include "editor/LightingWindow.h"
 #include "editor/ComponentEditor.h"
 #include "editor/ChannelEditor.h"
+#include "editor/AppSession.h"
 #include <QListWidget>
 #include <QTimer>
 #include <QTableWidget>
@@ -55,6 +56,8 @@ EffectLayer layer(QColor color)
 class EditorTest : public QObject {
     Q_OBJECT
 private slots:
+    void channelScopesAndClocks();
+    void sessionRecovery();
     void channelAssignments();
     void channelControls();
     void componentSampling();
@@ -79,6 +82,105 @@ private slots:
     void canvasTransformsAndCrop();
     void advancedControls();
 };
+
+void EditorTest::channelScopesAndClocks()
+{
+    const auto profile=channelProfile(); LightingDocument document(catalog(),nullptr,{profile});
+    const auto first=document.addComponent("test.strip"), second=document.addComponent("test.strip");
+    ChannelAssignment a; a.endpoint="first"; a.profileId=profile.id; a.channelId="Direct"; a.software=true; a.placements={first};
+    auto b=a; b.id=QUuid::createUuid(); b.endpoint="second"; b.placements={second}; b.timeScale=2; b.timeOffset=0.25;
+    document.assignChannel(a); document.assignChannel(b);
+    document.addLayer(); document.addLayer();
+    document.edit("Separate channels",[&](LightingState& state) {
+        state.layers[0].color=Qt::red; state.layers[0].allChannels=false; state.layers[0].channelTargets={a.id};
+        state.layers[1].color=Qt::blue; state.layers[1].allChannels=false; state.layers[1].channelTargets={b.id};
+    });
+    QCOMPARE(document.renderForChannel(a.id,0).pixelColor(80,80),QColor(Qt::red));
+    QCOMPARE(document.renderForChannel(b.id,0).pixelColor(80,80),QColor(Qt::blue));
+    const auto sampled=document.sampleChannels(document.render(),0);
+    QCOMPARE(sampled[a.id][0],QColor(Qt::red)); QCOMPARE(sampled[b.id][0],QColor(Qt::blue));
+    QCOMPARE(document.channelTime(b.id,1),2.25); QCOMPARE(document.channelTime(b.id,86400),86400.0);
+    document.edit("Pulse",[](LightingState& state) { state.layers[1].pulse=1; });
+    QVERIFY(document.renderForChannel(b.id,0).pixelColor(80,80).alpha()<255);
+    b.timeScale=0; document.assignChannel(b);
+    QCOMPARE(document.renderForChannel(b.id,0),document.renderForChannel(b.id,20));
+    document.edit("No hardware target",[](LightingState& state) { state.layers[0].channelTargets.clear(); });
+    QCOMPARE(document.renderForChannel(a.id,0).pixelColor(80,80).alpha(),0);
+    document.history()->undo(); QCOMPARE(document.renderForChannel(a.id,0).pixelColor(80,80),QColor(Qt::red));
+    QVERIFY_EXCEPTION_THROWN(document.edit("Invalid target",[](LightingState& state) {
+        state.layers[0].channelTargets={QUuid::createUuid()};
+    }),std::invalid_argument);
+    auto invalid=a; invalid.timeScale=-1; QVERIFY_EXCEPTION_THROWN(document.assignChannel(invalid),std::invalid_argument);
+    QTemporaryDir directory; const auto file=directory.filePath("scopes.lighting.json"); document.save(file);
+    LightingDocument loaded({},nullptr,{profile}); loaded.load(file);
+    QCOMPARE(loaded.renderForChannel(a.id,0),document.renderForChannel(a.id,0));
+    QCOMPARE(loaded.state().layers[0].channelTargets,QVector<QUuid>{a.id});
+    QCOMPARE(loaded.state().assignments[1].timeScale,0.0);
+    QFile input(file); QVERIFY(input.open(QIODevice::ReadOnly)); auto root=QJsonDocument::fromJson(input.readAll()).object(); input.close();
+    root.insert("schemaVersion",8); auto layers=root.value("layers").toArray(); auto assignments=root.value("assignments").toArray();
+    for(int i=0;i<layers.size();++i) { auto json=layers[i].toObject(); json.remove("targets"); layers[i]=json; }
+    for(int i=0;i<assignments.size();++i) { auto json=assignments[i].toObject(); json.remove("timeScale"); json.remove("timeOffset"); assignments[i]=json; }
+    root.insert("layers",layers); root.insert("assignments",assignments);
+    QVERIFY(input.open(QIODevice::WriteOnly)); input.write(QJsonDocument(root).toJson()); input.close(); loaded.load(file);
+    QVERIFY(loaded.state().layers[0].allChannels); QCOMPARE(loaded.state().assignments[1].timeScale,1.0);
+    auto native=a; native.software=false; document.assignChannel(native);
+    QVERIFY(document.state().layers[0].channelTargets.isEmpty()); QVERIFY(!document.state().layers[0].allChannels);
+
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{profile});
+    const auto instance=window.document().addComponent("test.strip"); auto configured=a; configured.placements={instance};
+    window.document().assignChannel(configured); window.document().addLayer();
+    auto* tree=window.findChild<QTreeWidget*>("effectLayers"); tree->setCurrentItem(tree->topLevelItem(0),1);
+    auto* all=window.findChild<QCheckBox*>("allChannels"); all->setChecked(false);
+    auto* targets=window.findChild<QListWidget*>("layerChannelTargets"); QCOMPARE(targets->count(),1);
+    targets->item(0)->setCheckState(Qt::Checked);
+    QTRY_COMPARE(window.document().state().layers[0].channelTargets,QVector<QUuid>{a.id});
+    auto* preview=window.findChild<QComboBox*>("previewChannel"); QCOMPARE(preview->count(),2); preview->setCurrentIndex(1);
+    window.document().history()->setClean();
+}
+
+void EditorTest::sessionRecovery()
+{
+    QTemporaryDir directory;
+    QSettings settings(directory.filePath("settings.ini"),QSettings::IniFormat);
+    const auto recovery=directory.filePath("recovery.lighting.json");
+    const auto project=directory.filePath("saved.lighting.json");
+    {
+        LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+        AppSession session(window,settings,recovery);
+        window.document().addLayer();
+        const auto index=window.document().history()->index();
+        QVERIFY(session.writeRecovery()); QVERIFY(QFileInfo::exists(recovery));
+        QCOMPARE(window.document().history()->index(),index); QVERIFY(!window.document().history()->isClean());
+    }
+    {
+        LightingWindow window({},[] { return QVector<ProfileCandidate>{}; });
+        AppSession session(window,settings,recovery); bool asked=false;
+        session.restore([&] { asked=true; return true; }); QVERIFY(asked);
+        QCOMPARE(window.document().state().layers.size(),1); QVERIFY(!window.document().history()->isClean());
+        QCoreApplication::processEvents(); QVERIFY(QFileInfo::exists(recovery));
+        QVERIFY(session.writeRecovery());
+        window.document().save(project); window.loadProject(project);
+        QCoreApplication::processEvents(); QVERIFY(!QFileInfo::exists(recovery));
+        window.close(); QCOMPARE(settings.value("project/path").toString(),project);
+    }
+    {
+        LightingWindow window({},[] { return QVector<ProfileCandidate>{}; });
+        AppSession session(window,settings,recovery); bool asked=false;
+        session.restore([&] { asked=true; return true; }); QVERIFY(!asked);
+        QCOMPARE(window.projectFile(),project); QCOMPARE(window.document().state().layers.size(),1);
+        QVERIFY(window.document().history()->isClean());
+        window.document().addLayer();
+        AppSession cannotWrite(window,settings,directory.path());
+        QVERIFY(!cannotWrite.writeRecovery()); QVERIFY(!window.document().history()->isClean());
+        window.document().history()->setClean(); window.close();
+    }
+    QVERIFY(QFile::copy(project,recovery));
+    {
+        LightingWindow window({},[] { return QVector<ProfileCandidate>{}; });
+        AppSession session(window,settings,recovery); session.restore([] { return false; });
+        QVERIFY(!QFileInfo::exists(recovery)); QCOMPARE(window.document().state().layers.size(),1);
+    }
+}
 
 void EditorTest::channelAssignments()
 {
@@ -709,13 +811,13 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 8);
+    QCOMPARE(root.value("schemaVersion").toInt(), 9);
     // Published schema 2 has explicit effects but no image fields or Image type.
     auto version2 = root; version2.remove("components"); version2.remove("assignments"); QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject();
         if (value.value("effect").toObject().value("type").toString() == "image" || isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
-        value.remove("advanced"); value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
+        value.remove("targets"); value.remove("advanced"); value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
     }
     version2.insert("schemaVersion", 2); version2.insert("layers", version2Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -724,7 +826,7 @@ void EditorTest::effectPersistenceAndLegacy()
     auto version3 = root; version3.remove("components"); version3.remove("assignments"); QJsonArray version3Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
-        value.remove("advanced"); value.remove("animation"); version3Layers.append(value);
+        value.remove("targets"); value.remove("advanced"); value.remove("animation"); version3Layers.append(value);
     }
     version3.insert("schemaVersion", 3); version3.insert("layers", version3Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -733,7 +835,7 @@ void EditorTest::effectPersistenceAndLegacy()
     auto version4=root; version4.remove("components"); version4.remove("assignments"); QJsonArray version4Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value=item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
-        value.remove("advanced"); version4Layers.append(value);
+        value.remove("targets"); value.remove("advanced"); version4Layers.append(value);
     }
     version4.insert("schemaVersion",4); version4.insert("layers",version4Layers);
     QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));
@@ -758,7 +860,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QCOMPARE(loaded.render(), before);
 
     // The previous published editor wrote schema 1 with implicit Static Color.
-    auto legacy = layers[0].toObject(); legacy.remove("advanced"); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
+    auto legacy = layers[0].toObject(); legacy.remove("targets"); legacy.remove("advanced"); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
     root.remove("components"); root.remove("assignments");
     root.insert("schemaVersion", 1); root.insert("layers", QJsonArray{legacy}); write();
     loaded.load(path);

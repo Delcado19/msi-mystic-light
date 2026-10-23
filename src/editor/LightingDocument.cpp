@@ -81,7 +81,7 @@ void LightingDocument::edit(const QString& label, const std::function<void(Light
     validateChannelAssignments(after, profiles_);
     history_.push(new DocumentEdit(label, [this, before = state_, after](bool forward) {
         state_ = forward ? after : before;
-        emit changed();
+        ++revision_; emit changed();
     }));
 }
 
@@ -197,30 +197,47 @@ QVector<QColor> LightingDocument::sampleComponent(const ComponentPlacement& plac
 void LightingDocument::assignChannel(const ChannelAssignment& assignment)
 {
     edit("Configure channel", [&](LightingState& state) {
+        if (!assignment.software) for (auto& layer : state.layers) layer.channelTargets.removeAll(assignment.id);
         for (auto& existing : state.assignments) if (existing.id == assignment.id) { existing = assignment; return; }
         state.assignments.append(assignment);
     });
 }
 
-QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& frame) const
+QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& frame, double seconds) const
 {
+    if (!std::isfinite(seconds) || seconds<0 || seconds>86400) throw std::invalid_argument("Invalid global channel time");
     if (frame.size() != canvasSize()) throw std::invalid_argument("Sampling requires a canvas-sized frame");
     validateChannelAssignments(state_, profiles_);
     const auto rgb = frame.convertToFormat(QImage::Format_ARGB32_Premultiplied);
     QMap<QUuid, QVector<QColor>> result;
+    const bool restricted=std::any_of(state_.layers.cbegin(),state_.layers.cend(),[](const auto& layer) { return !layer.allChannels; });
     for (const auto& assignment : state_.assignments) if (assignment.software) {
+        const auto raster=(restricted || assignment.timeScale!=1 || assignment.timeOffset!=0)
+            ? renderForChannel(assignment.id,seconds) : rgb;
         QVector<QColor> chain;
         for (const auto& id : assignment.placements)
             for (const auto& placement : state_.placements) if (placement.id == id)
-                chain.append(sampleComponent(placement, rgb));
+                chain.append(sampleComponent(placement, raster));
         result.insert(assignment.id, chain);
     }
     return result; // Native channels are deliberately absent, never overwritten with sampled colors.
 }
 
+double LightingDocument::channelTime(const QUuid& id, double seconds) const
+{
+    if (!std::isfinite(seconds) || seconds<0 || seconds>86400) throw std::invalid_argument("Invalid global channel time");
+    for (const auto& assignment : state_.assignments) if (assignment.id==id && assignment.software)
+        return std::clamp(seconds*assignment.timeScale+assignment.timeOffset,0.0,86400.0);
+    throw std::invalid_argument("Unknown software channel");
+}
+QImage LightingDocument::renderForChannel(const QUuid& id, double seconds) const
+{
+    return render(state_,channelTime(id,seconds),id);
+}
+
 QImage LightingDocument::render(double seconds) const { return render(state_, seconds); }
 
-void LightingDocument::save(const QString& fileName)
+void LightingDocument::save(const QString& fileName, bool markClean)
 {
     QJsonArray layers, placements, components, assignments;
     validateChannelAssignments(state_, profiles_);
@@ -241,7 +258,9 @@ void LightingDocument::save(const QString& fileName)
         for (const auto& color : layer.colorCycle) cycle.append(color.name(QColor::HexArgb));
         advanced.insert("colorCycle", cycle); advanced.insert("maskLinked", layer.maskLinked);
         advanced.insert("crop", QJsonArray{layer.crop.x(), layer.crop.y(), layer.crop.width(), layer.crop.height()});
-        layers.append(QJsonObject{{"id", layer.id.toString()}, {"name", layer.name},
+        QJsonArray targets; for (const auto& id : layer.channelTargets) targets.append(id.toString());
+        layers.append(QJsonObject{{"id", layer.id.toString()},
+            {"targets", layer.allChannels ? QJsonValue(QJsonValue::Null) : QJsonValue(targets)}, {"name", layer.name},
             {"color", layer.color.name(QColor::HexArgb)}, {"visible", layer.visible},
             {"transparency", layer.transparency}, {"blend", static_cast<int>(layer.blend)},
             {"effect", QJsonObject{{"type", effectDefinition(layer.effect).id},
@@ -258,15 +277,15 @@ void LightingDocument::save(const QString& fileName)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()},
             {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
-    // Version 8 adds staged channel assignments; loading never opens or configures devices.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 8}, {"width", 640}, {"height", 400},
+    // Version 9 adds explicit layer targets and independent channel clocks.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 9}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
     // Atomic replacement preserves an existing project if writing/commit fails.
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
         throw std::runtime_error("Could not save lighting document");
-    history_.setClean();
+    if (markClean) history_.setClean();
 }
 
 void LightingDocument::load(const QString& fileName)
@@ -279,7 +298,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -311,6 +330,17 @@ void LightingDocument::load(const QString& fileName)
             blend < 0 || blend > 3 || std::floor(blend) != blend)
             throw std::invalid_argument("Invalid layer properties");
         EffectLayer layer;
+        if (schema >= 9) {
+            const auto targets=json.value("targets");
+            if (targets.isNull()) layer.allChannels=true;
+            else if (targets.isArray() && targets.toArray().size()<=256) {
+                layer.allChannels=false;
+                for (const auto& value:targets.toArray()) {
+                    if (!value.isString()) throw std::invalid_argument("Invalid layer target ID");
+                    layer.channelTargets.append(QUuid(value.toString()));
+                }
+            } else throw std::invalid_argument("Invalid layer targets");
+        } else if (json.contains("targets")) throw std::invalid_argument("Layer targets require schema 9");
         layer.id = QUuid(json.value("id").toString()); layer.name = json.value("name").toString();
         layer.color = QColor(json.value("color").toString()); layer.visible = json.value("visible").toBool();
         layer.transparency = static_cast<int>(transparency); layer.blend = static_cast<LayerBlend>(static_cast<int>(blend));
@@ -420,7 +450,7 @@ void LightingDocument::load(const QString& fileName)
             throw std::invalid_argument("Invalid channel assignment array");
         for (const auto& entry : root.value("assignments").toArray()) {
             if (!entry.isObject()) throw std::invalid_argument("Invalid channel assignment");
-            candidate.assignments.append(parseChannelAssignment(entry.toObject()));
+            candidate.assignments.append(parseChannelAssignment(entry.toObject(),int(schema)));
         }
     } else if (root.contains("assignments")) {
         throw std::invalid_argument("Channel assignments require schema 8");
@@ -431,7 +461,7 @@ void LightingDocument::load(const QString& fileName)
     state_ = std::move(candidate);
     history_.clear();
     history_.setClean();
-    emit changed();
+    ++revision_; emit changed();
 }
 
 void LightingDocument::paintMask(QImage& mask, QPointF from, QPointF to,
@@ -478,7 +508,7 @@ void LightingDocument::gradientMask(QImage& mask, QPointF from, QPointF to)
     }
 }
 
-QImage LightingDocument::render(const LightingState& state, double seconds)
+QImage LightingDocument::render(const LightingState& state, double seconds, const QUuid& channel)
 {
     validate(state);
     if (!std::isfinite(seconds) || seconds < 0 || seconds > 86400)
@@ -487,7 +517,8 @@ QImage LightingDocument::render(const LightingState& state, double seconds)
     result.fill(Qt::transparent);
     QPainter painter(&result);
     for (const auto& layer : state.layers) {
-        if (!layer.visible || layer.transparency == 100) continue;
+        if (!layer.visible || layer.transparency == 100 ||
+            (!channel.isNull() && !layer.allChannels && !layer.channelTargets.contains(channel))) continue;
         auto source = renderEffect(layer, seconds);
         const auto maskImage = renderMask(layer,seconds);
         for (int y = 0; y < source.height(); ++y) {

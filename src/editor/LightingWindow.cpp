@@ -26,6 +26,7 @@
 #include <QToolBar>
 #include <QTimer>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -66,7 +67,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(open, &QAction::triggered, this, [this] {
         const auto file = QFileDialog::getOpenFileName(this, "Open lighting document", {}, "Lighting documents (*.lighting.json)");
         if (file.isEmpty() || !confirmDiscard()) return;
-        try { document_.load(file); fileName_ = file; }
+        try { loadProject(file); }
         catch (const std::exception& error) { QMessageBox::warning(this, "Open failed", QString::fromUtf8(error.what())); }
     });
     auto* save = fileMenu->addAction("Save…"); save->setShortcut(QKeySequence::Save);
@@ -83,7 +84,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* redo = document_.history()->createRedoAction(this, "Redo");
     redo->setShortcuts({QKeySequence::Redo, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)});
     editMenu->addAction(redo);
-    auto* toolbar = addToolBar("History");
+    auto* toolbar = addToolBar("History"); toolbar->setObjectName("historyToolbar");
     toolbar->addAction(undo); toolbar->addAction(redo);
 
     tabs_ = new QTabWidget;
@@ -96,7 +97,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     tabs_->addTab(effectsCanvas_, "Effects");
     setCentralWidget(tabs_);
 
-    auto* dock = new QDockWidget("Properties", this);
+    auto* dock = new QDockWidget("Properties", this); dock->setObjectName("propertiesDock");
     dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     auto* contexts = new QStackedWidget;
     dock->setWidget(contexts);
@@ -210,7 +211,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
                     QVariantMap{{"profileId", candidate.profileId}, {"path", device.path}});
                 candidates->setItemData(candidates->count() - 1, device.path, Qt::ToolTipRole);
             }
-            statusBar()->showMessage(QString("%1 profile/endpoint candidates; no device opened.").arg(found.size()));
+            statusBar()->showMessage(QString("%1 profile/endpoint candidates (read-only scan).").arg(found.size()));
         } catch (const std::exception& error) {
             QMessageBox::warning(this, "Discovery failed", QString::fromUtf8(error.what()));
         }
@@ -256,16 +257,20 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         const auto id=assignments_->currentItem()->data(0,Qt::UserRole).toUuid();
         document_.edit("Remove channel assignment", [&](LightingState& state) {
             state.assignments.removeIf([&](const auto& item) { return item.id==id; });
+            for(auto& layer:state.layers) layer.channelTargets.removeAll(id);
         });
     });
-    layoutControls->addWidget(new QLabel("Assignments are staged only. No device is connected or written."));
+    layoutControls->addWidget(new QLabel("Assignments alone do not connect or write hardware."));
 
-    auto* previewToolbar = addToolBar("Preview");
+    auto* previewToolbar = addToolBar("Preview"); previewToolbar->setObjectName("previewToolbar");
     playing_ = new QCheckBox("Play preview"); playing_->setObjectName("playPreview");
     previewTime_ = new QDoubleSpinBox; previewTime_->setObjectName("previewTime");
     previewTime_->setRange(0, 86400); previewTime_->setDecimals(2); previewTime_->setSuffix(" s");
     previewTime_->setKeyboardTracking(false); previewTime_->setAccessibleName("Preview time in seconds");
     previewToolbar->addWidget(playing_); previewToolbar->addWidget(previewTime_);
+    previewChannel_=new QComboBox; previewChannel_->setObjectName("previewChannel");
+    previewChannel_->addItem("All layers",QUuid{}); previewToolbar->addWidget(previewChannel_);
+    connect(previewChannel_,&QComboBox::currentIndexChanged,this,&LightingWindow::updatePreview);
     auto* timer = new QTimer(this); timer->setInterval(33);
     connect(playing_, &QCheckBox::toggled, this, [this, timer](bool play) {
         if (play) { playbackStart_ = previewTime_->value(); previewClock_.restart(); timer->start(); }
@@ -276,10 +281,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         if (previewTime_->value() >= 86400) playing_->setChecked(false);
     });
     connect(previewTime_, &QDoubleSpinBox::editingFinished, this, [this] { playing_->setChecked(false); });
-    connect(previewTime_, &QDoubleSpinBox::valueChanged, this, [this](double seconds) {
-        const auto frame=document_.render(seconds);
-        layoutCanvas_->setPreviewFrame(frame,seconds); effectsCanvas_->setPreviewFrame(frame,seconds);
-    });
+    connect(previewTime_, &QDoubleSpinBox::valueChanged, this, [this] { updatePreview(); });
     auto* effectPanel = new QWidget;
     auto* effectControls = new QVBoxLayout(effectPanel);
     addPanel(effectPanel);
@@ -391,6 +393,23 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     form->addRow("Blend mode", blend_);
     connect(blend_, &QComboBox::currentIndexChanged, this, [this](int index) {
         updateLayer("Layer blend mode", [index](auto& layer) { layer.blend = static_cast<LayerBlend>(index); });
+    });
+    allChannels_=new QCheckBox("Layer targets all software channels"); allChannels_->setObjectName("allChannels");
+    effectControls->addWidget(allChannels_);
+    channelTargets_=new QListWidget; channelTargets_->setObjectName("layerChannelTargets"); channelTargets_->setMaximumHeight(120);
+    effectControls->addWidget(channelTargets_);
+    connect(allChannels_,&QCheckBox::toggled,this,[this](bool all) {
+        updateLayer("Layer channel scope",[all](EffectLayer& layer) { layer.allChannels=all; layer.channelTargets.clear(); });
+    });
+    connect(channelTargets_,&QListWidget::itemChanged,this,[this](QListWidgetItem*) {
+        QVector<QUuid> targets;
+        for(int row=0;row<channelTargets_->count();++row) if(channelTargets_->item(row)->checkState()==Qt::Checked)
+            targets.append(channelTargets_->item(row)->data(Qt::UserRole).toUuid());
+        const auto selected=selectedLayer_;
+        // Defer rebuilding the list until its itemChanged emission has completed.
+        QTimer::singleShot(0,this,[this,targets,selected] {
+            if(selectedLayer_==selected) updateLayer("Layer channel targets",[targets](EffectLayer& layer) { layer.allChannels=false; layer.channelTargets=targets; });
+        });
     });
     color_ = button(effectControls, "Effect color…", [this] {
         for (const auto& layer : document_.state().layers) if (layer.id == selectedLayer_) {
@@ -531,7 +550,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         effectsCanvas_->setCropTool(crop); refreshProperties();
     });
     connect(effectsCanvas_,&LightingCanvas::effectGestureStarted,this,[this] {
-        playing_->setChecked(false); previewTime_->setValue(0);
+        // Source geometry is authored at base time, not at a channel's offset clock.
+        playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0);
     });
     tools->hide();
     connect(tabs_, &QTabWidget::currentChanged, tools, [tools](int index) { tools->setVisible(index == 1); });
@@ -567,7 +587,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     button(effectControls, "Fill mask white", [this] { updateLayer("Reveal layer", [](auto& layer) { layer.mask.fill(255); }); });
     button(effectControls, "Fill mask black", [this] { updateLayer("Hide layer with mask", [](auto& layer) { layer.mask.fill(0); }); });
     button(effectControls, "Invert mask", [this] { updateLayer("Invert mask", [](auto& layer) { layer.mask.invertPixels(); }); });
-    auto* note = new QLabel("Offline effect preview\nChannel assignments are staged; no hardware output yet.\nWheel zooms; middle drag pans; Escape cancels strokes.");
+    auto* note = new QLabel("Offline effect preview\nUse Hardware output to review and start device output.\nWheel zooms; middle drag pans; Escape cancels strokes.");
     note->setWordWrap(true);
     effectControls->addWidget(note);
     connect(tabs_, &QTabWidget::currentChanged, contexts, &QStackedWidget::setCurrentIndex);
@@ -617,6 +637,13 @@ void LightingWindow::refresh()
         item->setData(0,Qt::UserRole,assignment.id); item->setToolTip(0,assignment.profileId+"\n"+assignment.endpoint);
         if(assignment.id==selectedAssignment) assignments_->setCurrentItem(item);
     }
+    {
+        const QSignalBlocker block(previewChannel_); const auto before=previewChannel_->currentData();
+        previewChannel_->clear(); previewChannel_->addItem("All layers",QUuid{});
+        for(const auto& assignment:document_.state().assignments) if(assignment.software)
+            previewChannel_->addItem(assignment.channelId+" / "+assignment.endpoint,assignment.id);
+        const int index=previewChannel_->findData(before); previewChannel_->setCurrentIndex(index<0 ? 0 : index);
+    }
     const auto currentComponent = catalog_->currentData();
     {
         const QSignalBlocker block(catalog_); catalog_->clear();
@@ -642,6 +669,20 @@ void LightingWindow::refresh()
     }
     if (!selected) selectedLayer_ = {};
     refreshProperties();
+    updatePreview();
+}
+
+double LightingWindow::previewSeconds() const { return previewTime_->value(); }
+void LightingWindow::updatePreview()
+{
+    const auto seconds=previewTime_->value(); auto channel=previewChannel_->currentData().toUuid();
+    bool found=false; for(const auto& assignment:document_.state().assignments) if(assignment.id==channel && assignment.software) found=true;
+    if(!found) channel={};
+    previewFrame_=document_.render(seconds); // Canonical global composition for default-clock output channels.
+    const auto displayed=channel.isNull() ? previewFrame_ : document_.renderForChannel(channel,seconds);
+    const double localTime=channel.isNull() ? seconds : document_.channelTime(channel,seconds);
+    layoutCanvas_->setPreviewFrame(displayed,localTime,channel); effectsCanvas_->setPreviewFrame(displayed,localTime,channel);
+    emit previewFrameChanged(previewFrame_);
 }
 
 void LightingWindow::refreshProperties()
@@ -649,12 +690,24 @@ void LightingWindow::refreshProperties()
     QSignalBlocker blockTransparency(transparency_), blockBlend(blend_), blockMask(maskEnabled_), blockType(effectType_), blockRepeat(repetitions_);
     const EffectLayer* selected = nullptr;
     for (const auto& layer : document_.state().layers) if (layer.id == selectedLayer_) selected = &layer;
+    {
+        const QSignalBlocker blockAll(allChannels_),blockTargets(channelTargets_);
+        allChannels_->setEnabled(selected!=nullptr); allChannels_->setChecked(selected && selected->allChannels);
+        channelTargets_->clear(); channelTargets_->setEnabled(selected && !selected->allChannels);
+        channelTargets_->setVisible(selected && !selected->allChannels);
+        allChannels_->setVisible(selected && (!document_.state().assignments.isEmpty() || !selected->allChannels));
+        for(const auto& assignment:document_.state().assignments) if(assignment.software) {
+            auto* item=new QListWidgetItem(assignment.channelId+" / "+assignment.endpoint,channelTargets_);
+            item->setData(Qt::UserRole,assignment.id); item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
+            item->setCheckState(selected && selected->channelTargets.contains(assignment.id) ? Qt::Checked : Qt::Unchecked);
+        }
+    }
     effectsCanvas_->select(selectedLayer_);
     effectsCanvas_->setMaskTarget(editingMask_);
     effectTarget_->setChecked(!editingMask_); maskTarget_->setChecked(editingMask_);
     for (QWidget* widget : std::initializer_list<QWidget*>{transparency_, blend_, color_, effectTarget_, maskTarget_, maskEnabled_})
         widget->setEnabled(selected != nullptr);
-    if (editingMask_) { playing_->setChecked(false); previewTime_->setValue(0); }
+    if (editingMask_) { playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0); }
     playing_->setEnabled(!editingMask_);
     animationControls_->setVisible(selected && !editingMask_);
     findChild<QPushButton*>("resetCrop")->setVisible(selected && !editingMask_ && selected->effect==EffectKind::Image);
@@ -718,7 +771,14 @@ void LightingWindow::refreshProperties()
 void LightingWindow::closeEvent(QCloseEvent* event)
 {
     if (!confirmDiscard()) { event->ignore(); return; }
+    emit closing();
     event->accept();
+}
+
+void LightingWindow::loadProject(const QString& path, bool recovered, const QString& original)
+{
+    document_.load(path); fileName_ = recovered ? original : path;
+    if (recovered) document_.history()->resetClean();
 }
 
 bool LightingWindow::saveDocument()

@@ -15,7 +15,7 @@ struct OutputFrame {
     QVector<ChannelOutput> channels;
 };
 // Data preparation only: samples software chains once, never invokes a driver.
-QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed);
+QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds = 0);
 
 // Single-thread owned. The host schedules flush(); stage() replaces rather than queues frames.
 // The host must resolve conflicts, confirm output and open the exact path before handing over a transport.

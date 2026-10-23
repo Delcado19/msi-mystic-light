@@ -1,10 +1,10 @@
 # Output session backend
 
-`prepareOutput(document, composedFrame)` produces one typed `OutputFrame` per
+`prepareOutput(document, composedFrame, seconds)` produces one typed `OutputFrame` per
 exact endpoint/profile. It uses `sampleChannels` once, concatenates physical
 chains in their already-mapped wire order, converts opaque RGB to driver colors
 and includes native effect commands without sampling native channels. It does
-not render again, open devices or call a driver.
+not open devices or call a driver. Scoped/custom-clock channels render locally.
 
 `OutputSession` is single-thread owned and synchronous. Its host must resolve
 process conflicts, present/obtain the required real-device output confirmation,
@@ -94,7 +94,7 @@ A single MSI software driver call may contain both arming and color reports,
 so stop cannot interrupt between those internal reports. Destruction joins the
 worker and can therefore wait for an in-flight OS call; no unsafe forced thread
 termination is used. Transport creation, writes, close and destruction all occur
-on the worker. The GUI still has no live connection controls in this increment.
+on the worker. The GUI connection controls are described below.
 
 Scheduler tests use blocked fake factories/writes and the actual MSI module.
 They verify 100-frame replacement during startup, replacement during a slow
@@ -102,3 +102,22 @@ write, owner event-loop responsiveness, pacing without catch-up, stop during
 I/O/startup, old-generation rejection, explicit reconnect, factory/input/write
 faults and worker-thread teardown. These do not qualify physical USB timing,
 a hung OS driver, unplug notification or actual device behavior.
+
+## GUI authorization and presence
+
+View > Hardware output starts one scheduler per endpoint after process-conflict
+resolution, fresh exact-path/profile discovery and an explicit report review.
+A memory-only transport serializes initial reports with the real module; no HID
+handle is opened for this proof. The dialog requires a consent checkbox. Worker
+factories revalidate discovery and serialized bytes before opening the exact path.
+Consent covers subsequent RGB frames for the listed software channels. MSI 0x50
+includes all 18 zones; existing unassigned zone settings are not preserved.
+
+Document revisions are checked before submitting preview frames; edits/load/undo
+stop output, including edits during a modal review. Selected-channel preview does
+not alter other output channels. Faults stop all endpoint workers. Presence is
+re-enumerated approximately once per second, including idle native-only sessions;
+a disappeared endpoint faults the worker. No automatic reconnect occurs. Stop
+sends no restore/off command. Tray Stop and accepted window close stop workers.
+Tests use fake transports and memory-only report proof; physical USB behavior,
+calibration and clean-machine deployment remain unqualified.

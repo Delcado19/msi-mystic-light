@@ -1,5 +1,20 @@
 # Implementation status
 
+## GUI output, channel scopes and session completion (2026-10-23)
+
+- Explicit conflict/discovery/report-consent output gate; exact-path worker-owned
+  transports, revision invalidation, presence polling and explicit reconnect.
+- Schema 9 layer channel targets and per-channel rate/offset; targeted preview.
+- Atomic autosave/recovery, last project/window restore, single instance and tray.
+- Windows HIDAPI imported target now models the runtime DLL transitively; deployment
+  regression checks compare app/test DLL hashes with the SDK. Start-Lighting.cmd
+  selects the complete Release folder instead of the obsolete root executable.
+- Release and Debug: 14/14 CTest passed in each configuration. Native editor 27/27 and output UI 6/6 passed
+  using fake transports. No physical HID writes or process termination performed.
+- Freshly zipped/extracted Release --inspect exited 0 with only Windows on PATH.
+- Physical calibration/device behavior and clean-machine VC runtime remain unqualified.
+
+
 ## Worker output scheduler (2026-10-23)
 
 - Added OutputScheduler: QObject control/status with one standard-library worker,

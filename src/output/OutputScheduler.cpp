@@ -13,7 +13,7 @@ OutputScheduler::Status OutputScheduler::status() const
 {
     const std::lock_guard<std::mutex> lock(mutex_); return status_;
 }
-quint64 OutputScheduler::start(SessionFactory factory)
+quint64 OutputScheduler::start(SessionFactory factory, std::function<bool()> present)
 {
     Q_ASSERT(QThread::currentThread() == thread());
     if (!factory) return 0;
@@ -28,7 +28,7 @@ quint64 OutputScheduler::start(SessionFactory factory)
         pending_.reset(); stopRequested_.store(false);
         status_.state = State::Starting; status_.error.clear(); generation = ++status_.generation;
     }
-    try { worker_ = std::thread([this, factory = std::move(factory)]() mutable { run(std::move(factory)); }); }
+    try { worker_ = std::thread([this, factory = std::move(factory), present = std::move(present)]() mutable { run(std::move(factory), std::move(present)); }); }
     catch (const std::exception& error) { finish(State::Faulted, QString::fromUtf8(error.what())); return 0; }
     emit statusChanged(); return generation;
 }
@@ -58,7 +58,7 @@ void OutputScheduler::finish(State state, const QString& error)
     }
     emit statusChanged();
 }
-void OutputScheduler::run(SessionFactory factory)
+void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
 {
     std::unique_ptr<OutputSession> session;
     QString error;
@@ -73,6 +73,7 @@ void OutputScheduler::run(SessionFactory factory)
                 if (!stopRequested_.load()) status_.state = State::Running;
             }
             emit statusChanged();
+            auto nextPresence = std::chrono::steady_clock::now() + std::chrono::seconds(1);
             while (!stopRequested_.load()) {
                 std::optional<OutputFrame> frame;
                 {
@@ -81,6 +82,10 @@ void OutputScheduler::run(SessionFactory factory)
                     wake_.wait_for(lock, std::chrono::milliseconds(33), [this] { return stopRequested_.load(); });
                     if (stopRequested_.load()) break;
                     frame = std::move(pending_); pending_.reset();
+                }
+                if (present && std::chrono::steady_clock::now() >= nextPresence) {
+                    if (!present()) { error = "Selected endpoint disappeared or changed identity"; break; }
+                    nextPresence = std::chrono::steady_clock::now() + std::chrono::seconds(1);
                 }
                 if (frame && !session->stage(std::move(*frame))) { error = session->error(); break; }
                 if (!session->flush([this] { return stopRequested_.load(); })) { error = session->error(); break; }

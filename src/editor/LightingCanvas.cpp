@@ -16,15 +16,15 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
     setAccessibleName(context == Context::Layout ? "Component layout canvas" : "Effect and layer mask canvas");
     connect(&document_, &LightingDocument::changed, this, [this] {
         cancelGesture();
-        rendered_ = document_.render(seconds_);
+        rendered_ = LightingDocument::render(document_.state(),seconds_,previewChannel_);
         update();
     });
-    rendered_ = document_.render(seconds_);
+    rendered_ = LightingDocument::render(document_.state(),seconds_,previewChannel_);
 }
 
-void LightingCanvas::setPreviewFrame(const QImage& frame, double seconds)
+void LightingCanvas::setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel)
 {
-    seconds_ = seconds; rendered_ = frame; update();
+    seconds_ = seconds; previewChannel_=channel; rendered_ = frame; update();
 }
 
 QPointF LightingCanvas::offset() const
@@ -72,7 +72,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         if (workingEffect_) {
             auto state=document_.state();
             for (auto& layer : state.layers) if (layer.id==selected_) layer=*workingEffect_;
-            frame=LightingDocument::render(state,seconds_);
+            frame=LightingDocument::render(state,seconds_,previewChannel_);
         }
         if (maskTarget_) {
             auto state=document_.state();
@@ -80,12 +80,12 @@ void LightingCanvas::paintEvent(QPaintEvent*)
                 if (!workingMask_.isNull()) layer.mask=workingMask_;
                 layer.warp=0; layer.maskLinked=false;
             }
-            frame=LightingDocument::render(state,0); // Paint the base mask, without animated spatial distortion.
+            frame=LightingDocument::render(state,0,previewChannel_); // Paint the base mask, without animated spatial distortion.
         }
         if (!workingMask_.isNull() && !maskTarget_) {
             auto state = document_.state();
             for (auto& layer : state.layers) if (layer.id == selected_) layer.mask = workingMask_;
-            frame = LightingDocument::render(state, seconds_);
+            frame = LightingDocument::render(state, seconds_,previewChannel_);
         }
         if (showMask_ && maskTarget_) {
             for (const auto& layer : document_.state().layers)

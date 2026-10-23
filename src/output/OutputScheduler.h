@@ -17,14 +17,14 @@ public:
     using SessionFactory = std::function<std::unique_ptr<OutputSession>()>;
     explicit OutputScheduler(QObject* parent = nullptr);
     ~OutputScheduler() override;
-    quint64 start(SessionFactory factory); // Zero means already active or no factory.
+    quint64 start(SessionFactory factory, std::function<bool()> present = {}); // Zero means already active or no factory.
     bool submit(quint64 generation, OutputFrame frame);
     void stop(); // Nonblocking; an in-flight factory/module call may finish.
     Status status() const;
 signals:
     void statusChanged(); // Read status(); queued notifications may refer to an older generation.
 private:
-    void run(SessionFactory factory);
+    void run(SessionFactory factory, std::function<bool()> present);
     void finish(State state, const QString& error = {});
     mutable std::mutex mutex_;
     std::condition_variable wake_;

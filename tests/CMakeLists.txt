@@ -69,9 +69,20 @@ add_test(NAME output_session COMMAND test_output)
 add_test(NAME output_scheduler COMMAND test_scheduler)
 set_tests_properties(output_session output_scheduler PROPERTIES TIMEOUT 30)
 
+add_executable(test_output_ui output/test_output_ui.cpp)
+target_link_libraries(test_output_ui PRIVATE lighting_output_ui msi_protocol Qt6::Test)
+target_compile_definitions(test_output_ui PRIVATE
+    TEST_MODULE_PATH="$<TARGET_FILE:msi_gen1_module>"
+    TEST_PROFILE_PATH="${PROJECT_SOURCE_DIR}/profiles/msi-mpg-b850-edge-ti-wifi.json"
+    TEST_ARTIFACT_DIR="${CMAKE_BINARY_DIR}/editor-artifacts")
+add_dependencies(test_output_ui msi_gen1_module)
+add_test(NAME output_ui COMMAND test_output_ui)
+set_tests_properties(output_ui PROPERTIES TIMEOUT 30
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
+
 if(WIN32)
     # Test executables must run without inheriting a Qt SDK PATH from the shell.
-    foreach(test_target IN ITEMS test_msi_protocol test_hid_backend test_modules test_components test_startup test_editor test_output test_scheduler)
+    foreach(test_target IN ITEMS test_msi_protocol test_hid_backend test_modules test_components test_startup test_editor test_output test_scheduler test_output_ui)
         add_custom_command(TARGET ${test_target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_RUNTIME_DLLS:${test_target}> $<TARGET_FILE_DIR:${test_target}>
@@ -84,4 +95,12 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:test_editor>/imageformats"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin> "${WEBP_PLUGIN}"
             "$<TARGET_FILE_DIR:test_editor>/imageformats")
+endif()
+
+if(WIN32)
+    add_test(NAME hidapi_runtime_deployment COMMAND ${CMAKE_COMMAND}
+        "-DAPP_DLL=$<TARGET_FILE_DIR:msi_mystic_light>/hidapi.dll"
+        "-DTEST_DLL=$<TARGET_FILE_DIR:test_output_ui>/hidapi.dll"
+        "-DSOURCE_DLL=${HIDAPI_RUNTIME_DLL}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_hidapi_runtime.cmake")
 endif()

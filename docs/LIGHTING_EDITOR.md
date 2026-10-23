@@ -1,4 +1,4 @@
-# Offline lighting editor
+# Lighting editor
 
 Launch `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
 Normal startup runs the existing process-conflict dialog first. Neither editor
@@ -134,12 +134,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 8, including placements, ordered layer
+Save/Open uses `.lighting.json` schema 9, including placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..7 remain readable with their original
+and advanced persistence. Schemas 1..8 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 8; older versions reject it instead of silently losing effects.
+schema 9; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -250,10 +250,31 @@ older schema numbers are rejected. At most 256 assignments are allowed, one per
 endpoint/channel; one endpoint cannot use conflicting profiles. Stored endpoint
 paths identify intended targets, not verified connections or permission to write.
 
-`sampleChannels(frame)` returns only software assignments, keyed by assignment
-UUID, using one supplied composed canvas. It concatenates each instance's local
-wire-order RGB values in chain order; it does not apply the wire permutation a
-second time. Native assignments are absent. This increment uses the shared full
-composition for every software channel. Per-layer channel targeting, independent
-channel timelines, transport connections, scheduling/calibration and output are
-separate work; saving staged native settings does not run an effect on a device.
+`sampleChannels(frame, seconds)` returns software channel samples in physical wire
+order. Default channels share the supplied composition; scoped layers or custom
+clocks render a channel-specific composition before sampling.
+
+## Channel targets and clocks (schema 9)
+
+Each layer targets all software channels, or an explicit list of assignment UUIDs.
+An empty explicit list targets none. Removing a channel or converting it to Native
+removes its UUID without broadening a layer to all channels. Unknown/duplicate
+UUIDs are rejected. Each software channel has rate 0..10 and offset 0..86400 seconds;
+local time is clamped to 0..86400. Rate zero holds the offset frame. The preview
+selector shows all layers or the selected channel's composition and local clock.
+Geometry/mask authoring returns to the global base frame.
+Schema 9 stores layer targets and channel clocks; schemas 1..8 migrate to all
+channels and rate 1/offset 0. New fields under older schema numbers are rejected.
+
+## Session and output
+
+Dirty projects are atomically autosaved after a two-second debounce without
+marking undo history clean. Startup offers recovery and restores the last project,
+window and docks. Recovered documents remain unsaved. A single-instance lock
+protects the session. The tray offers Show editor, Stop output and Quit; hiding
+is explicit, and normal closing retains the unsaved-project prompt.
+
+Assignments and preview alone never open devices. Use View > Hardware output to
+review exact initial reports and explicitly start. Document edits/load/undo stop
+output; restart requires review. See [output session](OUTPUT_SESSION.md). No
+physical calibration or device-behavior qualification is claimed.

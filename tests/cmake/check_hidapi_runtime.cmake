@@ -1,0 +1,11 @@
+# Catch missing/wrong DLL deployment even when the developer PATH hides the problem.
+file(SHA256 "${SOURCE_DLL}" expected)
+foreach(path IN ITEMS "${APP_DLL}" "${TEST_DLL}")
+    if(NOT EXISTS "${path}")
+        message(FATAL_ERROR "HIDAPI runtime is missing beside executable: ${path}")
+    endif()
+    file(SHA256 "${path}" actual)
+    if(NOT actual STREQUAL expected)
+        message(FATAL_ERROR "HIDAPI runtime does not match the linked SDK: ${path}")
+    endif()
+endforeach()

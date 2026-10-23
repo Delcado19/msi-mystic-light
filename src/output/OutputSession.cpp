@@ -35,9 +35,9 @@ void validateFrame(const OutputFrame& frame, const DeviceIdentity& identity, con
 }
 }
 
-QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed)
+QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds)
 {
-    const auto sampled = document.sampleChannels(composed);
+    const auto sampled = document.sampleChannels(composed,seconds);
     QVector<OutputFrame> result;
     for (const auto& assignment : document.state().assignments) {
         int index = 0;

@@ -18,7 +18,7 @@ public:
     void setBrush(double radius, double hardness, double opacity, int gray);
     void setShowMask(bool show) { showMask_ = show; update(); }
     void setCropTool(bool enabled) { cancelGesture(); cropTool_ = enabled; update(); }
-    void setPreviewFrame(const QImage& frame, double seconds);
+    void setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel = {});
     QPointF canvasPoint(QPointF viewport) const;
 signals:
     void selectionChanged();
@@ -39,7 +39,7 @@ private:
     LightingDocument& document_;
     Context context_;
     QImage rendered_, workingMask_;
-    QUuid selected_;
+    QUuid selected_, previewChannel_;
     bool maskTarget_ = false, showMask_ = false, dragging_ = false, panning_ = false;
     MaskTool tool_ = MaskTool::Brush;
     QPointF start_, last_, origin_, pan_;

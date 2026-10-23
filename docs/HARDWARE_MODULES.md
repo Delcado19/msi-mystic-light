@@ -23,7 +23,7 @@ the current loader does not execute SignalRGB JavaScript or QML.
   native effect settings or RGB samples into hardware reports.
 - Component definitions describe attached products and LED geometry, not a
   controller's USB protocol. Their data-only parser and channel mapping are implemented; an editor and
-  persisted channel assignments are pending. They do not require a native plugin.
+  persisted channel assignments are implemented. They do not require a native plugin.
 - Effects and UI must use the generic `IDriver` and `RgbColor` types, not MSI
   protocol enums. Native effect IDs and supported channel modes come from the
   selected profile; the plugin validates them again before writing.
@@ -177,7 +177,7 @@ checks. App tests verify the bundled catalog and missing-directory diagnostics.
 
 Run the executable with `--scan` to read OS board identity, enumerate HID
 endpoints and list all matching profile/endpoint pairs. Without `--scan`,
-startup validates local catalogs and opens the offline editor. No path opens devices or sends
+startup validates local catalogs and opens the offline editor. Startup and scan do not open devices or send
 probe/lighting reports. Descriptor usage/interface values are retained;
 missing interface numbers remain -1. Empty paths are excluded.
 
@@ -191,7 +191,7 @@ Matching preserves every candidate, including multiple interfaces for one
 profile and multiple profiles for one endpoint. There is no automatic
 first-match selection or inferred interface qualification. Profiles must
 provide verified selectors where available. The editor offers explicit staged
-candidate selection; connection after conflict resolution is still pending. `HidApiDevice::openPath` is
+candidate selection; explicit connection after conflict resolution and report consent is implemented. `HidApiDevice::openPath` is
 implemented and tested with doubles but is not called by startup or scan.
 The legacy VID/PID open remains for existing callers; production integration
 must use the selected exact path. Re-enumerate after unplug/replug.
@@ -244,3 +244,5 @@ coalesces frames and checks stop requests between channel calls. The live app
 does not yet connect this backend to hardware.
 See [OUTPUT_SESSION.md](OUTPUT_SESSION.md) for lifecycle, validation and remaining
 connection/confirmation and physical qualification work.
+
+Live output uses the reviewed exact-path connection gate described in [OUTPUT_SESSION.md](OUTPUT_SESSION.md). Physical protocol qualification remains pending.

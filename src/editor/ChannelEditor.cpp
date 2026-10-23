@@ -9,6 +9,7 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QVBoxLayout>
 #include <stdexcept>
 
@@ -27,6 +28,11 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     if (!channel.nativeModes.isEmpty()) mode->addItem("Native firmware", false);
     if (channel.direct) mode->addItem("Software canvas", true);
     mode->setCurrentIndex(mode->findData(initial_.software)); form->addRow("Output mode", mode);
+    auto* rate=new QDoubleSpinBox; rate->setObjectName("channelRate"); rate->setRange(0,10); rate->setDecimals(3); rate->setValue(initial_.timeScale);
+    auto* offset=new QDoubleSpinBox; offset->setObjectName("channelOffset"); offset->setRange(0,86400); offset->setDecimals(3); offset->setValue(initial_.timeOffset);
+    form->addRow("Clock rate (0 holds)",rate); form->addRow("Clock offset s",offset);
+    auto clockEnabled=[mode,rate,offset] { rate->setEnabled(mode->currentData().toBool()); offset->setEnabled(mode->currentData().toBool()); };
+    connect(mode,&QComboBox::currentIndexChanged,this,clockEnabled); clockEnabled();
     auto* native = new QWidget; auto* nativeForm = new QFormLayout(native); layout->addWidget(native);
     auto* effect = new QComboBox; effect->setObjectName("nativeMode"); effect->addItems(channel.nativeModes);
     effect->setCurrentIndex(qMax(0, effect->findText(initial_.native.id))); nativeForm->addRow("Firmware effect", effect);
@@ -92,6 +98,8 @@ ChannelAssignment ChannelEditor::assignment() const
     const auto* mode = findChild<QComboBox*>("channelMode");
     if(mode->currentIndex()<0) throw std::invalid_argument("Choose a supported channel mode");
     result.software=mode->currentData().toBool();
+    result.timeScale=findChild<QDoubleSpinBox*>("channelRate")->value();
+    result.timeOffset=findChild<QDoubleSpinBox*>("channelOffset")->value();
     result.native.id=findChild<QComboBox*>("nativeMode")->currentText();
     result.native.brightness=findChild<QSpinBox*>("nativeBrightness")->value();
     result.native.speed=findChild<QSpinBox*>("nativeSpeed")->value();

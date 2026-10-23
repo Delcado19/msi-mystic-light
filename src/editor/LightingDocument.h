@@ -29,6 +29,8 @@ struct EffectLayer {
     QVector<QColor> colorCycle{Qt::red, Qt::green, Qt::blue};
     QRectF crop{0, 0, 1, 1}; // Normalized, non-destructive source-image selection.
     bool maskLinked = false;
+    bool allChannels = true;
+    QVector<QUuid> channelTargets; // Empty with allChannels=false means no hardware target, not all.
     bool visible = true;
     int transparency = 0;
     LayerBlend blend = LayerBlend::Normal;
@@ -59,6 +61,7 @@ public:
     const ComponentCatalog& catalog() const { return state_.components; }
     const LightingState& state() const { return state_; }
     const QVector<DeviceProfile>& profiles() const { return profiles_; }
+    quint64 revision() const { return revision_; }
     QUndoStack* history() { return &history_; }
     void edit(const QString& label, const std::function<void(LightingState&)>& operation);
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
@@ -70,11 +73,13 @@ public:
     // Per-instance wire order, opaque RGB over black; caller may reuse one composed frame.
     QMap<QUuid, QVector<QColor>> sampleComponents(const QImage& frame) const;
     void assignChannel(const ChannelAssignment& assignment);
-    QMap<QUuid, QVector<QColor>> sampleChannels(const QImage& frame) const;
+    QMap<QUuid, QVector<QColor>> sampleChannels(const QImage& frame, double seconds = 0) const;
+    double channelTime(const QUuid& assignment, double seconds) const;
+    QImage renderForChannel(const QUuid& assignment, double seconds) const;
     QImage render(double seconds = 0) const;
-    static QImage render(const LightingState& state, double seconds = 0);
+    static QImage render(const LightingState& state, double seconds = 0, const QUuid& channel = {});
     static QImage whiteMask();
-    void save(const QString& fileName);
+    void save(const QString& fileName, bool markClean = true);
     void load(const QString& fileName);
     static void paintMask(QImage& mask, QPointF from, QPointF to,
         double radius, double hardness, double opacity, int gray);
@@ -87,4 +92,5 @@ private:
     const ComponentCatalog initialCatalog_;
     LightingState state_;
     QUndoStack history_;
+    quint64 revision_ = 0; // Session-only monotonic invalidation for confirmed output snapshots.
 };

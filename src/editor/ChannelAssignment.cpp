@@ -42,6 +42,9 @@ void validateChannelAssignments(const LightingState& state, const QVector<Device
             assignment.native.brightness < 0 || assignment.native.brightness > 5 ||
             assignment.native.speed < 0 || assignment.native.speed > 2)
             throw std::invalid_argument("Invalid native colors, brightness or speed");
+        if (!std::isfinite(assignment.timeScale) || assignment.timeScale < 0 || assignment.timeScale > 10 ||
+            !std::isfinite(assignment.timeOffset) || assignment.timeOffset < 0 || assignment.timeOffset > 86400)
+            throw std::invalid_argument("Invalid channel clock");
         QStringList components;
         for (const auto& id : assignment.placements) {
             if (usedPlacements.contains(id)) throw std::invalid_argument("A component instance can belong to only one channel");
@@ -56,6 +59,16 @@ void validateChannelAssignments(const LightingState& state, const QVector<Device
         // Native channels may have no geometry; an explicit chain must satisfy the physical capacity.
         if (!components.isEmpty() || assignment.software) channelMapping(channel, components, state.components);
     }
+    for (const auto& layer : state.layers) {
+        if (layer.allChannels && !layer.channelTargets.isEmpty()) throw std::invalid_argument("Global layer cannot also list channel targets");
+        QSet<QUuid> targets;
+        for (const auto& id : layer.channelTargets) {
+            bool found=false;
+            for (const auto& assignment : state.assignments) if (assignment.id==id && assignment.software) found=true;
+            if (!found || targets.contains(id)) throw std::invalid_argument("Invalid or duplicate layer channel target");
+            targets.insert(id);
+        }
+    }
 }
 QJsonObject channelAssignmentJson(const ChannelAssignment& assignment)
 {
@@ -65,10 +78,11 @@ QJsonObject channelAssignmentJson(const ChannelAssignment& assignment)
     return {{"id", assignment.id.toString()}, {"endpoint", assignment.endpoint},
         {"profileId", assignment.profileId}, {"channelId", assignment.channelId},
         {"software", assignment.software}, {"placements", placements},
+        {"timeScale", assignment.timeScale}, {"timeOffset", assignment.timeOffset},
         {"native", QJsonObject{{"id", assignment.native.id}, {"colors", colors},
             {"brightness", assignment.native.brightness}, {"speed", assignment.native.speed}, {"inward", assignment.native.inward}}}};
 }
-ChannelAssignment parseChannelAssignment(const QJsonObject& json)
+ChannelAssignment parseChannelAssignment(const QJsonObject& json, int schema)
 {
     for (const auto& key : {"id", "endpoint", "profileId", "channelId"})
         if (!json.value(key).isString()) throw std::invalid_argument("Invalid assignment string");
@@ -78,6 +92,10 @@ ChannelAssignment parseChannelAssignment(const QJsonObject& json)
     result.id = QUuid(json.value("id").toString()); result.endpoint = json.value("endpoint").toString();
     result.profileId = json.value("profileId").toString(); result.channelId = json.value("channelId").toString();
     result.software = json.value("software").toBool();
+    if (schema >= 9) {
+        if (!json.value("timeScale").isDouble() || !json.value("timeOffset").isDouble()) throw std::invalid_argument("Invalid channel clock fields");
+        result.timeScale=json.value("timeScale").toDouble(); result.timeOffset=json.value("timeOffset").toDouble();
+    } else if (json.contains("timeScale") || json.contains("timeOffset")) throw std::invalid_argument("Channel clocks require schema 9");
     const auto placements = json.value("placements").toArray();
     if (placements.size() > 256) throw std::invalid_argument("Assignment chain too long");
     for (const auto& entry : placements) {

@@ -9,10 +9,22 @@
 #include "discovery/HardwareDiscovery.h"
 #include "startup/ConflictDialog.h"
 #include "editor/LightingWindow.h"
+#include "output/HardwareOutput.h"
+#include <QDockWidget>
+#include <QMenuBar>
+#include <QMenu>
+#include <QMessageBox>
+#include <QSettings>
+#include <QStandardPaths>
+#include <QSystemTrayIcon>
+#include <QStyle>
+#include <QLockFile>
+#include "editor/AppSession.h"
 
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
+    app.setOrganizationName("Delcado");
     app.setApplicationName("MSI Mystic Light Standalone");
     QCommandLineParser parser;
     parser.addHelpOption();
@@ -24,7 +36,7 @@ int main(int argc, char** argv)
         QCoreApplication::applicationDirPath() + "/components"});
     parser.addOption({"scan", "List HID endpoints and matching board profiles without opening devices."});
     parser.addOption({"inspect", "Validate local catalogs only; do not show the startup conflict dialog."});
-    parser.addOption({"editor", "Open the offline lighting editor without the process conflict dialog."});
+    parser.addOption({"editor", "Open the editor without the startup conflict dialog; live output still requires review."});
     parser.process(app);
     if (!parser.isSet("inspect") && !parser.isSet("scan") && !parser.isSet("editor")) {
         SystemConflictProcesses processes;
@@ -95,11 +107,45 @@ int main(int argc, char** argv)
     }
     if (failed) return 1;
     if (parser.isSet("inspect") || parser.isSet("scan")) return 0;
-    // The editor and its explicit scan are offline/read-only. Future hardware
-    // connection must pass the conflict gate even when started with --editor.
+    // --editor skips only the startup conflict dialog; every live output start has its own gate.
+    const auto sessionDirectory=QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if(!QDir().mkpath(sessionDirectory)) { QMessageBox::warning(nullptr,"Startup failed","Cannot create session directory"); return 1; }
+    QLockFile instance(sessionDirectory+"/application.lock"); instance.setStaleLockTime(0);
+    if(!instance.tryLock()) {
+        if(instance.error()==QLockFile::LockFailedError) QMessageBox::information(nullptr,"Already running","Another instance owns the lighting session. Open it from the tray.");
+        else QMessageBox::warning(nullptr,"Startup failed","Cannot lock the session directory");
+        return 1;
+    }
+    QSettings settings;
     LightingWindow window(catalog, [availableProfiles] {
         return findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
     }, nullptr, availableProfiles);
+    auto* outputDock=new QDockWidget("Hardware output",&window);
+    outputDock->setObjectName("hardwareOutputDock");
+    auto* outputPanel=new OutputPanel(window,[availableProfiles,directory=parser.value("module-dir")](QWidget* parent,const QVector<OutputFrame>& frames) {
+        return authorizeHardwareOutput(parent,availableProfiles,frames,directory);
+    },outputDock);
+    outputDock->setWidget(outputPanel);
+    window.addDockWidget(Qt::BottomDockWidgetArea,outputDock);
+    outputDock->setVisible(false);
+    auto* view=window.menuBar()->addMenu("View"); view->addAction(outputDock->toggleViewAction());
+    QSystemTrayIcon tray(window.style()->standardIcon(QStyle::SP_ComputerIcon),&window);
+    tray.setToolTip("MSI Mystic Light");
+    auto* trayMenu=new QMenu(&window);
+    auto show=[&window] { window.showNormal(); window.raise(); window.activateWindow(); };
+    QObject::connect(trayMenu->addAction("Show editor"),&QAction::triggered,&window,show);
+    QObject::connect(trayMenu->addAction("Stop output"),&QAction::triggered,outputPanel,&OutputPanel::stopOutput);
+    QObject::connect(trayMenu->addAction("Quit"),&QAction::triggered,&window,&QWidget::close);
+    tray.setContextMenu(trayMenu);
+    QObject::connect(&tray,&QSystemTrayIcon::activated,&window,[show](QSystemTrayIcon::ActivationReason reason) { if(reason==QSystemTrayIcon::DoubleClick) show(); });
+    if(QSystemTrayIcon::isSystemTrayAvailable()) {
+        tray.show(); QObject::connect(view->addAction("Hide to tray"),&QAction::triggered,&window,&QWidget::hide);
+    }
+    AppSession session(window,settings,QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)+"/recovery.lighting.json");
+    session.restore([&window] {
+        return QMessageBox::question(&window,"Recover unsaved project","Recover the unsaved project from the previous session?",
+            QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes)==QMessageBox::Yes;
+    });
     window.show();
     return app.exec();
 }

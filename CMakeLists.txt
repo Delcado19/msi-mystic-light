@@ -47,7 +47,7 @@ if(WIN32)
     target_link_libraries(lighting_startup PRIVATE user32)
 endif()
 
-add_library(lighting_editor src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
+add_library(lighting_editor src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
 target_include_directories(lighting_editor PUBLIC src)
 target_link_libraries(lighting_editor PUBLIC lighting_modules Qt6::Widgets)
 
@@ -55,9 +55,13 @@ add_library(lighting_output src/output/OutputSession.cpp src/output/OutputSchedu
 target_include_directories(lighting_output PUBLIC src)
 target_link_libraries(lighting_output PUBLIC lighting_editor Threads::Threads)
 
+add_library(lighting_output_ui src/output/OutputPanel.cpp src/output/HardwareOutput.cpp)
+target_include_directories(lighting_output_ui PUBLIC src)
+target_link_libraries(lighting_output_ui PUBLIC lighting_output lighting_startup msi_hid)
+
 add_executable(msi_mystic_light src/main.cpp)
 set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
-target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor)
+target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor lighting_output_ui)
 add_dependencies(msi_mystic_light msi_gen1_module)
 if(WIN32)
     # A matching SDK plugin is preferred; the documented source build supplies SDKs without ImageFormats.
@@ -71,14 +75,7 @@ if(WIN32)
         message(FATAL_ERROR "Install matching Qt ImageFormats plugins, or run tools/build-webp.ps1 from a VS developer shell")
     endif()
     set(WEBP_PLUGIN "$<IF:$<CONFIG:Debug>,${WEBP_PLUGIN_DEBUG},${WEBP_PLUGIN_RELEASE}>")
-    # HIDAPI is an imported .lib; CMake cannot infer its sibling runtime DLL.
-    get_filename_component(HIDAPI_LIBRARY_DIR "${hidapi_LIBRARY}" DIRECTORY)
-    find_file(HIDAPI_RUNTIME_DLL NAMES hidapi.dll HINTS "${HIDAPI_LIBRARY_DIR}" "${HIDAPI_LIBRARY_DIR}/../bin")
-    if(NOT HIDAPI_RUNTIME_DLL)
-        message(FATAL_ERROR "Set HIDAPI_RUNTIME_DLL to the HIDAPI DLL matching hidapi_LIBRARY")
-    endif()
     add_custom_command(TARGET msi_mystic_light POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${HIDAPI_RUNTIME_DLL}" $<TARGET_FILE_DIR:msi_mystic_light>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:msi_mystic_light> $<TARGET_FILE_DIR:msi_mystic_light>
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:msi_mystic_light>/platforms"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QWindowsIntegrationPlugin>
@@ -91,7 +88,7 @@ if(WIN32)
             "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/third_party/licenses"
             "$<TARGET_FILE_DIR:msi_mystic_light>/third_party/licenses"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md" "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/PORTABLE_README.txt"
             "$<TARGET_FILE_DIR:msi_mystic_light>")
 endif()
 
