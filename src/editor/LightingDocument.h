@@ -1,6 +1,7 @@
 #pragma once
 
 #include "components/ComponentCatalog.h"
+#include "EffectRenderer.h"
 #include <QColor>
 #include <QImage>
 #include <QObject>
@@ -13,9 +14,16 @@ struct EffectLayer {
     QUuid id = QUuid::createUuid();
     QString name = "Static Color";
     QColor color = Qt::white;
+    EffectKind effect = EffectKind::StaticColor;
+    QColor secondaryColor = Qt::black;
+    QPointF center{320, 200};
+    QSizeF extent{240, 240};
+    double rotation = 0;
+    int repetitions = 4;
     bool visible = true;
     int transparency = 0;
     LayerBlend blend = LayerBlend::Normal;
+    // shortcut: masks stay in canvas coordinates; add linked transforms with on-canvas effect handles.
     QImage mask;
     bool maskEnabled = true;
 };
@@ -39,7 +47,7 @@ public:
     const LightingState& state() const { return state_; }
     QUndoStack* history() { return &history_; }
     void edit(const QString& label, const std::function<void(LightingState&)>& operation);
-    QUuid addLayer();
+    QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
     QUuid addComponent(const QString& componentId);
     QImage render() const;
     static QImage render(const LightingState& state);

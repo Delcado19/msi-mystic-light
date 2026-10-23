@@ -17,6 +17,7 @@
 #include <QScrollArea>
 #include <QSlider>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTabWidget>
@@ -154,9 +155,15 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* effectPanel = new QWidget;
     auto* effectControls = new QVBoxLayout(effectPanel);
     addPanel(effectPanel);
-    button(effectControls, "New layer · Static Color", [this] {
+    auto* newEffect = new QComboBox;
+    newEffect->setObjectName("newEffectType");
+    for (const auto& definition : effectDefinitions())
+        newEffect->addItem(definition.label, static_cast<int>(definition.kind));
+    effectControls->addWidget(newEffect);
+    button(effectControls, "New layer", [this, newEffect] {
         if (document_.state().layers.size() >= 64) { statusBar()->showMessage("Document limit: 64 layers."); return; }
-        selectedLayer_ = document_.addLayer();
+        editingMask_ = false;
+        selectedLayer_ = document_.addLayer(static_cast<EffectKind>(newEffect->currentData().toInt()));
         refresh();
     });
     auto* tree = new LayerTree;
@@ -252,10 +259,59 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     color_ = button(effectControls, "Effect color…", [this] {
         for (const auto& layer : document_.state().layers) if (layer.id == selectedLayer_) {
-            const auto color = QColorDialog::getColor(layer.color, this, "Static Color");
+            const auto color = QColorDialog::getColor(layer.color, this, "Effect color", QColorDialog::ShowAlphaChannel);
             if (color.isValid()) updateLayer("Effect color", [color](auto& changed) { changed.color = color; });
             break;
         }
+    });
+    secondaryColor_ = button(effectControls, "Second gradient color…", [this] {
+        for (const auto& layer : document_.state().layers) if (layer.id == selectedLayer_) {
+            const auto color = QColorDialog::getColor(layer.secondaryColor, this, "Second gradient color", QColorDialog::ShowAlphaChannel);
+            if (color.isValid()) updateLayer("Gradient color", [color](auto& changed) { changed.secondaryColor = color; });
+            break;
+        }
+    });
+    effectType_ = new QComboBox;
+    effectType_->setObjectName("selectedEffectType");
+    for (const auto& definition : effectDefinitions())
+        effectType_->addItem(definition.label, static_cast<int>(definition.kind));
+    effectControls->addWidget(effectType_);
+    connect(effectType_, &QComboBox::currentIndexChanged, this, [this](int) {
+        const auto kind = static_cast<EffectKind>(effectType_->currentData().toInt());
+        updateLayer("Change effect type", [kind](auto& layer) {
+            if (layer.name == effectDefinition(layer.effect).label) layer.name = effectDefinition(kind).label;
+            layer.effect = kind;
+        });
+    });
+    geometryControls_ = new QWidget;
+    auto* geometryForm = new QFormLayout(geometryControls_);
+    geometryForm->setContentsMargins(0, 0, 0, 0);
+    const QStringList geometryLabels{"Center X", "Center Y", "Width", "Height", "Rotation °"};
+    for (int i = 0; i < geometryLabels.size(); ++i) {
+        auto* value = new QDoubleSpinBox;
+        value->setObjectName("effectGeometry" + QString::number(i));
+        value->setDecimals(1);
+        value->setKeyboardTracking(false);
+        value->setRange(i < 2 ? -10000 : i == 4 ? -360 : 1, i == 4 ? 360 : 10000);
+        geometry_.append(value);
+        geometryForm->addRow(geometryLabels[i], value);
+        connect(value, &QDoubleSpinBox::valueChanged, this, [this] {
+            const QPointF center(geometry_[0]->value(), geometry_[1]->value());
+            const QSizeF extent(geometry_[2]->value(), geometry_[3]->value());
+            const double rotation = geometry_[4]->value();
+            updateLayer("Effect geometry", [center, extent, rotation](auto& layer) {
+                layer.center = center; layer.extent = extent; layer.rotation = rotation;
+            });
+        });
+    }
+    effectControls->addWidget(geometryControls_);
+    repetitions_ = new QSpinBox;
+    repetitions_->setObjectName("effectRepetitions");
+    repetitions_->setRange(1, 64);
+    repetitions_->setPrefix("Repetitions: ");
+    effectControls->addWidget(repetitions_);
+    connect(repetitions_, &QSpinBox::valueChanged, this, [this](int value) {
+        updateLayer("Effect repetitions", [value](auto& layer) { layer.repetitions = value; });
     });
     effectTarget_ = button(effectControls, "Edit effect", [this] { editingMask_ = false; refreshProperties(); });
     maskTarget_ = button(effectControls, "Edit mask", [this] { editingMask_ = true; refreshProperties(); });
@@ -300,7 +356,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     button(effectControls, "Fill mask white", [this] { updateLayer("Reveal layer", [](auto& layer) { layer.mask.fill(255); }); });
     button(effectControls, "Fill mask black", [this] { updateLayer("Hide layer with mask", [](auto& layer) { layer.mask.fill(0); }); });
     button(effectControls, "Invert mask", [this] { updateLayer("Invert mask", [](auto& layer) { layer.mask.invertPixels(); }); });
-    auto* note = new QLabel("Static Color preview · all canvas pixels\nNo hardware output or channel assignments yet.\nWheel zooms; middle drag pans; Escape cancels strokes.");
+    auto* note = new QLabel("Offline effect preview\nNo hardware output or channel assignments yet.\nWheel zooms; middle drag pans; Escape cancels strokes.");
     note->setWordWrap(true);
     effectControls->addWidget(note);
     connect(tabs_, &QTabWidget::currentChanged, contexts, &QStackedWidget::setCurrentIndex);
@@ -330,9 +386,9 @@ void LightingWindow::refresh()
         item->setFlags((item->flags() | Qt::ItemIsEditable | Qt::ItemIsUserCheckable | Qt::ItemIsDragEnabled) & ~Qt::ItemIsDropEnabled);
         item->setCheckState(0, it->visible ? Qt::Checked : Qt::Unchecked);
         item->setData(0, Qt::UserRole, it->id);
-        item->setIcon(1, colorIcon(it->color));
+        item->setIcon(1, QIcon(QPixmap::fromImage(renderEffect(*it).scaled(40, 25, Qt::KeepAspectRatio, Qt::SmoothTransformation))));
         item->setIcon(2, QIcon(QPixmap::fromImage(it->mask.scaled(40, 25))));
-        item->setToolTip(1, "Select effect"); item->setToolTip(2, "Select grayscale mask");
+        item->setToolTip(1, "Select effect: " + effectDefinition(it->effect).label); item->setToolTip(2, "Select grayscale mask");
         if (it->id == selectedLayer_) { selected = &*it; layers_->setCurrentItem(item, editingMask_ ? 2 : 1); }
     }
     if (!selected) selectedLayer_ = {};
@@ -341,7 +397,7 @@ void LightingWindow::refresh()
 
 void LightingWindow::refreshProperties()
 {
-    QSignalBlocker blockTransparency(transparency_), blockBlend(blend_), blockMask(maskEnabled_);
+    QSignalBlocker blockTransparency(transparency_), blockBlend(blend_), blockMask(maskEnabled_), blockType(effectType_), blockRepeat(repetitions_);
     const EffectLayer* selected = nullptr;
     for (const auto& layer : document_.state().layers) if (layer.id == selectedLayer_) selected = &layer;
     effectsCanvas_->select(selectedLayer_);
@@ -349,6 +405,11 @@ void LightingWindow::refreshProperties()
     effectTarget_->setChecked(!editingMask_); maskTarget_->setChecked(editingMask_);
     for (QWidget* widget : std::initializer_list<QWidget*>{transparency_, blend_, color_, effectTarget_, maskTarget_, maskEnabled_})
         widget->setEnabled(selected != nullptr);
+    effectType_->setEnabled(selected && !editingMask_);
+    color_->setVisible(!editingMask_);
+    secondaryColor_->setVisible(selected && !editingMask_ && isGradient(selected->effect));
+    geometryControls_->setVisible(selected && !editingMask_ && selected->effect != EffectKind::StaticColor);
+    repetitions_->setVisible(selected && !editingMask_ && (selected->effect == EffectKind::Stripes || selected->effect == EffectKind::Waves));
     if (selected) {
         transparency_->setValue(selected->transparency);
         findChild<QLabel*>("transparencyValue")->setText(QString::number(selected->transparency) + "%");
@@ -356,6 +417,16 @@ void LightingWindow::refreshProperties()
         blend_->setCurrentIndex(static_cast<int>(selected->blend));
         color_->setIcon(colorIcon(selected->color));
         maskEnabled_->setChecked(selected->maskEnabled);
+        effectType_->setCurrentIndex(effectType_->findData(static_cast<int>(selected->effect)));
+        secondaryColor_->setIcon(colorIcon(selected->secondaryColor));
+        repetitions_->setValue(selected->repetitions);
+        const QVector<double> values{selected->center.x(), selected->center.y(), selected->extent.width(), selected->extent.height(), selected->rotation};
+        for (int i = 0; i < geometry_.size(); ++i) {
+            const QSignalBlocker block(geometry_[i]);
+            geometry_[i]->setValue(values[i]);
+        }
+        geometry_[3]->setEnabled(selected->effect != EffectKind::LinearGradient &&
+            selected->effect != EffectKind::Stripes && selected->effect != EffectKind::Waves);
     }
 }
 

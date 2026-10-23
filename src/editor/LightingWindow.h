@@ -11,6 +11,8 @@ class QSlider;
 class QCheckBox;
 class QPushButton;
 class QTabWidget;
+class QDoubleSpinBox;
+class QSpinBox;
 
 class LightingWindow : public QMainWindow {
     Q_OBJECT
@@ -31,6 +33,11 @@ private:
     QTabWidget* tabs_;
     QTreeWidget* layers_;
     QComboBox *catalog_, *blend_;
+    QComboBox* effectType_;
+    QPushButton* secondaryColor_;
+    QWidget* geometryControls_;
+    QVector<QDoubleSpinBox*> geometry_;
+    QSpinBox* repetitions_;
     QSlider* transparency_;
     QPushButton *color_, *effectTarget_, *maskTarget_;
     QCheckBox* maskEnabled_;

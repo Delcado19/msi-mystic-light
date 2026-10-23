@@ -1,5 +1,30 @@
 # Implementation status
 
+## Completed: gradient and shape effects (2026-10-23)
+
+- Published the previous offline editor/module/discovery/startup increment as
+  `4df635c` on origin/master and verified the remote hash.
+- Added five gradient types (linear, radial, conical, stripes, waves) and nine
+  shape types (circle, ring, star, heart, triangle, hexagon, diamond, cross,
+  moon). Static Color remains the default. All use the existing layer masks,
+  transparency and blend modes; shape edges are antialiased.
+- Effect creation/type selection, two gradient colors including alpha, numeric
+  center/size/rotation and stripe/wave repetitions are editable in Effects.
+  One shared type table supplies stable IDs and labels for UI and persistence.
+- Project schema 2 stores effect parameters and rejects unsupported types.
+  Schema 1 still loads as Static Color with existing layer/mask state preserved.
+  Failed migrations/parameter validation leave the live document untouched.
+- Masks currently remain in canvas coordinates when effect geometry changes.
+  Direct transform handles, mask linking, multistop gradients, images, motion,
+  particles, channel targets and hardware output remain pending. See
+  `docs/LIGHTING_EDITOR.md` for exact controls and format boundaries.
+- Validation: Release Ninja and Debug Ninja Multi-Config each passed 10/10
+  CTest entries. Native Windows editor tests passed 14/14 Qt Test cases
+  (including setup/cleanup); inspected the gradient/shape editor screenshot.
+  Tests cover every effect type, alpha interpolation, mask composition, numeric
+  controls, schema-1 migration, schema-2 round trips and atomic rejection of
+  unknown effects/invalid geometry. No devices were opened or written.
+
 ## Completed: first offline editor increment (2026-10-23)
 
 - Normal startup now opens a Qt Lighting window after the existing conflict

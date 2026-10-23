@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QComboBox>
 #include <QHeaderView>
+#include <QDoubleSpinBox>
 #include <QPushButton>
 #include <QSlider>
 #include <QTabWidget>
@@ -42,6 +43,9 @@ private slots:
     void explicitDiscovery();
     void documentPersistence();
     void layerPanelOperations();
+    void gradientAndShapeRendering();
+    void effectPersistenceAndLegacy();
+    void effectControls();
 };
 
 void EditorTest::rgbaAndMask()
@@ -250,7 +254,7 @@ void EditorTest::layerPanelOperations()
             if (button->text() == text) { button->click(); return; }
         QFAIL("Missing layer action");
     };
-    click("New layer · Static Color");
+    click("New layer");
     auto* tree = window.findChild<QTreeWidget*>("effectLayers");
     tree->topLevelItem(0)->setText(0, "Red wash");
     QTRY_COMPARE(window.document().state().layers[0].name, QString("Red wash"));
@@ -268,6 +272,150 @@ void EditorTest::layerPanelOperations()
     window.document().history()->undo();
     QCOMPARE(window.document().state().layers.size(), 2);
     QCOMPARE(tree->topLevelItemCount(), 2);
+    window.document().history()->setClean();
+}
+
+void EditorTest::gradientAndShapeRendering()
+{
+    auto effect = layer(Qt::red);
+    effect.secondaryColor = Qt::blue;
+    effect.effect = EffectKind::LinearGradient;
+    effect.extent = {640, 400};
+    auto image = renderEffect(effect);
+    QVERIFY(image.pixelColor(0, 200).red() > 253);
+    QVERIFY(image.pixelColor(639, 200).blue() > 253);
+    QVERIFY(std::abs(image.pixelColor(320, 200).red() - 128) <= 1);
+    effect.rotation = 90;
+    image = renderEffect(effect);
+    QCOMPARE(image.pixelColor(10, 200), image.pixelColor(600, 200));
+    QVERIFY(image.pixelColor(320, 0).red() > image.pixelColor(320, 399).red());
+    effect.rotation = 0;
+    effect.effect = EffectKind::RadialGradient;
+    image = renderEffect(effect);
+    QVERIFY(image.pixelColor(320, 200).red() > 253);
+    QVERIFY(image.pixelColor(639, 399).blue() > 253);
+    effect.effect = EffectKind::ConicalGradient;
+    image = renderEffect(effect);
+    QVERIFY(image.pixelColor(600, 200).red() > 253);
+    QVERIFY(std::abs(image.pixelColor(320, 380).blue() - 64) <= 1);
+    effect.effect = EffectKind::Stripes;
+    effect.repetitions = 4;
+    image = renderEffect(effect);
+    QCOMPARE(image.pixelColor(10, 200), QColor(Qt::red));
+    QCOMPARE(image.pixelColor(90, 200), QColor(Qt::blue));
+    effect.effect = EffectKind::Waves;
+    image = renderEffect(effect);
+    QVERIFY(image.pixelColor(0, 200).red() > 253);
+    QVERIFY(image.pixelColor(80, 200).blue() > 253);
+    effect.secondaryColor = QColor(0, 0, 255, 0);
+    effect.effect = EffectKind::LinearGradient;
+    image = renderEffect(effect);
+    const auto faded = image.pixelColor(320, 200);
+    QVERIFY(std::abs(faded.alpha() - 127) <= 1);
+    QCOMPARE(faded.red(), 255); QCOMPARE(faded.blue(), 0);
+
+    for (const auto& definition : effectDefinitions()) {
+        if (definition.kind < EffectKind::Circle) continue;
+        effect.effect = definition.kind;
+        effect.extent = {100, 60}; effect.center = {100, 100};
+        image = renderEffect(effect);
+        QCOMPARE(image.pixelColor(0, 0).alpha(), 0);
+        int visible = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) visible += image.pixelColor(x, y).alpha() > 0;
+        QVERIFY2(visible > 100, qPrintable(definition.label));
+    }
+    effect.effect = EffectKind::Circle;
+    image = renderEffect(effect);
+    QCOMPARE(image.pixelColor(140, 100).alpha(), 255);
+    effect.rotation = 90;
+    QCOMPARE(renderEffect(effect).pixelColor(140, 100).alpha(), 0);
+    effect.rotation = 0; effect.effect = EffectKind::Ring;
+    QCOMPARE(renderEffect(effect).pixelColor(100, 100).alpha(), 0);
+    LightingState state; state.layers = {effect}; state.layers[0].mask.fill(0);
+    QCOMPARE(LightingDocument::render(state).pixelColor(140, 100).alpha(), 0);
+    effect.extent.setWidth(0);
+    QVERIFY_EXCEPTION_THROWN(renderEffect(effect), std::invalid_argument);
+}
+
+void EditorTest::effectPersistenceAndLegacy()
+{
+    QTemporaryDir directory;
+    const auto path = directory.filePath("effects.json");
+    LightingDocument document(catalog());
+    for (const auto& definition : effectDefinitions()) document.addLayer(definition.kind);
+    document.edit("Set gradient colors", [](LightingState& state) {
+        state.layers[1].color = Qt::red; state.layers[1].secondaryColor = Qt::blue;
+        state.layers[1].rotation = 35; state.layers[1].center = {200, 100};
+    });
+    document.save(path);
+    LightingDocument loaded(catalog()); loaded.load(path);
+    QCOMPARE(loaded.render(), document.render());
+    for (int i = 0; i < document.state().layers.size(); ++i) {
+        QCOMPARE(loaded.state().layers[i].effect, document.state().layers[i].effect);
+        QCOMPARE(loaded.state().layers[i].extent, document.state().layers[i].extent);
+        QCOMPARE(loaded.state().layers[i].center, document.state().layers[i].center);
+        QCOMPARE(loaded.state().layers[i].rotation, document.state().layers[i].rotation);
+        QCOMPARE(loaded.state().layers[i].secondaryColor, document.state().layers[i].secondaryColor);
+        QCOMPARE(loaded.state().layers[i].repetitions, document.state().layers[i].repetitions);
+    }
+    QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
+    auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
+    QCOMPARE(root.value("schemaVersion").toInt(), 2);
+    auto layers = root.value("layers").toArray();
+    auto json = layers[1].toObject(); auto parameters = json.value("effect").toObject();
+    parameters.insert("type", "future-unsupported-effect"); json.insert("effect", parameters);
+    layers[1] = json; root.insert("layers", layers);
+    auto write = [&] {
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate)); file.write(QJsonDocument(root).toJson()); file.close();
+    };
+    write();
+    const auto before = loaded.render();
+    QVERIFY_EXCEPTION_THROWN(loaded.load(path), std::invalid_argument);
+    QCOMPARE(loaded.render(), before);
+    parameters.insert("type", "linear"); parameters.insert("width", -1);
+    json.insert("effect", parameters); layers[1] = json; root.insert("layers", layers); write();
+    QVERIFY_EXCEPTION_THROWN(loaded.load(path), std::invalid_argument);
+    QCOMPARE(loaded.render(), before);
+
+    // The previous published editor wrote schema 1 with implicit Static Color.
+    auto legacy = layers[0].toObject(); legacy.remove("effect");
+    root.insert("schemaVersion", 1); root.insert("layers", QJsonArray{legacy}); write();
+    loaded.load(path);
+    QCOMPARE(loaded.state().layers.size(), 1);
+    QCOMPARE(loaded.state().layers[0].effect, EffectKind::StaticColor);
+    QCOMPARE(loaded.render().pixelColor(10, 10), QColor(Qt::white));
+}
+
+void EditorTest::effectControls()
+{
+    LightingWindow window(catalog(), [] { return QVector<ProfileCandidate>{}; });
+    auto* type = window.findChild<QComboBox*>("newEffectType");
+    type->setCurrentIndex(type->findData(static_cast<int>(EffectKind::Star)));
+    for (auto* button : window.findChildren<QPushButton*>()) if (button->text() == "New layer") button->click();
+    QCOMPARE(window.document().state().layers[0].effect, EffectKind::Star);
+    auto* width = window.findChild<QDoubleSpinBox*>("effectGeometry2"); width->setValue(150);
+    QCOMPARE(window.document().state().layers[0].extent.width(), 150.0);
+    window.document().history()->undo(); QCOMPARE(width->value(), 240.0);
+    auto* selected = window.findChild<QComboBox*>("selectedEffectType");
+    selected->setCurrentIndex(selected->findData(static_cast<int>(EffectKind::RadialGradient)));
+    QCOMPARE(window.document().state().layers[0].name, QString("Radial Gradient"));
+    QCOMPARE(window.document().state().layers[0].effect, EffectKind::RadialGradient);
+    QCOMPARE(window.document().state().layers[0].mask.constScanLine(0)[0], uchar(255));
+    window.document().edit("Preview colors", [](LightingState& state) {
+        state.layers[0].color = QColor("#ffb347"); state.layers[0].secondaryColor = QColor("#242c78");
+        state.layers[0].extent = {640, 400};
+    });
+    type->setCurrentIndex(type->findData(static_cast<int>(EffectKind::Star)));
+    for (auto* button : window.findChildren<QPushButton*>()) if (button->text() == "New layer") button->click();
+    window.document().edit("Preview shape", [](LightingState& state) {
+        state.layers[1].color = QColor("#ff409e"); state.layers[1].rotation = 20;
+        state.layers[1].transparency = 30;
+    });
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(1);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR) + "/editor-gradient-shape.png"));
     window.document().history()->setClean();
 }
 

@@ -28,6 +28,7 @@ void validate(const LightingState& state)
         throw std::invalid_argument("Document limit: 64 effect layers and 256 component placements");
     QSet<QUuid> ids;
     for (const auto& layer : state.layers) {
+        validateEffect(layer);
         if (layer.id.isNull() || ids.contains(layer.id) || layer.name.trimmed().isEmpty() ||
             !layer.color.isValid() || layer.transparency < 0 || layer.transparency > 100 ||
             layer.blend < LayerBlend::Normal || layer.blend > LayerBlend::Overlay ||
@@ -71,9 +72,12 @@ QImage LightingDocument::whiteMask()
     return mask;
 }
 
-QUuid LightingDocument::addLayer()
+QUuid LightingDocument::addLayer(EffectKind effect)
 {
     EffectLayer layer;
+    layer.effect = effect;
+    layer.name = effectDefinition(effect).label;
+    if (isGradient(effect)) layer.extent = canvasSize();
     layer.mask = whiteMask();
     edit("Add effect layer", [&](LightingState& state) { state.layers.append(layer); });
     return layer.id;
@@ -99,12 +103,19 @@ void LightingDocument::save(const QString& fileName)
         layers.append(QJsonObject{{"id", layer.id.toString()}, {"name", layer.name},
             {"color", layer.color.name(QColor::HexArgb)}, {"visible", layer.visible},
             {"transparency", layer.transparency}, {"blend", static_cast<int>(layer.blend)},
+            {"effect", QJsonObject{{"type", effectDefinition(layer.effect).id},
+                {"secondaryColor", layer.secondaryColor.name(QColor::HexArgb)},
+                {"centerX", layer.center.x()}, {"centerY", layer.center.y()},
+                {"width", layer.extent.width()}, {"height", layer.extent.height()},
+                {"rotation", layer.rotation}, {"repetitions", layer.repetitions}}},
             {"maskEnabled", layer.maskEnabled}, {"maskPng", QString::fromLatin1(png.toBase64())}});
     }
     for (const auto& placement : state_.placements)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()}});
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 1}, {"width", 640}, {"height", 400},
+    // Version 2 makes effect parameters explicit; old readers must reject it
+    // rather than silently flattening gradients/shapes to Static Color.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 2}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}}).toJson();
     QSaveFile file(fileName);
     // Atomic replacement preserves an existing project if writing/commit fails.
@@ -121,8 +132,9 @@ void LightingDocument::load(const QString& fileName)
     QJsonParseError error;
     const auto parsed = QJsonDocument::fromJson(file.read(32 * 1024 * 1024 + 1), &error);
     const auto root = parsed.object();
+    const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        root.value("schemaVersion").toDouble(-1) != 1 || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -143,6 +155,23 @@ void LightingDocument::load(const QString& fileName)
         layer.color = QColor(json.value("color").toString()); layer.visible = json.value("visible").toBool();
         layer.transparency = static_cast<int>(transparency); layer.blend = static_cast<LayerBlend>(static_cast<int>(blend));
         layer.maskEnabled = json.value("maskEnabled").toBool();
+        if (schema == 2) {
+            const auto effect = json.value("effect").toObject();
+            for (const auto& key : {"centerX", "centerY", "width", "height", "rotation", "repetitions"})
+                if (!effect.value(key).isDouble()) throw std::invalid_argument("Missing numeric effect parameter");
+            layer.effect = effectDefinition(effect.value("type").toString()).kind;
+            layer.secondaryColor = QColor(effect.value("secondaryColor").toString());
+            layer.center = {effect.value("centerX").toDouble(), effect.value("centerY").toDouble()};
+            layer.extent = {effect.value("width").toDouble(), effect.value("height").toDouble()};
+            layer.rotation = effect.value("rotation").toDouble();
+            const double repetitions = effect.value("repetitions").toDouble();
+            if (repetitions < 1 || repetitions > 64 || std::floor(repetitions) != repetitions)
+                throw std::invalid_argument("Invalid effect repetition count");
+            layer.repetitions = static_cast<int>(repetitions);
+            validateEffect(layer);
+        } else if (json.contains("effect")) {
+            throw std::invalid_argument("Effect parameters require document schema 2");
+        }
         const auto encoded = json.value("maskPng").toString().toLatin1();
         const auto decoded = QByteArray::fromBase64Encoding(encoded, QByteArray::AbortOnBase64DecodingErrors);
         if (!decoded) throw std::invalid_argument("Invalid encoded mask");
@@ -226,14 +255,16 @@ QImage LightingDocument::render(const LightingState& state)
     QPainter painter(&result);
     for (const auto& layer : state.layers) {
         if (!layer.visible || layer.transparency == 100) continue;
-        QImage source(canvasSize(), QImage::Format_ARGB32_Premultiplied);
+        auto source = renderEffect(layer);
         for (int y = 0; y < source.height(); ++y) {
             auto* pixels = reinterpret_cast<QRgb*>(source.scanLine(y));
             const auto* mask = layer.mask.constScanLine(y);
             for (int x = 0; x < source.width(); ++x) {
                 const int coverage = layer.maskEnabled ? mask[x] : 255;
-                const int alpha = qRound(layer.color.alphaF() * (100 - layer.transparency) / 100.0 * coverage);
-                pixels[x] = qPremultiply(qRgba(layer.color.red(), layer.color.green(), layer.color.blue(), alpha));
+                const double alphaScale = (100 - layer.transparency) / 100.0 * coverage / 255.0;
+                const auto pixel = pixels[x];
+                pixels[x] = qRgba(qRound(qRed(pixel) * alphaScale), qRound(qGreen(pixel) * alphaScale),
+                    qRound(qBlue(pixel) * alphaScale), qRound(qAlpha(pixel) * alphaScale));
             }
         }
         // Qt composes RGBA, so Multiply over transparent pixels retains source light.
