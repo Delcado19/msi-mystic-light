@@ -95,7 +95,7 @@ bool OutputSession::stage(OutputFrame frame)
     catch (const std::exception& error) { error_ = QString::fromUtf8(error.what()); return false; }
     pending_ = std::move(frame); error_.clear(); return true;
 }
-bool OutputSession::flush()
+bool OutputSession::flush(const std::function<bool()>& cancelled)
 {
     if (state_ != State::Connected) return false;
     if (!transport_->isOpen()) return fail("Transport is closed");
@@ -103,6 +103,7 @@ bool OutputSession::flush()
     auto frame = std::move(*pending_); pending_.reset();
     try {
         for (const auto& output : frame.channels) {
+            if (cancelled && cancelled()) return true;
             if (output.software) {
                 if (!driver_->driver().pushColors(output.channelId, output.colors))
                     return fail("Software frame write failed for channel " + output.channelId);

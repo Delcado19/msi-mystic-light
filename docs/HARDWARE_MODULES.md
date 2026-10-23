@@ -239,6 +239,8 @@ read-only; actual process shutdown is not exercised by the suite.
 The host-side `OutputSession` backend owns an explicitly supplied open transport
 and its `DriverInstance`, coalesces staged frames and caches successful native
 settings. Failure closes the session without retry; explicit reconnect uses a
-fresh driver. The live app does not yet connect this backend to hardware.
+fresh driver. OutputScheduler now keeps session creation, writes and teardown on its worker,
+coalesces frames and checks stop requests between channel calls. The live app
+does not yet connect this backend to hardware.
 See [OUTPUT_SESSION.md](OUTPUT_SESSION.md) for lifecycle, validation and remaining
-connection/confirmation, worker scheduling and physical qualification work.
+connection/confirmation and physical qualification work.

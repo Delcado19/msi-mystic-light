@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Widgets Test)
+find_package(Threads REQUIRED)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(hidapi REQUIRED)
 get_target_property(QT_CORE_TYPE Qt6::Core TYPE)
@@ -50,9 +51,9 @@ add_library(lighting_editor src/editor/ChannelAssignment.cpp src/editor/ChannelE
 target_include_directories(lighting_editor PUBLIC src)
 target_link_libraries(lighting_editor PUBLIC lighting_modules Qt6::Widgets)
 
-add_library(lighting_output src/output/OutputSession.cpp)
+add_library(lighting_output src/output/OutputSession.cpp src/output/OutputScheduler.cpp)
 target_include_directories(lighting_output PUBLIC src)
-target_link_libraries(lighting_output PUBLIC lighting_editor)
+target_link_libraries(lighting_output PUBLIC lighting_editor Threads::Threads)
 
 add_executable(msi_mystic_light src/main.cpp)
 set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")

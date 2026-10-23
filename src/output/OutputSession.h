@@ -2,6 +2,7 @@
 #include "editor/LightingDocument.h"
 #include "modules/ModuleRegistry.h"
 #include <optional>
+#include <functional>
 
 struct ChannelOutput {
     QString channelId;
@@ -29,7 +30,8 @@ public:
         const DeviceProfile& profile, std::unique_ptr<IHidDevice> openedTransport);
     void disconnect(); // Releases ownership without sending off/restore reports.
     bool stage(OutputFrame frame);
-    bool flush();
+    // Cancellation is checked between driver calls; an in-flight module call cannot be interrupted.
+    bool flush(const std::function<bool()>& cancelled = {});
     State state() const { return state_; }
     QString error() const { return error_; }
     bool hasPendingFrame() const { return pending_.has_value(); }

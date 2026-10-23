@@ -1,5 +1,26 @@
 # Implementation status
 
+## Worker output scheduler (2026-10-23)
+
+- Added OutputScheduler: QObject control/status with one standard-library worker,
+  a single latest-frame mailbox and 33 ms waits after completed iterations. No
+  per-submission GUI event queue, idle frame replay or catch-up burst.
+- Factories create sessions/modules/transports on the worker. Start returns a
+  generation; stale submissions are rejected after explicit restart. Start/stop
+  are owner-thread operations; submit/status are thread-safe.
+- Stop is nonblocking, discards pending work and checks cancellation between
+  channel driver calls. In-flight factory/module calls may complete. Destruction
+  joins and can wait for an OS call. Teardown finishes on the worker before
+  terminal status is published. No automatic retry after faults.
+- Tests use gated fake factories/transports and the actual MSI plugin to cover
+  latest frames, blocked I/O responsiveness, pacing, cancellation, restarts,
+  invalid factories/frames, write faults and worker-thread resource destruction.
+- Validation: Release and Debug passed 12/12 CTest entries. Scheduler checks
+  include owner-thread delivery of status notifications and blocked-I/O pacing.
+- Still pending: GUI conflict/confirmation gate and exact-path connection,
+  enumeration-based unplug handling, physical calibration/qualification,
+  per-layer targets/independent timelines and session/tray behavior.
+
 ## Output-session backend (2026-10-23)
 
 - Added prepareOutput(document, composedFrame), grouping sampled software chains
