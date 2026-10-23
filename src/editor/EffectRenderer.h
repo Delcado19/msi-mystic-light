@@ -18,5 +18,5 @@ const EffectDefinition& effectDefinition(const QString& id);
 bool isGradient(EffectKind kind);
 struct EffectLayer;
 // One source raster, before layer masks/transparency/blending. No hardware I/O.
-QImage renderEffect(const EffectLayer& layer);
+QImage renderEffect(const EffectLayer& layer, double seconds = 0);
 void validateEffect(const EffectLayer& layer);

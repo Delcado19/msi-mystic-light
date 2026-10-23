@@ -3,6 +3,7 @@
 #include "LightingCanvas.h"
 #include "discovery/HardwareDiscovery.h"
 #include <QMainWindow>
+#include <QElapsedTimer>
 
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -42,6 +43,12 @@ private:
     QPushButton *color_, *effectTarget_, *maskTarget_;
     QCheckBox* maskEnabled_;
     QComboBox* imageFit_;
+    QWidget* animationControls_;
+    QVector<QDoubleSpinBox*> animation_;
+    QCheckBox* playing_;
+    QDoubleSpinBox* previewTime_;
+    QElapsedTimer previewClock_;
+    double playbackStart_ = 0;
     QUuid selectedLayer_;
     bool editingMask_ = false;
     QString fileName_;

@@ -1,5 +1,22 @@
 # Implementation status
 
+## Completed: animation preview increment (2026-10-23)
+
+- Published embedded image effects as d216b2c and verified origin/master.
+- Added per-layer spin, pulse and procedural hue rates with undoable controls.
+  Absolute-time evaluation uses the existing source/mask/transparency/blend path;
+  canvas-space masks remain fixed. Image hue grading remains pending.
+- Added an explicitly started, initially paused preview with time entry and
+  elapsed-time playback. It does not dirty the document or add undo entries.
+  Mask editing pauses playback. Schema 4 stores rates; schemas 1/2/3 still load.
+- Validation: Release and Debug passed 10/10 CTest entries each; native Windows
+  editor passed 16/16 Qt Test cases. Tests cover timed rotation/pulse/hue,
+  legacy schemas 1/2/3, rate round trips, invalid edits, playback without undo
+  changes, and automatic pause for mask editing. No hardware was opened.
+- Pending: drift, zoom, warp, user color cycles, keyframes, particles/trails,
+  WebP, free crop/transform handles, mask linking and hardware output.
+
+
 ## Completed: embedded image effects (2026-10-23)
 
 - Added bounded PNG/JPEG/BMP/GIF import into an Image layer with a white mask.

@@ -63,6 +63,10 @@ bool isGradient(EffectKind kind) { return kind >= EffectKind::LinearGradient && 
 void validateEffect(const EffectLayer& layer)
 {
     effectDefinition(layer.effect);
+    if (!std::isfinite(layer.spin) || std::abs(layer.spin) > 360 ||
+        !std::isfinite(layer.pulse) || layer.pulse < 0 || layer.pulse > 10 ||
+        !std::isfinite(layer.hueShift) || std::abs(layer.hueShift) > 360)
+        throw std::invalid_argument("Invalid animation parameters");
     if (!layer.image.isNull() && (layer.image.width() > 4096 || layer.image.height() > 4096))
         throw std::invalid_argument("Image exceeds 4096 pixels per side");
     if (!layer.color.isValid() || !layer.secondaryColor.isValid() ||
@@ -76,7 +80,7 @@ void validateEffect(const EffectLayer& layer)
         throw std::invalid_argument("Invalid effect parameters");
 }
 
-QImage renderEffect(const EffectLayer& layer)
+static QImage renderBaseEffect(const EffectLayer& layer)
 {
     validateEffect(layer);
     QImage image(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied);
@@ -156,5 +160,38 @@ QImage renderEffect(const EffectLayer& layer)
     QPainter painter(&image);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.fillPath(transform.map(path), layer.color);
+    return image;
+}
+
+QImage renderEffect(const EffectLayer& layer, double seconds)
+{
+    validateEffect(layer);
+    if (!std::isfinite(seconds) || seconds < 0 || seconds > 86400)
+        throw std::invalid_argument("Preview time must be between 0 and 86400 seconds");
+    auto evaluated = layer;
+    // Evaluate from absolute time, without accumulating drift or editing undoable state.
+    evaluated.rotation = std::remainder(layer.rotation + layer.spin * seconds, 360.0);
+    if (layer.hueShift != 0) {
+        auto shift = [&](QColor color) {
+            float h, s, v, a; color.getHsvF(&h, &s, &v, &a);
+            if (h < 0) return color; // Achromatic colors stay achromatic.
+            h = std::fmod(h + layer.hueShift * seconds / 360.0, 1.0);
+            return QColor::fromHsvF(h < 0 ? h + 1 : h, s, v, a);
+        };
+        evaluated.color = shift(layer.color); evaluated.secondaryColor = shift(layer.secondaryColor);
+        // shortcut: hue animation affects procedural colors; add image color grading separately.
+    }
+    auto image = renderBaseEffect(evaluated);
+    if (layer.pulse > 0) {
+        const double coverage = (1 + std::cos(2 * pi * layer.pulse * seconds)) / 2;
+        for (int y = 0; y < image.height(); ++y) {
+            auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+            for (int x = 0; x < image.width(); ++x) {
+                const auto pixel = row[x];
+                row[x] = qRgba(qRound(qRed(pixel)*coverage), qRound(qGreen(pixel)*coverage),
+                    qRound(qBlue(pixel)*coverage), qRound(qAlpha(pixel)*coverage));
+            }
+        }
+    }
     return image;
 }

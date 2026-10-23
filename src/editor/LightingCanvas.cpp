@@ -15,10 +15,15 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
     setAccessibleName(context == Context::Layout ? "Component layout canvas" : "Effect and layer mask canvas");
     connect(&document_, &LightingDocument::changed, this, [this] {
         cancelGesture();
-        rendered_ = document_.render();
+        rendered_ = document_.render(seconds_);
         update();
     });
-    rendered_ = document_.render();
+    rendered_ = document_.render(seconds_);
+}
+
+void LightingCanvas::setPreviewTime(double seconds)
+{
+    cancelGesture(); seconds_ = seconds; rendered_ = document_.render(seconds_); update();
 }
 
 QPointF LightingCanvas::offset() const
@@ -69,7 +74,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         if (!workingMask_.isNull()) {
             auto state = document_.state();
             for (auto& layer : state.layers) if (layer.id == selected_) layer.mask = workingMask_;
-            frame = LightingDocument::render(state);
+            frame = LightingDocument::render(state, seconds_);
         }
         if (showMask_ && maskTarget_) {
             for (const auto& layer : document_.state().layers)

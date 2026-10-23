@@ -30,7 +30,7 @@ implemented. The bundled generic 8-LED strip demonstrates adding a product
 without changing a driver. Use `--component-dir` for another local catalog;
 repository downloads and a hardware channel assignment UI remain pending.
 An offline editor now provides separate Layout/Effects views, movable catalog
-components, Static Color/gradient/shape/image layers, soft masks, transparency/blend controls,
+components, Static Color/gradient/shape/image layers, soft masks, transparency/blend controls, spin/pulse/hue animation preview,
 undo/redo and project save/load. See [`docs/LIGHTING_EDITOR.md`](docs/LIGHTING_EDITOR.md).
 Run `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
 

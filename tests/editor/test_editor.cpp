@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QHeaderView>
 #include <QDoubleSpinBox>
 #include <QPushButton>
@@ -48,6 +49,7 @@ private slots:
     void effectPersistenceAndLegacy();
     void effectControls();
     void imageImportAndCrop();
+    void animationPreview();
 };
 
 void EditorTest::rgbaAndMask()
@@ -363,18 +365,26 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 3);
+    QCOMPARE(root.value("schemaVersion").toInt(), 4);
     // Published schema 2 has explicit effects but no image fields or Image type.
     auto version2 = root; QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject();
         if (value.value("effect").toObject().value("type").toString() == "image") continue;
-        value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
+        value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
     }
     version2.insert("schemaVersion", 2); version2.insert("layers", version2Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
     file.write(QJsonDocument(version2).toJson()); file.close();
     loaded.load(path); QCOMPARE(loaded.render(), document.render());
+    auto version3 = root; QJsonArray version3Layers;
+    for (const auto& item : root.value("layers").toArray()) {
+        auto value = item.toObject(); value.remove("animation"); version3Layers.append(value);
+    }
+    version3.insert("schemaVersion", 3); version3.insert("layers", version3Layers);
+    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write(QJsonDocument(version3).toJson()); file.close(); loaded.load(path);
+    QCOMPARE(loaded.render(), document.render());
     document.save(path);
     loaded.load(path);
     auto layers = root.value("layers").toArray();
@@ -394,7 +404,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QCOMPARE(loaded.render(), before);
 
     // The previous published editor wrote schema 1 with implicit Static Color.
-    auto legacy = layers[0].toObject(); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
+    auto legacy = layers[0].toObject(); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
     root.insert("schemaVersion", 1); root.insert("layers", QJsonArray{legacy}); write();
     loaded.load(path);
     QCOMPARE(loaded.state().layers.size(), 1);
@@ -489,6 +499,43 @@ void EditorTest::imageImportAndCrop()
     window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR) + "/editor-image.png"));
     window.document().history()->setClean();
+}
+
+void EditorTest::animationPreview()
+{
+    auto effect = layer(Qt::red); effect.hueShift = 120; effect.pulse = 1;
+    QCOMPARE(renderEffect(effect, 0).pixelColor(100,100), QColor(Qt::red));
+    QCOMPARE(renderEffect(effect, 0.5).pixelColor(100,100).alpha(), 0);
+    QVERIFY(renderEffect(effect, 1).pixelColor(100,100).green() > 253);
+    effect.hueShift = 0; effect.pulse = 0; effect.effect = EffectKind::Circle;
+    effect.center = {100,100}; effect.extent = {100,40}; effect.spin = 90;
+    QCOMPARE(renderEffect(effect, 0).pixelColor(140,100).alpha(), 255);
+    QCOMPARE(renderEffect(effect, 1).pixelColor(140,100).alpha(), 0);
+    QVERIFY_EXCEPTION_THROWN(renderEffect(effect, -1), std::invalid_argument);
+    QTemporaryDir dir; const auto path = dir.filePath("motion.json");
+    LightingWindow window(catalog(), [] { return QVector<ProfileCandidate>{}; });
+    window.document().addLayer();
+    auto* tree = window.findChild<QTreeWidget*>("effectLayers"); tree->setCurrentItem(tree->topLevelItem(0));
+    auto* spin = window.findChild<QDoubleSpinBox*>("animationRate1"); spin->setValue(1);
+    QCOMPARE(window.document().state().layers[0].pulse, 1.0);
+    window.document().save(path);
+    LightingDocument loaded(catalog()); loaded.load(path);
+    QCOMPARE(loaded.state().layers[0].pulse, 1.0);
+    QCOMPARE(loaded.render(0.5).pixelColor(320,200).alpha(), 0);
+    const auto count = window.document().history()->count();
+    auto* time = window.findChild<QDoubleSpinBox*>("previewTime"); time->setValue(0.5);
+    auto* play = window.findChild<QCheckBox*>("playPreview"); play->setChecked(true);
+    QTRY_VERIFY(time->value() > 0.5); play->setChecked(false);
+    QCOMPARE(window.document().history()->count(), count); QVERIFY(window.document().history()->isClean());
+    play->setChecked(true);
+    for (auto* button : window.findChildren<QPushButton*>()) if (button->text() == "Edit mask") button->click();
+    QVERIFY(!play->isChecked());
+    window.document().edit("Mask", [](auto& state) { state.layers[0].mask.fill(0); });
+    QCOMPARE(window.document().render(0.25).pixelColor(320,200).alpha(), 0);
+    window.document().history()->undo();
+    window.document().edit("Invalid rate", [](auto& state) { state.layers[0].spin = 90; });
+    QVERIFY_EXCEPTION_THROWN(window.document().edit("Invalid rate", [](auto& state) { state.layers[0].pulse = -1; }), std::invalid_argument);
+    window.document().history()->undo(); window.document().history()->setClean();
 }
 
 QTEST_MAIN(EditorTest)

@@ -16,6 +16,7 @@ public:
     void setMaskTool(MaskTool tool) { cancelGesture(); tool_ = tool; }
     void setBrush(double radius, double hardness, double opacity, int gray);
     void setShowMask(bool show) { showMask_ = show; update(); }
+    void setPreviewTime(double seconds);
     QPointF canvasPoint(QPointF viewport) const;
 signals:
     void selectionChanged();
@@ -39,5 +40,6 @@ private:
     MaskTool tool_ = MaskTool::Brush;
     QPointF start_, last_, origin_, pan_;
     double zoom_ = 1, radius_ = 30, hardness_ = 0.3, opacity_ = 1;
+    double seconds_ = 0;
     int gray_ = 0;
 };

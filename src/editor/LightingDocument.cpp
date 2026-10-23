@@ -118,7 +118,7 @@ QUuid LightingDocument::addComponent(const QString& componentId)
     return placement.id;
 }
 
-QImage LightingDocument::render() const { return render(state_); }
+QImage LightingDocument::render(double seconds) const { return render(state_, seconds); }
 
 void LightingDocument::save(const QString& fileName)
 {
@@ -140,14 +140,15 @@ void LightingDocument::save(const QString& fileName)
                 {"centerX", layer.center.x()}, {"centerY", layer.center.y()},
                 {"width", layer.extent.width()}, {"height", layer.extent.height()},
                 {"rotation", layer.rotation}, {"repetitions", layer.repetitions}}},
+            {"animation", QJsonObject{{"spin", layer.spin}, {"pulse", layer.pulse}, {"hueShift", layer.hueShift}}},
             {"imagePng", QString::fromLatin1(imagePng.toBase64())}, {"imageFill", layer.imageFill},
             {"maskEnabled", layer.maskEnabled}, {"maskPng", QString::fromLatin1(png.toBase64())}});
     }
     for (const auto& placement : state_.placements)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()}});
-    // Version 3 embeds image pixels; older readers must reject unsupported image state.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 3}, {"width", 640}, {"height", 400},
+    // Version 4 stores animation rates; older readers must reject unsupported motion state.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 4}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -167,7 +168,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -208,7 +209,7 @@ void LightingDocument::load(const QString& fileName)
         }
         if (schema < 3 && (layer.effect == EffectKind::Image || json.contains("imagePng")))
             throw std::invalid_argument("Images require document schema 3");
-        if (schema == 3) {
+        if (schema >= 3) {
             if (!json.value("imageFill").isBool() || !json.value("imagePng").isString())
                 throw std::invalid_argument("Invalid image properties");
             layer.imageFill = json.value("imageFill").toBool();
@@ -227,6 +228,16 @@ void LightingDocument::load(const QString& fileName)
                 layer.image = imageReader.read().convertToFormat(QImage::Format_ARGB32_Premultiplied);
                 if (layer.image.isNull()) throw std::invalid_argument("Invalid image pixels");
             }
+        }
+        if (schema >= 4) {
+            const auto animation = json.value("animation").toObject();
+            for (const auto& key : {"spin", "pulse", "hueShift"})
+                if (!animation.value(key).isDouble()) throw std::invalid_argument("Invalid animation rates");
+            layer.spin = animation.value("spin").toDouble();
+            layer.pulse = animation.value("pulse").toDouble();
+            layer.hueShift = animation.value("hueShift").toDouble();
+        } else if (json.contains("animation")) {
+            throw std::invalid_argument("Animation requires document schema 4");
         }
         const auto encoded = json.value("maskPng").toString().toLatin1();
         const auto decoded = QByteArray::fromBase64Encoding(encoded, QByteArray::AbortOnBase64DecodingErrors);
@@ -303,15 +314,17 @@ void LightingDocument::gradientMask(QImage& mask, QPointF from, QPointF to)
     }
 }
 
-QImage LightingDocument::render(const LightingState& state)
+QImage LightingDocument::render(const LightingState& state, double seconds)
 {
     validate(state);
+    if (!std::isfinite(seconds) || seconds < 0 || seconds > 86400)
+        throw std::invalid_argument("Invalid preview time");
     QImage result(canvasSize(), QImage::Format_ARGB32_Premultiplied);
     result.fill(Qt::transparent);
     QPainter painter(&result);
     for (const auto& layer : state.layers) {
         if (!layer.visible || layer.transparency == 100) continue;
-        auto source = renderEffect(layer);
+        auto source = renderEffect(layer, seconds);
         for (int y = 0; y < source.height(); ++y) {
             auto* pixels = reinterpret_cast<QRgb*>(source.scanLine(y));
             const auto* mask = layer.mask.constScanLine(y);

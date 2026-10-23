@@ -79,15 +79,36 @@ Viewport/selection are editing context, not undoable lighting changes. Layer
 targeting currently covers the entire offline canvas; per-channel/component
 targets and native-mode controls remain pending.
 
+## Animation preview
+
+Each layer has Spin (degrees/second), Pulse (cycles/second) and Hue
+(degrees/second) rates. Zero disables each modifier. Spin applies to gradients,
+shapes and images; Pulse smoothly multiplies alpha by a cosine cycle, starting
+fully visible. Hue rotates the two procedural colors in HSV and preserves alpha;
+achromatic colors remain achromatic. Image hue grading is not implemented.
+Masks stay in canvas space during rotation. All modulation precedes the existing
+mask/transparency/blend pipeline and is deterministic at the specified time.
+
+The Preview toolbar starts paused. Set a time directly or explicitly enable Play
+preview (target 30 frames/second, actual rate depends on CPU/layer count). Pause
+retains the time; set it to zero to reset. Both canvases use the same time.
+Playback uses elapsed wall time rather than adding a nominal frame duration.
+Preview time/playback are session state, never document edits or undo entries.
+Selecting Edit mask pauses/disables playback so a timer cannot interrupt a stroke.
+The time range is 0..86400 seconds; reaching the end pauses playback.
+This is an effect authoring preview, without UI decoration or automatic motion.
+Drift, warp, zoom, user color cycles, keyframes and trails remain pending.
+
 ## Project files
 
-File > Save/Open stores `.lighting.json` schema 3 documents: component instance
+File > Save/Open stores `.lighting.json` schema 4 documents: component instance
 IDs/catalog IDs/positions and ordered effect layers with IDs, colors, stable
 effect type IDs, geometry, repetitions, visibility, transparency, blending and
-lossless embedded PNG grayscale masks and image pixels with fit/fill settings. Schema 2
+lossless embedded PNG grayscale masks and image pixels with fit/fill settings, plus per-layer animation rates. Schema 3
+remains readable with zero animation rates. Schema 2
 is still readable with its explicit gradient/shape parameters. Schema 1 from the initial editor is
 still readable as implicit Static Color, retaining masks and settings. Saves
-always use schema 3; older app versions reject it rather than silently losing
+always use schema 4; older app versions reject it rather than silently losing
 effect parameters. Unknown effect IDs and invalid geometry are rejected.
 Saving uses QSaveFile atomic replacement, and write/commit errors remain visible.
 Opening validates the entire candidate before replacing the document and history.
@@ -115,7 +136,7 @@ writes Layout/Effects screenshots to the build's `editor-artifacts` directory.
 Offscreen tests can lack Windows fonts in the sandbox; native Windows tests
 were also run to inspect legible screenshots.
 
-WebP, free crop handles, multistop gradients, animation, particles, layout resizing/
+WebP, free crop handles, multistop gradients, advanced motion/color cycles, particles, layout resizing/
 rotation, component geometry editing/import, effect targeting, native controls,
 hardware output and renderer-to-wire sampling remain future increments. The
 current raster renderer is the basis for those paths, not proof of output parity.

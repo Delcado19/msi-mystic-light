@@ -22,6 +22,7 @@
 #include <QStatusBar>
 #include <QTabWidget>
 #include <QToolBar>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -152,6 +153,25 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     layoutControls->addWidget(candidates);
     layoutControls->addWidget(new QLabel("Selection does not connect or assign channels."));
 
+    auto* previewToolbar = addToolBar("Preview");
+    playing_ = new QCheckBox("Play preview"); playing_->setObjectName("playPreview");
+    previewTime_ = new QDoubleSpinBox; previewTime_->setObjectName("previewTime");
+    previewTime_->setRange(0, 86400); previewTime_->setDecimals(2); previewTime_->setSuffix(" s");
+    previewTime_->setKeyboardTracking(false); previewTime_->setAccessibleName("Preview time in seconds");
+    previewToolbar->addWidget(playing_); previewToolbar->addWidget(previewTime_);
+    auto* timer = new QTimer(this); timer->setInterval(33);
+    connect(playing_, &QCheckBox::toggled, this, [this, timer](bool play) {
+        if (play) { playbackStart_ = previewTime_->value(); previewClock_.restart(); timer->start(); }
+        else timer->stop();
+    });
+    connect(timer, &QTimer::timeout, this, [this] {
+        previewTime_->setValue(std::min(86400.0, playbackStart_ + previewClock_.elapsed()/1000.0));
+        if (previewTime_->value() >= 86400) playing_->setChecked(false);
+    });
+    connect(previewTime_, &QDoubleSpinBox::editingFinished, this, [this] { playing_->setChecked(false); });
+    connect(previewTime_, &QDoubleSpinBox::valueChanged, this, [this](double seconds) {
+        layoutCanvas_->setPreviewTime(seconds); effectsCanvas_->setPreviewTime(seconds);
+    });
     auto* effectPanel = new QWidget;
     auto* effectControls = new QVBoxLayout(effectPanel);
     addPanel(effectPanel);
@@ -289,6 +309,22 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             layer.effect = kind;
         });
     });
+    animationControls_ = new QWidget;
+    auto* animationForm = new QFormLayout(animationControls_);
+    animationForm->setContentsMargins(0, 0, 0, 0);
+    const QStringList animationLabels{"Spin deg/s", "Pulse Hz", "Hue deg/s"};
+    for (int i = 0; i < 3; ++i) {
+        auto* value = new QDoubleSpinBox;
+        value->setObjectName("animationRate" + QString::number(i));
+        value->setRange(i == 1 ? 0 : -360, i == 1 ? 10 : 360);
+        value->setKeyboardTracking(false); animation_.append(value);
+        animationForm->addRow(animationLabels[i], value);
+        connect(value, &QDoubleSpinBox::valueChanged, this, [this] {
+            const double spin = animation_[0]->value(), pulse = animation_[1]->value(), hue = animation_[2]->value();
+            updateLayer("Animation rates", [=](auto& layer) { layer.spin = spin; layer.pulse = pulse; layer.hueShift = hue; });
+        });
+    }
+    effectControls->addWidget(animationControls_);
     imageFit_ = new QComboBox;
     imageFit_->setObjectName("imageFit");
     imageFit_->setToolTip("Preserve aspect ratio; fill crops equally from opposite edges.");
@@ -419,6 +455,9 @@ void LightingWindow::refreshProperties()
     effectTarget_->setChecked(!editingMask_); maskTarget_->setChecked(editingMask_);
     for (QWidget* widget : std::initializer_list<QWidget*>{transparency_, blend_, color_, effectTarget_, maskTarget_, maskEnabled_})
         widget->setEnabled(selected != nullptr);
+    if (editingMask_) playing_->setChecked(false);
+    playing_->setEnabled(!editingMask_);
+    animationControls_->setVisible(selected && !editingMask_);
     effectType_->setEnabled(selected && !editingMask_);
     color_->setVisible(!editingMask_ && selected && selected->effect != EffectKind::Image);
     imageFit_->setVisible(selected && !editingMask_ && selected->effect == EffectKind::Image);
@@ -430,6 +469,12 @@ void LightingWindow::refreshProperties()
         findChild<QLabel*>("transparencyValue")->setText(QString::number(selected->transparency) + "%");
         transparency_->setToolTip(QString::number(selected->transparency) + "% transparent");
         blend_->setCurrentIndex(static_cast<int>(selected->blend));
+        const double rates[]{selected->spin, selected->pulse, selected->hueShift};
+        for (int i = 0; i < 3; ++i) {
+            const QSignalBlocker block(animation_[i]); animation_[i]->setValue(rates[i]);
+        }
+        animation_[0]->setEnabled(selected->effect != EffectKind::StaticColor);
+        animation_[2]->setEnabled(selected->effect != EffectKind::Image);
         const QSignalBlocker blockFit(imageFit_);
         imageFit_->setCurrentIndex(selected->imageFill ? 1 : 0);
         color_->setIcon(colorIcon(selected->color));

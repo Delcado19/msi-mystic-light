@@ -22,6 +22,7 @@ struct EffectLayer {
     int repetitions = 4;
     QImage image;
     bool imageFill = false; // Fit preserves the whole image; fill crops to the effect rectangle.
+    double spin = 0, pulse = 0, hueShift = 0; // Degrees/second, cycles/second, degrees/second.
     bool visible = true;
     int transparency = 0;
     LayerBlend blend = LayerBlend::Normal;
@@ -52,8 +53,8 @@ public:
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
     QUuid importImage(const QString& fileName);
     QUuid addComponent(const QString& componentId);
-    QImage render() const;
-    static QImage render(const LightingState& state);
+    QImage render(double seconds = 0) const;
+    static QImage render(const LightingState& state, double seconds = 0);
     static QImage whiteMask();
     void save(const QString& fileName);
     void load(const QString& fileName);
