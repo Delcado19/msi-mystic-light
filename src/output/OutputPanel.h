@@ -18,6 +18,8 @@ public:
     using Authorize = std::function<QVector<OutputConnection>(QWidget*, const QVector<OutputFrame>&)>;
     OutputPanel(LightingWindow& window, Authorize authorize, QWidget* parent = nullptr);
     void stopOutput();
+signals:
+    void outputStateChanged(const QString& state);
 private:
     void start();
     void stop(const QString& reason);
@@ -25,14 +27,13 @@ private:
     void refresh();
     bool active() const;
     struct Connection {
-        QString endpoint, profileId;
+        OutputFrame approved;
         std::unique_ptr<OutputScheduler> scheduler;
         quint64 generation = 0;
     };
     LightingWindow& window_;
     Authorize authorize_;
     std::vector<Connection> connections_;
-    quint64 revision_ = 0;
     bool authorizing_ = false, stopping_ = false;
     QPushButton *start_, *stop_;
     QLabel* status_;

@@ -53,7 +53,7 @@ bool confirmOutputReports(QWidget* parent,const QVector<OutputProof>& proofs)
     QDialog dialog(parent); dialog.setObjectName("outputConfirmation"); dialog.setWindowTitle("Review hardware output"); dialog.resize(840,640);
     auto* layout=new QVBoxLayout(&dialog);
     auto* note=new QLabel("Review exact initial reports below. Software output may subsequently vary RGB payloads "
-        "on the listed channels as preview time changes. MSI 0x50 reports include all 18 controller zone records; "
+        "on the listed channels as effects are edited or preview time changes. MSI 0x50 reports include all 18 controller zone records; "
         "unassigned zones are not read back or preserved. Stop closes the connection and leaves the last device state.");
     note->setWordWrap(true); layout->addWidget(note);
     QString text;

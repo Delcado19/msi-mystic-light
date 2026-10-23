@@ -19,6 +19,8 @@ do not reproduce it at length.
 - [`CONTINUE.md`](CONTINUE.md) — implementation status, validation, and next steps.
 - [`docs/SIGNALRGB_REPOSITORY_RESEARCH.md`](docs/SIGNALRGB_REPOSITORY_RESEARCH.md) — pinned public-repository research on components, plugins, add-ons, and MSI discovery.
 
+![Lighting Studio workspace](docs/images/lighting-studio.png)
+
 ## Standalone app implementation
 
 The app now loads local driver plugins and independent device profiles; see
@@ -31,7 +33,9 @@ without changing a driver. Use `--component-dir` for another local catalog;
 repository downloads remain separate work. Layout and Effects have separate views,
 with component authoring, layered effects, soft masks, transparency and blend modes,
 undo/redo, portable projects, per-layer channel targets and independent channel clocks.
-See [editor documentation](docs/LIGHTING_EDITOR.md).
+The visual workspace has a persistent layer stack, searchable effect gallery,
+large fitted canvas, live overview and contextual Effect/Motion/Mask inspector.
+See [editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
 
 Start **`Start-Lighting.cmd`**, or `build/ninja/Release/msi_mystic_light.exe`.
 The old `build/ninja/msi_mystic_light.exe` is not the supported entry point.
@@ -42,7 +46,7 @@ rebuild/copy the full folder. Do not download unrelated DLLs. See `PORTABLE_READ
 `View > Hardware output` exposes explicit review/start and stop controls. Each start
 resolves process conflicts, revalidates the exact endpoint and shows initial report
 bytes for consent before opening HID. Worker output is bounded and faults stop all
-endpoints; reconnect requires another review. Document edits stop authorized output.
+endpoints; reconnect requires another review. Effect edits update approved software channels live. Output-configuration changes and opening projects stop output.
 MSI configuration writes contain all 18 zones; unassigned firmware settings are not
 read back or preserved. Stop holds the last state. See [output](docs/OUTPUT_SESSION.md).
 Autosave/recovery, last-project/window restoration and a tray menu are implemented;

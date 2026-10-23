@@ -113,9 +113,15 @@ factories revalidate discovery and serialized bytes before opening the exact pat
 Consent covers subsequent RGB frames for the listed software channels. MSI 0x50
 includes all 18 zones; existing unassigned zone settings are not preserved.
 
-Document revisions are checked before submitting preview frames; edits/load/undo
-stop output, including edits during a modal review. Selected-channel preview does
-not alter other output channels. Faults stop all endpoint workers. Presence is
+The document revision is frozen during modal review; any edit before consent
+returns invalidates that review. Once running, software RGB payloads may change
+live through effect/mask edits, preview time, layout sampling and their undo.
+`sameOutputScope` requires identical endpoint/profile, ordered channel IDs/modes,
+software LED counts and complete native commands. Every endpoint is checked before
+any replacement frame is submitted. Changed topology/native commands stop all
+workers and require review; undo does not restart them. Opening a project stops
+before its document is loaded, even if its target configuration matches.
+Selected-channel preview does not alter other output channels. Faults stop all endpoint workers. Presence is
 re-enumerated approximately once per second, including idle native-only sessions;
 a disappeared endpoint faults the worker. No automatic reconnect occurs. Stop
 sends no restore/off command. Tray Stop and accepted window close stop workers.

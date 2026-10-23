@@ -1,6 +1,7 @@
 #include "output/HardwareOutput.h"
 #include "protocol/MsiProtocol.h"
 #include <QCheckBox>
+#include <QAction>
 #include <QDialogButtonBox>
 #include <QDockWidget>
 #include <QDir>
@@ -9,6 +10,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTimer>
+#include <QTemporaryDir>
 #include <QTreeWidget>
 #include <QtTest>
 #include <atomic>
@@ -69,11 +71,27 @@ class OutputUiTest : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase() { QVERIFY(QDir().mkpath(TEST_ARTIFACT_DIR)); }
+    void scopeGuard();
     void reviewReports();
-    void previewAndEditStop();
+    void liveEditsAndConfigurationStop();
     void cancelAndChangedReview();
     void unplugAndRestart();
 };
+void OutputUiTest::scopeGuard()
+{
+    LightingDocument document({},nullptr,{profile()}); configure(document);
+    const auto approved=prepareOutput(document,document.render())[0]; auto candidate=approved;
+    candidate.channels[0].colors[0]={200,100,50}; QVERIFY(sameOutputScope(approved,candidate));
+    candidate.endpoint="other"; QVERIFY(!sameOutputScope(approved,candidate)); candidate=approved;
+    candidate.profileId="other"; QVERIFY(!sameOutputScope(approved,candidate)); candidate=approved;
+    candidate.channels[0].channelId="JARGB2"; QVERIFY(!sameOutputScope(approved,candidate)); candidate=approved;
+    candidate.channels[0].colors.append(RgbColor{}); QVERIFY(!sameOutputScope(approved,candidate)); candidate=approved;
+    candidate.channels.clear(); QVERIFY(!sameOutputScope(approved,candidate));
+    auto native=approved; native.channels[0].software=false; native.channels[0].colors.clear();
+    QVERIFY(!sameOutputScope(approved,native)); candidate=native;
+    candidate.channels[0].native.brightness=1; QVERIFY(!sameOutputScope(native,candidate)); candidate=native;
+    candidate.channels[0].native.colors[0]={1,2,3}; QVERIFY(!sameOutputScope(native,candidate));
+}
 void OutputUiTest::reviewReports()
 {
     LightingDocument document({},nullptr,{profile()}); configure(document);
@@ -95,28 +113,35 @@ void OutputUiTest::reviewReports()
     QTimer::singleShot(0,[] { QApplication::activeModalWidget()->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Cancel)->click(); });
     QVERIFY(!confirmOutputReports(nullptr,{proof}));
 }
-void OutputUiTest::previewAndEditStop()
+void OutputUiTest::liveEditsAndConfigurationStop()
 {
     LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
     auto record=std::make_shared<Record>(); int authorizations=0;
     OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
         ++authorizations; return QVector<OutputConnection>{connection(frames[0],record)};
     });
+    QObject::connect(&panel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
+    auto* outputAction=window.findChild<QAction*>("reviewOutput"); QVERIFY(outputAction);
     auto* start=panel.findChild<QPushButton*>("startOutput"); auto* stop=panel.findChild<QPushButton*>("stopOutput");
     start->click(); QTRY_COMPARE(record->writes(),2); QTRY_VERIFY(state(panel,"Running"));
-    QCOMPARE(authorizations,1);
+    QCOMPARE(authorizations,1); QTRY_COMPARE(outputAction->text(),QString("Output: Running"));
     window.findChild<QDoubleSpinBox*>("previewTime")->setValue(1);
     QTRY_COMPARE(record->writes(),3);
-    const auto revision=window.document().revision();
     window.document().edit("Blue",[](LightingState& data) { data.layers[0].color=Qt::blue; });
-    QVERIFY(window.document().revision()>revision); QTRY_VERIFY(state(panel,"Stopped")); QCOMPARE(record->writes(),3);
+    QTRY_COMPARE(record->writes(),4); QVERIFY(state(panel,"Running")); QCOMPARE(authorizations,1);
     {
         const std::lock_guard<std::mutex> lock(record->mutex);
-        const auto red=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{1,2,3}});
-        QVERIFY(record->reports.back()==std::vector<std::uint8_t>(red.begin(),red.end())); QCOMPARE(record->closes,1);
+        const auto blue=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{0,0,255}});
+        QVERIFY(record->reports.back()==std::vector<std::uint8_t>(blue.begin(),blue.end()));
     }
-    QVERIFY(start->isEnabled()); QVERIFY(!stop->isEnabled());
-    window.document().history()->undo(); QCOMPARE(record->writes(),3); // Undo never resumes confirmed output.
+    window.document().history()->undo(); QTRY_COMPARE(record->writes(),5); QVERIFY(state(panel,"Running"));
+    auto changed=window.document().state().assignments[0]; changed.software=false;
+    window.document().assignChannel(changed); QTRY_VERIFY(state(panel,"Stopped")); QCOMPARE(record->writes(),5);
+    QVERIFY(start->isEnabled()); QVERIFY(!stop->isEnabled()); QCOMPARE(outputAction->text(),QString("Output: Stopped"));
+    window.document().history()->undo(); QCOMPARE(record->writes(),5); // Undo cannot restart a structurally invalidated connection.
+    start->click(); QTRY_COMPARE(record->writes(),7); QCOMPARE(authorizations,2);
+    QTemporaryDir dir; const auto file=dir.filePath("project.lighting.json"); window.document().save(file);
+    window.loadProject(file); QTRY_VERIFY(state(panel,"Stopped")); QCOMPARE(record->writes(),7);
     window.document().history()->setClean();
 }
 void OutputUiTest::cancelAndChangedReview()

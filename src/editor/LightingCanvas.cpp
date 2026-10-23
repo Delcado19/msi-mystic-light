@@ -3,6 +3,8 @@
 #include <QWheelEvent>
 #include <QKeyEvent>
 #include <QPainter>
+#include <QPushButton>
+#include <QResizeEvent>
 #include <QLineF>
 #include <QPolygonF>
 #include <algorithm>
@@ -11,15 +13,31 @@
 LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWidget* parent)
     : QWidget(parent), document_(document), context_(context)
 {
-    setMinimumSize(400, 280);
+    setMinimumSize(360, 280);
+    emptyAction_=new QPushButton(context==Context::Layout ? "Add a component" : "Add an effect layer",this);
+    emptyAction_->setObjectName("canvasAdd"); emptyAction_->setProperty("primary",true); emptyAction_->setFixedSize(190,38);
+    connect(emptyAction_,&QPushButton::clicked,this,&LightingCanvas::addRequested);
     setFocusPolicy(Qt::StrongFocus);
+    setMouseTracking(true);
     setAccessibleName(context == Context::Layout ? "Component layout canvas" : "Effect and layer mask canvas");
     connect(&document_, &LightingDocument::changed, this, [this] {
         cancelGesture();
         rendered_ = LightingDocument::render(document_.state(),seconds_,previewChannel_);
+        emptyAction_->setVisible(context_==Context::Effects ? document_.state().layers.isEmpty() : document_.state().placements.isEmpty());
         update();
     });
     rendered_ = LightingDocument::render(document_.state(),seconds_,previewChannel_);
+}
+
+void LightingCanvas::fitToView()
+{
+    cancelGesture(); autoFit_=true; pan_={};
+    zoom_=std::clamp(std::min((width()-80)/640.0,(height()-100)/400.0),0.1,4.0); update();
+}
+void LightingCanvas::resizeEvent(QResizeEvent*)
+{
+    if(autoFit_) fitToView();
+    emptyAction_->move((width()-emptyAction_->width())/2,height()/2+32);
 }
 
 void LightingCanvas::setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel)
@@ -32,6 +50,7 @@ QPointF LightingCanvas::offset() const
     return QPointF((width() - 640 * zoom_) / 2, (height() - 400 * zoom_) / 2) + pan_;
 }
 QPointF LightingCanvas::canvasPoint(QPointF viewport) const { return (viewport - offset()) / zoom_; }
+QPointF LightingCanvas::viewportPoint(QPointF canvas) const { return offset()+canvas*zoom_; }
 void LightingCanvas::select(const QUuid& id)
 {
     cancelGesture();
@@ -39,10 +58,10 @@ void LightingCanvas::select(const QUuid& id)
     emit selectionChanged();
     update();
 }
-void LightingCanvas::setMaskTarget(bool enabled) { cancelGesture(); maskTarget_ = enabled; update(); }
+void LightingCanvas::setMaskTarget(bool enabled) { cancelGesture(); maskTarget_ = enabled; setCursor(enabled ? Qt::CrossCursor : Qt::ArrowCursor); update(); }
 void LightingCanvas::setBrush(double radius, double hardness, double opacity, int gray)
 {
-    radius_ = radius; hardness_ = hardness; opacity_ = opacity; gray_ = gray;
+    radius_ = radius; hardness_ = hardness; opacity_ = opacity; gray_ = gray; update();
 }
 void LightingCanvas::cancelGesture()
 {
@@ -60,9 +79,22 @@ QVector<QPointF> LightingCanvas::componentPoints(const ComponentPlacement& place
 void LightingCanvas::paintEvent(QPaintEvent*)
 {
     QPainter painter(this);
-    painter.fillRect(rect(), QColor("#202329"));
+    painter.fillRect(rect(), QColor("#17191f"));
+    painter.setPen(QColor("#a6afc2"));
+    painter.drawText(QRect(20,12,width()-40,24),Qt::AlignLeft|Qt::AlignVCenter,
+        QString("%1    /    640 x 400    /    %2%").arg(context_==Context::Layout ? "LAYOUT" : "EFFECT CANVAS").arg(qRound(zoom_*100)));
+    const bool empty=context_==Context::Effects ? document_.state().layers.isEmpty() : document_.state().placements.isEmpty();
+    if(empty) {
+        painter.setPen(QColor("#e1e7f5")); auto font=painter.font(); font.setPointSize(18); painter.setFont(font);
+        painter.drawText(QRect(20,height()/2-62,width()-40,38),Qt::AlignCenter,context_==Context::Layout ? "Place your lighting" : "Create your first effect");
+        font.setPointSize(10); painter.setFont(font); painter.setPen(QColor("#acb6cb"));
+        painter.drawText(QRect(20,height()/2-18,width()-40,32),Qt::AlignCenter,context_==Context::Layout ? "Arrange components here. Create their lighting in Effects." : "Choose a visual effect, then shape it directly on the canvas.");
+        return;
+    }
     painter.translate(offset());
     painter.scale(zoom_, zoom_);
+    painter.setPen(QPen(QColor("#626d85"),1/zoom_)); painter.setBrush(Qt::NoBrush);
+    painter.drawRect(QRectF(QPointF(),LightingDocument::canvasSize()).adjusted(-1,-1,1,1));
     painter.setClipRect(QRect(QPoint(), LightingDocument::canvasSize()));
     for (int y = 0; y < 400; y += 16)
         for (int x = 0; x < 640; x += 16)
@@ -95,15 +127,20 @@ void LightingCanvas::paintEvent(QPaintEvent*)
                 }
         }
         painter.drawImage(0, 0, frame);
+        if(maskTarget_ && tool_==MaskTool::Brush && underMouse()) {
+            const auto cursor=canvasPoint(mapFromGlobal(QCursor::pos()));
+            painter.setPen(QPen(QColor("#172337"),3/zoom_)); painter.setBrush(Qt::NoBrush); painter.drawEllipse(cursor,radius_,radius_);
+            painter.setPen(QPen(QColor("#ebf2ff"),1/zoom_)); painter.drawEllipse(cursor,radius_,radius_);
+        }
         if (dragging_ && maskTarget_ && tool_ == MaskTool::Gradient) {
-            painter.setPen(QPen(Qt::yellow, 1 / zoom_));
+            painter.setPen(QPen(QColor("#a9c2ff"), 1 / zoom_));
             painter.drawLine(start_, last_);
         }
         if (!maskTarget_) for (const auto& stored : document_.state().layers) if (stored.id==selected_ && stored.effect!=EffectKind::StaticColor) {
             const auto& layer=workingEffect_ ? *workingEffect_ : stored;
             const auto transform=effectTransform(layer,seconds_);
             const QRectF bounds(-0.5,-0.5,1,1);
-            painter.setPen(QPen(cropTool_ ? Qt::cyan : Qt::yellow,1/zoom_)); painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(cropTool_ ? Qt::cyan : QColor("#a9c2ff"),1/zoom_)); painter.setBrush(Qt::NoBrush);
             painter.drawPolygon(transform.map(QPolygonF(bounds)));
             if (cropTool_ && dragging_) {
                 const auto local=transform.inverted();
@@ -127,7 +164,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         if (dragging_ && placement.id == selected_) placement.origin = origin_ + last_ - start_;
         const auto points = componentPoints(placement);
         const auto& definition = document_.catalog()[placement.componentId];
-        painter.setPen(QPen(placement.id == selected_ ? Qt::yellow : Qt::white, 1.5 / zoom_));
+        painter.setPen(QPen(placement.id == selected_ ? QColor("#a9c2ff") : Qt::white, 1.5 / zoom_));
         for (int i = 0; i < points.size(); ++i) {
             const auto point = points[i];
             if (!QRectF(frame.rect()).adjusted(-20, -20, 20, 20).contains(point)) continue;
@@ -144,7 +181,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
 void LightingCanvas::mousePressEvent(QMouseEvent* event)
 {
     setFocus();
-    if (event->button() == Qt::MiddleButton) { cancelGesture(); panning_ = true; last_ = event->position(); return; }
+    if (event->button() == Qt::MiddleButton) { cancelGesture(); autoFit_=false; panning_ = true; last_ = event->position(); return; }
     if (event->button() != Qt::LeftButton) return;
     start_ = last_ = canvasPoint(event->position());
     if (!QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) return;
@@ -187,7 +224,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
 void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
 {
     if (panning_) { pan_ += event->position() - last_; last_ = event->position(); update(); return; }
-    if (!dragging_) return;
+    if (!dragging_) { if(maskTarget_) update(); return; }
     const auto point = canvasPoint(event->position());
     if (context_ == Context::Effects && maskTarget_ && tool_ == MaskTool::Brush)
         LightingDocument::paintMask(workingMask_, last_, point, radius_, hardness_, opacity_, gray_);
@@ -267,6 +304,7 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
 
 void LightingCanvas::wheelEvent(QWheelEvent* event)
 {
+    autoFit_=false;
     cancelGesture();
     const auto before = canvasPoint(event->position());
     zoom_ = std::clamp(zoom_ * std::pow(1.15, event->angleDelta().y() / 120.0), 0.25, 4.0);

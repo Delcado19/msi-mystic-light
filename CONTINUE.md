@@ -1,5 +1,23 @@
 # Implementation status
 
+## Visual workspace redesign (2026-10-23)
+
+- Replaced the long shared form with left layers/components, fitted center canvas
+  and contextual Effect/Motion/Mask inspector with live overview. Effects opens first.
+- Searchable gallery uses the real renderer; layer subtitles identify effects.
+- Precision controls start collapsed; brush/motion sliders and canvas tools are primary.
+- Component geometry is draggable; channel colors use swatches and mode-specific UI.
+- Output toolbar action/status connects to the actual reviewed output dock/pipeline.
+- Effect edits and undo update approved software RGB payloads live. Endpoint/profile,
+  ordered channels, modes, LED counts and native commands are checked before ANY
+  replacement frame; structural changes stop all endpoints. Opening projects stops
+  before loading. Edits during initial modal review invalidate that review.
+- Validation: Release and Debug 14/14 CTest entries each; native Windows editor
+  28/28 and output UI 7/7. Fresh extracted package --inspect exits 0 without SDK PATH.
+- Native screenshots are in docs/images; the complete ZIP is under build/dist.
+- See docs/EDITOR_DESIGN_REVIEW.md for references, motion decisions and qualification.
+
+
 ## GUI output, channel scopes and session completion (2026-10-23)
 
 - Explicit conflict/discovery/report-consent output gate; exact-path worker-owned

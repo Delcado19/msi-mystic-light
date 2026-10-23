@@ -4,6 +4,7 @@
 #include <QTreeWidget>
 #include <QHeaderView>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <stdexcept>
 
 namespace {
@@ -25,23 +26,26 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
     setObjectName("outputPanel");
     auto* layout=new QVBoxLayout(this);
     auto* note=new QLabel("Output follows preview time. Use Play preview for animation. "
-        "Editing or loading a document stops output and requires a new review.");
+        "Effect edits update live. Changing output configuration requires a new review.");
     note->setWordWrap(true); layout->addWidget(note);
-    start_=new QPushButton("Review and start output"); start_->setObjectName("startOutput"); layout->addWidget(start_);
-    stop_=new QPushButton("Stop output"); stop_->setObjectName("stopOutput"); layout->addWidget(stop_);
+    auto* actions=new QHBoxLayout; layout->addLayout(actions);
+    start_=new QPushButton("Review and start output"); start_->setObjectName("startOutput"); start_->setProperty("primary",true); actions->addWidget(start_);
+    stop_=new QPushButton("Stop output"); stop_->setObjectName("stopOutput"); actions->addWidget(stop_); actions->addStretch();
     status_=new QLabel; status_->setWordWrap(true); status_->setObjectName("outputStatus"); layout->addWidget(status_);
     endpoints_=new QTreeWidget; endpoints_->setObjectName("outputEndpoints");
+    endpoints_->setMaximumHeight(100);
     endpoints_->setHeaderLabels({"Endpoint / profile", "State"});
+    endpoints_->header()->setStretchLastSection(false);
     endpoints_->header()->setSectionResizeMode(0,QHeaderView::Stretch);
     endpoints_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents); layout->addWidget(endpoints_);
     connect(start_,&QPushButton::clicked,this,&OutputPanel::start);
     connect(stop_,&QPushButton::clicked,this,[this] { stop("Output stopped. Devices retain their last applied state."); });
     connect(&window_,&LightingWindow::previewFrameChanged,this,&OutputPanel::dispatch);
     connect(&window_.document(),&LightingDocument::changed,this,[this] {
-        if(active()) stop("Document changed. Review the new configuration before restarting.");
         refresh();
     });
     connect(&window_,&LightingWindow::closing,this,&OutputPanel::stopOutput);
+    connect(&window_,&LightingWindow::projectLoading,this,&OutputPanel::stopOutput);
     refresh();
 }
 void OutputPanel::stopOutput() { stop("Output stopped. Devices retain their last applied state."); }
@@ -72,9 +76,9 @@ void OutputPanel::start()
         if(window_.document().revision()!=revision) throw std::invalid_argument("Document changed during output review; review it again");
         if(requests.isEmpty()) message_="Output review cancelled. No device opened.";
         else {
-            connections_.clear(); revision_=revision;
+            connections_.clear();
             for(auto& request:requests) {
-                connections_.push_back({request.initial.endpoint,request.initial.profileId,std::make_unique<OutputScheduler>(),0});
+                connections_.push_back({request.initial,std::make_unique<OutputScheduler>(),0});
                 auto& connection=connections_.back();
                 connect(connection.scheduler.get(),&OutputScheduler::statusChanged,this,[this] {
                     for(const auto& item:connections_) if(item.scheduler->status().state==OutputScheduler::State::Faulted) {
@@ -86,7 +90,7 @@ void OutputPanel::start()
                 if(!connection.generation || !connection.scheduler->submit(connection.generation,std::move(request.initial)))
                     throw std::runtime_error(connection.scheduler->status().error.isEmpty() ? "Output connection could not be started" : connection.scheduler->status().error.toStdString());
             }
-            message_="Output active. Preview time controls software colors; Stop keeps the last device state.";
+            message_="Output active. Effect edits and preview time update software channels live.";
         }
     } catch(const std::exception& error) { stop(QString::fromUtf8(error.what())); }
     authorizing_=false; refresh();
@@ -94,18 +98,21 @@ void OutputPanel::start()
 void OutputPanel::dispatch(const QImage& frame)
 {
     if(!active()) return;
-    // A window refresh can emit a new frame before this panel's document-changed slot runs.
-    if(window_.document().revision()!=revision_) { stop("Document changed. Output stopped before submitting its new frame."); return; }
     try {
         const auto frames=prepareOutput(window_.document(),frame,window_.previewSeconds());
-        for(auto& connection:connections_) {
-            const auto state=connection.scheduler->status().state;
-            if(state!=OutputScheduler::State::Starting && state!=OutputScheduler::State::Running) continue;
+        QVector<const OutputFrame*> checked;
+        if(frames.size()!=int(connections_.size())) { stop("Output configuration changed. Review it before restarting."); return; }
+        // Validate every endpoint before submitting any frame; a structural edit must not partly escape the review gate.
+        for(const auto& connection:connections_) {
             const OutputFrame* found=nullptr;
-            for(const auto& candidate:frames) if(candidate.endpoint==connection.endpoint && candidate.profileId==connection.profileId) found=&candidate;
-            if(!found || !connection.scheduler->submit(connection.generation,*found)) {
-                stop("Output target changed or the connection stopped."); return;
-            }
+            for(const auto& candidate:frames) if(sameOutputScope(connection.approved,candidate)) { found=&candidate; break; }
+            if(!found) { stop("Output configuration changed. Review it before restarting."); return; }
+            checked.append(found);
+        }
+        for(int i=0;i<int(connections_.size());++i) {
+            auto& connection=connections_[i]; const auto state=connection.scheduler->status().state;
+            if(state!=OutputScheduler::State::Starting && state!=OutputScheduler::State::Running) continue;
+            if(!connection.scheduler->submit(connection.generation,*checked[i])) { stop("Output connection stopped."); return; }
         }
     } catch(const std::exception& error) { stop(QString::fromUtf8(error.what())); }
 }
@@ -114,9 +121,12 @@ void OutputPanel::refresh()
     start_->setEnabled(!authorizing_ && !active() && bool(authorize_) && !window_.document().state().assignments.isEmpty());
     stop_->setEnabled(active()); status_->setText(authorizing_ ? "Reviewing output..." : message_);
     endpoints_->clear();
+    QString summary="Stopped";
     for(const auto& connection:connections_) {
         const auto state=connection.scheduler->status();
-        auto* item=new QTreeWidgetItem(endpoints_,{connection.endpoint+" / "+connection.profileId,stateName(state.state)});
-        item->setToolTip(0,connection.endpoint+" / "+connection.profileId); item->setToolTip(1,state.error);
+        if(state.state!=OutputScheduler::State::Stopped) summary=stateName(state.state);
+        auto* item=new QTreeWidgetItem(endpoints_,{connection.approved.endpoint+" / "+connection.approved.profileId,stateName(state.state)});
+        item->setToolTip(0,connection.approved.endpoint+" / "+connection.approved.profileId); item->setToolTip(1,state.error);
     }
+    emit outputStateChanged(summary);
 }

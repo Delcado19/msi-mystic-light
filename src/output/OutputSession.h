@@ -14,6 +14,9 @@ struct OutputFrame {
     QString endpoint, profileId;
     QVector<ChannelOutput> channels;
 };
+// Only RGB payloads of approved software channels may change without another report review.
+bool sameOutputScope(const OutputFrame& approved, const OutputFrame& candidate);
+
 // Data preparation only: samples software chains once, never invokes a driver.
 QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds = 0);
 

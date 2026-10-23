@@ -1,4 +1,8 @@
 #include "ChannelEditor.h"
+#include "StudioWidgets.h"
+#include <QColorDialog>
+#include <QToolButton>
+#include <QPixmap>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -19,6 +23,7 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     const auto& profile = assignmentProfile(document.profiles(), initial_.profileId);
     const auto& channel = assignmentChannel(profile, initial_.channelId);
     setWindowTitle("Configure channel - " + channel.id); resize(560, 620);
+    applyStudioStyle(this);
     auto* layout = new QVBoxLayout(this);
     auto* identity = new QLabel(profile.name + " / " + channel.id + "\n" + initial_.endpoint);
     identity->setWordWrap(true); layout->addWidget(identity);
@@ -30,7 +35,9 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     mode->setCurrentIndex(mode->findData(initial_.software)); form->addRow("Output mode", mode);
     auto* rate=new QDoubleSpinBox; rate->setObjectName("channelRate"); rate->setRange(0,10); rate->setDecimals(3); rate->setValue(initial_.timeScale);
     auto* offset=new QDoubleSpinBox; offset->setObjectName("channelOffset"); offset->setRange(0,86400); offset->setDecimals(3); offset->setValue(initial_.timeOffset);
-    form->addRow("Clock rate (0 holds)",rate); form->addRow("Clock offset s",offset);
+    auto* clock=new QWidget; auto* clockForm=new QFormLayout(clock);
+    rate->setAccessibleName("Channel clock rate"); clockForm->addRow("Playback speed",sliderField(rate)); clockForm->addRow("Offset (seconds)",offset);
+    auto* clockSection=disclosure(layout,"Channel playback clock",clock);
     auto clockEnabled=[mode,rate,offset] { rate->setEnabled(mode->currentData().toBool()); offset->setEnabled(mode->currentData().toBool()); };
     connect(mode,&QComboBox::currentIndexChanged,this,clockEnabled); clockEnabled();
     auto* native = new QWidget; auto* nativeForm = new QFormLayout(native); layout->addWidget(native);
@@ -39,7 +46,34 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     QStringList colors;
     for (const auto& color : initial_.native.colors) colors.append(QColor(color.r, color.g, color.b).name());
     auto* colorText = new QLineEdit(colors.join(", ")); colorText->setObjectName("nativeColors");
-    colorText->setPlaceholderText("#ff0000, #00ff00 (1..4 RGB colors)"); nativeForm->addRow("Colors", colorText);
+    colorText->setPlaceholderText("#ff0000, #00ff00 (1..4 RGB colors)");
+    auto* palette=new QWidget; auto* swatches=new QHBoxLayout(palette); swatches->setContentsMargins(0,0,0,0);
+    QVector<QPushButton*> colorButtons;
+    for(int index=0;index<4;++index) {
+        auto* swatch=new QPushButton; swatch->setObjectName(QString("nativeColor%1").arg(index)); swatch->setFixedSize(42,32);
+        swatch->setAccessibleName(QString("Native color %1").arg(index+1)); colorButtons.append(swatch); swatches->addWidget(swatch);
+        connect(swatch,&QPushButton::clicked,this,[this,colorText,index] {
+            auto colors=colorText->text().split(','); if(index>=colors.size()) return;
+            const auto color=QColorDialog::getColor(QColor(colors[index].trimmed()),this,"Native effect color");
+            if(color.isValid()) { colors[index]=color.name(); colorText->setText(colors.join(", ")); }
+        });
+    }
+    auto* addColor=new QPushButton("+"); addColor->setAccessibleName("Add native color"); swatches->addWidget(addColor);
+    auto* removeColor=new QPushButton("-"); removeColor->setAccessibleName("Remove last native color"); swatches->addWidget(removeColor);
+    connect(addColor,&QPushButton::clicked,colorText,[colorText] { if(colorText->text().split(',').size()<4) colorText->setText(colorText->text()+", #ffffff"); });
+    connect(removeColor,&QPushButton::clicked,colorText,[colorText] { auto colors=colorText->text().split(','); if(colors.size()>1) { colors.removeLast(); colorText->setText(colors.join(", ")); } });
+    auto refreshColors=[colorText,colorButtons,addColor,removeColor] {
+        const auto colors=colorText->text().split(',');
+        for(int i=0;i<colorButtons.size();++i) {
+            colorButtons[i]->setVisible(i<colors.size()); if(i>=colors.size()) continue;
+            QPixmap icon(24,20); icon.fill(QColor(colors[i].trimmed())); colorButtons[i]->setIcon(QIcon(icon));
+            colorButtons[i]->setToolTip(colors[i].trimmed());
+        }
+        addColor->setEnabled(colors.size()<4); removeColor->setEnabled(colors.size()>1);
+    };
+    connect(colorText,&QLineEdit::textChanged,this,refreshColors); refreshColors(); nativeForm->addRow("Colors",palette);
+    auto* hexValues=new QToolButton; hexValues->setText("Edit exact color values"); hexValues->setCheckable(true); nativeForm->addRow(hexValues);
+    nativeForm->addRow(colorText); colorText->hide(); connect(hexValues,&QToolButton::toggled,colorText,&QLineEdit::setVisible);
     auto* brightness = new QSpinBox; brightness->setObjectName("nativeBrightness"); brightness->setRange(0,5);
     brightness->setValue(initial_.native.brightness); nativeForm->addRow("Brightness", brightness);
     auto* speed = new QSpinBox; speed->setObjectName("nativeSpeed"); speed->setRange(0,2);
@@ -48,7 +82,8 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     nativeForm->addRow(inward);
     connect(mode, &QComboBox::currentIndexChanged, this, [mode,native] { native->setEnabled(!mode->currentData().toBool()); });
     native->setEnabled(!mode->currentData().toBool());
-    layout->addWidget(new QLabel("Component chain: first item is nearest the controller."));
+    native->setVisible(!mode->currentData().toBool());
+    auto* chainCaption=new QLabel("Component chain: first item is nearest the controller."); layout->addWidget(chainCaption);
     auto* chain = new QListWidget; chain->setObjectName("channelChain");
     chain->setDragDropMode(QAbstractItemView::InternalMove); layout->addWidget(chain);
     auto label = [&document](const QUuid& id) {
@@ -81,6 +116,13 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
         const int row=chain->currentRow(); if(row<0 || row>=chain->count()-1) return;
         auto* item=chain->takeItem(row); chain->insertItem(row+1,item); chain->setCurrentItem(item);
     });
+    auto visibility=[mode,native,chain,available,actions,clock,clockSection,chainCaption] {
+        const bool software=mode->currentData().toBool(); native->setVisible(!software);
+        chain->setVisible(software); available->setVisible(software); clock->setEnabled(software);
+        clockSection->setVisible(software); chainCaption->setVisible(software);
+        for(int i=0;i<actions->count();++i) if(auto* widget=actions->itemAt(i)->widget()) widget->setVisible(software);
+    };
+    connect(mode,&QComboBox::currentIndexChanged,this,visibility); visibility(); syncSliderFields(this);
     auto* error = new QLabel; error->setObjectName("channelError"); error->setWordWrap(true); layout->addWidget(error);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel); layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);

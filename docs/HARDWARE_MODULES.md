@@ -241,8 +241,8 @@ and its `DriverInstance`, coalesces staged frames and caches successful native
 settings. Failure closes the session without retry; explicit reconnect uses a
 fresh driver. OutputScheduler now keeps session creation, writes and teardown on its worker,
 coalesces frames and checks stop requests between channel calls. The live app
-does not yet connect this backend to hardware.
+connects this backend only after exact-path discovery and explicit report consent.
 See [OUTPUT_SESSION.md](OUTPUT_SESSION.md) for lifecycle, validation and remaining
-connection/confirmation and physical qualification work.
+authorization and remaining physical qualification work.
 
 Live output uses the reviewed exact-path connection gate described in [OUTPUT_SESSION.md](OUTPUT_SESSION.md). Physical protocol qualification remains pending.

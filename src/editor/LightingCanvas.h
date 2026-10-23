@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <optional>
 
+class QPushButton;
 class LightingCanvas : public QWidget {
     Q_OBJECT
 public:
@@ -19,11 +20,15 @@ public:
     void setShowMask(bool show) { showMask_ = show; update(); }
     void setCropTool(bool enabled) { cancelGesture(); cropTool_ = enabled; update(); }
     void setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel = {});
+    void fitToView();
+    QPointF viewportPoint(QPointF canvas) const;
     QPointF canvasPoint(QPointF viewport) const;
 signals:
     void selectionChanged();
     void effectGestureStarted();
+    void addRequested();
 protected:
+    void resizeEvent(QResizeEvent*) override;
     void paintEvent(QPaintEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
     void mouseMoveEvent(QMouseEvent*) override;
@@ -39,6 +44,8 @@ private:
     LightingDocument& document_;
     Context context_;
     QImage rendered_, workingMask_;
+    QPushButton* emptyAction_;
+    bool autoFit_ = true;
     QUuid selected_, previewChannel_;
     bool maskTarget_ = false, showMask_ = false, dragging_ = false, panning_ = false;
     MaskTool tool_ = MaskTool::Brush;

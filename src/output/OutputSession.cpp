@@ -35,6 +35,17 @@ void validateFrame(const OutputFrame& frame, const DeviceIdentity& identity, con
 }
 }
 
+bool sameOutputScope(const OutputFrame& approved,const OutputFrame& candidate)
+{
+    if(approved.endpoint!=candidate.endpoint || approved.profileId!=candidate.profileId || approved.channels.size()!=candidate.channels.size()) return false;
+    for(int i=0;i<approved.channels.size();++i) {
+        const auto& a=approved.channels[i]; const auto& b=candidate.channels[i];
+        if(a.channelId!=b.channelId || a.software!=b.software || a.colors.size()!=b.colors.size()) return false;
+        if(!a.software && nativeKey(a.native)!=nativeKey(b.native)) return false;
+    }
+    return true;
+}
+
 QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds)
 {
     const auto sampled = document.sampleChannels(composed,seconds);

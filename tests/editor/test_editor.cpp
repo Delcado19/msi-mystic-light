@@ -24,6 +24,10 @@
 #include <QImageReader>
 #include <QElapsedTimer>
 #include <QLineEdit>
+#include <QLineF>
+#include <QGraphicsView>
+#include <QGraphicsEllipseItem>
+#include <QGraphicsScene>
 #include <QtTest>
 #include <stdexcept>
 
@@ -46,6 +50,17 @@ DeviceProfile channelProfile()
     auto fixed=direct; fixed.id="Fixed"; fixed.fixedLeds=6; profile.channels.append(fixed);
     return profile;
 }
+void addEffect(LightingWindow& window,EffectKind kind=EffectKind::StaticColor)
+{
+    QTimer::singleShot(0,[kind] {
+        auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        QVERIFY(dialog); QTimer::singleShot(2000,dialog,&QDialog::reject); auto* list=dialog->findChild<QListWidget*>("effectGalleryItems"); QVERIFY(list);
+        for(int i=0;i<list->count();++i) if(list->item(i)->data(Qt::UserRole).toInt()==static_cast<int>(kind)) list->setCurrentRow(i);
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+    });
+    for(auto* button:window.findChildren<QPushButton*>()) if(button->text()=="New layer") { button->click(); return; }
+    QFAIL("Missing New layer action");
+}
 EffectLayer layer(QColor color)
 {
     EffectLayer result; result.color = color;
@@ -56,6 +71,7 @@ EffectLayer layer(QColor color)
 class EditorTest : public QObject {
     Q_OBJECT
 private slots:
+    void visualWorkspace();
     void channelScopesAndClocks();
     void sessionRecovery();
     void channelAssignments();
@@ -82,6 +98,45 @@ private slots:
     void canvasTransformsAndCrop();
     void advancedControls();
 };
+
+void EditorTest::visualWorkspace()
+{
+    QDir().mkpath(TEST_ARTIFACT_DIR);
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+    window.resize(1200,800); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas"); QVERIFY(canvas->isVisible());
+    QVERIFY(canvas->width()>=360); QVERIFY(canvas->height()>=400);
+    auto* tabs=window.findChild<QTabWidget*>("layerInspectorTabs"); QVERIFY(!tabs->isEnabled());
+    const int before=window.document().history()->count();
+    QTimer::singleShot(0,[] {
+        auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget()); QVERIFY(dialog);
+        QTimer::singleShot(2000,dialog,&QDialog::reject);
+        auto* search=dialog->findChild<QLineEdit*>("effectSearch"); auto* list=dialog->findChild<QListWidget*>("effectGalleryItems");
+        search->setText("rain"); QCOMPARE(list->currentItem()->data(Qt::UserRole).toInt(),static_cast<int>(EffectKind::Rain));
+        search->setText("no such effect"); QVERIFY(!dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->isEnabled());
+        search->clear(); QVERIFY(dialog->grab().save(QString(TEST_ARTIFACT_DIR)+"/studio-effect-gallery.png"));
+        dialog->reject();
+    });
+    for(auto* button:window.findChildren<QPushButton*>()) if(button->text()=="New layer") { button->click(); break; }
+    QCOMPARE(window.document().history()->count(),before); QVERIFY(window.document().state().layers.isEmpty());
+    addEffect(window,EffectKind::Star); QVERIFY(tabs->isEnabled());
+    auto* tree=window.findChild<QTreeWidget*>("effectLayers");
+    QCOMPARE(tree->topLevelItem(0)->data(0,Qt::UserRole+1).toString(),QString("Star"));
+    QVERIFY(!window.findChild<QDoubleSpinBox*>("effectGeometry0")->isVisible());
+    QVERIFY(!window.findChild<QDoubleSpinBox*>("particleSeed")->isVisible());
+    const auto old=window.previewFrame(); window.findChild<QSlider*>("layerTransparency")->setValue(80);
+    QVERIFY(window.previewFrame()!=old); QVERIFY(!window.findChild<QLabel*>("compositionPreview")->pixmap().isNull());
+    window.document().history()->undo(); QCOMPARE(window.previewFrame(),old);
+    QSignalSpy output(&window,&LightingWindow::outputRequested);
+    window.findChild<QAction*>("reviewOutput")->trigger(); QCOMPARE(output.count(),1);
+    window.findChild<QPushButton*>("paintMaskTool")->click(); QCOMPARE(tabs->currentIndex(),2);
+    QVERIFY(!window.findChild<QDoubleSpinBox*>("effectGeometry0")->isVisible());
+    window.findChild<QPushButton*>("moveEffectTool")->click(); QCOMPARE(tabs->currentIndex(),0);
+    window.resize(1060,680); QCoreApplication::processEvents(); QVERIFY(canvas->width()>=360);
+    const auto center=canvas->viewportPoint({320,200}); QVERIFY(canvas->rect().contains(center.toPoint()));
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/studio-compact.png"));
+    window.document().history()->setClean();
+}
 
 void EditorTest::channelScopesAndClocks()
 {
@@ -366,6 +421,14 @@ void EditorTest::componentEditor()
     ComponentEditor editor(catalog().first(), true);
     editor.show(); QVERIFY(QTest::qWaitForWindowExposed(&editor));
     auto* table = editor.findChild<QTableWidget*>("componentLeds");
+    auto* geometry=editor.findChild<QGraphicsView*>("componentGeometry"); QVERIFY(geometry->isVisible());
+    const auto oldPoint=editor.component().positions[0];
+    const auto from=geometry->mapFromScene(oldPoint*24),to=from+QPoint(24,12);
+    QTest::mousePress(geometry->viewport(),Qt::LeftButton,Qt::NoModifier,from);
+    QTest::mouseMove(geometry->viewport(),to);
+    QTest::mouseRelease(geometry->viewport(),Qt::LeftButton,Qt::NoModifier,to);
+    QVERIFY(editor.component().positions[0]!=oldPoint);
+
     QVERIFY(editor.findChild<QLineEdit*>("componentId")->isReadOnly());
     table->item(1, 0)->setText("4.25");
     QCOMPARE(editor.component().positions[1], QPointF(4.25, 0));
@@ -379,6 +442,7 @@ void EditorTest::componentEditor()
     table->item(1, 2)->setText("1");
     editor.findChild<QSpinBox*>("componentCount")->setValue(4);
     QCOMPARE(editor.component().mapping, QVector<int>({2, 1, 0, 3}));
+    editor.findChild<QTabWidget*>("componentViews")->setCurrentIndex(1);
     table->setCurrentCell(1, 0); table->editItem(table->item(1, 0));
     QLineEdit* cell = nullptr;
     for (auto* candidate : table->findChildren<QLineEdit*>()) if (candidate->isVisible()) cell = candidate;
@@ -595,6 +659,7 @@ void EditorTest::separateEditingContexts()
     auto* layout = window.findChild<LightingCanvas*>("layoutCanvas");
     auto* effects = window.findChild<LightingCanvas*>("effectsCanvas");
     QCOMPARE(tabs->count(), 2);
+    tabs->setCurrentIndex(0);
     QVERIFY(layout->isVisible()); QVERIFY(!effects->isVisible());
     layout->select(placement);
     QTest::keyClick(layout, Qt::Key_Right);
@@ -703,7 +768,7 @@ void EditorTest::layerPanelOperations()
             if (button->text() == text) { button->click(); return; }
         QFAIL("Missing layer action");
     };
-    click("New layer");
+    addEffect(window);
     auto* tree = window.findChild<QTreeWidget*>("effectLayers");
     tree->topLevelItem(0)->setText(0, "Red wash");
     QTRY_COMPARE(window.document().state().layers[0].name, QString("Red wash"));
@@ -872,9 +937,7 @@ void EditorTest::effectPersistenceAndLegacy()
 void EditorTest::effectControls()
 {
     LightingWindow window(catalog(), [] { return QVector<ProfileCandidate>{}; });
-    auto* type = window.findChild<QComboBox*>("newEffectType");
-    type->setCurrentIndex(type->findData(static_cast<int>(EffectKind::Star)));
-    for (auto* button : window.findChildren<QPushButton*>()) if (button->text() == "New layer") button->click();
+    addEffect(window,EffectKind::Star);
     QCOMPARE(window.document().state().layers[0].effect, EffectKind::Star);
     auto* width = window.findChild<QDoubleSpinBox*>("effectGeometry2"); width->setValue(150);
     QCOMPARE(window.document().state().layers[0].extent.width(), 150.0);
@@ -888,8 +951,7 @@ void EditorTest::effectControls()
         state.layers[0].color = QColor("#ffb347"); state.layers[0].secondaryColor = QColor("#242c78");
         state.layers[0].extent = {640, 400};
     });
-    type->setCurrentIndex(type->findData(static_cast<int>(EffectKind::Star)));
-    for (auto* button : window.findChildren<QPushButton*>()) if (button->text() == "New layer") button->click();
+    addEffect(window,EffectKind::Star);
     window.document().edit("Preview shape", [](LightingState& state) {
         state.layers[1].color = QColor("#ff409e"); state.layers[1].rotation = 20;
         state.layers[1].transparency = 30;
@@ -981,11 +1043,11 @@ void EditorTest::animationPreview()
     QCOMPARE(loaded.render(0.5).pixelColor(320,200).alpha(), 0);
     const auto count = window.document().history()->count();
     auto* time = window.findChild<QDoubleSpinBox*>("previewTime"); time->setValue(0.5);
-    auto* play = window.findChild<QCheckBox*>("playPreview"); play->setChecked(true);
+    auto* play = window.findChild<QPushButton*>("playPreview"); play->setChecked(true);
     QTRY_VERIFY(time->value() > 0.5); play->setChecked(false);
     QCOMPARE(window.document().history()->count(), count); QVERIFY(window.document().history()->isClean());
     play->setChecked(true);
-    for (auto* button : window.findChildren<QPushButton*>()) if (button->text() == "Edit mask") button->click();
+    window.findChild<QPushButton*>("paintMaskTool")->click();
     QVERIFY(!play->isChecked());
     window.document().edit("Mask", [](auto& state) { state.layers[0].mask.fill(0); });
     QCOMPARE(window.document().render(0.25).pixelColor(320,200).alpha(), 0);
@@ -1056,21 +1118,21 @@ void EditorTest::canvasTransformsAndCrop()
     window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(1);
     window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
     auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");
-    const auto center=canvas->rect().center();
+    const auto center=canvas->viewportPoint({320,200}).toPoint();
     const auto count=window.document().history()->count();
     QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,center);
-    QTest::mouseMove(canvas,center+QPoint(30,10)); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(30,10));
-    QCOMPARE(window.document().state().layers[0].center,QPointF(350,210));
+    QTest::mouseMove(canvas,canvas->viewportPoint({350,210}).toPoint()); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({350,210}).toPoint());
+    QVERIFY(QLineF(window.document().state().layers[0].center,QPointF(350,210)).length()<1.5);
     QCOMPARE(window.document().history()->count(),count+1); window.document().history()->undo();
     QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,center);
     QTest::mouseMove(canvas,center+QPoint(50,0)); QTest::keyClick(canvas,Qt::Key_Escape);
     QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(50,0));
     QCOMPARE(window.document().state().layers[0].center,QPointF(320,200));
-    const auto rotate=center+QPoint(0,-144);
+    const auto rotate=canvas->viewportPoint({320,56}).toPoint();
     QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,rotate);
-    QTest::mouseMove(canvas,center+QPoint(144,0)); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(144,0));
+    QTest::mouseMove(canvas,canvas->viewportPoint({464,200}).toPoint()); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({464,200}).toPoint());
     QVERIFY(std::abs(window.document().state().layers[0].rotation-90)<1); window.document().history()->undo();
-    const auto corner=center+QPoint(120,120);
+    const auto corner=canvas->viewportPoint({440,320}).toPoint();
     QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,corner);
     QTest::mouseMove(canvas,corner+QPoint(30,30)); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,corner+QPoint(30,30));
     QVERIFY(window.document().state().layers[0].extent.width()>290); window.document().history()->undo();
@@ -1080,9 +1142,9 @@ void EditorTest::canvasTransformsAndCrop()
     QVERIFY(pixels.save(imagePath)); window.document().importImage(imagePath);
     tree->setCurrentItem(tree->topLevelItem(0));
     window.findChild<QCheckBox*>("cropTool")->setChecked(true);
-    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(5,-80));
-    QTest::mouseMove(canvas,center+QPoint(200,80));
-    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(200,80));
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({325,120}).toPoint());
+    QTest::mouseMove(canvas,canvas->viewportPoint({520,280}).toPoint());
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({520,280}).toPoint());
     QVERIFY(window.document().state().layers.last().crop.width()<0.5);
     QCOMPARE(window.document().render().pixelColor(320,200),QColor(Qt::blue));
     window.document().history()->undo(); QCOMPARE(window.document().state().layers.last().crop,QRectF(0,0,1,1));
@@ -1099,9 +1161,7 @@ void EditorTest::canvasTransformsAndCrop()
 void EditorTest::advancedControls()
 {
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
-    auto* types=window.findChild<QComboBox*>("newEffectType");
-    types->setCurrentIndex(types->findData(static_cast<int>(EffectKind::Orbit)));
-    for (auto* button : window.findChildren<QPushButton*>()) if (button->text()=="New layer") button->click();
+    addEffect(window,EffectKind::Orbit);
     window.findChild<QDoubleSpinBox*>("particleCount")->setValue(400);
     QCOMPARE(window.document().state().layers[0].particleCount,400.0);
     QVERIFY(!window.findChild<QCheckBox*>("cropTool")->isEnabled());

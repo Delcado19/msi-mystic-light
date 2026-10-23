@@ -16,6 +16,7 @@ class QDoubleSpinBox;
 class QSpinBox;
 class QLineEdit;
 class QListWidget;
+class QLabel;
 
 class LightingWindow : public QMainWindow {
     Q_OBJECT
@@ -24,12 +25,15 @@ public:
         std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {});
     LightingDocument& document() { return document_; }
     double previewSeconds() const;
+    void setOutputState(const QString& state);
     QString projectFile() const { return fileName_; }
     void loadProject(const QString& path, bool recovered = false, const QString& original = {});
     const QImage& previewFrame() const { return previewFrame_; }
 signals:
     void previewFrameChanged(const QImage& frame);
     void closing();
+    void projectLoading();
+    void outputRequested();
 protected:
     void closeEvent(QCloseEvent*) override;
 private:
@@ -45,6 +49,10 @@ private:
     LightingCanvas *layoutCanvas_, *effectsCanvas_;
     QTabWidget* tabs_;
     QTreeWidget* layers_;
+    QTreeWidget* components_;
+    QTabWidget* inspectorTabs_;
+    QLabel* inspectorTitle_;
+    QLabel* previewOverview_;
     QTreeWidget* assignments_;
     QComboBox *catalog_, *blend_;
     QComboBox* effectType_;
@@ -62,7 +70,7 @@ private:
     QComboBox* imageFit_;
     QWidget* animationControls_;
     QVector<QDoubleSpinBox*> animation_;
-    QCheckBox* playing_;
+    QPushButton* playing_;
     QDoubleSpinBox* previewTime_;
     QVector<QDoubleSpinBox*> advanced_, crop_;
     QWidget* cropControls_;

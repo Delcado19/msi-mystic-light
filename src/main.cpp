@@ -126,9 +126,11 @@ int main(int argc, char** argv)
         return authorizeHardwareOutput(parent,availableProfiles,frames,directory);
     },outputDock);
     outputDock->setWidget(outputPanel);
+    QObject::connect(outputPanel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
+    QObject::connect(&window,&LightingWindow::outputRequested,outputDock,[outputDock] { outputDock->show(); outputDock->raise(); });
     window.addDockWidget(Qt::BottomDockWidgetArea,outputDock);
     outputDock->setVisible(false);
-    auto* view=window.menuBar()->addMenu("View"); view->addAction(outputDock->toggleViewAction());
+    auto* view=window.findChild<QMenu*>("workspaceViewMenu"); view->addAction(outputDock->toggleViewAction());
     QSystemTrayIcon tray(window.style()->standardIcon(QStyle::SP_ComputerIcon),&window);
     tray.setToolTip("MSI Mystic Light");
     auto* trayMenu=new QMenu(&window);

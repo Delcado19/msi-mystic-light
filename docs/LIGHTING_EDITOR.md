@@ -1,5 +1,31 @@
 # Lighting editor
 
+## Visual workspace
+
+The editor opens in Effects. Add a layer from the searchable effect gallery or
+import an image. The left sidebar shows named layers with an effect-type subtitle
+and independent source/mask thumbnails. Drag to reorder, double-click to rename,
+and use the visibility checkbox to compare layers.
+
+The center is the editable canvas; it fits the available space until manually
+panned or zoomed. Use Fit canvas / Ctrl+0 to reset. Move (V), Mask brush (B) and
+image crop (C) act on the selected layer. A brush outline shows the painted area.
+The right inspector keeps a live overview and separates Effect, Motion and Mask.
+Common motion/brush values use sliders; exact transforms, cropping and advanced
+parameters are under disclosure controls. Play/Pause previews animation without
+altering the document. View can hide panels or reset the workspace.
+
+Layout has separate Components and Devices setup tabs. Components can be moved
+on its canvas; the geometry editor starts with draggable LEDs and retains a
+Coordinates & wire mapping tab for precision. Channel setup shows either native
+firmware controls with color swatches or a software component chain.
+
+Output: Stopped/Connecting/Running/Faulted in the main toolbar opens the actual
+hardware-output dock. Review/start and Stop use the existing transport pipeline;
+adding layers or playing alone does not authorize a connection. See the
+[design review](EDITOR_DESIGN_REVIEW.md) and [output contract](OUTPUT_SESSION.md).
+
+
 Launch `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
 Normal startup runs the existing process-conflict dialog first. Neither editor
 view opens devices or sends HID reports. Layout and Effects are mutually
@@ -275,6 +301,7 @@ protects the session. The tray offers Show editor, Stop output and Quit; hiding
 is explicit, and normal closing retains the unsaved-project prompt.
 
 Assignments and preview alone never open devices. Use View > Hardware output to
-review exact initial reports and explicitly start. Document edits/load/undo stop
-output; restart requires review. See [output session](OUTPUT_SESSION.md). No
+review exact initial reports and explicitly start. Effect/mask edits and their undo
+update approved software channels live. Output-configuration changes or opening
+a project stop output; restart requires review. See [output session](OUTPUT_SESSION.md). No
 physical calibration or device-behavior qualification is claimed.
