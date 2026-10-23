@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QImageReader>
 #include <QtTest>
 #include <stdexcept>
 
@@ -46,6 +47,7 @@ private slots:
     void gradientAndShapeRendering();
     void effectPersistenceAndLegacy();
     void effectControls();
+    void imageImportAndCrop();
 };
 
 void EditorTest::rgbaAndMask()
@@ -315,7 +317,7 @@ void EditorTest::gradientAndShapeRendering()
     QCOMPARE(faded.red(), 255); QCOMPARE(faded.blue(), 0);
 
     for (const auto& definition : effectDefinitions()) {
-        if (definition.kind < EffectKind::Circle) continue;
+        if (definition.kind < EffectKind::Circle || definition.kind == EffectKind::Image) continue;
         effect.effect = definition.kind;
         effect.extent = {100, 60}; effect.center = {100, 100};
         image = renderEffect(effect);
@@ -361,7 +363,20 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 2);
+    QCOMPARE(root.value("schemaVersion").toInt(), 3);
+    // Published schema 2 has explicit effects but no image fields or Image type.
+    auto version2 = root; QJsonArray version2Layers;
+    for (const auto& item : root.value("layers").toArray()) {
+        auto value = item.toObject();
+        if (value.value("effect").toObject().value("type").toString() == "image") continue;
+        value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
+    }
+    version2.insert("schemaVersion", 2); version2.insert("layers", version2Layers);
+    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write(QJsonDocument(version2).toJson()); file.close();
+    loaded.load(path); QCOMPARE(loaded.render(), document.render());
+    document.save(path);
+    loaded.load(path);
     auto layers = root.value("layers").toArray();
     auto json = layers[1].toObject(); auto parameters = json.value("effect").toObject();
     parameters.insert("type", "future-unsupported-effect"); json.insert("effect", parameters);
@@ -379,7 +394,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QCOMPARE(loaded.render(), before);
 
     // The previous published editor wrote schema 1 with implicit Static Color.
-    auto legacy = layers[0].toObject(); legacy.remove("effect");
+    auto legacy = layers[0].toObject(); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
     root.insert("schemaVersion", 1); root.insert("layers", QJsonArray{legacy}); write();
     loaded.load(path);
     QCOMPARE(loaded.state().layers.size(), 1);
@@ -416,6 +431,63 @@ void EditorTest::effectControls()
     window.show();
     QVERIFY(QTest::qWaitForWindowExposed(&window));
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR) + "/editor-gradient-shape.png"));
+    window.document().history()->setClean();
+}
+
+void EditorTest::imageImportAndCrop()
+{
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source.png"), project = directory.filePath("image.json");
+    QImage pixels(200, 100, QImage::Format_ARGB32); pixels.fill(QColor(255, 0, 0, 128));
+    QVERIFY(pixels.save(source));
+    LightingDocument document(catalog());
+    const auto id = document.importImage(source);
+    QCOMPARE(document.state().layers[0].id, id);
+    QCOMPARE(document.render().pixelColor(320, 10).alpha(), 0);
+    QCOMPARE(document.render().pixelColor(320, 200).alpha(), 128);
+    document.edit("Crop", [](auto& state) { state.layers[0].imageFill = true; });
+    QCOMPARE(document.render().pixelColor(320, 10).alpha(), 128);
+    document.save(project);
+    QVERIFY(QFile::remove(source));
+    LightingDocument loaded(catalog()); loaded.load(project);
+    QCOMPARE(loaded.render(), document.render());
+    document.history()->undo();
+    QCOMPARE(document.render().pixelColor(320, 10).alpha(), 0);
+    const auto count = document.history()->count();
+    QVERIFY_EXCEPTION_THROWN(document.importImage(source), std::invalid_argument);
+    QCOMPARE(document.history()->count(), count);
+    QImage huge(4097, 1, QImage::Format_RGB32); huge.fill(Qt::white); QVERIFY(huge.save(source));
+    QVERIFY_EXCEPTION_THROWN(document.importImage(source), std::invalid_argument);
+    QCOMPARE(document.state().layers.size(), 1);
+    for (const auto& format : {"JPEG", "BMP"}) {
+        const auto path = directory.filePath(QString("fixture.") + format);
+        QVERIFY(pixels.save(path, format));
+        document.importImage(path);
+    }
+    const auto gif = directory.filePath("fixture.gif");
+    QFile gifFile(gif); QVERIFY(gifFile.open(QIODevice::WriteOnly));
+    gifFile.write(QByteArray::fromBase64("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")); gifFile.close();
+    document.importImage(gif);
+    QCOMPARE(document.state().layers.last().image.size(), QSize(1,1));
+    QFile broken(project); QVERIFY(broken.open(QIODevice::ReadOnly));
+    auto root = QJsonDocument::fromJson(broken.readAll()).object(); broken.close();
+    auto layers = root.value("layers").toArray(); auto entry = layers[0].toObject();
+    entry.insert("imagePng", "broken"); layers[0] = entry; root.insert("layers", layers);
+    QVERIFY(broken.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    broken.write(QJsonDocument(root).toJson()); broken.close();
+    const auto before = loaded.render();
+    QVERIFY_EXCEPTION_THROWN(loaded.load(project), std::invalid_argument);
+    QCOMPARE(loaded.render(), before);
+    LightingWindow window(catalog(), [] { return QVector<ProfileCandidate>{}; });
+    window.document().importImage(directory.filePath("fixture.BMP"));
+    auto* tree = window.findChild<QTreeWidget*>("effectLayers");
+    tree->setCurrentItem(tree->topLevelItem(0));
+    auto* fit = window.findChild<QComboBox*>("imageFit"); fit->setCurrentIndex(1);
+    QVERIFY(window.document().state().layers[0].imageFill);
+    window.document().history()->undo(); QCOMPARE(fit->currentIndex(), 0);
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(1);
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR) + "/editor-image.png"));
     window.document().history()->setClean();
 }
 

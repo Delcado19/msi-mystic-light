@@ -20,6 +20,8 @@ struct EffectLayer {
     QSizeF extent{240, 240};
     double rotation = 0;
     int repetitions = 4;
+    QImage image;
+    bool imageFill = false; // Fit preserves the whole image; fill crops to the effect rectangle.
     bool visible = true;
     int transparency = 0;
     LayerBlend blend = LayerBlend::Normal;
@@ -48,6 +50,7 @@ public:
     QUndoStack* history() { return &history_; }
     void edit(const QString& label, const std::function<void(LightingState&)>& operation);
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
+    QUuid importImage(const QString& fileName);
     QUuid addComponent(const QString& componentId);
     QImage render() const;
     static QImage render(const LightingState& state);

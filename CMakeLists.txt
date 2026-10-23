@@ -68,6 +68,11 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QWindowsIntegrationPlugin>
             "$<TARGET_FILE_DIR:msi_mystic_light>/platforms"
         COMMAND_EXPAND_LISTS)
+    # PNG/BMP are built into QtGui; JPEG/GIF need matching runtime plugins.
+    add_custom_command(TARGET msi_mystic_light POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin>
+            "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats")
 endif()
 
 enable_testing()

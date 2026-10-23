@@ -26,9 +26,13 @@ void validate(const LightingState& state)
 {
     if (state.layers.size() > 64 || state.placements.size() > 256)
         throw std::invalid_argument("Document limit: 64 effect layers and 256 component placements");
+    qint64 imagePixels = 0;
     QSet<QUuid> ids;
     for (const auto& layer : state.layers) {
         validateEffect(layer);
+        imagePixels += qint64(layer.image.width()) * layer.image.height();
+        if (imagePixels > 16 * 1024 * 1024)
+            throw std::invalid_argument("Document image budget exceeds 16 megapixels");
         if (layer.id.isNull() || ids.contains(layer.id) || layer.name.trimmed().isEmpty() ||
             !layer.color.isValid() || layer.transparency < 0 || layer.transparency > 100 ||
             layer.blend < LayerBlend::Normal || layer.blend > LayerBlend::Overlay ||
@@ -83,6 +87,29 @@ QUuid LightingDocument::addLayer(EffectKind effect)
     return layer.id;
 }
 
+QUuid LightingDocument::importImage(const QString& fileName)
+{
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly) || file.size() > 16 * 1024 * 1024)
+        throw std::invalid_argument("Image unreadable or larger than 16 MiB");
+    QImageReader reader(&file);
+    if (!QList<QByteArray>{"png", "jpeg", "jpg", "bmp", "gif"}.contains(reader.format()))
+        throw std::invalid_argument("Supported image formats: PNG, JPEG, BMP, GIF");
+    const auto size = reader.size();
+    if (!size.isValid() || size.width() > 4096 || size.height() > 4096)
+        throw std::invalid_argument("Image must be at most 4096 pixels per side");
+    reader.setAutoTransform(true);
+    // shortcut: animated inputs import the first frame; add playback with the motion timeline.
+    const auto image = reader.read();
+    if (image.isNull()) throw std::invalid_argument("Unsupported or corrupt image");
+    EffectLayer layer;
+    layer.effect = EffectKind::Image; layer.name = "Image";
+    layer.image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    layer.extent = canvasSize(); layer.mask = whiteMask();
+    edit("Import image", [&](LightingState& state) { state.layers.append(layer); });
+    return layer.id;
+}
+
 QUuid LightingDocument::addComponent(const QString& componentId)
 {
     ComponentPlacement placement;
@@ -100,6 +127,11 @@ void LightingDocument::save(const QString& fileName)
         QByteArray png;
         QBuffer buffer(&png); buffer.open(QIODevice::WriteOnly);
         if (!layer.mask.save(&buffer, "PNG")) throw std::runtime_error("Could not encode layer mask");
+        QByteArray imagePng;
+        if (!layer.image.isNull()) {
+            QBuffer imageBuffer(&imagePng); imageBuffer.open(QIODevice::WriteOnly);
+            if (!layer.image.save(&imageBuffer, "PNG")) throw std::runtime_error("Could not encode image");
+        }
         layers.append(QJsonObject{{"id", layer.id.toString()}, {"name", layer.name},
             {"color", layer.color.name(QColor::HexArgb)}, {"visible", layer.visible},
             {"transparency", layer.transparency}, {"blend", static_cast<int>(layer.blend)},
@@ -108,15 +140,16 @@ void LightingDocument::save(const QString& fileName)
                 {"centerX", layer.center.x()}, {"centerY", layer.center.y()},
                 {"width", layer.extent.width()}, {"height", layer.extent.height()},
                 {"rotation", layer.rotation}, {"repetitions", layer.repetitions}}},
+            {"imagePng", QString::fromLatin1(imagePng.toBase64())}, {"imageFill", layer.imageFill},
             {"maskEnabled", layer.maskEnabled}, {"maskPng", QString::fromLatin1(png.toBase64())}});
     }
     for (const auto& placement : state_.placements)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()}});
-    // Version 2 makes effect parameters explicit; old readers must reject it
-    // rather than silently flattening gradients/shapes to Static Color.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 2}, {"width", 640}, {"height", 400},
+    // Version 3 embeds image pixels; older readers must reject unsupported image state.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 3}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}}).toJson();
+    if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
     // Atomic replacement preserves an existing project if writing/commit fails.
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
@@ -134,7 +167,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -142,6 +175,7 @@ void LightingDocument::load(const QString& fileName)
     if (layerArray.size() > 64 || placementArray.size() > 256)
         throw std::invalid_argument("Document exceeds layer/component limits");
     LightingState candidate;
+    qint64 imagePixels = 0;
     for (const auto& entry : layerArray) {
         const auto json = entry.toObject();
         const double transparency = json.value("transparency").toDouble(-1);
@@ -155,7 +189,7 @@ void LightingDocument::load(const QString& fileName)
         layer.color = QColor(json.value("color").toString()); layer.visible = json.value("visible").toBool();
         layer.transparency = static_cast<int>(transparency); layer.blend = static_cast<LayerBlend>(static_cast<int>(blend));
         layer.maskEnabled = json.value("maskEnabled").toBool();
-        if (schema == 2) {
+        if (schema >= 2) {
             const auto effect = json.value("effect").toObject();
             for (const auto& key : {"centerX", "centerY", "width", "height", "rotation", "repetitions"})
                 if (!effect.value(key).isDouble()) throw std::invalid_argument("Missing numeric effect parameter");
@@ -171,6 +205,28 @@ void LightingDocument::load(const QString& fileName)
             validateEffect(layer);
         } else if (json.contains("effect")) {
             throw std::invalid_argument("Effect parameters require document schema 2");
+        }
+        if (schema < 3 && (layer.effect == EffectKind::Image || json.contains("imagePng")))
+            throw std::invalid_argument("Images require document schema 3");
+        if (schema == 3) {
+            if (!json.value("imageFill").isBool() || !json.value("imagePng").isString())
+                throw std::invalid_argument("Invalid image properties");
+            layer.imageFill = json.value("imageFill").toBool();
+            const auto imageEncoded = json.value("imagePng").toString().toLatin1();
+            if (!imageEncoded.isEmpty()) {
+                const auto data = QByteArray::fromBase64Encoding(imageEncoded, QByteArray::AbortOnBase64DecodingErrors);
+                if (!data) throw std::invalid_argument("Invalid encoded image");
+                QBuffer imageBuffer; imageBuffer.setData(data.decoded); imageBuffer.open(QIODevice::ReadOnly);
+                QImageReader imageReader(&imageBuffer, "PNG");
+                const auto size = imageReader.size();
+                if (!size.isValid() || size.width() > 4096 || size.height() > 4096)
+                    throw std::invalid_argument("Invalid image dimensions");
+                imagePixels += qint64(size.width()) * size.height();
+                if (imagePixels > 16 * 1024 * 1024)
+                    throw std::invalid_argument("Document image budget exceeds 16 megapixels");
+                layer.image = imageReader.read().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+                if (layer.image.isNull()) throw std::invalid_argument("Invalid image pixels");
+            }
         }
         const auto encoded = json.value("maskPng").toString().toLatin1();
         const auto decoded = QByteArray::fromBase64Encoding(encoded, QByteArray::AbortOnBase64DecodingErrors);

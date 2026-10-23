@@ -41,6 +41,7 @@ private:
     QSlider* transparency_;
     QPushButton *color_, *effectTarget_, *maskTarget_;
     QCheckBox* maskEnabled_;
+    QComboBox* imageFit_;
     QUuid selectedLayer_;
     bool editingMask_ = false;
     QString fileName_;

@@ -1,5 +1,27 @@
 # Implementation status
 
+## Completed: embedded image effects (2026-10-23)
+
+- Added bounded PNG/JPEG/BMP/GIF import into an Image layer with a white mask.
+  JPEG orientation is applied; GIF imports the first frame. WebP remains pending:
+  the installed Qt SDK has no codec. JPEG/GIF runtime plugins ship with the app
+  and editor test executable in both build configurations.
+- Fit and centered fill/crop preserve aspect ratio; existing numeric geometry,
+  masks, transparency, blending, duplication and undo apply to images. Original
+  decoded pixels remain available when cropping or changing effect types.
+- Schema 3 embeds lossless PNG pixels and fit/fill settings; schemas 1/2 still
+  load. Import limits: 16 MiB input, 4096 pixels per side, 16 megapixels total
+  per document. Project saves reject outputs above the 32 MiB load limit before
+  replacing an existing file. Failed import/load preserves live state/history.
+- Release and Debug each passed 10/10 CTest entries, including image format
+  imports, fit/crop alpha, embedded round trip after deleting the source, undo,
+  corrupt image rejection and UI fit controls. See docs/LIGHTING_EDITOR.md.
+- Native Windows editor checks passed 15/15 Qt Test cases; inspected the image
+  editor screenshot. Graphify updated with the known partial-parser warnings.
+- Remaining: WebP codec, free crop/transform handles, mask linking, animation,
+  particles, channel targets and hardware output. No devices opened or written.
+
+
 ## Completed: gradient and shape effects (2026-10-23)
 
 - Published the previous offline editor/module/discovery/startup increment as

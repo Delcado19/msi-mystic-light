@@ -44,7 +44,7 @@ const QVector<EffectDefinition>& effectDefinitions()
         {EffectKind::Star, "star", "Star"}, {EffectKind::Heart, "heart", "Heart"},
         {EffectKind::Triangle, "triangle", "Triangle"}, {EffectKind::Hexagon, "hexagon", "Hexagon"},
         {EffectKind::Diamond, "diamond", "Diamond"}, {EffectKind::Cross, "cross", "Cross"},
-        {EffectKind::Moon, "moon", "Moon"}
+        {EffectKind::Moon, "moon", "Moon"}, {EffectKind::Image, "image", "Image"}
     };
     return definitions;
 }
@@ -63,6 +63,8 @@ bool isGradient(EffectKind kind) { return kind >= EffectKind::LinearGradient && 
 void validateEffect(const EffectLayer& layer)
 {
     effectDefinition(layer.effect);
+    if (!layer.image.isNull() && (layer.image.width() > 4096 || layer.image.height() > 4096))
+        throw std::invalid_argument("Image exceeds 4096 pixels per side");
     if (!layer.color.isValid() || !layer.secondaryColor.isValid() ||
         !std::isfinite(layer.center.x()) || !std::isfinite(layer.center.y()) ||
         std::abs(layer.center.x()) > 10000 || std::abs(layer.center.y()) > 10000 ||
@@ -80,6 +82,20 @@ QImage renderEffect(const EffectLayer& layer)
     QImage image(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     if (layer.effect == EffectKind::StaticColor) { image.fill(layer.color); return image; }
+    if (layer.effect == EffectKind::Image) {
+        if (layer.image.isNull()) return image;
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        painter.translate(layer.center);
+        painter.rotate(layer.rotation);
+        const QRectF frame(-layer.extent.width()/2, -layer.extent.height()/2,
+            layer.extent.width(), layer.extent.height());
+        painter.setClipRect(frame);
+        const QSizeF size = QSizeF(layer.image.size()).scaled(layer.extent,
+            layer.imageFill ? Qt::KeepAspectRatioByExpanding : Qt::KeepAspectRatio);
+        painter.drawImage(QRectF(QPointF(-size.width()/2, -size.height()/2), size), layer.image);
+        return image;
+    }
     if (isGradient(layer.effect)) {
         const double angle = layer.rotation * pi / 180;
         const double cosine = std::cos(angle), sine = std::sin(angle);

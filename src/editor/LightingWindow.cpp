@@ -166,6 +166,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         selectedLayer_ = document_.addLayer(static_cast<EffectKind>(newEffect->currentData().toInt()));
         refresh();
     });
+    button(effectControls, "Import image...", [this] {
+        const auto file = QFileDialog::getOpenFileName(this, "Import image", {}, "Images (*.png *.jpg *.jpeg *.gif *.bmp)");
+        if (file.isEmpty()) return;
+        try { selectedLayer_ = document_.importImage(file); editingMask_ = false; refresh(); }
+        catch (const std::exception& error) { QMessageBox::warning(this, "Import failed", QString::fromUtf8(error.what())); }
+    });
     auto* tree = new LayerTree;
     layers_ = tree;
     layers_->setObjectName("effectLayers");
@@ -282,6 +288,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             if (layer.name == effectDefinition(layer.effect).label) layer.name = effectDefinition(kind).label;
             layer.effect = kind;
         });
+    });
+    imageFit_ = new QComboBox;
+    imageFit_->setObjectName("imageFit");
+    imageFit_->setToolTip("Preserve aspect ratio; fill crops equally from opposite edges.");
+    imageFit_->addItems({"Fit whole image", "Fill and crop"});
+    effectControls->addWidget(imageFit_);
+    connect(imageFit_, &QComboBox::currentIndexChanged, this, [this](int index) {
+        updateLayer("Image fit", [index](auto& layer) { layer.imageFill = index == 1; });
     });
     geometryControls_ = new QWidget;
     auto* geometryForm = new QFormLayout(geometryControls_);
@@ -406,7 +420,8 @@ void LightingWindow::refreshProperties()
     for (QWidget* widget : std::initializer_list<QWidget*>{transparency_, blend_, color_, effectTarget_, maskTarget_, maskEnabled_})
         widget->setEnabled(selected != nullptr);
     effectType_->setEnabled(selected && !editingMask_);
-    color_->setVisible(!editingMask_);
+    color_->setVisible(!editingMask_ && selected && selected->effect != EffectKind::Image);
+    imageFit_->setVisible(selected && !editingMask_ && selected->effect == EffectKind::Image);
     secondaryColor_->setVisible(selected && !editingMask_ && isGradient(selected->effect));
     geometryControls_->setVisible(selected && !editingMask_ && selected->effect != EffectKind::StaticColor);
     repetitions_->setVisible(selected && !editingMask_ && (selected->effect == EffectKind::Stripes || selected->effect == EffectKind::Waves));
@@ -415,6 +430,8 @@ void LightingWindow::refreshProperties()
         findChild<QLabel*>("transparencyValue")->setText(QString::number(selected->transparency) + "%");
         transparency_->setToolTip(QString::number(selected->transparency) + "% transparent");
         blend_->setCurrentIndex(static_cast<int>(selected->blend));
+        const QSignalBlocker blockFit(imageFit_);
+        imageFit_->setCurrentIndex(selected->imageFill ? 1 : 0);
         color_->setIcon(colorIcon(selected->color));
         maskEnabled_->setChecked(selected->maskEnabled);
         effectType_->setCurrentIndex(effectType_->findData(static_cast<int>(selected->effect)));

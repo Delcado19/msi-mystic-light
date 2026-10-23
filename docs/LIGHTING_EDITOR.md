@@ -33,7 +33,7 @@ also offers Edit effect / Edit mask. Effect color opens the color picker.
 
 Available effects are Static Color; Linear, Radial and Conical Gradient;
 Stripes and Waves; Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross
-and Moon. Gradients have two color stops, including alpha. Their interpolation
+and Moon; and Image. Gradients have two color stops, including alpha. Their interpolation
 uses premultiplied channels so a transparent color stop does not create a halo.
 Stripes alternate the two colors; Waves blend them sinusoidally. Both have a
 repetition count. Conical gradients start along the positive X axis and progress
@@ -46,6 +46,16 @@ gradients cover the canvas (linear/radial values clamp at their endpoints, while
 stripes/waves repeat). Shapes have transparent surroundings and antialiased edges.
 Shapes use fixed templates: five-point star, fixed-width ring and fixed moon
 cutout. Geometry changes currently use numeric fields, not on-canvas handles.
+
+Import image creates a new Image layer with a white mask. PNG, JPEG, BMP and
+GIF are supported; GIF imports its first frame only. JPEG orientation metadata
+is applied on import. WebP is pending because the current Qt SDK lacks its codec.
+Fit whole image preserves aspect ratio with transparent margins; Fill and crop
+preserves aspect ratio and clips equally from opposite edges of the effect
+rectangle. Center/size/rotation transform the rectangle. Cropping is reversible:
+original decoded pixels remain embedded. Free crop handles and crop offsets are
+not implemented. A new empty Image layer is transparent. Converting an image
+layer to another effect retains its image for conversion back and undo.
 
 Each layer has a dedicated Transparency slider (0% visible, 100% transparent)
 and Normal, Multiply, Screen or Overlay blending against the composition below.
@@ -71,12 +81,13 @@ targets and native-mode controls remain pending.
 
 ## Project files
 
-File > Save/Open stores `.lighting.json` schema 2 documents: component instance
+File > Save/Open stores `.lighting.json` schema 3 documents: component instance
 IDs/catalog IDs/positions and ordered effect layers with IDs, colors, stable
 effect type IDs, geometry, repetitions, visibility, transparency, blending and
-lossless embedded PNG grayscale masks. Schema 1 from the initial editor is
+lossless embedded PNG grayscale masks and image pixels with fit/fill settings. Schema 2
+is still readable with its explicit gradient/shape parameters. Schema 1 from the initial editor is
 still readable as implicit Static Color, retaining masks and settings. Saves
-always use schema 2; older app versions reject it rather than silently losing
+always use schema 3; older app versions reject it rather than silently losing
 effect parameters. Unknown effect IDs and invalid geometry are rejected.
 Saving uses QSaveFile atomic replacement, and write/commit errors remain visible.
 Opening validates the entire candidate before replacing the document and history.
@@ -85,8 +96,11 @@ document intact. Documents depend on the matching local component catalog;
 definitions are not embedded, so editing a catalog can change project geometry.
 
 This increment uses a fixed 640x400 document, up to 64 layers and 256 component
-instances, a 32 MiB input limit and 40 undo steps. Raster dimensions are checked
-before mask decoding. Missing mask data is an error, not an invented white mask.
+instances, a 32 MiB project read/write limit and 40 undo steps. Image inputs are
+limited to 16 MiB and 4096 pixels per side, with a total document image budget
+of 16 * 1024 * 1024 pixels (including retained images on converted layers).
+Raster dimensions and accumulated image budgets are checked before decoding.
+Oversized saves fail before replacing the destination; the document remains dirty. Missing mask data is an error, not an invented white mask.
 Closing or opening another project prompts Save / Discard / Cancel for changes.
 There is no autosave, automatic last-project restoration or persisted device
 selection yet. Saving a project never enables hardware output.
@@ -101,7 +115,7 @@ writes Layout/Effects screenshots to the build's `editor-artifacts` directory.
 Offscreen tests can lack Windows fonts in the sandbox; native Windows tests
 were also run to inspect legible screenshots.
 
-Images, multistop gradients, animation, particles, layout resizing/
+WebP, free crop handles, multistop gradients, animation, particles, layout resizing/
 rotation, component geometry editing/import, effect targeting, native controls,
 hardware output and renderer-to-wire sampling remain future increments. The
 current raster renderer is the basis for those paths, not proof of output parity.
