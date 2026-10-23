@@ -134,12 +134,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 5, including placements, ordered layer
+Save/Open uses `.lighting.json` schema 6, including placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..4 remain readable with their original
+and advanced persistence. Schemas 1..5 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 5; older versions reject it instead of silently losing effects.
+schema 6; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -185,3 +185,14 @@ composite transparent effects onto black before discarding alpha.
 This is an offline backend contract, not channel assignment or device output.
 Callers can reuse a single rendered frame for all components. Channel offsets,
 calibration, scheduling and hardware transmission remain separate work.
+
+## Layout transforms
+
+Select a component in Layout to edit its X/Y position, independent X/Y scale
+(1..10000 percent) and rotation (-360..360 degrees). Scaling happens in catalog
+coordinates, followed by rotation around the placement origin and translation.
+Drawing, hit testing and LED sampling use this same transform. Each numeric edit
+is undoable; dragging and arrow keys retain the current scale/rotation.
+Schema 6 stores these transforms. Schemas 1..5 load with 100 percent scale and
+zero rotation; transform fields under older versions are rejected rather than
+silently lost. Layout transforms never modify effect-layer geometry or masks.

@@ -27,6 +27,7 @@ protected:
 private:
     void refresh();
     void refreshProperties();
+    void refreshPlacement();
     void updateLayer(const QString& label, const std::function<void(EffectLayer&)>& operation);
     bool saveDocument();
     bool confirmDiscard();
@@ -39,6 +40,7 @@ private:
     QPushButton* secondaryColor_;
     QWidget* geometryControls_;
     QVector<QDoubleSpinBox*> geometry_;
+    QVector<QDoubleSpinBox*> placementControls_;
     QSpinBox* repetitions_;
     QSlider* transparency_;
     QPushButton *color_, *effectTarget_, *maskTarget_;

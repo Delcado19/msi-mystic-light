@@ -1,5 +1,6 @@
 #include "LightingDocument.h"
 #include <QPainter>
+#include <QTransform>
 #include <QUndoCommand>
 #include <QSet>
 #include <QBuffer>
@@ -42,7 +43,11 @@ void validate(const LightingState& state)
     }
     for (const auto& placement : state.placements) {
         if (placement.id.isNull() || ids.contains(placement.id) ||
-            !std::isfinite(placement.origin.x()) || !std::isfinite(placement.origin.y()))
+            !std::isfinite(placement.origin.x()) || !std::isfinite(placement.origin.y()) ||
+            !std::isfinite(placement.scale.width()) || !std::isfinite(placement.scale.height()) ||
+            placement.scale.width() < 0.01 || placement.scale.width() > 100 ||
+            placement.scale.height() < 0.01 || placement.scale.height() > 100 ||
+            !std::isfinite(placement.rotation) || std::abs(placement.rotation) > 360)
             throw std::invalid_argument("Invalid component placement");
         ids.insert(placement.id);
     }
@@ -131,7 +136,11 @@ QVector<QPointF> LightingDocument::componentPoints(const ComponentPlacement& pla
     const auto definition = catalog_.constFind(placement.componentId);
     if (definition == catalog_.cend()) throw std::invalid_argument("Unknown component");
     QVector<QPointF> points;
-    for (const auto& point : definition->positions) points.append(point * 20 + placement.origin);
+    QTransform transform;
+    transform.translate(placement.origin.x(), placement.origin.y());
+    transform.rotate(placement.rotation);
+    transform.scale(20 * placement.scale.width(), 20 * placement.scale.height());
+    for (const auto& point : definition->positions) points.append(transform.map(point));
     return points;
 }
 
@@ -143,7 +152,10 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleComponents(const QImage& fr
     QMap<QUuid, QVector<QColor>> result;
     for (const auto& placement : state_.placements) {
         const auto points = componentPoints(placement);
-        const auto& mapping = catalog_[placement.componentId].mapping;
+        const auto& definition = catalog_[placement.componentId];
+        if (definition.mapping.size() != points.size()) throw std::invalid_argument("Component geometry/mapping length mismatch");
+        // In-memory catalogs bypass the JSON parser; validate before indexing output colors.
+        const auto mapping = channelMapping(ChannelProfile{"sampling", 65535}, {placement.componentId}, catalog_);
         QVector<QColor> colors(points.size(), QColor(Qt::black));
         for (qsizetype i = 0; i < points.size(); ++i) {
             const auto point = points[i];
@@ -193,9 +205,10 @@ void LightingDocument::save(const QString& fileName)
     }
     for (const auto& placement : state_.placements)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
-            {"x", placement.origin.x()}, {"y", placement.origin.y()}});
-    // Version 5 includes crop, linked masks, motion, color cycles and seeded particles.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 5}, {"width", 640}, {"height", 400},
+            {"x", placement.origin.x()}, {"y", placement.origin.y()},
+            {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
+    // Version 6 adds placement transforms while retaining the version 5 effect payload.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 6}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -215,7 +228,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -325,6 +338,15 @@ void LightingDocument::load(const QString& fileName)
         placement.id = QUuid(json.value("id").toString());
         placement.componentId = json.value("componentId").toString();
         placement.origin = {json.value("x").toDouble(), json.value("y").toDouble()};
+        if (schema >= 6) {
+            if (!json.value("scaleX").isDouble() || !json.value("scaleY").isDouble() || !json.value("rotation").isDouble())
+                throw std::invalid_argument("Invalid placement transform");
+            placement.scale = {json.value("scaleX").toDouble(), json.value("scaleY").toDouble()};
+            placement.rotation = json.value("rotation").toDouble();
+        } else if (json.contains("scaleX") || json.contains("scaleY") || json.contains("rotation")) {
+            // Older readers must not silently discard geometry written under the wrong schema.
+            throw std::invalid_argument("Placement transforms require schema 6");
+        }
         if (!catalog_.contains(placement.componentId)) throw std::invalid_argument("Document requires an unavailable component");
         candidate.placements.append(placement);
     }

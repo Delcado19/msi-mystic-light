@@ -39,6 +39,7 @@ class EditorTest : public QObject {
     Q_OBJECT
 private slots:
     void componentSampling();
+    void placementTransforms();
     void rgbaAndMask();
     void blending();
     void softPaintingAndGradient();
@@ -57,6 +58,63 @@ private slots:
     void canvasTransformsAndCrop();
     void advancedControls();
 };
+
+void EditorTest::placementTransforms()
+{
+    LightingDocument document(catalog());
+    const auto id = document.addComponent("test.strip");
+    document.edit("Transform", [](LightingState& state) {
+        auto& placement = state.placements[0];
+        placement.origin = {100, 100}; placement.scale = {2, 0.5}; placement.rotation = 90;
+    });
+    auto points = document.componentPoints(document.state().placements[0]);
+    QVERIFY(QLineF(points[1], QPointF(100, 140)).length() < 0.001);
+    QImage frame(LightingDocument::canvasSize(), QImage::Format_RGB32); frame.fill(Qt::black);
+    frame.setPixelColor(100, 140, Qt::red);
+    QCOMPARE(document.sampleComponents(frame)[id][1], QColor(Qt::red));
+    QTemporaryDir directory;
+    const auto file = directory.filePath("transform.lighting.json"); document.save(file);
+    LightingDocument loaded(catalog()); loaded.load(file);
+    QCOMPARE(loaded.state().placements[0].scale, QSizeF(2, 0.5));
+    QCOMPARE(loaded.state().placements[0].rotation, 90.0);
+    const auto index = document.history()->index();
+    QVERIFY_EXCEPTION_THROWN(document.edit("Invalid scale", [](LightingState& state) {
+        state.placements[0].scale.setWidth(0);
+    }), std::invalid_argument);
+    QCOMPARE(document.history()->index(), index);
+    document.history()->undo();
+    QCOMPARE(document.state().placements[0].scale, QSizeF(1, 1));
+    document.history()->redo();
+    QCOMPARE(document.state().placements[0].scale, QSizeF(2, 0.5));
+
+    QFile input(file); QVERIFY(input.open(QIODevice::ReadOnly));
+    auto root = QJsonDocument::fromJson(input.readAll()).object(); input.close();
+    auto placements = root.value("placements").toArray();
+    auto placement = placements[0].toObject();
+    for (int version = 1; version <= 5; ++version) {
+        root.insert("schemaVersion", version);
+        QVERIFY(input.open(QIODevice::WriteOnly)); input.write(QJsonDocument(root).toJson()); input.close();
+        QVERIFY_EXCEPTION_THROWN(loaded.load(file), std::invalid_argument);
+    }
+    placement.remove("scaleX"); placement.remove("scaleY"); placement.remove("rotation");
+    placements[0] = placement; root.insert("placements", placements);
+    // Empty layers keep this geometry-only fixture valid for every legacy schema.
+    for (int version = 1; version <= 5; ++version) {
+        root.insert("schemaVersion", version);
+        QVERIFY(input.open(QIODevice::WriteOnly)); input.write(QJsonDocument(root).toJson()); input.close();
+        loaded.load(file);
+        QCOMPARE(loaded.state().placements[0].scale, QSizeF(1, 1));
+        QCOMPARE(loaded.state().placements[0].rotation, 0.0);
+    }
+    LightingWindow window(catalog(), [] { return QVector<ProfileCandidate>{}; });
+    const auto selected = window.document().addComponent("test.strip");
+    auto* canvas = window.findChild<LightingCanvas*>("layoutCanvas"); canvas->select(selected);
+    auto* scale = window.findChild<QDoubleSpinBox*>("placement2");
+    QVERIFY(scale->isEnabled()); scale->setValue(150);
+    QCOMPARE(window.document().state().placements[0].scale.width(), 1.5);
+    window.document().history()->undo(); QCOMPARE(scale->value(), 100.0);
+    canvas->select({}); QVERIFY(!scale->isEnabled());
+}
 
 void EditorTest::componentSampling()
 {
@@ -81,6 +139,12 @@ void EditorTest::componentSampling()
     QCOMPARE(sampled[second][1], QColor(100, 50, 25));
     QCOMPARE(document.componentPoints(document.state().placements[0])[1], QPointF(20.5, 0));
     QVERIFY_EXCEPTION_THROWN(document.sampleComponents(QImage()), std::invalid_argument);
+    auto invalidCatalog = catalog(); invalidCatalog["test.strip"].mapping = {0, 0, 2};
+    LightingDocument invalid(invalidCatalog); invalid.addComponent("test.strip");
+    QVERIFY_EXCEPTION_THROWN(invalid.sampleComponents(frame), std::invalid_argument);
+    invalidCatalog["test.strip"].mapping = {0};
+    LightingDocument mismatched(invalidCatalog); mismatched.addComponent("test.strip");
+    QVERIFY_EXCEPTION_THROWN(mismatched.sampleComponents(frame), std::invalid_argument);
     document.edit("Off canvas", [](LightingState& state) {
         state.placements[0].origin = {640, 400};
         state.placements[1].origin = {1e100, -1e100};
@@ -405,7 +469,7 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 5);
+    QCOMPARE(root.value("schemaVersion").toInt(), 6);
     // Published schema 2 has explicit effects but no image fields or Image type.
     auto version2 = root; QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {

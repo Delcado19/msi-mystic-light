@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792757852.8825696,
-    "seen": 1792757855.8523045,
-    "ast_hash": "3afe5e2397bcec6da0212134effa4610",
+    "mtime": 1792758176.2882624,
+    "seen": 1792758179.6228793,
+    "ast_hash": "6d390479969250a09a35f58b10a9cd9a",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -330,39 +330,39 @@
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1792757824.6866603,
-    "seen": 1792757855.852275,
-    "ast_hash": "f43f5e469181ef2a5deef5fa13974844",
+    "mtime": 1792758176.28726,
+    "seen": 1792758179.6228485,
+    "ast_hash": "679b3b93304eccda09605cd86d47c18d",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1792757824.6851513,
-    "seen": 1792757855.8522756,
-    "ast_hash": "850fabdaead3c4528e8cfa3815e2904e",
+    "mtime": 1792758015.5989447,
+    "seen": 1792758157.6251047,
+    "ast_hash": "a3830569a87542ff00ac1f6b17ba80f1",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1792757418.4161735,
-    "seen": 1792757484.9782717,
-    "ast_hash": "cad7090868677daa3b6f01b7cf1d80fe",
+    "mtime": 1792758015.6004434,
+    "seen": 1792758157.6251059,
+    "ast_hash": "7ceb8e2f7abc1ba1a402bb6da4cae881",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1792756376.2792768,
-    "seen": 1792757320.0613258,
-    "ast_hash": "063a81a71fcfecc0cffdc27e1ab9aa1d",
+    "mtime": 1792758015.5999424,
+    "seen": 1792758157.6251078,
+    "ast_hash": "9948bd37ac4c27ee724b6ab09c6f8531",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1792757824.68766,
-    "seen": 1792757855.8522925,
-    "ast_hash": "58ad62305ae4862689f4d31842128d9d",
+    "mtime": 1792758071.807256,
+    "seen": 1792758157.6251273,
+    "ast_hash": "1206a8f2bf057f085efded36a43c98b9",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1792757852.8825696,
-    "seen": 1792757855.8523083,
-    "ast_hash": "fd768d1977e70eaa7b1e893c08bb7d61",
+    "mtime": 1792758150.3837025,
+    "seen": 1792758157.625151,
+    "ast_hash": "6daaa2516d8364d01ce575836a44280a",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {

@@ -39,6 +39,8 @@ struct ComponentPlacement {
     QUuid id = QUuid::createUuid();
     QString componentId;
     QPointF origin{80, 80};
+    QSizeF scale{1, 1};
+    double rotation = 0; // Degrees around the component origin, after scaling catalog coordinates.
 };
 struct LightingState {
     QVector<ComponentPlacement> placements;

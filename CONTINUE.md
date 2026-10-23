@@ -1,5 +1,18 @@
 # Implementation status
 
+## Layout transforms (2026-10-23)
+
+- Added independent X/Y scale and rotation around component origins, numeric
+  Layout controls, undo/redo, and shared preview/hit-test/sampling coordinates.
+- Schema 6 persists transforms; schemas 1..5 retain original geometry.
+- Release and Debug each passed 10/10 CTest entries, including geometry,
+  sampling, migration/rejection, persistence and Layout controls/undo checks.
+- Native Windows editor checks passed 21/21 Qt Test cases with SDK DLLs absent
+  from PATH. No physical devices were opened or written.
+- Sampling now validates in-memory component permutations/lengths before indexing.
+- Still pending: component authoring/import UI, channel assignment/native controls,
+  reconnect/output scheduling and real hardware qualification.
+
 ## Component sampling backend (2026-10-23)
 
 - Added per-placement RGB sampling of a shared composed canvas in local wire order.

@@ -125,6 +125,37 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         });
         layoutCanvas_->select({});
     });
+    auto* placementForm = new QFormLayout;
+    layoutControls->addLayout(placementForm);
+    const QStringList placementLabels{"Position X", "Position Y", "Scale X %", "Scale Y %", "Rotation deg"};
+    for (int i = 0; i < placementLabels.size(); ++i) {
+        auto* control = new QDoubleSpinBox;
+        control->setObjectName(QString("placement%1").arg(i));
+        control->setDecimals(2);
+        control->setRange(i < 2 ? -10000 : i < 4 ? 1 : -360, i < 4 ? 10000 : 360);
+        control->setKeyboardTracking(false);
+        placementForm->addRow(placementLabels[i], control);
+        placementControls_.append(control);
+        connect(control, &QDoubleSpinBox::valueChanged, this, [this, i](double value) {
+            const auto id = layoutCanvas_->selection();
+            if (id.isNull()) return;
+            try {
+                document_.edit("Transform component", [&](LightingState& state) {
+                    for (auto& placement : state.placements) if (placement.id == id) {
+                        if (i == 0) placement.origin.setX(value);
+                        if (i == 1) placement.origin.setY(value);
+                        if (i == 2) placement.scale.setWidth(value / 100);
+                        if (i == 3) placement.scale.setHeight(value / 100);
+                        if (i == 4) placement.rotation = value;
+                    }
+                });
+            } catch (const std::exception& error) {
+                statusBar()->showMessage(QString::fromUtf8(error.what()), 6000);
+                refreshPlacement();
+            }
+        });
+    }
+    connect(layoutCanvas_, &LightingCanvas::selectionChanged, this, &LightingWindow::refreshPlacement);
     auto* instructions = new QLabel("Drag LEDs to move their component.\nArrow keys move; Shift moves by 10.\nWheel zooms; middle drag pans.\n\nLayout changes sampling positions only.");
     instructions->setWordWrap(true);
     layoutControls->addWidget(instructions);
@@ -485,8 +516,25 @@ void LightingWindow::updateLayer(const QString& label, const std::function<void(
     }
 }
 
+void LightingWindow::refreshPlacement()
+{
+    const ComponentPlacement* selected = nullptr;
+    for (const auto& placement : document_.state().placements)
+        if (placement.id == layoutCanvas_->selection()) selected = &placement;
+    for (int i = 0; i < placementControls_.size(); ++i) {
+        const QSignalBlocker block(placementControls_[i]);
+        placementControls_[i]->setEnabled(selected != nullptr);
+        if (selected) {
+            const double values[]{selected->origin.x(), selected->origin.y(),
+                selected->scale.width() * 100, selected->scale.height() * 100, selected->rotation};
+            placementControls_[i]->setValue(values[i]);
+        }
+    }
+}
+
 void LightingWindow::refresh()
 {
+    refreshPlacement();
     QSignalBlocker blockTree(layers_);
     layers_->clear();
     const EffectLayer* selected = nullptr;
