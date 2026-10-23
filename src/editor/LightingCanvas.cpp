@@ -4,6 +4,7 @@
 #include <QKeyEvent>
 #include <QPainter>
 #include <QLineF>
+#include <QPolygonF>
 #include <algorithm>
 #include <cmath>
 
@@ -21,9 +22,9 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
     rendered_ = document_.render(seconds_);
 }
 
-void LightingCanvas::setPreviewTime(double seconds)
+void LightingCanvas::setPreviewFrame(const QImage& frame, double seconds)
 {
-    cancelGesture(); seconds_ = seconds; rendered_ = document_.render(seconds_); update();
+    seconds_ = seconds; rendered_ = frame; update();
 }
 
 QPointF LightingCanvas::offset() const
@@ -47,7 +48,7 @@ void LightingCanvas::cancelGesture()
 {
     dragging_ = false;
     panning_ = false;
-    workingMask_ = {};
+    workingMask_ = {}; originalEffect_.reset(); workingEffect_.reset(); handle_ = 0;
     update();
 }
 
@@ -71,19 +72,54 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             painter.fillRect(x, y, 16, 16, (x / 16 + y / 16) % 2 ? QColor("#484b50") : QColor("#35383d"));
     auto frame = rendered_;
     if (context_ == Context::Effects) {
-        if (!workingMask_.isNull()) {
+        if (workingEffect_) {
+            auto state=document_.state();
+            for (auto& layer : state.layers) if (layer.id==selected_) layer=*workingEffect_;
+            frame=LightingDocument::render(state,seconds_);
+        }
+        if (maskTarget_) {
+            auto state=document_.state();
+            for (auto& layer : state.layers) if (layer.id==selected_) {
+                if (!workingMask_.isNull()) layer.mask=workingMask_;
+                layer.warp=0; layer.maskLinked=false;
+            }
+            frame=LightingDocument::render(state,0); // Paint the base mask, without animated spatial distortion.
+        }
+        if (!workingMask_.isNull() && !maskTarget_) {
             auto state = document_.state();
             for (auto& layer : state.layers) if (layer.id == selected_) layer.mask = workingMask_;
             frame = LightingDocument::render(state, seconds_);
         }
         if (showMask_ && maskTarget_) {
             for (const auto& layer : document_.state().layers)
-                if (layer.id == selected_) frame = workingMask_.isNull() ? layer.mask : workingMask_;
+                if (layer.id == selected_) {
+                    auto preview=layer; if (!workingMask_.isNull()) preview.mask=workingMask_;
+                    frame=preview.mask;
+                }
         }
         painter.drawImage(0, 0, frame);
-        if (dragging_ && tool_ == MaskTool::Gradient) {
+        if (dragging_ && maskTarget_ && tool_ == MaskTool::Gradient) {
             painter.setPen(QPen(Qt::yellow, 1 / zoom_));
             painter.drawLine(start_, last_);
+        }
+        if (!maskTarget_) for (const auto& stored : document_.state().layers) if (stored.id==selected_ && stored.effect!=EffectKind::StaticColor) {
+            const auto& layer=workingEffect_ ? *workingEffect_ : stored;
+            const auto transform=effectTransform(layer,seconds_);
+            const QRectF bounds(-0.5,-0.5,1,1);
+            painter.setPen(QPen(cropTool_ ? Qt::cyan : Qt::yellow,1/zoom_)); painter.setBrush(Qt::NoBrush);
+            painter.drawPolygon(transform.map(QPolygonF(bounds)));
+            if (cropTool_ && dragging_) {
+                const auto local=transform.inverted();
+                painter.drawPolygon(transform.map(QPolygonF(QRectF(local.map(start_),local.map(last_)).normalized())));
+            }
+            else if (!cropTool_) {
+                for (auto point : {bounds.topLeft(),bounds.topRight(),bounds.bottomRight(),bounds.bottomLeft()}) {
+                    const auto handle=transform.map(point); painter.drawRect(QRectF(handle-QPointF(4/zoom_,4/zoom_),QSizeF(8/zoom_,8/zoom_)));
+                }
+                const auto top=transform.map(QPointF(0,-0.5));
+                const auto rotation=transform.map(QPointF(0,-0.5-24/(zoom_*layer.extent.height())));
+                painter.drawLine(top,rotation); painter.drawEllipse(rotation,5/zoom_,5/zoom_);
+            }
         }
         return;
     }
@@ -124,6 +160,22 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
         }
         select(hit);
         dragging_ = !hit.isNull();
+    } else if (!maskTarget_) {
+        emit effectGestureStarted();
+        for (const auto& layer : document_.state().layers) if (layer.id==selected_ && layer.effect!=EffectKind::StaticColor) {
+            const auto transform=effectTransform(layer);
+            const QRectF bounds(-0.5,-0.5,1,1);
+            if (cropTool_ && (layer.effect!=EffectKind::Image || layer.image.isNull())) return;
+            int handle=0;
+            if (!cropTool_) {
+                const QVector<QPointF> corners{bounds.topLeft(),bounds.topRight(),bounds.bottomRight(),bounds.bottomLeft()};
+                for (int i=0;i<4;++i) if (QLineF(start_,transform.map(corners[i])).length()<10/zoom_) handle=i+1;
+                const auto rotation=transform.map(QPointF(0,-0.5-24/(zoom_*layer.extent.height())));
+                if (QLineF(start_,rotation).length()<10/zoom_) handle=5;
+            }
+            if (handle==0 && bounds.contains(transform.inverted().map(start_))) handle=6;
+            if (handle) { originalEffect_=layer; workingEffect_=layer; handle_=handle; dragging_=true; }
+        }
     } else if (maskTarget_) {
         for (const auto& layer : document_.state().layers) if (layer.id == selected_) {
             workingMask_ = layer.mask;
@@ -140,15 +192,51 @@ void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
     if (panning_) { pan_ += event->position() - last_; last_ = event->position(); update(); return; }
     if (!dragging_) return;
     const auto point = canvasPoint(event->position());
-    if (context_ == Context::Effects && tool_ == MaskTool::Brush)
+    if (context_ == Context::Effects && maskTarget_ && tool_ == MaskTool::Brush)
         LightingDocument::paintMask(workingMask_, last_, point, radius_, hardness_, opacity_, gray_);
     last_ = point;
-    if (context_ == Context::Effects && tool_ == MaskTool::Gradient) {
+    if (workingEffect_) updateEffectGesture(point);
+    if (context_ == Context::Effects && maskTarget_ && tool_ == MaskTool::Gradient) {
         for (const auto& layer : document_.state().layers)
             if (layer.id == selected_) workingMask_ = layer.mask;
         LightingDocument::gradientMask(workingMask_, start_, last_);
     }
     update();
+}
+
+void LightingCanvas::updateEffectGesture(QPointF point)
+{
+    if (!originalEffect_) return;
+    const auto& original=*originalEffect_; auto changed=original;
+    const auto transform=effectTransform(original);
+    if (cropTool_) {
+        workingEffect_=original;
+        const QSizeF source(original.image.width()*original.crop.width(),original.image.height()*original.crop.height());
+        const QSizeF size=source.scaled(original.extent,original.imageFill ? Qt::KeepAspectRatioByExpanding : Qt::KeepAspectRatio);
+        const QRectF target(-size.width()/original.extent.width()/2,-size.height()/original.extent.height()/2,
+            size.width()/original.extent.width(),size.height()/original.extent.height());
+        const auto selected=QRectF(transform.inverted().map(start_),transform.inverted().map(point)).normalized()
+            .intersected(QRectF(-0.5,-0.5,1,1)).intersected(target);
+        if (selected.width()<0.001 || selected.height()<0.001) return;
+        const QRectF relative((selected.x()-target.x())/target.width(),(selected.y()-target.y())/target.height(),
+            selected.width()/target.width(),selected.height()/target.height());
+        changed.crop={original.crop.x()+relative.x()*original.crop.width(),original.crop.y()+relative.y()*original.crop.height(),
+            relative.width()*original.crop.width(),relative.height()*original.crop.height()};
+        if (changed.crop.width()<0.001 || changed.crop.height()<0.001) return;
+    } else if (handle_==6) {
+        changed.center+=point-start_;
+        changed.center.setX(std::clamp(changed.center.x(),-10000.0,10000.0));
+        changed.center.setY(std::clamp(changed.center.y(),-10000.0,10000.0));
+    } else if (handle_==5) {
+        const auto first=start_-original.center, last=point-original.center;
+        changed.rotation=std::remainder(original.rotation+(std::atan2(last.y(),last.x())-std::atan2(first.y(),first.x()))*180/3.141592653589793,360.0);
+    } else {
+        const auto local=transform.inverted().map(point);
+        changed.extent={std::clamp(2*std::abs(local.x())*original.extent.width(),1.0,10000.0),
+            std::clamp(2*std::abs(local.y())*original.extent.height(),1.0,10000.0)};
+    }
+    if (original.maskLinked) changed.mask=transformedMask(original,effectTransform(original).inverted()*effectTransform(changed));
+    workingEffect_=changed;
 }
 
 void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
@@ -161,7 +249,14 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
         if (last_ != start_) document_.edit("Move component", [&](LightingState& state) {
             for (auto& placement : state.placements) if (placement.id == id) placement.origin = target;
         });
-    } else {
+    } else if (workingEffect_ && last_!=start_) {
+        const auto effect=*workingEffect_;
+        document_.edit(cropTool_ ? "Crop image" : "Transform effect",[&](auto& state) {
+            for (auto& layer : state.layers) if (layer.id==id) {
+                layer.center=effect.center; layer.extent=effect.extent; layer.rotation=effect.rotation; layer.crop=effect.crop;
+            }
+        });
+    } else if (maskTarget_) {
         const auto mask = workingMask_;
         for (const auto& layer : document_.state().layers) if (layer.id == id && layer.mask != mask) {
             document_.edit("Edit layer mask", [&](LightingState& state) {

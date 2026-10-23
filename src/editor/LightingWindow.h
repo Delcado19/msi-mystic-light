@@ -14,6 +14,7 @@ class QPushButton;
 class QTabWidget;
 class QDoubleSpinBox;
 class QSpinBox;
+class QLineEdit;
 
 class LightingWindow : public QMainWindow {
     Q_OBJECT
@@ -47,6 +48,10 @@ private:
     QVector<QDoubleSpinBox*> animation_;
     QCheckBox* playing_;
     QDoubleSpinBox* previewTime_;
+    QVector<QDoubleSpinBox*> advanced_, crop_;
+    QWidget* cropControls_;
+    QLineEdit* colorCycle_;
+    QCheckBox* maskLinked_;
     QElapsedTimer previewClock_;
     double playbackStart_ = 0;
     QUuid selectedLayer_;

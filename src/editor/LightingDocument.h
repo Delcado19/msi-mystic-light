@@ -23,10 +23,15 @@ struct EffectLayer {
     QImage image;
     bool imageFill = false; // Fit preserves the whole image; fill crops to the effect rectangle.
     double spin = 0, pulse = 0, hueShift = 0; // Degrees/second, cycles/second, degrees/second.
+    double driftX = 0, driftY = 0, zoom = 0, warp = 0, breathe = 0, trails = 0, cycleRate = 0;
+    double particleCount = 80, particleSeed = 1, particleSpeed = 60, particleSize = 3;
+    QVector<QColor> colorCycle{Qt::red, Qt::green, Qt::blue};
+    QRectF crop{0, 0, 1, 1}; // Normalized, non-destructive source-image selection.
+    bool maskLinked = false;
     bool visible = true;
     int transparency = 0;
     LayerBlend blend = LayerBlend::Normal;
-    // shortcut: masks stay in canvas coordinates; add linked transforms with on-canvas effect handles.
+    // Unlinked masks stay in canvas coordinates; linked masks follow geometry/motion.
     QImage mask;
     bool maskEnabled = true;
 };

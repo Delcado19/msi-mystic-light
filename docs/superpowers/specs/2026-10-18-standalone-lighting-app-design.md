@@ -196,6 +196,14 @@ validation of the first usable editor. Add focused rendering and parameter
 validation checks with each increment. SignalRGB export, custom export tiles
 and author metadata are not required for the standalone lighting workflow.
 
+Implementation status (2026-10-23): the accepted offline authoring sources,
+all listed motion controls, hue rotation and user color cycles are implemented.
+The four particle patterns are Rain, Orbit, Fireflies and Burst, with 1..400
+seeded particles. WebP, lossless image cropping, canvas transform grips and
+linked masks are included. See `docs/LIGHTING_EDITOR.md` and `CONTINUE.md` for
+exact controls, first-frame-only animated image import and measured performance.
+Hardware/channel integration remains a separate application increment.
+
 ## Hardware module architecture (2026-10-23)
 
 Hardware support is split into independent data-only device profiles,

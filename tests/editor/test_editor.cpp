@@ -14,6 +14,8 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QImageReader>
+#include <QElapsedTimer>
+#include <QLineEdit>
 #include <QtTest>
 #include <stdexcept>
 
@@ -50,6 +52,9 @@ private slots:
     void effectControls();
     void imageImportAndCrop();
     void animationPreview();
+    void advancedEffects();
+    void canvasTransformsAndCrop();
+    void advancedControls();
 };
 
 void EditorTest::rgbaAndMask()
@@ -319,7 +324,7 @@ void EditorTest::gradientAndShapeRendering()
     QCOMPARE(faded.red(), 255); QCOMPARE(faded.blue(), 0);
 
     for (const auto& definition : effectDefinitions()) {
-        if (definition.kind < EffectKind::Circle || definition.kind == EffectKind::Image) continue;
+        if (definition.kind < EffectKind::Circle || definition.kind == EffectKind::Image || isParticle(definition.kind)) continue;
         effect.effect = definition.kind;
         effect.extent = {100, 60}; effect.center = {100, 100};
         image = renderEffect(effect);
@@ -350,6 +355,7 @@ void EditorTest::effectPersistenceAndLegacy()
     for (const auto& definition : effectDefinitions()) document.addLayer(definition.kind);
     document.edit("Set gradient colors", [](LightingState& state) {
         state.layers[1].color = Qt::red; state.layers[1].secondaryColor = Qt::blue;
+        for (auto& layer : state.layers) if (isParticle(layer.effect)) layer.visible = false;
         state.layers[1].rotation = 35; state.layers[1].center = {200, 100};
     });
     document.save(path);
@@ -365,13 +371,13 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 4);
+    QCOMPARE(root.value("schemaVersion").toInt(), 5);
     // Published schema 2 has explicit effects but no image fields or Image type.
     auto version2 = root; QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject();
-        if (value.value("effect").toObject().value("type").toString() == "image") continue;
-        value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
+        if (value.value("effect").toObject().value("type").toString() == "image" || isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
+        value.remove("advanced"); value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
     }
     version2.insert("schemaVersion", 2); version2.insert("layers", version2Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -379,12 +385,22 @@ void EditorTest::effectPersistenceAndLegacy()
     loaded.load(path); QCOMPARE(loaded.render(), document.render());
     auto version3 = root; QJsonArray version3Layers;
     for (const auto& item : root.value("layers").toArray()) {
-        auto value = item.toObject(); value.remove("animation"); version3Layers.append(value);
+        auto value = item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
+        value.remove("advanced"); value.remove("animation"); version3Layers.append(value);
     }
     version3.insert("schemaVersion", 3); version3.insert("layers", version3Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
     file.write(QJsonDocument(version3).toJson()); file.close(); loaded.load(path);
     QCOMPARE(loaded.render(), document.render());
+    auto version4=root; QJsonArray version4Layers;
+    for (const auto& item : root.value("layers").toArray()) {
+        auto value=item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
+        value.remove("advanced"); version4Layers.append(value);
+    }
+    version4.insert("schemaVersion",4); version4.insert("layers",version4Layers);
+    QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));
+    file.write(QJsonDocument(version4).toJson()); file.close(); loaded.load(path);
+    QCOMPARE(loaded.render(),document.render());
     document.save(path);
     loaded.load(path);
     auto layers = root.value("layers").toArray();
@@ -404,7 +420,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QCOMPARE(loaded.render(), before);
 
     // The previous published editor wrote schema 1 with implicit Static Color.
-    auto legacy = layers[0].toObject(); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
+    auto legacy = layers[0].toObject(); legacy.remove("advanced"); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
     root.insert("schemaVersion", 1); root.insert("layers", QJsonArray{legacy}); write();
     loaded.load(path);
     QCOMPARE(loaded.state().layers.size(), 1);
@@ -469,7 +485,7 @@ void EditorTest::imageImportAndCrop()
     QImage huge(4097, 1, QImage::Format_RGB32); huge.fill(Qt::white); QVERIFY(huge.save(source));
     QVERIFY_EXCEPTION_THROWN(document.importImage(source), std::invalid_argument);
     QCOMPARE(document.state().layers.size(), 1);
-    for (const auto& format : {"JPEG", "BMP"}) {
+    for (const auto& format : {"JPEG", "BMP", "WEBP"}) {
         const auto path = directory.filePath(QString("fixture.") + format);
         QVERIFY(pixels.save(path, format));
         document.importImage(path);
@@ -536,6 +552,134 @@ void EditorTest::animationPreview()
     window.document().edit("Invalid rate", [](auto& state) { state.layers[0].spin = 90; });
     QVERIFY_EXCEPTION_THROWN(window.document().edit("Invalid rate", [](auto& state) { state.layers[0].pulse = -1; }), std::invalid_argument);
     window.document().history()->undo(); window.document().history()->setClean();
+}
+
+void EditorTest::advancedEffects()
+{
+    auto effect = layer(Qt::red); effect.effect = EffectKind::Circle;
+    effect.center = {100,100}; effect.extent = {40,40}; effect.driftX=100;
+    QCOMPARE(renderEffect(effect,1).pixelColor(200,100), QColor(Qt::red));
+    QCOMPARE(renderEffect(effect,1).pixelColor(100,100).alpha(),0);
+    effect.driftX=0; effect.zoom=50;
+    QCOMPARE(renderEffect(effect,0.25).pixelColor(125,100).alpha(),255);
+    effect.zoom=0; effect.breathe=1;
+    QVERIFY(renderEffect(effect,0.5).pixelColor(100,100).alpha()<10);
+    effect.breathe=0; effect.cycleRate=1; effect.colorCycle={Qt::red,Qt::blue};
+    QCOMPARE(renderEffect(effect,0.5).pixelColor(100,100),QColor(Qt::blue));
+    effect.cycleRate=0; effect.warp=20;
+    QVERIFY(renderEffect(effect,0.25)!=renderEffect(effect,0)); effect.warp=0;
+    effect.driftX=100; effect.trails=1;
+    QVERIFY(renderEffect(effect,1).pixelColor(150,100).alpha()>0);
+    for (auto kind : {EffectKind::Rain,EffectKind::Orbit,EffectKind::Fireflies,EffectKind::Burst}) {
+        effect.effect=kind; effect.driftX=0; effect.trails=0; effect.particleCount=400;
+        effect.extent={640,400}; effect.center={320,200};
+        const auto first=renderEffect(effect,1);
+        QCOMPARE(first,renderEffect(effect,1)); QVERIFY(first!=renderEffect(effect,2));
+        effect.particleSeed+=1; QVERIFY(first!=renderEffect(effect,1));
+    }
+    effect.trails=1;
+    LightingState benchmarkState; benchmarkState.layers={effect};
+    QElapsedTimer benchmark; benchmark.start();
+    for (int i=0;i<8;++i) LightingDocument::render(benchmarkState,1+i/30.0);
+    qInfo() << "400 particles with trails, composed mean frame ms:" << benchmark.elapsed()/8.0;
+    QTemporaryDir dir; LightingDocument document(catalog()); document.addLayer();
+    document.edit("Advanced",[&](auto& state) { effect.id=state.layers[0].id; state.layers[0]=effect; });
+    const auto path=dir.filePath("advanced.json"); document.save(path);
+    LightingDocument loaded(catalog()); loaded.load(path); QCOMPARE(loaded.render(1),document.render(1));
+    QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
+    auto root=QJsonDocument::fromJson(file.readAll()).object(); file.close();
+    auto layers=root.value("layers").toArray(); auto entry=layers[0].toObject(); auto advanced=entry.value("advanced").toObject();
+    advanced.insert("particleCount",401); entry.insert("advanced",advanced); layers[0]=entry; root.insert("layers",layers);
+    QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate)); file.write(QJsonDocument(root).toJson()); file.close();
+    const auto before=loaded.render(1); QVERIFY_EXCEPTION_THROWN(loaded.load(path),std::invalid_argument);
+    QCOMPARE(loaded.render(1),before);
+    QVERIFY_EXCEPTION_THROWN(document.edit("Invalid",[](auto& state) { state.layers[0].particleCount=401; }),std::invalid_argument);
+    document.edit("Linked",[](auto& state) {
+        auto& layer=state.layers[0]; layer.effect=EffectKind::StaticColor; layer.maskLinked=true;
+        layer.mask.fill(0); layer.mask.scanLine(100)[100]=255;
+    });
+    document.edit("Move",[](auto& state) { state.layers[0].center += QPointF(20,0); });
+    QCOMPARE(document.state().layers[0].mask.constScanLine(100)[120],uchar(255));
+    document.history()->undo(); QCOMPARE(document.state().layers[0].mask.constScanLine(100)[100],uchar(255));
+    document.edit("Linked drift",[](auto& state) { state.layers[0].driftX=20; });
+    QCOMPARE(document.render(1).pixelColor(120,100).alpha(),255);
+    document.edit("Linked warp",[](auto& state) { state.layers[0].warp=20; });
+    QCOMPARE(document.render(1.25).pixelColor(145,100).alpha(),255);
+}
+
+void EditorTest::canvasTransformsAndCrop()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+    window.document().addLayer(EffectKind::Circle);
+    auto* tree=window.findChild<QTreeWidget*>("effectLayers"); tree->setCurrentItem(tree->topLevelItem(0));
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(1);
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");
+    const auto center=canvas->rect().center();
+    const auto count=window.document().history()->count();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,center);
+    QTest::mouseMove(canvas,center+QPoint(30,10)); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(30,10));
+    QCOMPARE(window.document().state().layers[0].center,QPointF(350,210));
+    QCOMPARE(window.document().history()->count(),count+1); window.document().history()->undo();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,center);
+    QTest::mouseMove(canvas,center+QPoint(50,0)); QTest::keyClick(canvas,Qt::Key_Escape);
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(50,0));
+    QCOMPARE(window.document().state().layers[0].center,QPointF(320,200));
+    const auto rotate=center+QPoint(0,-144);
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,rotate);
+    QTest::mouseMove(canvas,center+QPoint(144,0)); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(144,0));
+    QVERIFY(std::abs(window.document().state().layers[0].rotation-90)<1); window.document().history()->undo();
+    const auto corner=center+QPoint(120,120);
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,corner);
+    QTest::mouseMove(canvas,corner+QPoint(30,30)); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,corner+QPoint(30,30));
+    QVERIFY(window.document().state().layers[0].extent.width()>290); window.document().history()->undo();
+    QTemporaryDir dir; const auto imagePath=dir.filePath("crop.png");
+    QImage pixels(200,100,QImage::Format_ARGB32); pixels.fill(Qt::red);
+    for (int y=0;y<100;++y) for (int x=100;x<200;++x) pixels.setPixelColor(x,y,Qt::blue);
+    QVERIFY(pixels.save(imagePath)); window.document().importImage(imagePath);
+    tree->setCurrentItem(tree->topLevelItem(0));
+    window.findChild<QCheckBox*>("cropTool")->setChecked(true);
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(5,-80));
+    QTest::mouseMove(canvas,center+QPoint(200,80));
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,center+QPoint(200,80));
+    QVERIFY(window.document().state().layers.last().crop.width()<0.5);
+    QCOMPARE(window.document().render().pixelColor(320,200),QColor(Qt::blue));
+    window.document().history()->undo(); QCOMPARE(window.document().state().layers.last().crop,QRectF(0,0,1,1));
+    auto* cropWidth=window.findChild<QDoubleSpinBox*>("imageCrop2");
+    cropWidth->setValue(0.5); auto* cropLeft=window.findChild<QDoubleSpinBox*>("imageCrop0"); cropLeft->setValue(0.8);
+    QCOMPARE(window.document().state().layers.last().crop.x(),0.0); // Rejected without escaping a Qt slot.
+    auto* colors=window.findChild<QLineEdit*>("colorCycle"); colors->setText("not-a-color");
+    QMetaObject::invokeMethod(colors,"editingFinished",Qt::DirectConnection);
+    QCOMPARE(window.document().state().layers.last().colorCycle.size(),3);
+    window.document().history()->setClean();
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/editor-transform.png"));
+}
+
+void EditorTest::advancedControls()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+    auto* types=window.findChild<QComboBox*>("newEffectType");
+    types->setCurrentIndex(types->findData(static_cast<int>(EffectKind::Orbit)));
+    for (auto* button : window.findChildren<QPushButton*>()) if (button->text()=="New layer") button->click();
+    window.findChild<QDoubleSpinBox*>("particleCount")->setValue(400);
+    QCOMPARE(window.document().state().layers[0].particleCount,400.0);
+    QVERIFY(!window.findChild<QCheckBox*>("cropTool")->isEnabled());
+    window.findChild<QDoubleSpinBox*>("particleSeed")->setValue(42);
+    QCOMPARE(window.document().state().layers[0].particleSeed,42.0);
+    window.document().history()->undo(); QCOMPARE(window.findChild<QDoubleSpinBox*>("particleSeed")->value(),1.0);
+    window.findChild<QCheckBox*>("maskLinked")->setChecked(true);
+    QVERIFY(window.document().state().layers[0].maskLinked);
+    window.findChild<QDoubleSpinBox*>("trails")->setValue(0.5);
+    QCOMPARE(window.document().state().layers[0].trails,0.5);
+    window.document().edit("Preview appearance",[](auto& state) {
+        auto& layer=state.layers[0]; layer.color=QColor("#ffc857"); layer.secondaryColor=QColor("#e652a0");
+        layer.center={320,200}; layer.extent={540,340}; layer.particleSize=2;
+    });
+    window.findChild<QDoubleSpinBox*>("previewTime")->setValue(1.25);
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(1);
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/editor-particles.png"));
+    window.document().history()->setClean();
 }
 
 QTEST_MAIN(EditorTest)

@@ -1,142 +1,173 @@
 # Offline lighting editor
 
-The first editor increment provides one Lighting workspace with separate Layout
-and Effects tabs. Start `build/ninja/Release/msi_mystic_light.exe --editor` to
-skip the process-conflict dialog for offline editing. Normal startup still
-checks conflicts first. Neither editor mode connects to devices or sends HID
-reports. `--inspect` and `--scan` remain terminating diagnostic commands.
+Launch `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
+Normal startup runs the existing process-conflict dialog first. Neither editor
+view opens devices or sends HID reports. Layout and Effects are mutually
+exclusive tabs in one Lighting category, with independent selection/zoom/pan.
 
 ## Layout
 
-Choose a catalog component and Add component. Click/drag one of its LED points
-to move that instance, or use arrow keys (Shift: 10 units). Wire indices are
-shown beside LEDs. Remove selected component removes only the instance.
-Wheel zooms around the pointer; middle-button drag pans. Layout displays the
-effect composition behind the configured components, but cannot edit effects
-or paint masks. Switching tabs retains each canvas's viewport and selection.
+Choose a component and Add component. Drag a LED point to move its instance;
+arrow keys move one unit, Shift+arrows ten. Remove selected component removes
+only that instance. Wire indices appear beside LEDs. Layout previews the
+composition but cannot author effects/masks. Wheel zooms; middle drag pans.
 
-Scan supported devices enumerates descriptors and OS board identity only.
-Every matching profile/exact-path pair remains selectable; no candidate is
-selected automatically. This is a staged, session-only choice, not a connection
-or component-to-channel assignment. Rescanning clears stale choices. Unplugged
-endpoints are not monitored automatically in this increment.
+Scan supported devices reads descriptors and OS board identity. All matching
+profile/endpoint pairs remain selectable without auto-selection. Selection is
+staged/session-only, without connection or channel assignment. Rescan clears
+stale selections. Automatic unplug/reconnect monitoring is not implemented.
 
-## Effects
+## Layers and masks
 
-Choose an effect type and New layer creates an independent effect with a white
-grayscale mask. Static Color is the default. The selected layer's effect type
-can also be changed without replacing its ID, mask or layer settings. The
-topmost panel entry is the topmost composited layer. Rename by editing
-the layer name, toggle its visibility checkbox, drag to reorder, duplicate or
-delete. Effect and mask thumbnails select the editing target; the left toolbox
-also offers Edit effect / Edit mask. Effect color opens the color picker.
+New layer creates the selected effect with an independent white grayscale mask.
+The top panel row is the top composited layer. Rename by editing the name,
+toggle visibility, drag to reorder, duplicate or delete. Effect/mask thumbnails
+select the target; Edit effect and Edit mask are also in the left toolbar.
+Changing effect types preserves ID, mask, geometry, settings and embedded pixels.
 
-Available effects are Static Color; Linear, Radial and Conical Gradient;
-Stripes and Waves; Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross
-and Moon; and Image. Gradients have two color stops, including alpha. Their interpolation
-uses premultiplied channels so a transparent color stop does not create a halo.
-Stripes alternate the two colors; Waves blend them sinusoidally. Both have a
-repetition count. Conical gradients start along the positive X axis and progress
-clockwise in canvas coordinates, with a seam between the two color stops.
+Transparency has its own slider: 0% fully visible, 100% fully transparent.
+Blend modes are Normal, Multiply, Screen and Overlay against the layers below.
+RGBA is preserved, including a lone Multiply layer over transparent pixels.
+Mask coverage multiplies source alpha and inverse transparency before blending.
+Qt's encoded-color raster composition is used; Photoshop pixel parity and
+calibrated LED appearance are not claimed.
 
-Non-static effects expose center X/Y, width, height and rotation in degrees.
-Height is disabled for the one-dimensional Linear/Stripes/Waves effects.
-Positive rotation is clockwise. Gradient size controls the interpolation domain;
-gradients cover the canvas (linear/radial values clamp at their endpoints, while
-stripes/waves repeat). Shapes have transparent surroundings and antialiased edges.
-Shapes use fixed templates: five-point star, fixed-width ring and fixed moon
-cutout. Geometry changes currently use numeric fields, not on-canvas handles.
+Mask white reveals, black hides and gray creates soft partial transparency.
+Choose brush or gradient. Brush diameter, hardness, opacity and gray level are
+editable. A gradient runs black-to-white along the drag. Fill white/black,
+invert, bypass and grayscale preview are available. Escape or switching tabs
+cancels an unfinished gesture. Each completed gesture is one undo step.
 
-Import image creates a new Image layer with a white mask. PNG, JPEG, BMP and
-GIF are supported; GIF imports its first frame only. JPEG orientation metadata
-is applied on import. WebP is pending because the current Qt SDK lacks its codec.
-Fit whole image preserves aspect ratio with transparent margins; Fill and crop
-preserves aspect ratio and clips equally from opposite edges of the effect
-rectangle. Center/size/rotation transform the rectangle. Cropping is reversible:
-original decoded pixels remain embedded. Free crop handles and crop offsets are
-not implemented. A new empty Image layer is transparent. Converting an image
-layer to another effect retains its image for conversion back and undo.
+Masks default to canvas coordinates. Link mask to effect makes geometry edits
+move/rotate/scale the mask, and animation follows drift/spin/zoom/warp. Geometry
+edits resample the linked mask; undo restores the prior pixels. Spatial motion
+is evaluated from original stored pixels during preview. For predictable brush
+coordinates, Edit mask pauses/resets time to zero and edits the base mask with
+the selected layer's warp/link projection suspended in that view. Leaving mask
+editing restores the normal linked projection. No mask data is discarded.
 
-Each layer has a dedicated Transparency slider (0% visible, 100% transparent)
-and Normal, Multiply, Screen or Overlay blending against the composition below.
-Rendering retains RGBA: a lone Multiply layer over transparency remains visible.
-Blend calculations use Qt's raster composition in the current encoded color
-space; Photoshop pixel parity or calibrated physical LED appearance is not
-claimed. There is no second layer-opacity control.
+## Effects and direct tools
 
-For masks, white reveals, black hides, and gray partially reveals lower layers.
-Mask alpha multiplies effect alpha and inverse transparency before composition.
-Choose Mask brush or Mask gradient. The brush has diameter, hardness, opacity
-and gray value; gradients run black to white along the drag direction. Show
-grayscale mask previews the mask itself, while Enable mask can bypass it without
-discarding data. Fill white/black and Invert are non-destructive effect operations.
-Escape or switching views cancels an unfinished stroke; a completed stroke is
-one undo step. Masks currently stay in canvas coordinates when effect geometry
-changes; linked/unlinked mask transforms are not implemented.
+Available sources: Static Color; Linear, Radial and Conical Gradient; Stripes;
+Waves; Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon;
+Image; Particle Rain, Particle Orbit, Fireflies and Particle Burst.
 
-Undo/Redo cover document edits, including independent copies of duplicated masks.
-Viewport/selection are editing context, not undoable lighting changes. Layer
-targeting currently covers the entire offline canvas; per-channel/component
-targets and native-mode controls remain pending.
+Gradients use two colors including alpha, interpolated in premultiplied space
+to avoid transparent-stop halos. Stripes alternate colors and Waves interpolate
+sinusoidally; repetitions are editable. Conical gradients start along positive
+X and progress clockwise, with a seam. Linear/radial gradients clamp; patterns
+repeat. Shapes use antialiased fixed templates (five-point star, fixed ring
+thickness and fixed moon cutout).
 
-## Animation preview
+Select Edit effect, then drag inside the selected source's yellow frame to
+move it. Four corner grips resize about its center; the external circular grip
+rotates. Direct gestures pause/reset the preview clock before editing. Numeric
+center, width, height and rotation provide keyboard-accessible alternatives.
+Positive rotation is clockwise. Static Color covers the canvas and has no
+spatial handles. Effect geometry does not move Layout components. Escape/tab
+switch/history changes cancel unfinished transforms; undo restores committed
+transforms. Gradient geometry controls its interpolation domain, while shapes
+and images are transparent outside their geometry.
 
-Each layer has Spin (degrees/second), Pulse (cycles/second) and Hue
-(degrees/second) rates. Zero disables each modifier. Spin applies to gradients,
-shapes and images; Pulse smoothly multiplies alpha by a cosine cycle, starting
-fully visible. Hue rotates the two procedural colors in HSV and preserves alpha;
-achromatic colors remain achromatic. Image hue grading is not implemented.
-Masks stay in canvas space during rotation. All modulation precedes the existing
-mask/transparency/blend pipeline and is deterministic at the specified time.
+## Images and crop
 
-The Preview toolbar starts paused. Set a time directly or explicitly enable Play
-preview (target 30 frames/second, actual rate depends on CPU/layer count). Pause
-retains the time; set it to zero to reset. Both canvases use the same time.
-Playback uses elapsed wall time rather than adding a nominal frame duration.
-Preview time/playback are session state, never document edits or undo entries.
-Selecting Edit mask pauses/disables playback so a timer cannot interrupt a stroke.
-The time range is 0..86400 seconds; reaching the end pauses playback.
-This is an effect authoring preview, without UI decoration or automatic motion.
-Drift, warp, zoom, user color cycles, keyframes and trails remain pending.
+Import image creates a new Image layer from PNG, JPEG, WebP, GIF or BMP. JPEG
+orientation is applied. Animated GIF/WebP inputs import their first frame only;
+image animation/video decoding is not part of the authoring feature set.
+Decoded pixels are embedded losslessly, so source removal does not affect a
+project. An empty Image layer is transparent.
 
-## Project files
+Fit whole image preserves aspect ratio with transparent margins. Fill and crop
+preserves aspect ratio and clips opposite edges equally. Enable Crop image in
+the left toolbar and drag a rectangle over the visible image to select a new
+source region; drag again to refine it. The normalized left/top/width/height
+fields provide precise crop coordinates. Reset image crop restores the whole
+source. All crop operations retain original pixels, and undo restores previous
+selections. Select Edit effect to leave the crop tool and restore transform grips.
 
-File > Save/Open stores `.lighting.json` schema 4 documents: component instance
-IDs/catalog IDs/positions and ordered effect layers with IDs, colors, stable
-effect type IDs, geometry, repetitions, visibility, transparency, blending and
-lossless embedded PNG grayscale masks and image pixels with fit/fill settings, plus per-layer animation rates. Schema 3
-remains readable with zero animation rates. Schema 2
-is still readable with its explicit gradient/shape parameters. Schema 1 from the initial editor is
-still readable as implicit Static Color, retaining masks and settings. Saves
-always use schema 4; older app versions reject it rather than silently losing
-effect parameters. Unknown effect IDs and invalid geometry are rejected.
-Saving uses QSaveFile atomic replacement, and write/commit errors remain visible.
-Opening validates the entire candidate before replacing the document and history.
-Unknown component IDs, malformed masks or invalid properties leave the current
-document intact. Documents depend on the matching local component catalog;
-definitions are not embedded, so editing a catalog can change project geometry.
+## Motion and color
 
-This increment uses a fixed 640x400 document, up to 64 layers and 256 component
-instances, a 32 MiB project read/write limit and 40 undo steps. Image inputs are
-limited to 16 MiB and 4096 pixels per side, with a total document image budget
-of 16 * 1024 * 1024 pixels (including retained images on converted layers).
-Raster dimensions and accumulated image budgets are checked before decoding.
-Oversized saves fail before replacing the destination; the document remains dirty. Missing mask data is an error, not an invented white mask.
-Closing or opening another project prompts Save / Discard / Cancel for changes.
-There is no autosave, automatic last-project restoration or persisted device
-selection yet. Saving a project never enables hardware output.
+Every layer exposes applicable animation parameters:
 
-## Validation and remaining work
+- Spin: -360..360 degrees/second; procedural hue rotation uses the same range.
+- Pulse: 0..10 Hz, cosine alpha modulation, initially fully visible.
+- Breathe: 0..10 Hz, smooth exponential alpha modulation, initially fully visible.
+- Drift X/Y: -500..500 pixels/second; content can move off the canvas.
+- Zoom: 0..90 percent sinusoidal size amplitude at 1 Hz around the source center.
+- Warp: 0..100 pixels of horizontal sine displacement, 100-pixel wavelength,
+  travelling at one cycle/second; pixels outside the canvas are clipped.
+- Trails: 0..2 seconds, six decreasing-opacity historical samples plus the
+  current source. Samples before time zero are skipped. Fixed temporal samples
+  make seeking reproducible and bound rendering cost.
+- Color cycles: 2..16 comma-separated QColor colors (`#RRGGBB` or `#AARRGGBB`),
+  with 0..10 full cycles/second; the last color interpolates back to the first.
+  They animate the primary procedural color, then hue rotation is applied.
 
-Qt tests cover alpha/mask multiplication, transparent backdrops, all four blend
-modes, layer order, soft brush/gradient values, independent mask copies, undo,
-atomic invalid edits, separate editing contexts, layer panel actions, explicit
-candidate selection, project round trips and failed loads/saves. The UI test
-writes Layout/Effects screenshots to the build's `editor-artifacts` directory.
-Offscreen tests can lack Windows fonts in the sandbox; native Windows tests
-were also run to inspect legible screenshots.
+Zero disables each modifier. Image hue rotation is supported per pixel;
+achromatic pixels remain achromatic. Procedural color cycles are disabled for
+images. Spin is disabled for full-canvas Static Color. Pulse and breathe
+multiply each other when both enabled. All modulation happens before masks,
+transparency and layer blending. Source trails use the current mask projection.
 
-WebP, free crop handles, multistop gradients, advanced motion/color cycles, particles, layout resizing/
-rotation, component geometry editing/import, effect targeting, native controls,
-hardware output and renderer-to-wire sampling remain future increments. The
-current raster renderer is the basis for those paths, not proof of output parity.
+The Preview toolbar starts paused. Enter a time or enable Play preview. Pause
+retains time; enter zero to reset. The 0..86400-second range stops at its end.
+Elapsed wall time controls playback, so dropped frames do not accumulate drift.
+The timer targets about 30 fps and shares each composed frame between canvases;
+actual speed depends on source count, image grading, warp and trail samples.
+Time and playback do not dirty the document or add undo entries. Motion is
+explicitly started, with no automatic UI decoration or motion on shortcuts.
+
+## Seeded particles and performance
+
+Four patterns share count (1..400), seed (0..1000000), speed (0..500) and radius
+(1..40 pixels), plus primary/secondary colors, geometry and all motion/mask/layer
+controls. Rain wraps downward; Orbit uses seeded radii/angular velocities;
+Fireflies use smooth intersecting sine paths; Burst repeats radial expansion.
+The speed value advances normalized path phase by speed/200 cycles per second.
+The seed and absolute time determine every frame, independently of playback
+history. Changing a seed changes the pattern. Particles have no hardware I/O.
+
+The test suite logs the mean composed frame time for a 400-particle layer with
+seven trail samples. This is a local performance measurement, not a 30 fps
+promise for 64 simultaneously animated layers. Playback skips stale time steps
+rather than queueing old frames. See CONTINUE.md for the latest measured result.
+
+## Project files and boundaries
+
+Save/Open uses `.lighting.json` schema 5, including placements, ordered layer
+IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
+linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
+and advanced persistence. Schemas 1..4 remain readable with their original
+semantics; missing newer settings get disabled/default values. Saves always use
+schema 5; older versions reject it instead of silently losing effects.
+
+QSaveFile replaces files atomically. Load parses/validates the entire candidate
+before replacing the document/history. Unknown component IDs, unsupported effect
+types, corrupt rasters, invalid crop/colors or out-of-range values preserve the
+live document. Invalid typed UI values are reported in the status bar and
+restored, without exceptions escaping Qt event handlers.
+
+Limits: fixed 640x400 canvas, 64 layers, 256 placements, 40 undo steps, 32 MiB
+project read/write, 16 MiB image input, 4096 pixels per image side, and total
+16 * 1024 * 1024 decoded image pixels (including images retained after effect
+type conversion). Dimensions and accumulated pixels are checked before decode.
+An oversized save is rejected before replacing its destination. Undo snapshots
+share raster storage until edited. Save/Discard/Cancel protects unsaved changes.
+Catalog definitions are referenced, not embedded; changing a catalog can change
+layout geometry. Viewports/time/selection are session context, not project data.
+
+The accepted image/shape/gradient/motion/color/particle authoring increment is
+implemented. Separate future application work includes component geometry
+editing/import UI, resizing/rotating component layouts, per-channel targets,
+native-mode controls, reconnect handling, renderer-to-wire sampling, hardware
+output, autosave and automatic session restoration. Keyframes, multistop gradient
+editing and animated image playback are not claimed by this increment.
+
+## Verification
+
+Qt tests exercise composition, soft masks, independent copies, layer operations,
+separate view contexts, persistence/migrations, malformed input rejection,
+image codecs, deterministic animation/particles, linked masks, canvas move/
+resize/rotate/crop, gesture cancellation, UI validation and undo. Native Windows
+checks complement offscreen tests, which may lack sandbox fonts. Screenshots
+are written to the build's editor-artifacts directory.

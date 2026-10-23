@@ -3,6 +3,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QTransform>
+#include <QRandomGenerator>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -44,7 +45,9 @@ const QVector<EffectDefinition>& effectDefinitions()
         {EffectKind::Star, "star", "Star"}, {EffectKind::Heart, "heart", "Heart"},
         {EffectKind::Triangle, "triangle", "Triangle"}, {EffectKind::Hexagon, "hexagon", "Hexagon"},
         {EffectKind::Diamond, "diamond", "Diamond"}, {EffectKind::Cross, "cross", "Cross"},
-        {EffectKind::Moon, "moon", "Moon"}, {EffectKind::Image, "image", "Image"}
+        {EffectKind::Moon, "moon", "Moon"}, {EffectKind::Image, "image", "Image"},
+        {EffectKind::Rain, "rain", "Particle Rain"}, {EffectKind::Orbit, "orbit", "Particle Orbit"},
+        {EffectKind::Fireflies, "fireflies", "Fireflies"}, {EffectKind::Burst, "burst", "Particle Burst"}
     };
     return definitions;
 }
@@ -60,9 +63,42 @@ const EffectDefinition& effectDefinition(const QString& id)
 }
 bool isGradient(EffectKind kind) { return kind >= EffectKind::LinearGradient && kind <= EffectKind::Waves; }
 
+bool isParticle(EffectKind kind) { return kind >= EffectKind::Rain && kind <= EffectKind::Burst; }
+const QVector<EffectParameter>& advancedParameters()
+{
+    static const QVector<EffectParameter> parameters{
+        {"driftX", "Drift X px/s", &EffectLayer::driftX, -500, 500},
+        {"driftY", "Drift Y px/s", &EffectLayer::driftY, -500, 500},
+        {"zoom", "Zoom amplitude %", &EffectLayer::zoom, 0, 90},
+        {"warp", "Warp amplitude px", &EffectLayer::warp, 0, 100},
+        {"breathe", "Breathe Hz", &EffectLayer::breathe, 0, 10},
+        {"trails", "Trail seconds", &EffectLayer::trails, 0, 2},
+        {"cycleRate", "Color cycles/s", &EffectLayer::cycleRate, 0, 10},
+        {"particleCount", "Particle count", &EffectLayer::particleCount, 1, 400},
+        {"particleSeed", "Particle seed", &EffectLayer::particleSeed, 0, 1000000},
+        {"particleSpeed", "Particle speed", &EffectLayer::particleSpeed, 0, 500},
+        {"particleSize", "Particle radius px", &EffectLayer::particleSize, 1, 40}
+    };
+    return parameters;
+}
+
 void validateEffect(const EffectLayer& layer)
 {
     effectDefinition(layer.effect);
+    for (const auto& parameter : advancedParameters()) {
+        const double value = layer.*(parameter.member);
+        if (!std::isfinite(value) || value < parameter.minimum || value > parameter.maximum)
+            throw std::invalid_argument("Invalid advanced effect parameter");
+    }
+    if (std::floor(layer.particleCount) != layer.particleCount || std::floor(layer.particleSeed) != layer.particleSeed ||
+        layer.colorCycle.size() < 2 || layer.colorCycle.size() > 16)
+        throw std::invalid_argument("Invalid particle count/seed or color cycle");
+    for (const auto& color : layer.colorCycle) if (!color.isValid()) throw std::invalid_argument("Invalid cycle color");
+    const auto crop = layer.crop;
+    if (!std::isfinite(crop.x()) || !std::isfinite(crop.y()) || !std::isfinite(crop.width()) || !std::isfinite(crop.height()) ||
+        crop.x() < 0 || crop.y() < 0 || crop.width() < 0.001 || crop.height() < 0.001 ||
+        crop.right() > 1.0000001 || crop.bottom() > 1.0000001)
+        throw std::invalid_argument("Invalid normalized image crop");
     if (!std::isfinite(layer.spin) || std::abs(layer.spin) > 360 ||
         !std::isfinite(layer.pulse) || layer.pulse < 0 || layer.pulse > 10 ||
         !std::isfinite(layer.hueShift) || std::abs(layer.hueShift) > 360)
@@ -80,9 +116,8 @@ void validateEffect(const EffectLayer& layer)
         throw std::invalid_argument("Invalid effect parameters");
 }
 
-static QImage renderBaseEffect(const EffectLayer& layer)
+static QImage renderBaseEffect(const EffectLayer& layer, double seconds)
 {
-    validateEffect(layer);
     QImage image(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     if (layer.effect == EffectKind::StaticColor) { image.fill(layer.color); return image; }
@@ -95,9 +130,11 @@ static QImage renderBaseEffect(const EffectLayer& layer)
         const QRectF frame(-layer.extent.width()/2, -layer.extent.height()/2,
             layer.extent.width(), layer.extent.height());
         painter.setClipRect(frame);
-        const QSizeF size = QSizeF(layer.image.size()).scaled(layer.extent,
+        const QRectF source(layer.crop.x()*layer.image.width(), layer.crop.y()*layer.image.height(),
+            layer.crop.width()*layer.image.width(), layer.crop.height()*layer.image.height());
+        const QSizeF size = source.size().scaled(layer.extent,
             layer.imageFill ? Qt::KeepAspectRatioByExpanding : Qt::KeepAspectRatio);
-        painter.drawImage(QRectF(QPointF(-size.width()/2, -size.height()/2), size), layer.image);
+        painter.drawImage(QRectF(QPointF(-size.width()/2, -size.height()/2), size), layer.image, source);
         return image;
     }
     if (isGradient(layer.effect)) {
@@ -124,6 +161,35 @@ static QImage renderBaseEffect(const EffectLayer& layer)
                 }
                 row[x] = interpolate(first, second, std::clamp(t, 0.0, 1.0));
             }
+        }
+        return image;
+    }
+    if (isParticle(layer.effect)) {
+        QPainter painter(&image); painter.setRenderHint(QPainter::Antialiasing);
+        painter.setTransform(effectTransform(layer)); painter.setPen(Qt::NoPen);
+        QRandomGenerator random(static_cast<quint32>(layer.particleSeed));
+        const auto unit = [&] { return random.generateDouble(); };
+        const auto wrap = [](double value) { return value - std::floor(value); };
+        for (int i = 0; i < static_cast<int>(layer.particleCount); ++i) {
+            const double a = unit(), b = unit(), c = unit();
+            const double phase = seconds * layer.particleSpeed / 200;
+            QPointF point;
+            switch (layer.effect) {
+            case EffectKind::Rain: point = {a - 0.5, wrap(b + phase) - 0.5}; break;
+            case EffectKind::Orbit: {
+                const double angle = 2*pi*(a + phase*(0.2 + b));
+                point = {0.45*std::sqrt(c)*std::cos(angle), 0.45*std::sqrt(c)*std::sin(angle)}; break;
+            }
+            case EffectKind::Fireflies:
+                point = {0.35*std::sin(2*pi*(a + phase*(0.1+c))), 0.35*std::sin(2*pi*(b + phase*0.17))}; break;
+            default: {
+                const double age = wrap(b + phase), angle = 2*pi*a;
+                point = {0.5*age*std::cos(angle), 0.5*age*std::sin(angle)}; break;
+            }
+            }
+            painter.setBrush(QColor::fromRgba(qUnpremultiply(interpolate(qPremultiply(layer.color.rgba()),
+                qPremultiply(layer.secondaryColor.rgba()), c))));
+            painter.drawEllipse(point, layer.particleSize/layer.extent.width(), layer.particleSize/layer.extent.height());
         }
         return image;
     }
@@ -163,27 +229,89 @@ static QImage renderBaseEffect(const EffectLayer& layer)
     return image;
 }
 
-QImage renderEffect(const EffectLayer& layer, double seconds)
+QTransform effectTransform(const EffectLayer& layer, double seconds)
 {
-    validateEffect(layer);
+    const double scale = 1 + layer.zoom/100 * std::sin(2*pi*seconds);
+    QTransform transform;
+    transform.translate(layer.center.x() + layer.driftX*seconds, layer.center.y() + layer.driftY*seconds);
+    transform.rotate(std::remainder(layer.rotation + layer.spin*seconds, 360.0));
+    transform.scale(layer.extent.width()*scale, layer.extent.height()*scale);
+    return transform;
+}
+QImage transformedMask(const EffectLayer& layer, const QTransform& transform)
+{
+    QImage image(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied); image.fill(Qt::black);
+    QPainter painter(&image); painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.setTransform(transform); painter.drawImage(0, 0, layer.mask); painter.end();
+    return image.convertToFormat(QImage::Format_Grayscale8);
+}
+
+static QImage warpRaster(const QImage& source, double amplitude, double seconds, QColor background)
+{
+    QImage result(source.size(),QImage::Format_ARGB32_Premultiplied); result.fill(background);
+    QPainter painter(&result);
+    for (int y=0;y<result.height();++y) {
+        const int shift=qRound(amplitude*std::sin(2*pi*(y/100.0+seconds)));
+        painter.drawImage(QPoint(shift,y),source,QRect(0,y,source.width(),1));
+    }
+    return result;
+}
+QImage renderMask(const EffectLayer& layer, double seconds)
+{
+    if (!layer.maskLinked) return layer.mask;
+    auto mask=transformedMask(layer,effectTransform(layer).inverted()*effectTransform(layer,seconds));
+    if (layer.warp>0) mask=warpRaster(mask,layer.warp,seconds,Qt::black).convertToFormat(QImage::Format_Grayscale8);
+    return mask;
+}
+
+static QImage renderAtTime(const EffectLayer& layer, double seconds)
+{
     if (!std::isfinite(seconds) || seconds < 0 || seconds > 86400)
         throw std::invalid_argument("Preview time must be between 0 and 86400 seconds");
     auto evaluated = layer;
     // Evaluate from absolute time, without accumulating drift or editing undoable state.
+    const double scale = 1 + layer.zoom/100 * std::sin(2*pi*seconds);
+    evaluated.center += QPointF(layer.driftX*seconds, layer.driftY*seconds);
+    evaluated.extent *= scale;
+    evaluated.zoom = 0; evaluated.driftX = 0; evaluated.driftY = 0;
+    // Evaluated geometry may be off-canvas or exceed editable bounds; only stored inputs are validated.
     evaluated.rotation = std::remainder(layer.rotation + layer.spin * seconds, 360.0);
-    if (layer.hueShift != 0) {
+    if (layer.cycleRate > 0) {
+        const double position = seconds*layer.cycleRate*layer.colorCycle.size();
+        const auto index = static_cast<int>(std::floor(std::fmod(position, double(layer.colorCycle.size()))));
+        const auto next = (index+1) % layer.colorCycle.size();
+        evaluated.color = QColor::fromRgba(qUnpremultiply(interpolate(qPremultiply(layer.colorCycle[index].rgba()),
+            qPremultiply(layer.colorCycle[next].rgba()), position - std::floor(position))));
+    }
+    if (layer.hueShift != 0 && layer.effect != EffectKind::Image) {
         auto shift = [&](QColor color) {
             float h, s, v, a; color.getHsvF(&h, &s, &v, &a);
             if (h < 0) return color; // Achromatic colors stay achromatic.
             h = std::fmod(h + layer.hueShift * seconds / 360.0, 1.0);
             return QColor::fromHsvF(h < 0 ? h + 1 : h, s, v, a);
         };
-        evaluated.color = shift(layer.color); evaluated.secondaryColor = shift(layer.secondaryColor);
-        // shortcut: hue animation affects procedural colors; add image color grading separately.
+        evaluated.color = shift(evaluated.color); evaluated.secondaryColor = shift(layer.secondaryColor);
+
     }
-    auto image = renderBaseEffect(evaluated);
-    if (layer.pulse > 0) {
-        const double coverage = (1 + std::cos(2 * pi * layer.pulse * seconds)) / 2;
+    auto image = renderBaseEffect(evaluated, seconds);
+    if (layer.warp > 0) image=warpRaster(image,layer.warp,seconds,Qt::transparent);
+    if (layer.effect == EffectKind::Image && layer.hueShift != 0) {
+        for (int y=0; y<image.height(); ++y) {
+            auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+            for (int x=0; x<image.width(); ++x) {
+                QColor color = QColor::fromRgba(qUnpremultiply(row[x]));
+                float h,s,v,a; color.getHsvF(&h,&s,&v,&a);
+                if (h >= 0) {
+                    double hue = std::fmod(h+layer.hueShift*seconds/360,1.0);
+                    color = QColor::fromHsvF(hue<0 ? hue+1 : hue,s,v,a);
+                }
+                row[x] = qPremultiply(color.rgba());
+            }
+        }
+    }
+    if (layer.pulse > 0 || layer.breathe > 0) {
+        double coverage = layer.pulse > 0 ? (1 + std::cos(2*pi*layer.pulse*seconds))/2 : 1;
+        if (layer.breathe > 0) coverage *= std::exp(2*(std::cos(2*pi*layer.breathe*seconds)-1));
         for (int y = 0; y < image.height(); ++y) {
             auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
             for (int x = 0; x < image.width(); ++x) {
@@ -194,4 +322,21 @@ QImage renderEffect(const EffectLayer& layer, double seconds)
         }
     }
     return image;
+}
+
+QImage renderEffect(const EffectLayer& layer, double seconds)
+{
+    validateEffect(layer);
+    if (!std::isfinite(seconds) || seconds < 0 || seconds > 86400) throw std::invalid_argument("Invalid effect time");
+    if (layer.trails == 0) return renderAtTime(layer, seconds);
+    QImage result(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied); result.fill(Qt::transparent);
+    QPainter painter(&result);
+    // Fixed temporal taps keep seeking reproducible and bound work independently of elapsed playback.
+    for (int i=6; i>=0; --i) {
+        const double time = seconds - layer.trails*i/6;
+        if (time < 0) continue;
+        painter.setOpacity(i == 0 ? 1 : (1-i/7.0)*0.35);
+        painter.drawImage(0,0,renderAtTime(layer,time));
+    }
+    return result;
 }

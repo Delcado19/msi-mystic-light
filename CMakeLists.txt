@@ -55,6 +55,17 @@ set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CM
 target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor)
 add_dependencies(msi_mystic_light msi_gen1_module)
 if(WIN32)
+    # A matching SDK plugin is preferred; the documented source build supplies SDKs without ImageFormats.
+    set(WEBP_PLUGIN_HINTS "${Qt6_DIR}/../../../plugins/imageformats")
+    if(Qt6_VERSION VERSION_EQUAL "6.8.3")
+        list(APPEND WEBP_PLUGIN_HINTS "${PROJECT_SOURCE_DIR}/build/qtimageformats/plugins/imageformats")
+    endif()
+    find_file(WEBP_PLUGIN_RELEASE qwebp.dll HINTS ${WEBP_PLUGIN_HINTS})
+    find_file(WEBP_PLUGIN_DEBUG qwebpd.dll HINTS ${WEBP_PLUGIN_HINTS})
+    if(NOT WEBP_PLUGIN_RELEASE OR NOT WEBP_PLUGIN_DEBUG)
+        message(FATAL_ERROR "Install matching Qt ImageFormats plugins, or run tools/build-webp.ps1 from a VS developer shell")
+    endif()
+    set(WEBP_PLUGIN "$<IF:$<CONFIG:Debug>,${WEBP_PLUGIN_DEBUG},${WEBP_PLUGIN_RELEASE}>")
     # HIDAPI is an imported .lib; CMake cannot infer its sibling runtime DLL.
     get_filename_component(HIDAPI_LIBRARY_DIR "${hidapi_LIBRARY}" DIRECTORY)
     find_file(HIDAPI_RUNTIME_DLL NAMES hidapi.dll HINTS "${HIDAPI_LIBRARY_DIR}" "${HIDAPI_LIBRARY_DIR}/../bin")
@@ -68,11 +79,15 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QWindowsIntegrationPlugin>
             "$<TARGET_FILE_DIR:msi_mystic_light>/platforms"
         COMMAND_EXPAND_LISTS)
-    # PNG/BMP are built into QtGui; JPEG/GIF need matching runtime plugins.
+    # PNG/BMP are built into QtGui; JPEG/GIF/WebP need matching runtime plugins.
     add_custom_command(TARGET msi_mystic_light POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin>
-            "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats")
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin> "${WEBP_PLUGIN}"
+            "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/third_party/licenses"
+            "$<TARGET_FILE_DIR:msi_mystic_light>/third_party/licenses"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
+            "$<TARGET_FILE_DIR:msi_mystic_light>")
 endif()
 
 enable_testing()

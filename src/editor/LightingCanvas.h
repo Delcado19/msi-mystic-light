@@ -2,6 +2,7 @@
 
 #include "LightingDocument.h"
 #include <QWidget>
+#include <optional>
 
 class LightingCanvas : public QWidget {
     Q_OBJECT
@@ -16,10 +17,12 @@ public:
     void setMaskTool(MaskTool tool) { cancelGesture(); tool_ = tool; }
     void setBrush(double radius, double hardness, double opacity, int gray);
     void setShowMask(bool show) { showMask_ = show; update(); }
-    void setPreviewTime(double seconds);
+    void setCropTool(bool enabled) { cancelGesture(); cropTool_ = enabled; update(); }
+    void setPreviewFrame(const QImage& frame, double seconds);
     QPointF canvasPoint(QPointF viewport) const;
 signals:
     void selectionChanged();
+    void effectGestureStarted();
 protected:
     void paintEvent(QPaintEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
@@ -30,6 +33,7 @@ protected:
     void hideEvent(QHideEvent*) override;
 private:
     void cancelGesture();
+    void updateEffectGesture(QPointF point);
     QPointF offset() const;
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
     LightingDocument& document_;
@@ -41,5 +45,8 @@ private:
     QPointF start_, last_, origin_, pan_;
     double zoom_ = 1, radius_ = 30, hardness_ = 0.3, opacity_ = 1;
     double seconds_ = 0;
+    bool cropTool_ = false;
+    int handle_ = 0;
+    std::optional<EffectLayer> originalEffect_, workingEffect_;
     int gray_ = 0;
 };

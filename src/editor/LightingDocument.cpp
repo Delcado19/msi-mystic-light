@@ -61,6 +61,14 @@ void LightingDocument::edit(const QString& label, const std::function<void(Light
     auto after = state_;
     operation(after);
     validate(after);
+    // Apply linked mask geometry once per undoable edit; previews never bake animation into pixels.
+    for (auto& layer : after.layers) if (layer.maskLinked) {
+        for (const auto& before : state_.layers) if (before.id == layer.id &&
+            (before.center != layer.center || before.extent != layer.extent || before.rotation != layer.rotation)) {
+            layer.mask = transformedMask(before, effectTransform(before).inverted()*effectTransform(layer));
+        }
+    }
+    validate(after);
     for (const auto& placement : after.placements)
         if (!catalog_.contains(placement.componentId)) throw std::invalid_argument("Unknown component");
     history_.push(new DocumentEdit(label, [this, before = state_, after](bool forward) {
@@ -93,8 +101,8 @@ QUuid LightingDocument::importImage(const QString& fileName)
     if (!file.open(QIODevice::ReadOnly) || file.size() > 16 * 1024 * 1024)
         throw std::invalid_argument("Image unreadable or larger than 16 MiB");
     QImageReader reader(&file);
-    if (!QList<QByteArray>{"png", "jpeg", "jpg", "bmp", "gif"}.contains(reader.format()))
-        throw std::invalid_argument("Supported image formats: PNG, JPEG, BMP, GIF");
+    if (!QList<QByteArray>{"png", "jpeg", "jpg", "bmp", "gif", "webp"}.contains(reader.format()))
+        throw std::invalid_argument("Supported image formats: PNG, JPEG, BMP, GIF, WebP");
     const auto size = reader.size();
     if (!size.isValid() || size.width() > 4096 || size.height() > 4096)
         throw std::invalid_argument("Image must be at most 4096 pixels per side");
@@ -132,6 +140,12 @@ void LightingDocument::save(const QString& fileName)
             QBuffer imageBuffer(&imagePng); imageBuffer.open(QIODevice::WriteOnly);
             if (!layer.image.save(&imageBuffer, "PNG")) throw std::runtime_error("Could not encode image");
         }
+        QJsonObject advanced;
+        for (const auto& parameter : advancedParameters()) advanced.insert(parameter.id, layer.*(parameter.member));
+        QJsonArray cycle;
+        for (const auto& color : layer.colorCycle) cycle.append(color.name(QColor::HexArgb));
+        advanced.insert("colorCycle", cycle); advanced.insert("maskLinked", layer.maskLinked);
+        advanced.insert("crop", QJsonArray{layer.crop.x(), layer.crop.y(), layer.crop.width(), layer.crop.height()});
         layers.append(QJsonObject{{"id", layer.id.toString()}, {"name", layer.name},
             {"color", layer.color.name(QColor::HexArgb)}, {"visible", layer.visible},
             {"transparency", layer.transparency}, {"blend", static_cast<int>(layer.blend)},
@@ -140,6 +154,7 @@ void LightingDocument::save(const QString& fileName)
                 {"centerX", layer.center.x()}, {"centerY", layer.center.y()},
                 {"width", layer.extent.width()}, {"height", layer.extent.height()},
                 {"rotation", layer.rotation}, {"repetitions", layer.repetitions}}},
+            {"advanced", advanced},
             {"animation", QJsonObject{{"spin", layer.spin}, {"pulse", layer.pulse}, {"hueShift", layer.hueShift}}},
             {"imagePng", QString::fromLatin1(imagePng.toBase64())}, {"imageFill", layer.imageFill},
             {"maskEnabled", layer.maskEnabled}, {"maskPng", QString::fromLatin1(png.toBase64())}});
@@ -147,8 +162,8 @@ void LightingDocument::save(const QString& fileName)
     for (const auto& placement : state_.placements)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()}});
-    // Version 4 stores animation rates; older readers must reject unsupported motion state.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 4}, {"width", 640}, {"height", 400},
+    // Version 5 includes crop, linked masks, motion, color cycles and seeded particles.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 5}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -168,7 +183,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -238,6 +253,25 @@ void LightingDocument::load(const QString& fileName)
             layer.hueShift = animation.value("hueShift").toDouble();
         } else if (json.contains("animation")) {
             throw std::invalid_argument("Animation requires document schema 4");
+        }
+        if (schema >= 5) {
+            const auto advanced = json.value("advanced").toObject();
+            for (const auto& parameter : advancedParameters()) {
+                if (!advanced.value(parameter.id).isDouble()) throw std::invalid_argument("Missing advanced parameter");
+                layer.*(parameter.member) = advanced.value(parameter.id).toDouble();
+            }
+            if (!advanced.value("maskLinked").isBool() || !advanced.value("colorCycle").isArray())
+                throw std::invalid_argument("Invalid linked mask/color cycle");
+            layer.maskLinked = advanced.value("maskLinked").toBool(); layer.colorCycle.clear();
+            const auto cycle = advanced.value("colorCycle").toArray();
+            if (cycle.size() < 2 || cycle.size() > 16) throw std::invalid_argument("Invalid color cycle size");
+            for (const auto& color : cycle) layer.colorCycle.append(QColor(color.toString()));
+            const auto crop = advanced.value("crop").toArray();
+            if (crop.size() != 4) throw std::invalid_argument("Invalid image crop");
+            for (const auto& value : crop) if (!value.isDouble()) throw std::invalid_argument("Invalid crop coordinate");
+            layer.crop = {crop[0].toDouble(),crop[1].toDouble(),crop[2].toDouble(),crop[3].toDouble()};
+        } else if (json.contains("advanced") || isParticle(layer.effect)) {
+            throw std::invalid_argument("Advanced effects require schema 5");
         }
         const auto encoded = json.value("maskPng").toString().toLatin1();
         const auto decoded = QByteArray::fromBase64Encoding(encoded, QByteArray::AbortOnBase64DecodingErrors);
@@ -325,9 +359,10 @@ QImage LightingDocument::render(const LightingState& state, double seconds)
     for (const auto& layer : state.layers) {
         if (!layer.visible || layer.transparency == 100) continue;
         auto source = renderEffect(layer, seconds);
+        const auto maskImage = renderMask(layer,seconds);
         for (int y = 0; y < source.height(); ++y) {
             auto* pixels = reinterpret_cast<QRgb*>(source.scanLine(y));
-            const auto* mask = layer.mask.constScanLine(y);
+            const auto* mask = maskImage.constScanLine(y);
             for (int x = 0; x < source.width(); ++x) {
                 const int coverage = layer.maskEnabled ? mask[x] : 255;
                 const double alphaScale = (100 - layer.transparency) / 100.0 * coverage / 255.0;

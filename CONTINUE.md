@@ -1,5 +1,45 @@
 # Implementation status
 
+## Completed: accepted offline effect authoring scope (2026-10-23)
+
+- Built on published 0ab3ff6. Implemented drift X/Y, sinusoidal zoom, sine warp,
+  exponential breathe, user color cycles, image hue grading and deterministic
+  motion trails. Added four seeded particle sources: Rain, Orbit, Fireflies,
+  Burst; count up to 400, editable seed/speed/radius and both colors.
+- Added on-canvas move/centered resize/rotate grips and image crop gestures,
+  precise normalized crop controls and full-source reset. Original pixels are
+  retained. Escape/tab/history changes cancel unfinished gestures; a completed
+  gesture is one undo step. Contextual properties keep the layer list readable.
+- Added optional linked masks, following manual geometry and animated affine/
+  warp transforms. Mask editing pauses/resets time and shows base mask geometry
+  without the selected layer's animated warp/link projection. Masks default to
+  unlinked canvas coordinates. Geometry edits resample linked masks; undo restores
+  the exact prior raster.
+- WebP now works alongside PNG/JPEG/GIF/BMP. Built the unmodified Qt ImageFormats
+  6.8.3 plugin and its bundled libwebp at pinned commit
+  3b6b1fb96041f1bc85a8f42593bef2ee7bcdca6c. Release/Debug plugin deployment,
+  reproducible build helper, third-party notices/license texts and replacement
+  instructions are included. Source/plugin build directories remain ignored.
+  GIF and animated WebP intentionally import their first frame only.
+- Schema 5 persists all new settings, retaining schemas 1..4 migration. A shared
+  advanced parameter table drives UI ranges, parsing, validation and storage.
+  Invalid typed crop/color values cannot escape Qt slots or change the document;
+  malformed projects preserve the live state and history.
+- Validation: Release Ninja and Debug Ninja Multi-Config each passed 10/10 CTest
+  entries. Native Windows tests passed 19/19 Qt Test cases (including setup/
+  cleanup), with Qt SDK removed from PATH. Deployed --inspect exited 0 without
+  SDK PATH/plugin overrides. Inspected native particle/transform screenshots.
+  Native composed frame mean across two runs: 19.75..22.375 ms for one 400-particle layer with seven
+  trail taps, below the 33.3 ms target; this is not a 64-layer performance claim.
+  Build helper was re-run successfully against the pinned source checkout.
+- The accepted image/shape/gradient/motion/color/particle editor increment is
+  complete. Separate application work remains: component geometry import/edit
+  UI, layout size/rotation, channel assignment/native controls, reconnect logic,
+  renderer-to-wire sampling and real hardware output. No devices were opened or
+  written. Keyframes, multistop gradients and animated-image playback are not
+  claimed as delivered features. See docs/LIGHTING_EDITOR.md for exact semantics.
+
+
 ## Completed: animation preview increment (2026-10-23)
 
 - Published embedded image effects as d216b2c and verified origin/master.

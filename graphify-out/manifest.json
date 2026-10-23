@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792755820.8010793,
-    "seen": 1792755822.9587605,
-    "ast_hash": "08362e4a600c6eedd950d55902e88f00",
+    "mtime": 1792757047.70692,
+    "seen": 1792757320.0613503,
+    "ast_hash": "420dbac06c7f42f790ac16cb7106ef54",
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-18-standalone-lighting-app-design.md": {
-    "mtime": 1792751815.5371554,
-    "seen": 1792752840.118207,
-    "ast_hash": "bce5296a8f6f2fa165aceba50d9cb4d9",
+    "mtime": 1792757317.5202086,
+    "seen": 1792757320.0613604,
+    "ast_hash": "7f89fc85674a95b3b52ecabc11bbe0a6",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-19-lighting-studio-design.md": {
@@ -90,21 +90,21 @@
     "semantic_hash": ""
   },
   "CMakeLists.txt": {
-    "mtime": 1792754717.863215,
-    "seen": 1792754777.3765497,
-    "ast_hash": "9f59cb482479345aa4f2ac3cb1dab8ab",
+    "mtime": 1792757317.5192082,
+    "seen": 1792757320.061349,
+    "ast_hash": "91801cae84ba406f96f79907bc2d7f6b",
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792755820.8070776,
-    "seen": 1792755822.9587598,
-    "ast_hash": "9f6a4f1c1f9cd2a9b22da6aff82d61e6",
+    "mtime": 1792757418.418316,
+    "seen": 1792757484.9782977,
+    "ast_hash": "d30a9afb82766bd6c08423d9d1975cc9",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
-    "mtime": 1792754717.863215,
-    "seen": 1792754777.3765604,
-    "ast_hash": "ddbbbfc57457c041a76993d8a9e81b82",
+    "mtime": 1792756639.9724896,
+    "seen": 1792757320.0613616,
+    "ast_hash": "3436de7c812047bd9258621175203e50",
     "semantic_hash": ""
   },
   "src/hid/HidApiDevice.cpp": {
@@ -318,51 +318,51 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1792755668.1922708,
-    "seen": 1792755822.9587312,
-    "ast_hash": "3a703d2cf483baef292df911e4cfdcf9",
+    "mtime": 1792757418.4148154,
+    "seen": 1792757484.9782674,
+    "ast_hash": "6439945a96fd2456327926a8ab90d4e5",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
-    "mtime": 1792755668.1912713,
-    "seen": 1792755822.9587321,
-    "ast_hash": "d2c7a5aaf328e5de0e4e4b57a152906e",
+    "mtime": 1792756697.9172444,
+    "seen": 1792757320.0613225,
+    "ast_hash": "97c1ab7960d3fa98fee75db92d4b07d9",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1792755727.5483258,
-    "seen": 1792755822.958733,
-    "ast_hash": "ed78d4d95adb05725ce802489c1c1467",
+    "mtime": 1792756858.3566575,
+    "seen": 1792757320.0613234,
+    "ast_hash": "7a68632a62f90dc638f1061e5d36ea67",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1792755668.1902719,
-    "seen": 1792755822.9587338,
-    "ast_hash": "dc3b6fffe537a77bf2a1c85e9ca63a66",
+    "mtime": 1792756330.6404676,
+    "seen": 1792757320.0613244,
+    "ast_hash": "e768dcc7bc18f195ac50cf0334a3b588",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1792755820.8010793,
-    "seen": 1792755822.9587343,
-    "ast_hash": "d987dbaa3ea0c09b44e83e7d932e5ecf",
+    "mtime": 1792757418.4161735,
+    "seen": 1792757484.9782717,
+    "ast_hash": "cad7090868677daa3b6f01b7cf1d80fe",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1792755713.3645003,
-    "seen": 1792755822.958735,
-    "ast_hash": "d0366b2e348f17dc0faa04415b9addf7",
+    "mtime": 1792756376.2792768,
+    "seen": 1792757320.0613258,
+    "ast_hash": "063a81a71fcfecc0cffdc27e1ab9aa1d",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1792755775.0846648,
-    "seen": 1792755822.9587493,
-    "ast_hash": "dd6cee74bd0de100e95b47300cc6083b",
+    "mtime": 1792757418.4168162,
+    "seen": 1792757484.978286,
+    "ast_hash": "a7bd65e85729a781fb6898f6b759c567",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1792755766.695858,
-    "seen": 1792755822.9587624,
-    "ast_hash": "ac20ab37616fe7e3cf100ad6815caf97",
+    "mtime": 1792757117.3635552,
+    "seen": 1792757320.0613532,
+    "ast_hash": "55ec57324e22566a5d1f682f133bde11",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -372,15 +372,51 @@
     "semantic_hash": ""
   },
   "src/editor/EffectRenderer.cpp": {
-    "mtime": 1792755727.5483258,
-    "seen": 1792755822.958729,
-    "ast_hash": "f6bd642a6cfb7e409063c08f6b4ad59b",
+    "mtime": 1792757117.338486,
+    "seen": 1792757320.0613198,
+    "ast_hash": "6a90ec85033e889fdfe7f0c2415a839d",
     "semantic_hash": ""
   },
   "src/editor/EffectRenderer.h": {
-    "mtime": 1792755668.1902719,
-    "seen": 1792755822.95873,
-    "ast_hash": "a0b56f7768a7808f8400a3111f8e30c2",
+    "mtime": 1792756858.3551576,
+    "seen": 1792757320.061321,
+    "ast_hash": "e290b569d34bad7da4feb1a759e1c4e1",
+    "semantic_hash": ""
+  },
+  "tools/build-webp.ps1": {
+    "mtime": 1792756768.471419,
+    "seen": 1792757320.061347,
+    "ast_hash": "53d3ea21eada23b85072795f0124c745",
+    "semantic_hash": ""
+  },
+  "THIRD_PARTY_NOTICES.md": {
+    "mtime": 1792757418.4188151,
+    "seen": 1792757484.9782994,
+    "ast_hash": "07309da799deb3b9c14aa3e49e8228f4",
+    "semantic_hash": ""
+  },
+  "third_party/licenses/GPL-3.0-only.txt": {
+    "mtime": 1792756640.0001595,
+    "seen": 1792757320.0613623,
+    "ast_hash": "3c34afdc3adf82d2448f12715a255122",
+    "semantic_hash": ""
+  },
+  "third_party/licenses/LGPL-3.0-only.txt": {
+    "mtime": 1792756639.9946463,
+    "seen": 1792757320.0613627,
+    "ast_hash": "38138baa100d7259934590850bc0406e",
+    "semantic_hash": ""
+  },
+  "third_party/licenses/libwebp-COPYING.txt": {
+    "mtime": 1792756640.0056903,
+    "seen": 1792757320.0613632,
+    "ast_hash": "19f0b6b4a88473e1eed9ca57e11045f4",
+    "semantic_hash": ""
+  },
+  "third_party/licenses/libwebp-PATENTS.txt": {
+    "mtime": 1792756640.0101912,
+    "seen": 1792757320.0613637,
+    "ast_hash": "d1983965e02869f9a859e05514b1ffe3",
     "semantic_hash": ""
   }
 }

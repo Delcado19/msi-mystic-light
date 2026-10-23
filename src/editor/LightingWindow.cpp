@@ -23,6 +23,7 @@
 #include <QTabWidget>
 #include <QToolBar>
 #include <QTimer>
+#include <QLineEdit>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -170,7 +171,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     connect(previewTime_, &QDoubleSpinBox::editingFinished, this, [this] { playing_->setChecked(false); });
     connect(previewTime_, &QDoubleSpinBox::valueChanged, this, [this](double seconds) {
-        layoutCanvas_->setPreviewTime(seconds); effectsCanvas_->setPreviewTime(seconds);
+        const auto frame=document_.render(seconds);
+        layoutCanvas_->setPreviewFrame(frame,seconds); effectsCanvas_->setPreviewFrame(frame,seconds);
     });
     auto* effectPanel = new QWidget;
     auto* effectControls = new QVBoxLayout(effectPanel);
@@ -187,7 +189,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         refresh();
     });
     button(effectControls, "Import image...", [this] {
-        const auto file = QFileDialog::getOpenFileName(this, "Import image", {}, "Images (*.png *.jpg *.jpeg *.gif *.bmp)");
+        const auto file = QFileDialog::getOpenFileName(this, "Import image", {}, "Images (*.png *.jpg *.jpeg *.gif *.bmp *.webp)");
         if (file.isEmpty()) return;
         try { selectedLayer_ = document_.importImage(file); editingMask_ = false; refresh(); }
         catch (const std::exception& error) { QMessageBox::warning(this, "Import failed", QString::fromUtf8(error.what())); }
@@ -195,6 +197,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* tree = new LayerTree;
     layers_ = tree;
     layers_->setObjectName("effectLayers");
+    layers_->setMinimumHeight(180); layers_->setMaximumHeight(280); // Long property forms must not collapse the layer list.
     layers_->setHeaderLabels({"Layer", "Effect", "Mask"});
     layers_->setRootIsDecorated(false);
     layers_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -290,9 +293,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             break;
         }
     });
-    secondaryColor_ = button(effectControls, "Second gradient color…", [this] {
+    secondaryColor_ = button(effectControls, "Second effect color…", [this] {
         for (const auto& layer : document_.state().layers) if (layer.id == selectedLayer_) {
-            const auto color = QColorDialog::getColor(layer.secondaryColor, this, "Second gradient color", QColorDialog::ShowAlphaChannel);
+            const auto color = QColorDialog::getColor(layer.secondaryColor, this, "Second effect color", QColorDialog::ShowAlphaChannel);
             if (color.isValid()) updateLayer("Gradient color", [color](auto& changed) { changed.secondaryColor = color; });
             break;
         }
@@ -324,7 +327,48 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             updateLayer("Animation rates", [=](auto& layer) { layer.spin = spin; layer.pulse = pulse; layer.hueShift = hue; });
         });
     }
+    for (const auto& parameter : advancedParameters()) {
+        auto* value = new QDoubleSpinBox; value->setObjectName(parameter.id);
+        value->setRange(parameter.minimum,parameter.maximum);
+        value->setDecimals(parameter.id == "particleCount" || parameter.id == "particleSeed" ? 0 : 2);
+        value->setKeyboardTracking(false); advanced_.append(value);
+        animationForm->addRow(parameter.label,value);
+        connect(value,&QDoubleSpinBox::valueChanged,this,[this,member=parameter.member](double number) {
+            updateLayer("Effect parameter",[=](auto& layer) { layer.*member = number; });
+        });
+    }
+    colorCycle_ = new QLineEdit; colorCycle_->setObjectName("colorCycle");
+    colorCycle_->setPlaceholderText("#ff0000, #00ff00, #0000ff");
+    animationForm->addRow("Cycle colors",colorCycle_);
+    connect(colorCycle_,&QLineEdit::editingFinished,this,[this] {
+        QVector<QColor> colors;
+        for (const auto& text : colorCycle_->text().split(',')) colors.append(QColor(text.trimmed()));
+        for (const auto& layer : document_.state().layers) if (layer.id==selectedLayer_ && layer.colorCycle==colors) return;
+        updateLayer("Cycle colors",[colors](auto& layer) { layer.colorCycle = colors; });
+        refreshProperties();
+    });
     effectControls->addWidget(animationControls_);
+    maskLinked_ = new QCheckBox("Link mask to effect"); maskLinked_->setObjectName("maskLinked");
+    effectControls->addWidget(maskLinked_);
+    connect(maskLinked_,&QCheckBox::toggled,this,[this](bool linked) {
+        updateLayer("Link mask",[=](auto& layer) { layer.maskLinked = linked; });
+    });
+    cropControls_ = new QWidget; auto* cropForm = new QFormLayout(cropControls_);
+    cropForm->setContentsMargins(0,0,0,0);
+    const QStringList cropLabels{"Crop left", "Crop top", "Crop width", "Crop height"};
+    for (int i=0;i<4;++i) {
+        auto* value = new QDoubleSpinBox; value->setObjectName("imageCrop"+QString::number(i));
+        value->setRange(i<2 ? 0 : 0.001,1); value->setDecimals(3); value->setKeyboardTracking(false);
+        crop_.append(value); cropForm->addRow(cropLabels[i],value);
+        connect(value,&QDoubleSpinBox::valueChanged,this,[this] {
+            const QRectF crop(crop_[0]->value(),crop_[1]->value(),crop_[2]->value(),crop_[3]->value());
+            updateLayer("Image crop",[=](auto& layer) { layer.crop=crop; }); refreshProperties();
+        });
+    }
+    effectControls->addWidget(cropControls_);
+    auto* resetCrop=button(effectControls,"Reset image crop",[this] { updateLayer("Reset crop",[](auto& layer) { layer.crop={0,0,1,1}; }); });
+    resetCrop->setObjectName("resetCrop");
+
     imageFit_ = new QComboBox;
     imageFit_->setObjectName("imageFit");
     imageFit_->setToolTip("Preserve aspect ratio; fill crops equally from opposite edges.");
@@ -355,6 +399,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         });
     }
     effectControls->addWidget(geometryControls_);
+    for (QWidget* widget : std::initializer_list<QWidget*>{imageFit_,cropControls_,resetCrop,geometryControls_}) {
+        effectControls->removeWidget(widget); effectControls->insertWidget(effectControls->indexOf(animationControls_),widget);
+    }
     repetitions_ = new QSpinBox;
     repetitions_->setObjectName("effectRepetitions");
     repetitions_->setRange(1, 64);
@@ -363,7 +410,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(repetitions_, &QSpinBox::valueChanged, this, [this](int value) {
         updateLayer("Effect repetitions", [value](auto& layer) { layer.repetitions = value; });
     });
-    effectTarget_ = button(effectControls, "Edit effect", [this] { editingMask_ = false; refreshProperties(); });
+    effectTarget_ = button(effectControls, "Edit effect", [this] { editingMask_ = false; findChild<QCheckBox*>("cropTool")->setChecked(false); effectsCanvas_->setCropTool(false); refreshProperties(); });
     maskTarget_ = button(effectControls, "Edit mask", [this] { editingMask_ = true; refreshProperties(); });
     effectTarget_->setCheckable(true); maskTarget_->setCheckable(true);
     auto* tools = new QToolBar("Effect tools", this);
@@ -372,6 +419,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     addToolBar(Qt::LeftToolBarArea, tools);
     effectControls->removeWidget(effectTarget_); effectControls->removeWidget(maskTarget_);
     tools->addWidget(effectTarget_); tools->addWidget(maskTarget_);
+    auto* cropTool=new QCheckBox("Crop image"); cropTool->setObjectName("cropTool"); tools->addWidget(cropTool);
+    connect(cropTool,&QCheckBox::toggled,this,[this](bool crop) {
+        if (crop) editingMask_=false;
+        effectsCanvas_->setCropTool(crop); refreshProperties();
+    });
+    connect(effectsCanvas_,&LightingCanvas::effectGestureStarted,this,[this] {
+        playing_->setChecked(false); previewTime_->setValue(0);
+    });
     tools->hide();
     connect(tabs_, &QTabWidget::currentChanged, tools, [tools](int index) { tools->setVisible(index == 1); });
     maskEnabled_ = new QCheckBox("Enable mask");
@@ -420,9 +475,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
 void LightingWindow::updateLayer(const QString& label, const std::function<void(EffectLayer&)>& operation)
 {
     if (selectedLayer_.isNull()) return;
-    document_.edit(label, [&](LightingState& state) {
-        for (auto& layer : state.layers) if (layer.id == selectedLayer_) operation(layer);
-    });
+    try {
+        document_.edit(label, [&](LightingState& state) {
+            for (auto& layer : state.layers) if (layer.id == selectedLayer_) operation(layer);
+        });
+    } catch (const std::exception& error) {
+        statusBar()->showMessage(QString::fromUtf8(error.what()), 6000);
+        refreshProperties(); // Invalid typed input must not escape a Qt signal handler or alter the document.
+    }
 }
 
 void LightingWindow::refresh()
@@ -455,13 +515,19 @@ void LightingWindow::refreshProperties()
     effectTarget_->setChecked(!editingMask_); maskTarget_->setChecked(editingMask_);
     for (QWidget* widget : std::initializer_list<QWidget*>{transparency_, blend_, color_, effectTarget_, maskTarget_, maskEnabled_})
         widget->setEnabled(selected != nullptr);
-    if (editingMask_) playing_->setChecked(false);
+    if (editingMask_) { playing_->setChecked(false); previewTime_->setValue(0); }
     playing_->setEnabled(!editingMask_);
     animationControls_->setVisible(selected && !editingMask_);
+    findChild<QPushButton*>("resetCrop")->setVisible(selected && !editingMask_ && selected->effect==EffectKind::Image);
+    cropControls_->setVisible(selected && !editingMask_ && selected->effect == EffectKind::Image);
+    maskLinked_->setEnabled(selected != nullptr);
+    auto* cropTool=findChild<QCheckBox*>("cropTool");
+    if ((!selected || selected->effect!=EffectKind::Image) && cropTool->isChecked()) cropTool->setChecked(false);
+    cropTool->setEnabled(selected && !editingMask_ && selected->effect==EffectKind::Image && !selected->image.isNull());
     effectType_->setEnabled(selected && !editingMask_);
     color_->setVisible(!editingMask_ && selected && selected->effect != EffectKind::Image);
     imageFit_->setVisible(selected && !editingMask_ && selected->effect == EffectKind::Image);
-    secondaryColor_->setVisible(selected && !editingMask_ && isGradient(selected->effect));
+    secondaryColor_->setVisible(selected && !editingMask_ && (isGradient(selected->effect) || isParticle(selected->effect)));
     geometryControls_->setVisible(selected && !editingMask_ && selected->effect != EffectKind::StaticColor);
     repetitions_->setVisible(selected && !editingMask_ && (selected->effect == EffectKind::Stripes || selected->effect == EffectKind::Waves));
     if (selected) {
@@ -474,7 +540,25 @@ void LightingWindow::refreshProperties()
             const QSignalBlocker block(animation_[i]); animation_[i]->setValue(rates[i]);
         }
         animation_[0]->setEnabled(selected->effect != EffectKind::StaticColor);
-        animation_[2]->setEnabled(selected->effect != EffectKind::Image);
+        animation_[2]->setEnabled(true);
+        const QSignalBlocker blockLink(maskLinked_), blockCycle(colorCycle_);
+        maskLinked_->setChecked(selected->maskLinked);
+        QStringList colors; for (const auto& color : selected->colorCycle) colors.append(color.name(QColor::HexArgb));
+        colorCycle_->setText(colors.join(", "));
+        colorCycle_->setEnabled(selected->effect != EffectKind::Image);
+        const auto& parameters = advancedParameters();
+        for (int i=0;i<advanced_.size();++i) {
+            const QSignalBlocker block(advanced_[i]); advanced_[i]->setValue(selected->*(parameters[i].member));
+            const bool particle = parameters[i].id.startsWith("particle");
+            const bool show = !particle || isParticle(selected->effect);
+            advanced_[i]->setVisible(show);
+            if (auto* form=qobject_cast<QFormLayout*>(animationControls_->layout()))
+                if (auto* label=form->labelForField(advanced_[i])) label->setVisible(show);
+            advanced_[i]->setEnabled((!particle || isParticle(selected->effect)) &&
+                (parameters[i].id != "cycleRate" || selected->effect != EffectKind::Image));
+        }
+        const double crop[]{selected->crop.x(),selected->crop.y(),selected->crop.width(),selected->crop.height()};
+        for (int i=0;i<4;++i) { const QSignalBlocker block(crop_[i]); crop_[i]->setValue(crop[i]); }
         const QSignalBlocker blockFit(imageFit_);
         imageFit_->setCurrentIndex(selected->imageFill ? 1 : 0);
         color_->setIcon(colorIcon(selected->color));

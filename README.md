@@ -30,7 +30,7 @@ implemented. The bundled generic 8-LED strip demonstrates adding a product
 without changing a driver. Use `--component-dir` for another local catalog;
 repository downloads and a hardware channel assignment UI remain pending.
 An offline editor now provides separate Layout/Effects views, movable catalog
-components, Static Color/gradient/shape/image layers, soft masks, transparency/blend controls, spin/pulse/hue animation preview,
+components, Static Color/gradient/shape/image layers, soft masks, transparency/blend controls, motion/color animation, seeded particles/trails, direct canvas transforms/cropping,
 undo/redo and project save/load. See [`docs/LIGHTING_EDITOR.md`](docs/LIGHTING_EDITOR.md).
 Run `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
 
@@ -45,10 +45,16 @@ does not yet provide a tray UI, open HID devices, or send any reports.
 Hardware support remains unverified for this implementation.
 
 Build from an x64 Visual Studio developer prompt with CMake, Ninja, and a
-shared Qt6 installation available (adjust the Qt path for your machine):
+shared Qt6 installation available (adjust the Qt path for your machine).
+Windows builds require matching Release and Debug WebP image plugins. If Qt
+ImageFormats is installed with the SDK, skip the build-webp command below.
+Otherwise the script downloads the pinned, unmodified Qt ImageFormats 6.8.3
+source into ignored build directories and builds both plugins. The current
+fallback is specifically for Qt 6.8.3; use matching SDK plugins for other Qt versions:
 
 ```bat
 set "PATH=C:\Qt\6.8.3\msvc2022_64\bin;%PATH%"
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-webp.ps1 -QtPrefix C:/Qt/6.8.3/msvc2022_64
 cmake -S . -B build/ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/Qt/6.8.3/msvc2022_64
 cmake --build build/ninja
 ctest --test-dir build/ninja --output-on-failure
@@ -69,7 +75,7 @@ the existing `../OpenRGB/OpenRGB/dependencies/hidapi-win` directory; no
 OpenRGB application code is linked or copied. The Windows build copies the matching HIDAPI DLL beside the executable. Qt must remain dynamically linked.
 
 Original project code is licensed under GPL-2.0-or-later; see [LICENSE](LICENSE).
-Qt remains under its own license. Research references do not relicense vendor
+Qt remains under its own license; see [third-party notices](THIRD_PARTY_NOTICES.md) for the WebP plugin source, build/replacement instructions and license texts. Research references do not relicense vendor
 software or include it in this project.
 
 ## Research documents

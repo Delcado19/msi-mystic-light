@@ -69,6 +69,6 @@ endif()
 if(WIN32)
     add_custom_command(TARGET test_editor POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:test_editor>/imageformats"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin> "${WEBP_PLUGIN}"
             "$<TARGET_FILE_DIR:test_editor>/imageformats")
 endif()
