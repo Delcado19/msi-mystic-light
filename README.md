@@ -44,6 +44,9 @@ The executable initializes Qt, checks potential process conflicts, validates
 local modules/profiles/components and opens the editor. Diagnostic commands
 `--inspect` and `--scan` exit after their checks. The app
 does not yet provide a tray UI, open HID devices, or send any reports.
+A tested [output-session backend](docs/OUTPUT_SESSION.md) now prepares driver
+frames, coalesces pending output and handles write faults/explicit reconnect;
+GUI connection, worker scheduling and real-device qualification remain pending.
 Hardware support remains unverified for this implementation.
 
 Build from an x64 Visual Studio developer prompt with CMake, Ninja, and a

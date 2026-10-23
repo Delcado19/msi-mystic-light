@@ -233,3 +233,12 @@ Qt UI tests use fake processes for all close/terminate operations. They cover
 selection, all, denied access, restarts, cancellation, no-conflict continuation,
 scan errors, exact names and identity guards. The real Windows scan is tested
 read-only; actual process shutdown is not exercised by the suite.
+
+## Output-session ownership
+
+The host-side `OutputSession` backend owns an explicitly supplied open transport
+and its `DriverInstance`, coalesces staged frames and caches successful native
+settings. Failure closes the session without retry; explicit reconnect uses a
+fresh driver. The live app does not yet connect this backend to hardware.
+See [OUTPUT_SESSION.md](OUTPUT_SESSION.md) for lifecycle, validation and remaining
+connection/confirmation, worker scheduling and physical qualification work.

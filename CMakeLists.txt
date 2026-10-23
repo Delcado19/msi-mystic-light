@@ -50,6 +50,10 @@ add_library(lighting_editor src/editor/ChannelAssignment.cpp src/editor/ChannelE
 target_include_directories(lighting_editor PUBLIC src)
 target_link_libraries(lighting_editor PUBLIC lighting_modules Qt6::Widgets)
 
+add_library(lighting_output src/output/OutputSession.cpp)
+target_include_directories(lighting_output PUBLIC src)
+target_link_libraries(lighting_output PUBLIC lighting_editor)
+
 add_executable(msi_mystic_light src/main.cpp)
 set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
 target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor)

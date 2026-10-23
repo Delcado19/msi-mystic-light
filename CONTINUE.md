@@ -1,5 +1,31 @@
 # Implementation status
 
+## Output-session backend (2026-10-23)
+
+- Added prepareOutput(document, composedFrame), grouping sampled software chains
+  and native commands by exact endpoint/profile without driver calls.
+- Added an explicitly connected, single-thread-owned OutputSession. The host
+  supplies an already-open transport after its conflict/confirmation gate.
+  Connecting creates a driver without reports. stage replaces the single pending
+  frame; flush is explicit and synchronous. No worker/timer or GUI connection yet.
+- Validate every frame before writes, including target/profile, channel uniqueness,
+  capabilities/counts and native options. Invalid replacement clears stale pending
+  work. Cache native settings only after success; software transitions invalidate
+  that channel cache. On false/exception/closed transport, discard remaining work,
+  destroy driver before transport, close and enter Faulted. No automatic retry.
+- Explicit reconnect uses a fresh transport/driver and clears all applied caches.
+  Disconnect/destruction cancels pending work without off/restore commands.
+- Tests use the actual MSI module with recording fake transports only, comparing
+  serialized 0x51 bytes and injecting failures at arming, color and native writes.
+- Validation: Release and Debug each passed 11/11 CTest entries. Recording-transport
+  tests also cover the composed masked/translucent document through sampling,
+  preparation and actual MSI serialization, plus fixed counts and fault retention.
+  No physical device I/O was performed.
+- Still pending: GUI conflict/confirmation gate and exact-path connection, worker
+  scheduling, enumeration-based unplug detection, calibration/physical output
+  qualification, per-layer channel targets and session/tray behavior. Native-only
+  idle sessions cannot detect a physical unplug from isOpen alone.
+
 ## Staged channel assignment and native settings (2026-10-23)
 
 - Added profile/endpoint/channel selection, Native/Software dialog, physical

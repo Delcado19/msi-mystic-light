@@ -56,9 +56,18 @@ add_test(NAME lighting_editor COMMAND test_editor)
 set_tests_properties(lighting_editor PROPERTIES TIMEOUT 30
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
 
+add_executable(test_output output/test_output.cpp)
+target_link_libraries(test_output PRIVATE lighting_output msi_protocol Qt6::Test)
+target_compile_definitions(test_output PRIVATE
+    TEST_MODULE_PATH="$<TARGET_FILE:msi_gen1_module>"
+    TEST_PROFILE_PATH="${PROJECT_SOURCE_DIR}/profiles/msi-mpg-b850-edge-ti-wifi.json")
+add_dependencies(test_output msi_gen1_module)
+add_test(NAME output_session COMMAND test_output)
+set_tests_properties(output_session PROPERTIES TIMEOUT 15)
+
 if(WIN32)
     # Test executables must run without inheriting a Qt SDK PATH from the shell.
-    foreach(test_target IN ITEMS test_msi_protocol test_hid_backend test_modules test_components test_startup test_editor)
+    foreach(test_target IN ITEMS test_msi_protocol test_hid_backend test_modules test_components test_startup test_editor test_output)
         add_custom_command(TARGET ${test_target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_RUNTIME_DLLS:${test_target}> $<TARGET_FILE_DIR:${test_target}>
