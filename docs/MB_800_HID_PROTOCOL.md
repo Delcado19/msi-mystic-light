@@ -160,15 +160,24 @@ mapping across board families unreliable, even within MSI's own code (Gen1
 vs. Gen2 are two entirely separate code paths with their own report ID
 ranges).
 
-**Resolved (2026-10-18)**: this board uses Gen1 only, confirmed from three
+**Observed software paths (2026-10-18)**: the examined software uses Gen1,
+supported by three
 independent sources now — `LEDKeeper2.exe`'s `Class_MB_800.cs` never calls
 any `Gen2_*` method, neither does the official redistributable SDK
 (`MysticLight_AllDevice.dll`), and SignalRGB's own plugin for VID `0x0DB0`
 (the `MysticLight761` class) only ever uses the `0x50`/`0x51` pair. Gen2 is
-real tech, but only for a *different* VID (`0x1462`, an older/different
+present in those examined code paths for a *different* VID (`0x1462`, an older/different
 chip generation) — that plugin's code explicitly disables Gen2 support on
 its own boards via a dedicated write, something never exercised anywhere
 for `0x0DB0`.
+
+**Discovery qualification (2026-10-23):** these software paths do not prove
+that the physical ARGB V2 headers lack Gen2 LED detection. USB report-family
+names and external ARGB generations must not be equated. The packet LED
+count in `0x51` is supplied by the sender, not a measured attached count.
+No readback procedure for actual attached LED counts has been qualified for
+this controller. The modular driver therefore reports discovery as Unknown,
+rather than Unsupported. Investigating that capability remains open.
 
 ## Upstream OpenRGB bug found while cross-checking: `FeaturePacket_PerLED_761` is 727 bytes, not 761
 

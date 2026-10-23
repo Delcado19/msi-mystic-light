@@ -57,6 +57,162 @@ deferred to a later phase and is a non-goal here.
   a private tool** — licensing and provenance of any reference material
   used during development must stay clean from day one (see Constraints).
 
+## Startup conflict check and device discovery (2026-10-23)
+
+Before opening lighting devices or restoring saved lighting, list running
+known RGB controllers and associated lighting services as potential conflicts.
+Show executable name, PID, path when accessible, and the reason for the match.
+A running process is evidence of a possible competing controller, not proof
+that it is currently writing to a device. Avoid matching generic vendor
+processes solely by a broad name substring.
+
+The dialog supports multiple selection and these explicit actions:
+
+- **Terminate all:** request termination of all listed conflict candidates.
+- **Terminate:** request termination of the selected entries.
+- **Ignore:** continue startup with the candidates still running.
+- **Cancel:** exit startup without opening devices or applying lighting.
+
+Prefer graceful application shutdown before force termination. Report denied
+access, remaining processes, and automatic restarts; rescan after termination
+and keep unresolved conflicts visible. Associated services need explicit
+identification and user-visible stop behavior, rather than terminating an
+unrelated shared vendor host. Do not disable services or change autostart.
+No process is stopped automatically merely because the app starts.
+
+Discovery should enumerate HID descriptors without feature-report probes,
+match supported VID/PID and interface/usage information, and retain the exact
+device path for opening the chosen interface. The transport now supports descriptor enumeration and exact-path opening;
+interactive candidate selection and real-device connection remain pending. VID/PID `0DB0:0076` identifies a shared MSI controller family,
+not the exact motherboard model. Require a supported board profile, using
+system board identification where available and user confirmation when
+ambiguous. Do not assume all matching boards have the B850 Edge TI topology.
+
+Board profiles define controller zones and limits. Products and LED counts
+attached to modular ARGB/EZ headers are user configuration; HID enumeration
+does not establish them. Discovery must not send speculative lighting reports.
+
+## Unified lighting workspace and editor contract (2026-10-23)
+
+User requirement: layout, lighting effects and the canvas belong to one
+navigation category, **Lighting**, with separate **Layout** and **Effects**
+editing views. Layout only arranges physical component instances and their
+sampling positions; Effects edits the effect canvas, layers, masks and effect
+properties. Never expose simultaneous layout and effect manipulation on one
+surface. The views may reuse the same central viewport, but switching changes
+the editing context and tools completely. Preserve each view's selection and
+zoom/pan state and the shared document. No separate top-level Canvas category
+is needed; canvas authoring belongs to Effects. This user clarification
+supersedes the earlier simultaneous shared-canvas editing proposal.
+
+All editors use Photoshop as their interaction reference: a central work
+surface, tools on the left, contextual tool options, and Layers and Properties
+panels on the right. Apply consistent selection, transforms, zoom/pan and
+undo/redo behavior to effect, layout and component editing. This is an
+interaction direction, not a requirement to reproduce Photoshop's full toolset
+or copy its branding/assets. SignalForge remains a secondary technical reference.
+
+Each new effect layer owns exactly one effect instance from creation. The
+New Layer action chooses an effect, with Static Color as the initial default;
+canceling creates nothing. Different layers may use the same effect type with
+independent parameters. Selecting a layer exposes its effect properties and
+target channels/components/LED regions. Component placement remains document
+layout data, rather than creating fake effect layers for physical products.
+
+Support naming, selection, drag reordering, visibility, opacity, duplication,
+deletion and undo/redo for layers. Composite software layers bottom-to-top;
+Each layer has a dedicated Transparency slider, separate from its mask and
+blend-mode selector: 0% means fully visible, 100% fully transparent. Internally,
+layer opacity is 1 minus normalized transparency; do not expose a second,
+redundant layer-opacity control. Blend mode determines how the selected layer
+combines with the already-composited layers below it. Required modes are Normal,
+Multiply, Screen and Overlay, with Normal as the default. The first editor
+increment includes their selector and rendering behavior. Layer order and properties affect both preview and
+hardware sampling through the same renderer and clock.
+
+Every effect layer receives its own editable grayscale layer mask at creation,
+initially all white. White reveals the effect, black hides it, and intermediate
+values partially reveal it so lower layers show through with smooth transitions.
+Masking is non-destructive: effective source alpha is effect alpha multiplied
+by layer opacity and mask coverage, each normalized to [0, 1], before normal
+composition. A fully transparent stack contributes no light; transparency
+reveals lower layers rather than painting an opaque black area.
+
+Use familiar painting-app presentation: effect and mask thumbnails side by
+side in the Layers panel, a clear border on the active editing target, and
+mask preview/overlay on the Effects canvas. Clicking the mask targets painting
+to the mask without modifying the effect. Provide grayscale painting with
+brush size, hardness and opacity, soft antialiased edges, and a gradient tool
+for continuous fades. Offer fill white/black, invert and temporary mask bypass;
+bypass retains mask data. Show a checkerboard for transparency where appropriate.
+Keep masks in document/canvas coordinates, independent of viewport zoom and
+physical LED count. Preview and LED sampling use the same masked composition.
+Duplicate masks independently with their layers, include mask edits in undo/redo,
+and persist mask data with the document when document saving is implemented.
+
+Channel assignments remain independent. Native firmware modes are configured
+in the same workspace, but cannot participate in software pixel blending.
+Show the channel's Native / Software mode explicitly; changing a layer or
+preview must never silently switch a native channel to software output.
+Preview and document editing work offline; hardware output is enabled separately.
+
+The first editor increment includes the Lighting workspace with mutually
+exclusive Layout and Effects views, component placement in Layout,
+LED overlay and an effect layer stack with Static Color, per-layer masks,
+contextual properties and the layer operations above. Validate ordering,
+alpha composition (including black, white, fractional and gradient mask coverage),
+independent effect/mask copies, undo/redo and preview/output parity before
+hardware integration. Mask editing is part of the first editor increment.
+
+## Accepted effect authoring scope (2026-10-23)
+
+The user accepted the SignalForge-inspired authoring capabilities below.
+Implement them independently within the unified Photoshop-inspired workspace;
+these are planned capabilities, not existing functionality or a promise of
+SignalForge project/SignalRGB effect-file compatibility.
+
+- Image effects: import PNG, JPEG, WebP, GIF and BMP, with canvas placement,
+  cropping and fit controls. Animated image playback must be qualified separately
+  from decoding a still frame; video playback is outside the accepted scope.
+- Shape effects: circle, ring, star, heart, triangle, hexagon, diamond, cross
+  and moon, with position, size and rotation controls.
+- Gradient effects: linear, radial, conic, stripes and waves, plus solid colors.
+- Particle effects: four patterns and up to 400 particles as the reference
+  target, using seeded randomness for reproducible preview/output. Select the
+  exact patterns during implementation and validate the performance budget.
+- Motion controls: warp, drift, spin, pulse, breathe, zoom and motion trails.
+- Color animation: hue rotation and user-defined color cycles.
+
+Each layer owns an effect instance; applicable motion/color controls modify
+that instance before masking and composition. All effect types participate in
+the same layer ordering, masks, transparency and blend-mode model. Keep one
+renderer and clock for preview and hardware sampling; controls remain editable
+in the document. Do not introduce an alternative editor or parallel renderer.
+
+Delivery order: first the layer/mask editor with Static Color, then gradients
+and shapes, image import/cropping, motion/color controls, and particles/trails.
+The latter features are accepted follow-up increments, not reasons to delay
+validation of the first usable editor. Add focused rendering and parameter
+validation checks with each increment. SignalRGB export, custom export tiles
+and author metadata are not required for the standalone lighting workflow.
+
+## Hardware module architecture (2026-10-23)
+
+Hardware support is split into independent data-only device profiles,
+attached-product component definitions, and executable driver modules.
+The implemented local module boundary is documented in
+[`../../HARDWARE_MODULES.md`](../../HARDWARE_MODULES.md).
+Modules use a versioned Qt plugin interface and a host-owned transport;
+profile validation and driver construction perform no hardware I/O.
+LED topology discovery is optional and distinguishes unresearched capability
+from known lack of support. Missing or ambiguous identities must not cause
+an automatic device open or a guessed board profile.
+
+Local modules are supported first. Repository installation is a later
+increment requiring a released compatibility catalog, authenticated package
+integrity, staged installation and rollback. It must not execute arbitrary
+source from a repository branch or compile downloaded code on startup.
+
 ## Non-goals (v1)
 
 - Temperature/fan monitoring or fan curve control. (Known concrete lead
@@ -92,10 +248,10 @@ deferred to a later phase and is a non-goal here.
   regardless of chat language (standing rule, see
   `../../.claude-memory` equivalent — `docs_always_english` memory).
 - No AI co-authorship credit in commits.
-- Don't depend on decompiled or decrypted proprietary vendor material
-  (MSI's own code, SignalRGB's JS plugins) at runtime — they're reference
-  material used during development only, same posture already used for
-  the OpenRGB contributions earlier this session.
+- Do not depend on decompiled proprietary vendor material at runtime.
+  SignalRGB's public plugin repositories are readable source, but their
+  redistribution permissions have not been established in this project.
+  Treat them as references and keep our implementation independent.
 - **Public release is a real possibility, so license cleanliness starts
   now, not retroactively.** Qt must be used under its LGPL terms (dynamic
   linking, no static-link-triggered commercial obligation). Anything
@@ -103,10 +259,9 @@ deferred to a later phase and is a non-goal here.
   opposed to protocol *facts* learned by reading it, which aren't
   copyrightable — means this project's own license needs to be
   compatible (GPL-2.0-or-later is the simplest safe default, matching
-  OpenRGB itself). SignalRGB's JS plugins are proprietary and closed
-  source; nothing from them is ever copied as code, only observed
-  protocol/architecture facts, exactly as already practiced this
-  session.
+  OpenRGB itself). Public availability of SignalRGB plugin source is not
+  a license determination. Check provenance/permissions before any reuse;
+  the current implementation uses independently implemented protocol facts.
 
 ## How it gets made (decided)
 
@@ -159,8 +314,10 @@ fully specified in `docs/MB_800_HID_PROTOCOL.md` — report `0x50` (18×16-byte
 zone records, selects the firmware's native animation modes) and report
 `0x51` (727-byte `Gen1_Adv`, true per-LED color data, confirmed working
 via SignalRGB's own signed, production plugin for this exact VID). Gen2
-(`0x90+`/`0xB0+`) is confirmed unused for this board's VID (`0x0DB0`) from
-three independent sources and is not part of v1. Exact per-zone LED counts
+(`0x90+`/`0xB0+`) is not enabled for this board in the examined new-controller
+path and is not part of v1. This does not establish whether its physical
+ARGB V2 headers can report attached LED counts. That remains a research task.
+Known fixed-zone counts and configurable header capacities
 for the user's board variant (`MPG B850 EDGE TI WIFI`, MS-7E62) are known:
 3 ARGB headers (≤120 LEDs each), 1 EZ Connector (≤120 LEDs), IO Shield (11
 LEDs), JRGB1 (1 non-addressable LED).
@@ -181,10 +338,9 @@ MSI Component definitions, not before.
 
 ## What's left to the builder
 
-- Exact Qt widget/QML layout for the UI, the layout/arrangement editor,
-  and how the Canvas is actually painted (QPainter onto a QImage vs. a
-  QML Canvas item) — any reasonable choice that meets the render-loop
-  timing goal is fine.
+- Exact Qt widget/QML implementation and canvas painting mechanism
+  (QPainter onto a QImage vs. a QML Canvas item), within the unified
+  Photoshop-inspired editor contract above and the render-loop timing goal.
 - Exact Component file format (JSON is the obvious choice, mirroring
   SignalRGB's field set since those are descriptive facts, not
   copyrighted code, but the precise schema is an implementation detail).

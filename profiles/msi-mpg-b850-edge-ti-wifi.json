@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "msi.mpg-b850-edge-ti-wifi",
+  "driverId": "msi.gen1",
+  "name": "MSI MPG B850 EDGE TI WIFI (MS-7E62)",
+  "match": {
+    "vendorId": 3504,
+    "productId": 118,
+    "boardManufacturer": "Micro-Star International Co., Ltd.",
+    "boardModel": "MPG B850 EDGE TI WIFI (MS-7E62)"
+  },
+  "channels": [
+    {"id": "JARGB1", "maxLeds": 120, "direct": true, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 0, "area": 1024}},
+    {"id": "JARGB2", "maxLeds": 120, "direct": true, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 1, "area": 1025}},
+    {"id": "JARGB3", "maxLeds": 120, "direct": true, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 2, "area": 1026}},
+    {"id": "EZConnector", "maxLeds": 120, "direct": true, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 3, "area": 2048}},
+    {"id": "IOShield", "maxLeds": 11, "fixedLeds": 11, "direct": false, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 4}},
+    {"id": "JRGB1", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 9}}
+  ]
+}

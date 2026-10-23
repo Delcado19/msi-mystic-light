@@ -2,6 +2,8 @@
 
 #include <hidapi.h>
 #include <limits>
+#include <memory>
+#include <stdexcept>
 
 namespace {
 struct HidRuntime {
@@ -30,6 +32,42 @@ bool HidApiDevice::open(std::uint16_t vendorId, std::uint16_t productId)
     close();
     if (!initialized_) return false;
     handle_ = hid_open(vendorId, productId, nullptr);
+    return isOpen();
+}
+
+std::vector<HidDescriptor> HidApiDevice::enumerate()
+{
+    if (!initializeHid()) throw std::runtime_error("HIDAPI initialization failed");
+    std::unique_ptr<hid_device_info, decltype(&hid_free_enumeration)> list(
+        hid_enumerate(0, 0), hid_free_enumeration);
+    if (!list) {
+        const auto error = hid_error(nullptr);
+        if (error && *error) throw std::runtime_error("HID enumeration failed");
+        return {};
+    }
+    std::vector<HidDescriptor> result;
+    for (auto* item = list.get(); item; item = item->next) {
+        // Unaddressable entries cannot become selectable endpoints.
+        if (!item->path || !*item->path) continue;
+        HidDescriptor descriptor;
+        descriptor.path = item->path;
+        descriptor.vendorId = item->vendor_id;
+        descriptor.productId = item->product_id;
+        descriptor.usagePage = item->usage_page;
+        descriptor.usage = item->usage;
+        descriptor.interfaceNumber = item->interface_number;
+        if (item->manufacturer_string) descriptor.manufacturer = item->manufacturer_string;
+        if (item->product_string) descriptor.product = item->product_string;
+        result.push_back(std::move(descriptor));
+    }
+    return result;
+}
+
+bool HidApiDevice::openPath(const std::string& path)
+{
+    close();
+    if (!initialized_ || path.empty() || path.find('\0') != std::string::npos) return false;
+    handle_ = hid_open_path(path.c_str());
     return isOpen();
 }
 
