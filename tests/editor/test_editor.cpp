@@ -2,6 +2,9 @@
 #include "editor/ComponentEditor.h"
 #include "editor/ChannelEditor.h"
 #include "editor/AppSession.h"
+#include "editor/StudioWidgets.h"
+#include <QStackedWidget>
+#include <QToolButton>
 #include <QListWidget>
 #include <QTimer>
 #include <QTableWidget>
@@ -71,6 +74,8 @@ EffectLayer layer(QColor color)
 class EditorTest : public QObject {
     Q_OBJECT
 private slots:
+    void periodicEffectsAndGradientStops();
+    void globalColorControls();
     void visualWorkspace();
     void channelScopesAndClocks();
     void sessionRecovery();
@@ -99,6 +104,43 @@ private slots:
     void advancedControls();
 };
 
+void EditorTest::periodicEffectsAndGradientStops()
+{
+    auto effect=layer(Qt::red); effect.effect=EffectKind::Circle; effect.center={638,200}; effect.extent={40,40};
+    const auto base=renderEffect(effect); QCOMPARE(base.pixelColor(2,200),QColor(Qt::red)); QCOMPARE(base.pixelColor(638,200),QColor(Qt::red));
+    effect.driftX=320; QCOMPARE(renderEffect(effect,2),base); effect.driftX=-320; QCOMPARE(renderEffect(effect,2),base);
+    effect.driftX=20; effect.maskLinked=true; effect.mask.fill(0); effect.mask.scanLine(200)[638]=255;
+    QCOMPARE(renderMask(effect,1).constScanLine(200)[18],uchar(255));
+    auto gradient=layer(Qt::red); gradient.effect=EffectKind::LinearGradient; gradient.extent={640,400};
+    gradient.gradientColors={Qt::red,Qt::green,Qt::blue}; const auto frame=renderEffect(gradient);
+    QVERIFY(frame.pixelColor(320,200).green()>253); QVERIFY(frame.pixelColor(1,200).red()>250); QVERIFY(frame.pixelColor(638,200).blue()>250);
+    LightingDocument document(catalog()); document.addLayer(EffectKind::LinearGradient);
+    document.edit("Three stops",[&](auto& state) { state.layers[0].gradientColors=gradient.gradientColors; });
+    QTemporaryDir dir; const auto file=dir.filePath("gradient.json"); document.save(file); LightingDocument loaded(catalog()); loaded.load(file);
+    QCOMPARE(loaded.state().layers[0].gradientColors,gradient.gradientColors); QCOMPARE(loaded.render(),document.render());
+    QVERIFY_EXCEPTION_THROWN(document.edit("Invalid stops",[](auto& state) { state.layers[0].gradientColors={Qt::red}; }),std::invalid_argument);
+}
+void EditorTest::globalColorControls()
+{
+    ColorEditor editor; editor.setColor(Qt::red); QSignalSpy colors(&editor,&ColorEditor::colorChanged);
+    auto* hex=editor.findChild<QLineEdit*>("rgbHex"); hex->setText("#12AB34"); QMetaObject::invokeMethod(hex,"editingFinished",Qt::DirectConnection);
+    QCOMPARE(editor.color(),QColor("#12ab34")); QCOMPARE(colors.count(),1);
+    hex->setText("#bad"); QMetaObject::invokeMethod(hex,"editingFinished",Qt::DirectConnection); QCOMPARE(editor.color(),QColor("#12ab34")); QCOMPARE(colors.count(),1);
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+    for(const auto& definition:effectDefinitions()) QVERIFY(window.findChild<QToolButton*>("addEffect_"+definition.id));
+    auto* circle=window.findChild<QToolButton*>("addEffect_"+effectDefinition(EffectKind::Circle).id);
+    circle->click(); QCOMPARE(window.document().state().layers.last().effect,EffectKind::Circle);
+    window.document().history()->undo();
+    window.document().addLayer(EffectKind::LinearGradient); auto* stops=window.findChild<ColorListEditor*>("gradientColors");
+    QCOMPARE(stops->colors().size(),2);
+    for(auto* button:stops->findChildren<QPushButton*>()) if(button->text()=="Add color") button->click();
+    QCOMPARE(window.document().state().layers[0].gradientColors.size(),3);
+    window.document().history()->undo(); QVERIFY(window.document().state().layers[0].gradientColors.isEmpty());
+    for(auto* value:window.findChildren<QDoubleSpinBox*>()) QVERIFY2(!value->toolTip().isEmpty(),qPrintable(value->objectName()));
+    for(auto* slider:window.findChildren<QSlider*>()) QVERIFY2(!slider->toolTip().isEmpty(),qPrintable(slider->accessibleName()));
+    window.document().history()->setClean();
+}
+
 void EditorTest::visualWorkspace()
 {
     QDir().mkpath(TEST_ARTIFACT_DIR);
@@ -122,13 +164,15 @@ void EditorTest::visualWorkspace()
     addEffect(window,EffectKind::Star); QVERIFY(tabs->isEnabled());
     auto* tree=window.findChild<QTreeWidget*>("effectLayers");
     QCOMPARE(tree->topLevelItem(0)->data(0,Qt::UserRole+1).toString(),QString("Star"));
-    QVERIFY(!window.findChild<QDoubleSpinBox*>("effectGeometry0")->isVisible());
+    QVERIFY(window.findChild<QDoubleSpinBox*>("effectGeometry0")->isVisible());
     QVERIFY(!window.findChild<QDoubleSpinBox*>("particleSeed")->isVisible());
     const auto old=window.previewFrame(); window.findChild<QSlider*>("layerTransparency")->setValue(80);
     QVERIFY(window.previewFrame()!=old); QVERIFY(!window.findChild<QLabel*>("compositionPreview")->pixmap().isNull());
     window.document().history()->undo(); QCOMPARE(window.previewFrame(),old);
     QSignalSpy output(&window,&LightingWindow::outputRequested);
     window.findChild<QAction*>("reviewOutput")->trigger(); QCOMPARE(output.count(),1);
+    QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),1);
+    window.findChild<QAction*>("workspaceEffects")->trigger();
     window.findChild<QPushButton*>("paintMaskTool")->click(); QCOMPARE(tabs->currentIndex(),2);
     QVERIFY(!window.findChild<QDoubleSpinBox*>("effectGeometry0")->isVisible());
     window.findChild<QPushButton*>("moveEffectTool")->click(); QCOMPARE(tabs->currentIndex(),0);
@@ -173,7 +217,7 @@ void EditorTest::channelScopesAndClocks()
     QCOMPARE(loaded.state().assignments[1].timeScale,0.0);
     QFile input(file); QVERIFY(input.open(QIODevice::ReadOnly)); auto root=QJsonDocument::fromJson(input.readAll()).object(); input.close();
     root.insert("schemaVersion",8); auto layers=root.value("layers").toArray(); auto assignments=root.value("assignments").toArray();
-    for(int i=0;i<layers.size();++i) { auto json=layers[i].toObject(); json.remove("targets"); layers[i]=json; }
+    for(int i=0;i<layers.size();++i) { auto json=layers[i].toObject(); json.remove("targets"); json.remove("gradientColors"); layers[i]=json; }
     for(int i=0;i<assignments.size();++i) { auto json=assignments[i].toObject(); json.remove("timeScale"); json.remove("timeOffset"); assignments[i]=json; }
     root.insert("layers",layers); root.insert("assignments",assignments);
     QVERIFY(input.open(QIODevice::WriteOnly)); input.write(QJsonDocument(root).toJson()); input.close(); loaded.load(file);
@@ -359,9 +403,9 @@ void EditorTest::channelControls()
     ChannelEditor nativeEditor(window.document(),native);
     QCOMPARE(nativeEditor.findChild<QComboBox*>("channelMode")->count(),1);
     nativeEditor.findChild<QComboBox*>("nativeMode")->setCurrentText("breathing");
-    nativeEditor.findChild<QLineEdit*>("nativeColors")->setText("#112233, #445566");
+    nativeEditor.findChild<ColorListEditor*>("nativeColors")->setColors({QColor("#112233"),QColor("#445566")});
     QCOMPARE(nativeEditor.assignment().native.colors.size(),2);
-    nativeEditor.findChild<QLineEdit*>("nativeColors")->setText("#80112233");
+    nativeEditor.findChild<ColorListEditor*>("nativeColors")->setColors({QColor("#80112233")});
     QVERIFY_EXCEPTION_THROWN(nativeEditor.assignment(),std::invalid_argument);
 }
 
@@ -876,13 +920,13 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 9);
+    QCOMPARE(root.value("schemaVersion").toInt(), 10);
     // Published schema 2 has explicit effects but no image fields or Image type.
     auto version2 = root; version2.remove("components"); version2.remove("assignments"); QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject();
         if (value.value("effect").toObject().value("type").toString() == "image" || isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
-        value.remove("targets"); value.remove("advanced"); value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
+        value.remove("targets"); value.remove("gradientColors"); value.remove("advanced"); value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
     }
     version2.insert("schemaVersion", 2); version2.insert("layers", version2Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -891,7 +935,7 @@ void EditorTest::effectPersistenceAndLegacy()
     auto version3 = root; version3.remove("components"); version3.remove("assignments"); QJsonArray version3Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
-        value.remove("targets"); value.remove("advanced"); value.remove("animation"); version3Layers.append(value);
+        value.remove("targets"); value.remove("gradientColors"); value.remove("advanced"); value.remove("animation"); version3Layers.append(value);
     }
     version3.insert("schemaVersion", 3); version3.insert("layers", version3Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -900,7 +944,7 @@ void EditorTest::effectPersistenceAndLegacy()
     auto version4=root; version4.remove("components"); version4.remove("assignments"); QJsonArray version4Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value=item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
-        value.remove("targets"); value.remove("advanced"); version4Layers.append(value);
+        value.remove("targets"); value.remove("gradientColors"); value.remove("advanced"); version4Layers.append(value);
     }
     version4.insert("schemaVersion",4); version4.insert("layers",version4Layers);
     QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));
@@ -925,7 +969,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QCOMPARE(loaded.render(), before);
 
     // The previous published editor wrote schema 1 with implicit Static Color.
-    auto legacy = layers[0].toObject(); legacy.remove("targets"); legacy.remove("advanced"); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
+    auto legacy = layers[0].toObject(); legacy.remove("targets"); legacy.remove("gradientColors"); legacy.remove("advanced"); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
     root.remove("components"); root.remove("assignments");
     root.insert("schemaVersion", 1); root.insert("layers", QJsonArray{legacy}); write();
     loaded.load(path);
@@ -1151,9 +1195,7 @@ void EditorTest::canvasTransformsAndCrop()
     auto* cropWidth=window.findChild<QDoubleSpinBox*>("imageCrop2");
     cropWidth->setValue(0.5); auto* cropLeft=window.findChild<QDoubleSpinBox*>("imageCrop0"); cropLeft->setValue(0.8);
     QCOMPARE(window.document().state().layers.last().crop.x(),0.0); // Rejected without escaping a Qt slot.
-    auto* colors=window.findChild<QLineEdit*>("colorCycle"); colors->setText("not-a-color");
-    QMetaObject::invokeMethod(colors,"editingFinished",Qt::DirectConnection);
-    QCOMPARE(window.document().state().layers.last().colorCycle.size(),3);
+    QCOMPARE(window.findChild<ColorListEditor*>("colorCycle")->colors().size(),3);
     window.document().history()->setClean();
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/editor-transform.png"));
 }
@@ -1180,6 +1222,14 @@ void EditorTest::advancedControls()
     window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(1);
     window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/editor-particles.png"));
+    window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(1); QCoreApplication::processEvents();
+    for(const auto& parameter:advancedParameters()) {
+        auto* control=window.findChild<QDoubleSpinBox*>(parameter.id);
+        QVERIFY(control->isVisible());
+        // The offscreen plugin has no Windows font metrics; clipping is verified with native Windows rendering.
+        if(QGuiApplication::platformName()!="offscreen") QVERIFY2(!control->visibleRegion().isEmpty(),qPrintable(parameter.id));
+    }
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/editor-motion.png"));
     window.document().history()->setClean();
 }
 

@@ -13,12 +13,15 @@ The Emil design engineering, Apple design/HIG and animation skills informed this
 | Before | After | Why |
 | --- | --- | --- |
 | Layers embedded in an inspector scroll | Persistent left layer stack; source and mask thumbnails, effect subtitle | Identify each layer without opening its settings |
-| All parameters visible simultaneously | Effect / Motion / Mask tabs; precision sections start collapsed | Show controls for the current task |
+| All parameters visible simultaneously | Effect / Motion / Mask tabs; complete compact property grids | Show controls for the current task |
 | Empty checkerboard with no next step | Actionable empty canvas and searchable visual effect gallery | Start with a visible result |
 | Fixed 100% canvas | Fit on resize until manual pan/zoom; Ctrl+0 restores fit | Keep composition visible at compact sizes |
 | Editing LED coordinate rows | Draggable LED geometry view; table retained in a precision tab | Arrange spatial data directly |
 | Native colors as typed CSV | Color swatches, picker and add/remove controls; exact values optional | Use visual color selection |
-| Output hidden behind View menu | Output status/action in the main toolbar; compact review/start/stop dock | Make the real output path discoverable |
+| Large output dock steals canvas height | Dedicated Devices & output page in the same app | Keep the entire height for each authoring workspace |
+| Gallery is the only visual source picker | All effect sources in a permanent two-column tool strip | One-click access without a modal |
+| Properties overflow and colors use mixed input styles | Compact property grids, picker + RGB hex everywhere, Add color palettes | Show meaningful controls without array syntax |
+| Layout displays an effect raster | Neutral layout with physical component geometry only | Keep layout and source authoring separate |
 
 Apple HIG checks (local skill references): `layout.md > Best practices` says
 "Make essential information easy to find by giving it sufficient space";
@@ -67,3 +70,11 @@ live; channel identities, modes, counts and native commands remain frozen until
 reviewed again. Native Windows captures inspect the actual widgets.
 Physical-device/color calibration and clean-machine deployment remain separate
 qualification; no hardware writes were performed for the redesign.
+
+The current implementation unifies Devices/Layout/Effects navigation, removes the bottom dock,
+and starts the app on Devices. Session state format 1 deliberately ignores the
+old dock layout while preserving project/recovery files and window geometry.
+Native Windows checks verify all Motion parameters are visible at desktop size;
+the offscreen plugin cannot provide Windows font metrics for clipping checks.
+Periodic rendering, linked masks and multi-stop gradients have raster/persistence
+regressions. No physical-device qualification was added by the UI changes.

@@ -120,17 +120,12 @@ int main(int argc, char** argv)
     LightingWindow window(catalog, [availableProfiles] {
         return findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
     }, nullptr, availableProfiles);
-    auto* outputDock=new QDockWidget("Hardware output",&window);
-    outputDock->setObjectName("hardwareOutputDock");
     auto* outputPanel=new OutputPanel(window,[availableProfiles,directory=parser.value("module-dir")](QWidget* parent,const QVector<OutputFrame>& frames) {
         return authorizeHardwareOutput(parent,availableProfiles,frames,directory);
-    },outputDock);
-    outputDock->setWidget(outputPanel);
+    },&window);
+    window.installOutputPanel(outputPanel);
     QObject::connect(outputPanel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
-    QObject::connect(&window,&LightingWindow::outputRequested,outputDock,[outputDock] { outputDock->show(); outputDock->raise(); });
-    window.addDockWidget(Qt::BottomDockWidgetArea,outputDock);
-    outputDock->setVisible(false);
-    auto* view=window.findChild<QMenu*>("workspaceViewMenu"); view->addAction(outputDock->toggleViewAction());
+    auto* view=window.findChild<QMenu*>("workspaceViewMenu");
     QSystemTrayIcon tray(window.style()->standardIcon(QStyle::SP_ComputerIcon),&window);
     tray.setToolTip("MSI Mystic Light");
     auto* trayMenu=new QMenu(&window);
@@ -148,6 +143,7 @@ int main(int argc, char** argv)
         return QMessageBox::question(&window,"Recover unsaved project","Recover the unsaved project from the previous session?",
             QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes)==QMessageBox::Yes;
     });
+    window.findChild<QAction*>("workspaceDevices")->trigger();
     window.show();
     return app.exec();
 }

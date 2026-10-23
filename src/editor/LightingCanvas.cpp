@@ -158,7 +158,8 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         return;
     }
     // Layout previews the current effect, but only physical placements are editable.
-    painter.drawImage(0, 0, frame);
+    // Layout edits physical placements only; the effect raster belongs exclusively to Effects.
+    painter.fillRect(QRect(QPoint(),LightingDocument::canvasSize()),QColor("#252b35"));
     painter.setRenderHint(QPainter::Antialiasing);
     for (auto placement : document_.state().placements) {
         if (dragging_ && placement.id == selected_) placement.origin = origin_ + last_ - start_;

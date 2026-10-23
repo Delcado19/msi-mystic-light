@@ -17,6 +17,10 @@ class QSpinBox;
 class QLineEdit;
 class QListWidget;
 class QLabel;
+class QStackedWidget;
+class QVBoxLayout;
+class ColorEditor;
+class ColorListEditor;
 
 class LightingWindow : public QMainWindow {
     Q_OBJECT
@@ -26,6 +30,7 @@ public:
     LightingDocument& document() { return document_; }
     double previewSeconds() const;
     void setOutputState(const QString& state);
+    void installOutputPanel(QWidget* panel);
     QString projectFile() const { return fileName_; }
     void loadProject(const QString& path, bool recovered = false, const QString& original = {});
     const QImage& previewFrame() const { return previewFrame_; }
@@ -48,6 +53,8 @@ private:
     QImage previewFrame_;
     LightingCanvas *layoutCanvas_, *effectsCanvas_;
     QTabWidget* tabs_;
+    QStackedWidget* applicationPages_;
+    QVBoxLayout* deviceOutput_;
     QTreeWidget* layers_;
     QTreeWidget* components_;
     QTabWidget* inspectorTabs_;
@@ -59,13 +66,15 @@ private:
     QComboBox* previewChannel_;
     QCheckBox* allChannels_;
     QListWidget* channelTargets_;
-    QPushButton* secondaryColor_;
+    ColorEditor* secondaryColor_;
+    ColorListEditor* gradientColors_;
     QWidget* geometryControls_;
     QVector<QDoubleSpinBox*> geometry_;
     QVector<QDoubleSpinBox*> placementControls_;
     QSpinBox* repetitions_;
     QSlider* transparency_;
-    QPushButton *color_, *effectTarget_, *maskTarget_;
+    ColorEditor* color_;
+    QPushButton *effectTarget_, *maskTarget_;
     QCheckBox* maskEnabled_;
     QComboBox* imageFit_;
     QWidget* animationControls_;
@@ -74,7 +83,7 @@ private:
     QDoubleSpinBox* previewTime_;
     QVector<QDoubleSpinBox*> advanced_, crop_;
     QWidget* cropControls_;
-    QLineEdit* colorCycle_;
+    ColorListEditor* colorCycle_;
     QCheckBox* maskLinked_;
     QElapsedTimer previewClock_;
     double playbackStart_ = 0;

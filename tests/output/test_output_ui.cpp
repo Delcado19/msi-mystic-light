@@ -2,6 +2,8 @@
 #include "protocol/MsiProtocol.h"
 #include <QCheckBox>
 #include <QAction>
+#include <QStackedWidget>
+#include <QToolBar>
 #include <QDialogButtonBox>
 #include <QDockWidget>
 #include <QDir>
@@ -71,12 +73,33 @@ class OutputUiTest : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase() { QVERIFY(QDir().mkpath(TEST_ARTIFACT_DIR)); }
+    void applicationDevicePage();
     void scopeGuard();
     void reviewReports();
     void liveEditsAndConfigurationStop();
     void cancelAndChangedReview();
     void unplugAndRestart();
 };
+void OutputUiTest::applicationDevicePage()
+{
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    auto record=std::make_shared<Record>();
+    auto* panel=new OutputPanel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; },&window);
+    window.installOutputPanel(panel); QObject::connect(panel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
+    window.resize(1440,900); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceDevices")->trigger();
+    QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),1); QVERIFY(panel->isVisible());
+    QCoreApplication::processEvents();
+    QVERIFY(!window.findChild<QToolBar*>("previewToolbar")->isVisible());
+    QVERIFY(!window.findChild<QDockWidget*>("hardwareOutputDock")); QVERIFY(!window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/application-devices.png"));
+    panel->findChild<QPushButton*>("startOutput")->click(); QTRY_VERIFY(state(*panel,"Running")); QTRY_COMPARE(record->writes(),2);
+    window.findChild<QAction*>("workspaceLayout")->trigger();
+    auto* layout=window.findChild<LightingCanvas*>("layoutCanvas"); QVERIFY(layout->isVisible());
+    QCOMPARE(layout->grab().toImage().pixelColor(layout->viewportPoint({320,200}).toPoint()),QColor("#252b35"));
+    window.findChild<QAction*>("workspaceEffects")->trigger(); QVERIFY(window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
+    panel->stopOutput(); QTRY_VERIFY(state(*panel,"Stopped")); window.document().history()->setClean();
+}
 void OutputUiTest::scopeGuard()
 {
     LightingDocument document({},nullptr,{profile()}); configure(document);

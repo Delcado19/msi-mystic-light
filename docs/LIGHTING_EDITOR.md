@@ -2,7 +2,7 @@
 
 ## Visual workspace
 
-The editor opens in Effects. Add a layer from the searchable effect gallery or
+The app opens on Devices & output. Switch to Layout or Effects in the main toolbar. Add a layer from the searchable effect gallery or
 import an image. The left sidebar shows named layers with an effect-type subtitle
 and independent source/mask thumbnails. Drag to reorder, double-click to rename,
 and use the visibility checkbox to compare layers.
@@ -10,18 +10,20 @@ and use the visibility checkbox to compare layers.
 The center is the editable canvas; it fits the available space until manually
 panned or zoomed. Use Fit canvas / Ctrl+0 to reset. Move (V), Mask brush (B) and
 image crop (C) act on the selected layer. A brush outline shows the painted area.
-The right inspector keeps a live overview and separates Effect, Motion and Mask.
-Common motion/brush values use sliders; exact transforms, cropping and advanced
-parameters are under disclosure controls. Play/Pause previews animation without
+The right inspector keeps a compact live overview and separates Effect, Motion and Mask.
+Common motion/brush values use sliders. Transform/crop sections start open, and
+the Motion page uses a compact grid so its parameters and color palette fit at
+desktop size. Hover parameter controls for units, behavior and special values. Play/Pause previews animation without
 altering the document. View can hide panels or reset the workspace.
 
-Layout has separate Components and Devices setup tabs. Components can be moved
+Devices contains discovery, channel setup and live output. Layout contains only
+component placement; its neutral background does not display the effect raster. Components can be moved
 on its canvas; the geometry editor starts with draggable LEDs and retains a
 Coordinates & wire mapping tab for precision. Channel setup shows either native
 firmware controls with color swatches or a software component chain.
 
-Output: Stopped/Connecting/Running/Faulted in the main toolbar opens the actual
-hardware-output dock. Review/start and Stop use the existing transport pipeline;
+Output: Stopped/Connecting/Running/Faulted in the main toolbar opens the Devices
+page. The output panel is part of that page, not a bottom dock. Review/start and Stop use the existing transport pipeline;
 adding layers or playing alone does not authorize a connection. See the
 [design review](EDITOR_DESIGN_REVIEW.md) and [output contract](OUTPUT_SESSION.md).
 
@@ -78,7 +80,7 @@ Available sources: Static Color; Linear, Radial and Conical Gradient; Stripes;
 Waves; Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon;
 Image; Particle Rain, Particle Orbit, Fireflies and Particle Burst.
 
-Gradients use two colors including alpha, interpolated in premultiplied space
+Gradients use 2..16 evenly spaced colors, interpolated in premultiplied space
 to avoid transparent-stop halos. Stripes alternate colors and Waves interpolate
 sinusoidally; repetitions are editable. Conical gradients start along positive
 X and progress clockwise, with a seam. Linear/radial gradients clamp; patterns
@@ -160,12 +162,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 9, including placements, ordered layer
+Save/Open uses `.lighting.json` schema 10, including placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..8 remain readable with their original
+and advanced persistence. Schemas 1..9 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 9; older versions reject it instead of silently losing effects.
+schema 10; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -300,8 +302,26 @@ window and docks. Recovered documents remain unsaved. A single-instance lock
 protects the session. The tray offers Show editor, Stop output and Quit; hiding
 is explicit, and normal closing retains the unsaved-project prompt.
 
-Assignments and preview alone never open devices. Use View > Hardware output to
+Assignments and preview alone never open devices. Use Devices > Review and start output to
 review exact initial reports and explicitly start. Effect/mask edits and their undo
 update approved software channels live. Output-configuration changes or opening
 a project stop output; restart requires review. See [output session](OUTPUT_SESSION.md). No
 physical calibration or device-behavior qualification is claimed.
+
+## RGB colors, gradient stops and wrapping (schema 10)
+
+Every color editor uses a visual picker and a #RRGGBB field. Invalid/incomplete
+hex input does not change the color. There are no CSV/array color-entry fields:
+source colors, gradient stops, color cycles and native firmware palettes share
+the same editor. Alpha remains controlled by layer transparency and masks.
+Gradients support 2..16 evenly spaced colors using Add color / Remove last.
+Color cycles retain 2..16 colors; firmware palettes retain 1..4 opaque RGB colors.
+Schema 10 persists gradientColors. Schemas 1..9 use their original two-color
+stops; older schema numbers reject the new field rather than discarding it.
+
+Effect geometry and absolute-time drift wrap horizontally and vertically across
+the 640x400 canvas. Intersecting neighboring source copies are drawn before
+clipping, so partial shapes/images/particles reappear at the opposite edge.
+Linked masks use periodic inverse sampling with bilinear coverage; fixed masks
+stay in canvas coordinates. Wave distortion wraps its rows too. This is source
+behavior shared by preview and software output, not a canvas-only visual trick.

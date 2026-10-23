@@ -17,6 +17,7 @@ struct EffectLayer {
     QColor color = Qt::white;
     EffectKind effect = EffectKind::StaticColor;
     QColor secondaryColor = Qt::black;
+    QVector<QColor> gradientColors; // Empty preserves the legacy two-color gradient. Otherwise 2..16 evenly spaced stops.
     QPointF center{320, 200};
     QSizeF extent{240, 240};
     double rotation = 0;

@@ -122,6 +122,7 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
         try { component(); accept(); }
         catch (const std::exception& failure) { error->setText(QString::fromUtf8(failure.what())); }
     });
+    installParameterTooltips(this);
 }
 
 ComponentDefinition ComponentEditor::component() const

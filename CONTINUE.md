@@ -1,5 +1,25 @@
 # Implementation status
 
+## Unified application and complete color/property editing (2026-10-23)
+
+- Single app navigation: Devices (startup), Layout and Effects. Output is embedded
+  on Devices; no bottom dock. Layout renders physical geometry on a neutral field.
+- All effect sources have one-click toolbar tools. Compact active property grids
+  expose Motion parameters at desktop size; inputs have explanatory tooltips.
+- Global picker + RGB hex ColorEditor/ColorListEditor; no CSV color entry.
+- Schema 10 persists 2..16 gradient stops; old projects keep two-color defaults.
+- Periodic source rendering, drift, linked masks and warp re-enter opposite edges.
+- Session state format 1 discards only obsolete dock layouts.
+- Start-Lighting prefers the prepared build/dist/LightingStudio app folder.
+- Validation: Release build/next and Debug build/multi each passed 14/14 CTest;
+  native Windows editor 30/30 and output UI 8/8. Release build/ninja was not replaced
+  because an existing running instance holds its EXE; no user process was killed.
+- New raster/format tests cover wrapping, linked-mask edge coverage, three-stop
+  gradients and portable persistence; UI tests cover global RGB controls and all
+  effect tools. Native clipping checks verify the complete active Motion page.
+- No physical-device writes, calibration or clean-machine runtime test performed.
+
+
 ## Visual workspace redesign (2026-10-23)
 
 - Replaced the long shared form with left layers/components, fitted center canvas

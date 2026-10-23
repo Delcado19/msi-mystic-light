@@ -46,6 +46,7 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
     });
     connect(&window_,&LightingWindow::closing,this,&OutputPanel::stopOutput);
     connect(&window_,&LightingWindow::projectLoading,this,&OutputPanel::stopOutput);
+    layout->addStretch();
     refresh();
 }
 void OutputPanel::stopOutput() { stop("Output stopped. Devices retain their last applied state."); }

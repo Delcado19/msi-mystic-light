@@ -1,6 +1,12 @@
 #include "StudioWidgets.h"
 #include "LightingDocument.h"
 #include <QApplication>
+#include <QAbstractSpinBox>
+#include <QMap>
+#include <QFormLayout>
+#include <QColorDialog>
+#include <QRegularExpressionValidator>
+#include <QScrollArea>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
@@ -144,4 +150,120 @@ QIcon studioToolIcon(const QString& name)
         painter.drawLine(6,2,6,18); painter.drawLine(6,18,22,18); painter.drawLine(2,6,18,6); painter.drawLine(18,6,18,22);
     }
     return QIcon(pixmap);
+}
+
+ColorEditor::ColorEditor(QWidget* parent) : QWidget(parent)
+{
+    auto* layout=new QHBoxLayout(this); layout->setContentsMargins(0,0,0,0); layout->setSpacing(6);
+    picker_=new QPushButton; picker_->setFixedSize(40,30); picker_->setAccessibleName("Choose RGB color");
+    picker_->setToolTip("Choose a color visually. Transparency is controlled separately.");
+    hex_=new QLineEdit; hex_->setObjectName("rgbHex"); hex_->setMaxLength(7); hex_->setMinimumWidth(86);
+    hex_->setValidator(new QRegularExpressionValidator(QRegularExpression("#?[0-9a-fA-F]{6}"),hex_));
+    hex_->setToolTip("RGB hexadecimal color: #RRGGBB, for example #FF8800. Alpha is not part of the RGB value.");
+    hex_->setAccessibleName("RGB hexadecimal value"); layout->addWidget(picker_); layout->addWidget(hex_,1);
+    connect(picker_,&QPushButton::clicked,this,[this] {
+        const auto selected=QColorDialog::getColor(color_,this,"Choose RGB color");
+        if(selected.isValid() && selected!=color_) { setColor(selected); emit colorChanged(color_); }
+    });
+    connect(hex_,&QLineEdit::editingFinished,this,[this] {
+        if(!hex_->hasAcceptableInput()) { setColor(color_); return; }
+        const auto text=hex_->text(); const QColor chosen(text.startsWith('#') ? text : "#"+text);
+        if(chosen.isValid() && chosen!=color_) { setColor(chosen); emit colorChanged(color_); }
+        else setColor(color_);
+    });
+    setColor(color_);
+}
+void ColorEditor::setColor(QColor color)
+{
+    color_=color; hex_->setText(color.name(QColor::HexRgb).toUpper());
+    QPixmap icon(26,18); icon.fill(color); picker_->setIcon(QIcon(icon)); picker_->setIconSize({26,18});
+}
+ColorListEditor::ColorListEditor(int minimum,int maximum,QWidget* parent)
+    : QWidget(parent),minimum_(minimum),maximum_(maximum)
+{
+    auto* layout=new QVBoxLayout(this); layout->setContentsMargins(0,0,0,0); layout->setSpacing(6);
+    auto* scroll=new QScrollArea; scroll->setWidgetResizable(true); scroll->setMaximumHeight(156);
+    rows_=new QWidget; new QVBoxLayout(rows_); rows_->layout()->setContentsMargins(0,0,4,0);
+    scroll->setWidget(rows_); layout->addWidget(scroll);
+    auto* actions=new QHBoxLayout; add_=new QPushButton("Add color"); remove_=new QPushButton("Remove last");
+    actions->addWidget(add_); actions->addWidget(remove_); layout->addLayout(actions);
+    add_->setToolTip("Add another color to this palette.");
+    remove_->setToolTip("Remove the last color while retaining the minimum number required by this effect.");
+    connect(add_,&QPushButton::clicked,this,[this] {
+        if(colors_.size()>=maximum_) return; colors_.append(Qt::white); rebuild(); emit colorsChanged(colors_);
+    });
+    connect(remove_,&QPushButton::clicked,this,[this] {
+        if(colors_.size()<=minimum_) return; colors_.removeLast(); rebuild(); emit colorsChanged(colors_);
+    });
+}
+void ColorListEditor::setColors(const QVector<QColor>& colors)
+{
+    if(colors_==colors) return; colors_=colors; rebuild();
+}
+void ColorListEditor::rebuild()
+{
+    auto* layout=qobject_cast<QVBoxLayout*>(rows_->layout());
+    while(auto* item=layout->takeAt(0)) { if(item->widget()) item->widget()->deleteLater(); delete item; }
+    for(int i=0;i<colors_.size();++i) {
+        auto* editor=new ColorEditor; editor->setColor(colors_[i]); layout->addWidget(editor);
+        connect(editor,&ColorEditor::colorChanged,this,[this,i](QColor color) {
+            if(i>=colors_.size()) return; colors_[i]=color; emit colorsChanged(colors_);
+        });
+    }
+    rows_->setMinimumHeight(colors_.size()*36); add_->setEnabled(colors_.size()<maximum_); remove_->setEnabled(colors_.size()>minimum_);
+}
+
+void installParameterTooltips(QWidget* root)
+{
+    const QMap<QString,QString> descriptions{
+        {"animationRate0","Rotation speed in degrees per second. Negative values reverse the rotation."},
+        {"animationRate1","Pulse frequency in cycles per second (Hz). Zero disables pulsing."},
+        {"animationRate2","Hue rotation in degrees per second. Gray and white stay achromatic."},
+        {"driftX","Horizontal speed in canvas pixels per second. Effects wrap from one edge to the opposite edge."},
+        {"driftY","Vertical speed in canvas pixels per second. Effects wrap from one edge to the opposite edge."},
+        {"zoom","Periodic size variation as a percentage of the base size. Zero keeps size constant."},
+        {"warp","Horizontal wave distortion amplitude in canvas pixels. Zero disables distortion."},
+        {"breathe","Breathing frequency in cycles per second. Zero disables breathing."},
+        {"trails","Trail duration in seconds. Zero disables trails. Seeking recreates the same result."},
+        {"cycleRate","Color palette loops per second. Zero uses the selected effect color."},
+        {"particleCount","Number of particles, from 1 to 400. More particles require more rendering time."},
+        {"particleSeed","Random pattern seed. The same seed and time reproduce the same particle arrangement."},
+        {"particleSpeed","Particle movement speed. Zero freezes movement within the effect."},
+        {"particleSize","Particle radius in canvas pixels before effect rotation and scaling."},
+        {"previewTime","Absolute preview time in seconds. Editing time pauses playback; it does not change the saved effect."},
+        {"effectRepetitions","Number of repeated stripes or waves across the effect width."},
+        {"channelRate","Channel playback multiplier. 1 is normal speed; 0 holds the offset frame."},
+        {"channelOffset","Channel playback offset in seconds, added after multiplying the preview time by the clock rate."},
+        {"nativeBrightness","Firmware brightness level, 0 (lowest) to 5 (highest). Requires output review before applying."},
+        {"nativeSpeed","Firmware animation speed level, 0 to 2. Actual timing depends on the controller."},
+        {"componentCount","Number of logical LEDs. Geometry is editable visually; physical wire order must contain each index exactly once."},
+        {"layerTransparency","Layer transparency: 0% is fully visible, 100% is invisible. The grayscale mask additionally controls local coverage."}
+    };
+    const QStringList geometry{"Horizontal effect center in canvas pixels.","Vertical effect center in canvas pixels.","Base effect width in canvas pixels.","Base effect height in canvas pixels.","Base effect rotation in degrees. Animation is applied on top of this angle."};
+    const QStringList placement{"Horizontal component origin in layout pixels.","Vertical component origin in layout pixels.","Horizontal geometry scale in percent. 100 keeps catalog dimensions.","Vertical geometry scale in percent. 100 keeps catalog dimensions.","Component rotation in degrees around its origin. This changes layout sampling positions."};
+    const QStringList crop{"Left crop edge as a fraction of source image width (0..1).","Top crop edge as a fraction of source image height (0..1).","Crop width as a fraction of the source image. Cropping is non-destructive.","Crop height as a fraction of the source image. Cropping is non-destructive."};
+    for(auto* widget:root->findChildren<QWidget*>()) {
+        const auto id=widget->objectName(); QString description=descriptions.value(id);
+        if(id.startsWith("effectGeometry")) description=geometry.value(id.mid(14).toInt());
+        if(id.startsWith("placement")) description=placement.value(id.mid(9).toInt());
+        if(id.startsWith("imageCrop")) description=crop.value(id.mid(9).toInt());
+        if(description.isEmpty() && qobject_cast<QAbstractSpinBox*>(widget)) {
+            const auto name=widget->accessibleName();
+            if(name=="Brush diameter") description="Mask brush diameter in canvas pixels. The outline on the canvas shows its size.";
+            if(name=="Hardness %") description="Mask brush edge hardness. 0% gives a soft falloff; 100% gives a hard edge.";
+            if(name=="Brush opacity %") description="Brush strength per stroke. Lower values build transparency gradually.";
+            if(name=="Mask gray") description="Mask coverage: 0 hides, 255 reveals, intermediate values partially reveal the layer.";
+        }
+        if(!description.isEmpty()) {
+            widget->setToolTip(description);
+            if(auto* label=qobject_cast<QWidget*>(widget->property("parameterLabel").value<QObject*>())) label->setToolTip(description);
+        }
+    }
+    for(auto* slider:root->findChildren<QSlider*>()) if(auto* field=qobject_cast<QWidget*>(slider->property("numericField").value<QObject*>())) {
+        slider->setToolTip(field->toolTip()); slider->parentWidget()->setToolTip(field->toolTip());
+    }
+    for(auto* form:root->findChildren<QFormLayout*>()) for(int row=0;row<form->rowCount();++row) {
+        auto* field=form->itemAt(row,QFormLayout::FieldRole); auto* label=form->itemAt(row,QFormLayout::LabelRole);
+        if(field && field->widget() && label && label->widget()) label->widget()->setToolTip(field->widget()->toolTip());
+    }
 }

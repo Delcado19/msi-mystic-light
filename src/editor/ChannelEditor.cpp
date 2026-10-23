@@ -1,6 +1,5 @@
 #include "ChannelEditor.h"
 #include "StudioWidgets.h"
-#include <QColorDialog>
 #include <QToolButton>
 #include <QPixmap>
 #include <QCheckBox>
@@ -43,37 +42,9 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     auto* native = new QWidget; auto* nativeForm = new QFormLayout(native); layout->addWidget(native);
     auto* effect = new QComboBox; effect->setObjectName("nativeMode"); effect->addItems(channel.nativeModes);
     effect->setCurrentIndex(qMax(0, effect->findText(initial_.native.id))); nativeForm->addRow("Firmware effect", effect);
-    QStringList colors;
-    for (const auto& color : initial_.native.colors) colors.append(QColor(color.r, color.g, color.b).name());
-    auto* colorText = new QLineEdit(colors.join(", ")); colorText->setObjectName("nativeColors");
-    colorText->setPlaceholderText("#ff0000, #00ff00 (1..4 RGB colors)");
-    auto* palette=new QWidget; auto* swatches=new QHBoxLayout(palette); swatches->setContentsMargins(0,0,0,0);
-    QVector<QPushButton*> colorButtons;
-    for(int index=0;index<4;++index) {
-        auto* swatch=new QPushButton; swatch->setObjectName(QString("nativeColor%1").arg(index)); swatch->setFixedSize(42,32);
-        swatch->setAccessibleName(QString("Native color %1").arg(index+1)); colorButtons.append(swatch); swatches->addWidget(swatch);
-        connect(swatch,&QPushButton::clicked,this,[this,colorText,index] {
-            auto colors=colorText->text().split(','); if(index>=colors.size()) return;
-            const auto color=QColorDialog::getColor(QColor(colors[index].trimmed()),this,"Native effect color");
-            if(color.isValid()) { colors[index]=color.name(); colorText->setText(colors.join(", ")); }
-        });
-    }
-    auto* addColor=new QPushButton("+"); addColor->setAccessibleName("Add native color"); swatches->addWidget(addColor);
-    auto* removeColor=new QPushButton("-"); removeColor->setAccessibleName("Remove last native color"); swatches->addWidget(removeColor);
-    connect(addColor,&QPushButton::clicked,colorText,[colorText] { if(colorText->text().split(',').size()<4) colorText->setText(colorText->text()+", #ffffff"); });
-    connect(removeColor,&QPushButton::clicked,colorText,[colorText] { auto colors=colorText->text().split(','); if(colors.size()>1) { colors.removeLast(); colorText->setText(colors.join(", ")); } });
-    auto refreshColors=[colorText,colorButtons,addColor,removeColor] {
-        const auto colors=colorText->text().split(',');
-        for(int i=0;i<colorButtons.size();++i) {
-            colorButtons[i]->setVisible(i<colors.size()); if(i>=colors.size()) continue;
-            QPixmap icon(24,20); icon.fill(QColor(colors[i].trimmed())); colorButtons[i]->setIcon(QIcon(icon));
-            colorButtons[i]->setToolTip(colors[i].trimmed());
-        }
-        addColor->setEnabled(colors.size()<4); removeColor->setEnabled(colors.size()>1);
-    };
-    connect(colorText,&QLineEdit::textChanged,this,refreshColors); refreshColors(); nativeForm->addRow("Colors",palette);
-    auto* hexValues=new QToolButton; hexValues->setText("Edit exact color values"); hexValues->setCheckable(true); nativeForm->addRow(hexValues);
-    nativeForm->addRow(colorText); colorText->hide(); connect(hexValues,&QToolButton::toggled,colorText,&QLineEdit::setVisible);
+    auto* nativeColors=new ColorListEditor(1,4); nativeColors->setObjectName("nativeColors");
+    QVector<QColor> colors; for(const auto& color:initial_.native.colors) colors.append(QColor(color.r,color.g,color.b));
+    nativeColors->setColors(colors); nativeForm->addRow("Colors",nativeColors);
     auto* brightness = new QSpinBox; brightness->setObjectName("nativeBrightness"); brightness->setRange(0,5);
     brightness->setValue(initial_.native.brightness); nativeForm->addRow("Brightness", brightness);
     auto* speed = new QSpinBox; speed->setObjectName("nativeSpeed"); speed->setRange(0,2);
@@ -133,6 +104,7 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
             state.assignments.append(candidate); validateChannelAssignments(state, document.profiles()); accept();
         } catch(const std::exception& failure) { error->setText(QString::fromUtf8(failure.what())); }
     });
+    installParameterTooltips(this);
 }
 ChannelAssignment ChannelEditor::assignment() const
 {
@@ -147,8 +119,7 @@ ChannelAssignment ChannelEditor::assignment() const
     result.native.speed=findChild<QSpinBox*>("nativeSpeed")->value();
     result.native.inward=findChild<QCheckBox*>("nativeInward")->isChecked();
     result.native.colors.clear();
-    for (const auto& text : findChild<QLineEdit*>("nativeColors")->text().split(',')) {
-        const QColor color(text.trimmed());
+    for (const auto& color : findChild<ColorListEditor*>("nativeColors")->colors()) {
         if(!color.isValid() || color.alpha()!=255) throw std::invalid_argument("Native colors must be opaque RGB colors");
         result.native.colors.append({quint8(color.red()),quint8(color.green()),quint8(color.blue())});
     }

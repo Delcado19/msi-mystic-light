@@ -85,6 +85,9 @@ const QVector<EffectParameter>& advancedParameters()
 void validateEffect(const EffectLayer& layer)
 {
     effectDefinition(layer.effect);
+    if(!layer.gradientColors.isEmpty() && (layer.gradientColors.size()<2 || layer.gradientColors.size()>16))
+        throw std::invalid_argument("Gradients require 2..16 colors");
+    for(const auto& color:layer.gradientColors) if(!color.isValid()) throw std::invalid_argument("Invalid gradient color");
     for (const auto& parameter : advancedParameters()) {
         const double value = layer.*(parameter.member);
         if (!std::isfinite(value) || value < parameter.minimum || value > parameter.maximum)
@@ -116,7 +119,7 @@ void validateEffect(const EffectLayer& layer)
         throw std::invalid_argument("Invalid effect parameters");
 }
 
-static QImage renderBaseEffect(const EffectLayer& layer, double seconds)
+static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
 {
     QImage image(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
@@ -140,11 +143,12 @@ static QImage renderBaseEffect(const EffectLayer& layer, double seconds)
     if (isGradient(layer.effect)) {
         const double angle = layer.rotation * pi / 180;
         const double cosine = std::cos(angle), sine = std::sin(angle);
-        const QRgb first = qPremultiply(layer.color.rgba()), second = qPremultiply(layer.secondaryColor.rgba());
+        const auto colors=layer.gradientColors.isEmpty() ? QVector<QColor>{layer.color,layer.secondaryColor} : layer.gradientColors;
+        QVector<QRgb> stops; for(const auto& color:colors) stops.append(qPremultiply(color.rgba()));
         for (int y = 0; y < image.height(); ++y) {
             auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
             for (int x = 0; x < image.width(); ++x) {
-                const double dx = x + 0.5 - layer.center.x(), dy = y + 0.5 - layer.center.y();
+                const double dx = std::remainder(x+0.5-layer.center.x(),640.0), dy = std::remainder(y+0.5-layer.center.y(),400.0);
                 const double u = (dx * cosine + dy * sine) / layer.extent.width();
                 const double v = (-dx * sine + dy * cosine) / layer.extent.height();
                 double t = u + 0.5;
@@ -154,19 +158,22 @@ static QImage renderBaseEffect(const EffectLayer& layer, double seconds)
                     t = std::atan2(v, u) / (2 * pi); if (t < 0) t += 1; break;
                 case EffectKind::Stripes: {
                     const double phase = t * layer.repetitions;
-                    t = phase - std::floor(phase) < 0.5 ? 0 : 1; break;
+                    t = std::min(int((phase-std::floor(phase))*stops.size()),int(stops.size()-1))/double(stops.size()-1); break;
                 }
                 case EffectKind::Waves: t = (1 - std::cos(2 * pi * t * layer.repetitions)) / 2; break;
                 default: break;
                 }
-                row[x] = interpolate(first, second, std::clamp(t, 0.0, 1.0));
+                const double position=std::clamp(t,0.0,1.0)*(stops.size()-1);
+                const int stop=std::min(int(position),int(stops.size()-2));
+                row[x]=interpolate(stops[stop],stops[stop+1],position-stop);
             }
         }
         return image;
     }
     if (isParticle(layer.effect)) {
         QPainter painter(&image); painter.setRenderHint(QPainter::Antialiasing);
-        painter.setTransform(effectTransform(layer)); painter.setPen(Qt::NoPen);
+        QTransform placement; placement.translate(layer.center.x(),layer.center.y()); placement.rotate(layer.rotation); placement.scale(layer.extent.width(),layer.extent.height());
+        painter.setTransform(placement); painter.setPen(Qt::NoPen);
         QRandomGenerator random(static_cast<quint32>(layer.particleSeed));
         const auto unit = [&] { return random.generateDouble(); };
         const auto wrap = [](double value) { return value - std::floor(value); };
@@ -229,21 +236,49 @@ static QImage renderBaseEffect(const EffectLayer& layer, double seconds)
     return image;
 }
 
+static double periodic(double value,double size) { return value-size*std::floor(value/size); }
+static QImage renderBaseEffect(const EffectLayer& source,double seconds)
+{
+    auto layer=source; layer.center={periodic(layer.center.x(),640),periodic(layer.center.y(),400)};
+    if(layer.effect==EffectKind::StaticColor || isGradient(layer.effect)) return renderClippedBaseEffect(layer,seconds);
+    QImage result(LightingDocument::canvasSize(),QImage::Format_ARGB32_Premultiplied); result.fill(Qt::transparent);
+    QTransform geometry; geometry.translate(layer.center.x(),layer.center.y()); geometry.rotate(layer.rotation); geometry.scale(layer.extent.width(),layer.extent.height());
+    const auto bounds=geometry.mapRect(QRectF(-0.5,-0.5,1,1)).adjusted(-layer.particleSize,-layer.particleSize,layer.particleSize,layer.particleSize);
+    QPainter painter(&result);
+    for(int y=-1;y<=1;++y) for(int x=-1;x<=1;++x) {
+        const QPointF offset(x*640,y*400);
+        if(!bounds.translated(offset).intersects(QRectF(result.rect()))) continue;
+        auto tile=layer; tile.center+=offset; painter.drawImage(0,0,renderClippedBaseEffect(tile,seconds));
+    }
+    return result;
+}
+
 QTransform effectTransform(const EffectLayer& layer, double seconds)
 {
     const double scale = 1 + layer.zoom/100 * std::sin(2*pi*seconds);
     QTransform transform;
-    transform.translate(layer.center.x() + layer.driftX*seconds, layer.center.y() + layer.driftY*seconds);
+    transform.translate(periodic(layer.center.x() + layer.driftX*seconds,640),periodic(layer.center.y() + layer.driftY*seconds,400));
     transform.rotate(std::remainder(layer.rotation + layer.spin*seconds, 360.0));
     transform.scale(layer.extent.width()*scale, layer.extent.height()*scale);
     return transform;
 }
-QImage transformedMask(const EffectLayer& layer, const QTransform& transform)
+QImage transformedMask(const EffectLayer& layer,const QTransform& transform)
 {
-    QImage image(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied); image.fill(Qt::black);
-    QPainter painter(&image); painter.setRenderHint(QPainter::SmoothPixmapTransform);
-    painter.setTransform(transform); painter.drawImage(0, 0, layer.mask); painter.end();
-    return image.convertToFormat(QImage::Format_Grayscale8);
+    QImage image(LightingDocument::canvasSize(),QImage::Format_Grayscale8); image.fill(0);
+    bool invertible=false; const auto inverse=transform.inverted(&invertible); if(!invertible) return image;
+    // Inverse sampling wraps before clipping and avoids overlapping black mask tiles erasing one another.
+    for(int y=0;y<image.height();++y) {
+        auto* row=image.scanLine(y);
+        for(int x=0;x<image.width();++x) {
+            const auto point=inverse.map(QPointF(x+0.5,y+0.5))-QPointF(0.5,0.5);
+            const double sx=periodic(point.x(),640),sy=periodic(point.y(),400);
+            const int left=int(sx),top=int(sy),right=(left+1)%640,bottom=(top+1)%400;
+            const double fx=sx-left,fy=sy-top;
+            const auto* first=layer.mask.constScanLine(top); const auto* second=layer.mask.constScanLine(bottom);
+            row[x]=uchar(qRound((first[left]*(1-fx)+first[right]*fx)*(1-fy)+(second[left]*(1-fx)+second[right]*fx)*fy));
+        }
+    }
+    return image;
 }
 
 static QImage warpRaster(const QImage& source, double amplitude, double seconds, QColor background)
@@ -252,7 +287,7 @@ static QImage warpRaster(const QImage& source, double amplitude, double seconds,
     QPainter painter(&result);
     for (int y=0;y<result.height();++y) {
         const int shift=qRound(amplitude*std::sin(2*pi*(y/100.0+seconds)));
-        painter.drawImage(QPoint(shift,y),source,QRect(0,y,source.width(),1));
+        for(int tile=-1;tile<=1;++tile) painter.drawImage(QPoint(shift+tile*source.width(),y),source,QRect(0,y,source.width(),1));
     }
     return result;
 }
@@ -282,6 +317,7 @@ static QImage renderAtTime(const EffectLayer& layer, double seconds)
         const auto next = (index+1) % layer.colorCycle.size();
         evaluated.color = QColor::fromRgba(qUnpremultiply(interpolate(qPremultiply(layer.colorCycle[index].rgba()),
             qPremultiply(layer.colorCycle[next].rgba()), position - std::floor(position))));
+        if(!evaluated.gradientColors.isEmpty()) evaluated.gradientColors[0]=evaluated.color;
     }
     if (layer.hueShift != 0 && layer.effect != EffectKind::Image) {
         auto shift = [&](QColor color) {
@@ -291,6 +327,7 @@ static QImage renderAtTime(const EffectLayer& layer, double seconds)
             return QColor::fromHsvF(h < 0 ? h + 1 : h, s, v, a);
         };
         evaluated.color = shift(evaluated.color); evaluated.secondaryColor = shift(layer.secondaryColor);
+        for(auto& color:evaluated.gradientColors) color=shift(color);
 
     }
     auto image = renderBaseEffect(evaluated, seconds);

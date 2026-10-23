@@ -1,18 +1,14 @@
-# MSI Mystic Light — Reverse Engineering
+# MSI Mystic Light - Lighting Studio
 
-Reverse-engineering notes on the official MSI Mystic Light software
-(`C:\Program Files (x86)\MSI\MSI Center\Mystic Light`), produced with the
-`reverse-engineer-anything` skill/REA MCP server + `ilspycmd` (.NET
-decompiler).
+A standalone Windows lighting application with Devices, Layout and Effects in
+one window. Configure supported controllers/channels, arrange physical component
+geometry and create layered software effects with masks and live output.
+The current native module is msi.gen1 with an explicit B850 Edge TI board profile;
+physical-device qualification remains separate from software regression tests.
 
-**Goal:** foundation for a standalone app that can drive MSI RGB hardware
-without MSI Center.
-
-**No vendor code in this repo.** The decompiled `.cs` files only live in the
-local scratchpad directory of the respective Claude Code session (temporary,
-not part of this repo). Documents here describe behavior/byte layouts in
-our own words and cite file:line in the original source as evidence — they
-do not reproduce it at length.
+This repository also contains reverse-engineering notes on MSI Mystic Light.
+No vendor code is included: decompiled source stays in local scratch directories;
+research documents describe behavior and byte layouts in our own words.
 
 ## Contents
 
@@ -33,17 +29,21 @@ without changing a driver. Use `--component-dir` for another local catalog;
 repository downloads remain separate work. Layout and Effects have separate views,
 with component authoring, layered effects, soft masks, transparency and blend modes,
 undo/redo, portable projects, per-layer channel targets and independent channel clocks.
-The visual workspace has a persistent layer stack, searchable effect gallery,
-large fitted canvas, live overview and contextual Effect/Motion/Mask inspector.
+The app opens on Devices, with Layout and Effects in the same window. Effects
+has an always-visible source toolbar, layered canvas and complete contextual
+properties; Layout shows only physical components. All colors use picker + RGB
+hex controls. Gradients support 2..16 colors with Add/Remove controls.
 See [editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
 
-Start **`Start-Lighting.cmd`**, or `build/ninja/Release/msi_mystic_light.exe`.
+Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio/`
+application folder and falls back to `build/ninja/Release/` for development builds.
+Close an already running instance after saving before starting an updated build.
 The old `build/ninja/msi_mystic_light.exe` is not the supported entry point.
 Keep the entire Release folder together: `hidapi.dll`, Qt DLLs, plugins and catalogs
 are runtime dependencies. A missing `hidapi.dll` means the runtime folder is incomplete;
 rebuild/copy the full folder. Do not download unrelated DLLs. See `PORTABLE_README.txt`.
 
-`View > Hardware output` exposes explicit review/start and stop controls. Each start
+`Devices > Review and start output` exposes explicit review/start and stop controls. Each start
 resolves process conflicts, revalidates the exact endpoint and shows initial report
 bytes for consent before opening HID. Worker output is bounded and faults stop all
 endpoints; reconnect requires another review. Effect edits update approved software channels live. Output-configuration changes and opening projects stop output.
