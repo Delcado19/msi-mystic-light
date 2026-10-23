@@ -1,4 +1,8 @@
 #include "editor/LightingWindow.h"
+#include "editor/ComponentEditor.h"
+#include <QTableWidget>
+#include <QDialogButtonBox>
+#include <QLabel>
 #include <QApplication>
 #include <QDir>
 #include <QComboBox>
@@ -39,6 +43,8 @@ class EditorTest : public QObject {
     Q_OBJECT
 private slots:
     void componentSampling();
+    void componentAuthoring();
+    void componentEditor();
     void placementTransforms();
     void rgbaAndMask();
     void blending();
@@ -58,6 +64,96 @@ private slots:
     void canvasTransformsAndCrop();
     void advancedControls();
 };
+
+void EditorTest::componentAuthoring()
+{
+    LightingDocument document(catalog());
+    auto definition = catalog().first(); definition.id = "custom.strip"; definition.name = "Custom strip";
+    document.defineComponent(definition);
+    const auto placement = document.addComponent(definition.id);
+    auto changed = definition; changed.positions[1] = {4, 2}; changed.mapping = {0, 2, 1};
+    document.defineComponent(changed, true);
+    QCOMPARE(document.componentPoints(document.state().placements[0])[1], QPointF(160, 120));
+    document.history()->undo(); QCOMPARE(document.catalog()[definition.id].positions[1], QPointF(1, 0));
+    document.history()->redo();
+    const int before = document.history()->index();
+    QVERIFY_EXCEPTION_THROWN(document.defineComponent(definition), std::invalid_argument);
+    auto invalid = changed; invalid.mapping = {0, 0, 2};
+    QVERIFY_EXCEPTION_THROWN(document.defineComponent(invalid, true), std::invalid_argument);
+    QCOMPARE(document.history()->index(), before);
+    QTemporaryDir directory;
+    const auto file = directory.filePath("portable.lighting.json"); document.save(file);
+    LightingDocument loaded({}); loaded.load(file);
+    QCOMPARE(loaded.catalog()[definition.id].positions, changed.positions);
+    QCOMPARE(loaded.state().placements[0].id, placement);
+    auto installed = catalog(); installed[definition.id] = definition;
+    LightingDocument differentInstallation(installed); differentInstallation.load(file);
+    QCOMPARE(differentInstallation.catalog()[definition.id].positions, changed.positions);
+
+    const auto importedFile = directory.filePath("component.json");
+    QFile input(importedFile); QVERIFY(input.open(QIODevice::WriteOnly));
+    auto imported = definition; imported.id = "imported.strip";
+    input.write(QJsonDocument(imported.toJson()).toJson()); input.close();
+    loaded.importComponent(importedFile); QVERIFY(QFile::remove(importedFile));
+    QVERIFY(loaded.catalog().contains(imported.id));
+    loaded.history()->undo(); QVERIFY(!loaded.catalog().contains(imported.id));
+    loaded.history()->redo(); QVERIFY(loaded.catalog().contains(imported.id));
+    loaded.save(file); LightingDocument roundTrip({}); roundTrip.load(file);
+    QVERIFY(roundTrip.catalog().contains(imported.id));
+    QVERIFY_EXCEPTION_THROWN(loaded.importComponent(importedFile), std::invalid_argument);
+    QFile project(file); QVERIFY(project.open(QIODevice::ReadOnly));
+    auto root = QJsonDocument::fromJson(project.readAll()).object(); project.close();
+    auto components = root.value("components").toArray(); components.append(components[0]);
+    root.insert("components", components);
+    QVERIFY(project.open(QIODevice::WriteOnly)); project.write(QJsonDocument(root).toJson()); project.close();
+    const auto history = loaded.history()->index();
+    QVERIFY_EXCEPTION_THROWN(loaded.load(file), std::invalid_argument);
+    QCOMPARE(loaded.history()->index(), history); QVERIFY(loaded.catalog().contains(imported.id));
+
+    // Schema 6 projects still resolve their definitions from the original installed catalog.
+    root.remove("components"); root.insert("schemaVersion", 6); root.insert("placements", QJsonArray{});
+    QVERIFY(project.open(QIODevice::WriteOnly)); project.write(QJsonDocument(root).toJson()); project.close();
+    loaded.load(file); QVERIFY(loaded.catalog().isEmpty());
+}
+
+void EditorTest::componentEditor()
+{
+    ComponentEditor editor(catalog().first(), true);
+    editor.show(); QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    auto* table = editor.findChild<QTableWidget*>("componentLeds");
+    QVERIFY(editor.findChild<QLineEdit*>("componentId")->isReadOnly());
+    table->item(1, 0)->setText("4.25");
+    QCOMPARE(editor.component().positions[1], QPointF(4.25, 0));
+    table->item(1, 2)->setText("2");
+    QVERIFY_EXCEPTION_THROWN(editor.component(), std::invalid_argument);
+    auto* buttons = editor.findChild<QDialogButtonBox*>();
+    buttons->button(QDialogButtonBox::Ok)->click();
+    QVERIFY(editor.grab().save(QString(TEST_ARTIFACT_DIR) + "/editor-component.png"));
+    QVERIFY(!editor.findChild<QLabel*>("componentError")->text().isEmpty());
+    QCOMPARE(editor.result(), int(QDialog::Rejected));
+    table->item(1, 2)->setText("1");
+    editor.findChild<QSpinBox*>("componentCount")->setValue(4);
+    QCOMPARE(editor.component().mapping, QVector<int>({2, 1, 0, 3}));
+    table->setCurrentCell(1, 0); table->editItem(table->item(1, 0));
+    QLineEdit* cell = nullptr;
+    for (auto* candidate : table->findChildren<QLineEdit*>()) if (candidate->isVisible()) cell = candidate;
+    QVERIFY(cell); cell->setText("6.5");
+    QTest::mouseClick(buttons->button(QDialogButtonBox::Ok), Qt::LeftButton);
+    QCOMPARE(editor.result(), int(QDialog::Accepted));
+    QCOMPARE(editor.component().positions[1].x(), 6.5);
+
+    LightingWindow window({}, [] { return QVector<ProfileCandidate>{}; });
+    auto* choices = window.findChild<QComboBox*>("componentCatalog");
+    auto* add = window.findChild<QPushButton*>("addComponent");
+    QVERIFY(!add->isEnabled());
+    window.document().defineComponent(catalog().first());
+    QCOMPARE(choices->count(), 1); QVERIFY(add->isEnabled()); add->click();
+    QCOMPARE(window.document().state().placements.size(), 1);
+    window.document().history()->undo(); window.document().history()->undo();
+    QCOMPARE(choices->count(), 0); QVERIFY(!add->isEnabled());
+    window.document().history()->redo(); QCOMPARE(choices->count(), 1);
+    window.document().history()->setClean();
+}
 
 void EditorTest::placementTransforms()
 {
@@ -89,6 +185,7 @@ void EditorTest::placementTransforms()
 
     QFile input(file); QVERIFY(input.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(input.readAll()).object(); input.close();
+    root.remove("components");
     auto placements = root.value("placements").toArray();
     auto placement = placements[0].toObject();
     for (int version = 1; version <= 5; ++version) {
@@ -469,9 +566,9 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 6);
+    QCOMPARE(root.value("schemaVersion").toInt(), 7);
     // Published schema 2 has explicit effects but no image fields or Image type.
-    auto version2 = root; QJsonArray version2Layers;
+    auto version2 = root; version2.remove("components"); QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject();
         if (value.value("effect").toObject().value("type").toString() == "image" || isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
@@ -481,7 +578,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
     file.write(QJsonDocument(version2).toJson()); file.close();
     loaded.load(path); QCOMPARE(loaded.render(), document.render());
-    auto version3 = root; QJsonArray version3Layers;
+    auto version3 = root; version3.remove("components"); QJsonArray version3Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
         value.remove("advanced"); value.remove("animation"); version3Layers.append(value);
@@ -490,7 +587,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
     file.write(QJsonDocument(version3).toJson()); file.close(); loaded.load(path);
     QCOMPARE(loaded.render(), document.render());
-    auto version4=root; QJsonArray version4Layers;
+    auto version4=root; version4.remove("components"); QJsonArray version4Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value=item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
         value.remove("advanced"); version4Layers.append(value);
@@ -519,6 +616,7 @@ void EditorTest::effectPersistenceAndLegacy()
 
     // The previous published editor wrote schema 1 with implicit Static Color.
     auto legacy = layers[0].toObject(); legacy.remove("advanced"); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
+    root.remove("components");
     root.insert("schemaVersion", 1); root.insert("layers", QJsonArray{legacy}); write();
     loaded.load(path);
     QCOMPARE(loaded.state().layers.size(), 1);

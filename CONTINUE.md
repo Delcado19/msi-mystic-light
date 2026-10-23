@@ -1,5 +1,23 @@
 # Implementation status
 
+## Component authoring and portable geometry (2026-10-23)
+
+- Added Create/Edit geometry table and JSON import in Layout. Existing IDs are
+  immutable; accepted edits affect all instances and are undoable. Invalid input
+  remains in the dialog. Import shares the bounded schema-1 catalog parser.
+- Schema 7 embeds document-owned definitions, including unused custom products.
+  Projects reopen independently of installed catalogs. Schemas 1..6 still read
+  their geometry from the original startup catalog. Duplicate embedded IDs and
+  newer fields under older schemas are rejected atomically.
+- Definitions participate in undo/dirty state, and the catalog picker follows
+  create/import/edit/load/undo. Limits: 256 definitions, 65535 LEDs/definition,
+  existing 32 MiB project limit. Editing does not change shipped catalog files.
+- Validation: Release and Debug each passed 10/10 CTest entries; native Windows editor passed
+  23/23 Qt Test cases, including active-cell commit and portable catalogs.
+  Inspected native component dialog and Layout screenshots. No hardware opened.
+- Remaining application work: channel assignment/native controls, reconnect and
+  output scheduling, real hardware output/qualification, session restore/tray.
+
 ## Layout transforms (2026-10-23)
 
 - Added independent X/Y scale and rotation around component origins, numeric

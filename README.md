@@ -29,9 +29,9 @@ Data-only component definitions and validated channel-chain mappings are also
 implemented. The bundled generic 8-LED strip demonstrates adding a product
 without changing a driver. Use `--component-dir` for another local catalog;
 repository downloads and a hardware channel assignment UI remain pending.
-An offline editor now provides separate Layout/Effects views, movable catalog
+An offline editor now provides separate Layout/Effects views, component creation/import and geometry editing, scalable/rotatable catalog
 components, Static Color/gradient/shape/image layers, soft masks, transparency/blend controls, motion/color animation, seeded particles/trails, direct canvas transforms/cropping,
-undo/redo and project save/load. See [`docs/LIGHTING_EDITOR.md`](docs/LIGHTING_EDITOR.md).
+undo/redo and portable project save/load with embedded component definitions. See [`docs/LIGHTING_EDITOR.md`](docs/LIGHTING_EDITOR.md).
 Run `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
 
 The first implementation increment provides a C++17/CMake project, a Qt6

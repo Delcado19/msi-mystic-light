@@ -55,6 +55,30 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
     return component;
 }
 
+QJsonObject ComponentDefinition::toJson() const
+{
+    QJsonArray points, wires;
+    for (const auto& point : positions) points.append(QJsonArray{point.x(), point.y()});
+    for (const auto wire : mapping) wires.append(wire);
+    return {{"schemaVersion", 1}, {"id", id}, {"name", name},
+        {"ledCount", positions.size()}, {"positions", points}, {"mapping", wires}};
+}
+
+ComponentDefinition loadComponentDefinition(const QString& fileName)
+{
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) throw std::invalid_argument("Cannot read component");
+    // Bound reads even if the file grows after opening.
+    const auto bytes = file.read(1024 * 1024 + 1);
+    if (bytes.size() > 1024 * 1024 || file.error() != QFileDevice::NoError)
+        throw std::invalid_argument("Component read failed or exceeds 1 MiB");
+    QJsonParseError error;
+    const auto json = QJsonDocument::fromJson(bytes, &error);
+    if (error.error != QJsonParseError::NoError || !json.isObject())
+        throw std::invalid_argument("Malformed component JSON");
+    return ComponentDefinition::fromJson(json.object());
+}
+
 ComponentCatalog loadComponentCatalog(const QString& directory)
 {
     const QDir dir(directory);
@@ -62,17 +86,7 @@ ComponentCatalog loadComponentCatalog(const QString& directory)
     ComponentCatalog catalog;
     for (const auto& entry : dir.entryInfoList({"*.json"}, QDir::Files, QDir::Name)) {
         try {
-            QFile file(entry.absoluteFilePath());
-            if (!file.open(QIODevice::ReadOnly)) throw std::invalid_argument("Cannot read component");
-            // Bound reads even if the file grows after opening.
-            const auto bytes = file.read(1024 * 1024 + 1);
-            if (bytes.size() > 1024 * 1024 || file.error() != QFileDevice::NoError)
-                throw std::invalid_argument("Component read failed or exceeds 1 MiB");
-            QJsonParseError error;
-            const auto json = QJsonDocument::fromJson(bytes, &error);
-            if (error.error != QJsonParseError::NoError || !json.isObject())
-                throw std::invalid_argument("Malformed component JSON");
-            auto component = ComponentDefinition::fromJson(json.object());
+            const auto component = loadComponentDefinition(entry.absoluteFilePath());
             if (catalog.contains(component.id)) throw std::invalid_argument("Duplicate component ID");
             catalog.insert(component.id, component);
         } catch (const std::exception& error) {

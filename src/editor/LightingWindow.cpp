@@ -1,4 +1,5 @@
 #include "LightingWindow.h"
+#include "ComponentEditor.h"
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QColorDialog>
@@ -111,12 +112,39 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     addPanel(layoutPanel);
     layoutControls->addWidget(new QLabel("Components"));
     catalog_ = new QComboBox;
+    catalog_->setObjectName("componentCatalog");
     for (const auto& component : document_.catalog()) catalog_->addItem(component.name, component.id);
     layoutControls->addWidget(catalog_);
     button(layoutControls, "Add component", [this] {
         if (document_.state().placements.size() >= 256) { statusBar()->showMessage("Document limit: 256 components."); return; }
         if (catalog_->currentIndex() >= 0) layoutCanvas_->select(document_.addComponent(catalog_->currentData().toString()));
-    })->setEnabled(catalog_->count() > 0);
+    })->setObjectName("addComponent");
+    button(layoutControls, "Create component", [this] {
+        ComponentDefinition initial; initial.id = "custom.component"; initial.name = "Custom component";
+        initial.positions = {{0, 0}}; initial.mapping = {0};
+        ComponentEditor editor(initial, false, this);
+        if (editor.exec() != QDialog::Accepted) return;
+        try {
+            const auto component = editor.component(); document_.defineComponent(component);
+            catalog_->setCurrentIndex(catalog_->findData(component.id));
+        } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
+    });
+    button(layoutControls, "Edit component geometry", [this] {
+        const auto id = catalog_->currentData().toString();
+        if (!document_.catalog().contains(id)) return;
+        ComponentEditor editor(document_.catalog()[id], true, this);
+        if (editor.exec() != QDialog::Accepted) return;
+        try { document_.defineComponent(editor.component(), true); }
+        catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
+    })->setObjectName("editComponent");
+    button(layoutControls, "Import component JSON", [this] {
+        const auto file = QFileDialog::getOpenFileName(this, "Import component definition", {}, "Component definitions (*.json)");
+        if (file.isEmpty()) return;
+        try {
+            document_.importComponent(file);
+            statusBar()->showMessage("Imported component definition. Select it and add an instance to Layout.", 6000);
+        } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
+    });
     button(layoutControls, "Remove selected component", [this] {
         const auto id = layoutCanvas_->selection();
         if (id.isNull()) return;
@@ -535,6 +563,15 @@ void LightingWindow::refreshPlacement()
 void LightingWindow::refresh()
 {
     refreshPlacement();
+    const auto currentComponent = catalog_->currentData();
+    {
+        const QSignalBlocker block(catalog_); catalog_->clear();
+        for (const auto& component : document_.catalog()) catalog_->addItem(component.name, component.id);
+        const int previous = catalog_->findData(currentComponent);
+        if (previous >= 0) catalog_->setCurrentIndex(previous);
+    }
+    findChild<QPushButton*>("addComponent")->setEnabled(catalog_->count() > 0);
+    findChild<QPushButton*>("editComponent")->setEnabled(catalog_->count() > 0);
     QSignalBlocker blockTree(layers_);
     layers_->clear();
     const EffectLayer* selected = nullptr;

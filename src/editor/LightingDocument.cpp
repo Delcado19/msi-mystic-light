@@ -55,8 +55,10 @@ void validate(const LightingState& state)
 }
 
 LightingDocument::LightingDocument(ComponentCatalog catalog, QObject* parent)
-    : QObject(parent), catalog_(std::move(catalog))
+    : QObject(parent), initialCatalog_(std::move(catalog))
 {
+    if (initialCatalog_.size() > 256) throw std::invalid_argument("Catalog limit: 256 definitions");
+    state_.components = initialCatalog_;
     // Raster snapshots share storage until modified; bound retained mask history.
     history_.setUndoLimit(40);
 }
@@ -75,7 +77,7 @@ void LightingDocument::edit(const QString& label, const std::function<void(Light
     }
     validate(after);
     for (const auto& placement : after.placements)
-        if (!catalog_.contains(placement.componentId)) throw std::invalid_argument("Unknown component");
+        if (!after.components.contains(placement.componentId)) throw std::invalid_argument("Unknown component");
     history_.push(new DocumentEdit(label, [this, before = state_, after](bool forward) {
         state_ = forward ? after : before;
         emit changed();
@@ -123,6 +125,23 @@ QUuid LightingDocument::importImage(const QString& fileName)
     return layer.id;
 }
 
+void LightingDocument::defineComponent(const ComponentDefinition& component, bool replace)
+{
+    // Use the same trust boundary for GUI-created, imported and embedded definitions.
+    const auto validated = ComponentDefinition::fromJson(component.toJson());
+    if (catalog().contains(validated.id) != replace)
+        throw std::invalid_argument(replace ? "Unknown component ID" : "Duplicate component ID");
+    if (!replace && catalog().size() >= 256) throw std::invalid_argument("Catalog limit: 256 definitions");
+    edit(replace ? "Edit component definition" : "Add component definition", [&](LightingState& state) {
+        state.components.insert(validated.id, validated);
+    });
+}
+
+void LightingDocument::importComponent(const QString& fileName)
+{
+    defineComponent(loadComponentDefinition(fileName));
+}
+
 QUuid LightingDocument::addComponent(const QString& componentId)
 {
     ComponentPlacement placement;
@@ -133,8 +152,8 @@ QUuid LightingDocument::addComponent(const QString& componentId)
 
 QVector<QPointF> LightingDocument::componentPoints(const ComponentPlacement& placement) const
 {
-    const auto definition = catalog_.constFind(placement.componentId);
-    if (definition == catalog_.cend()) throw std::invalid_argument("Unknown component");
+    const auto definition = catalog().constFind(placement.componentId);
+    if (definition == catalog().cend()) throw std::invalid_argument("Unknown component");
     QVector<QPointF> points;
     QTransform transform;
     transform.translate(placement.origin.x(), placement.origin.y());
@@ -152,10 +171,10 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleComponents(const QImage& fr
     QMap<QUuid, QVector<QColor>> result;
     for (const auto& placement : state_.placements) {
         const auto points = componentPoints(placement);
-        const auto& definition = catalog_[placement.componentId];
+        const auto& definition = catalog()[placement.componentId];
         if (definition.mapping.size() != points.size()) throw std::invalid_argument("Component geometry/mapping length mismatch");
         // In-memory catalogs bypass the JSON parser; validate before indexing output colors.
-        const auto mapping = channelMapping(ChannelProfile{"sampling", 65535}, {placement.componentId}, catalog_);
+        const auto mapping = channelMapping(ChannelProfile{"sampling", 65535}, {placement.componentId}, catalog());
         QVector<QColor> colors(points.size(), QColor(Qt::black));
         for (qsizetype i = 0; i < points.size(); ++i) {
             const auto point = points[i];
@@ -174,7 +193,8 @@ QImage LightingDocument::render(double seconds) const { return render(state_, se
 
 void LightingDocument::save(const QString& fileName)
 {
-    QJsonArray layers, placements;
+    QJsonArray layers, placements, components;
+    for (const auto& component : catalog()) components.append(component.toJson());
     for (const auto& layer : state_.layers) {
         QByteArray png;
         QBuffer buffer(&png); buffer.open(QIODevice::WriteOnly);
@@ -207,9 +227,9 @@ void LightingDocument::save(const QString& fileName)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()},
             {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
-    // Version 6 adds placement transforms while retaining the version 5 effect payload.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 6}, {"width", 640}, {"height", 400},
-        {"layers", layers}, {"placements", placements}}).toJson();
+    // Version 7 embeds document geometry; installed catalogs cannot alter a reopened project.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 7}, {"width", 640}, {"height", 400},
+        {"layers", layers}, {"placements", placements}, {"components", components}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
     // Atomic replacement preserves an existing project if writing/commit fails.
@@ -228,7 +248,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -236,6 +256,20 @@ void LightingDocument::load(const QString& fileName)
     if (layerArray.size() > 64 || placementArray.size() > 256)
         throw std::invalid_argument("Document exceeds layer/component limits");
     LightingState candidate;
+    candidate.components = initialCatalog_;
+    if (schema >= 7) {
+        if (!root.value("components").isArray() || root.value("components").toArray().size() > 256)
+            throw std::invalid_argument("Invalid embedded component catalog");
+        candidate.components.clear();
+        for (const auto& entry : root.value("components").toArray()) {
+            if (!entry.isObject()) throw std::invalid_argument("Invalid embedded component");
+            const auto component = ComponentDefinition::fromJson(entry.toObject());
+            if (candidate.components.contains(component.id)) throw std::invalid_argument("Duplicate embedded component ID");
+            candidate.components.insert(component.id, component);
+        }
+    } else if (root.contains("components")) {
+        throw std::invalid_argument("Embedded components require schema 7");
+    }
     qint64 imagePixels = 0;
     for (const auto& entry : layerArray) {
         const auto json = entry.toObject();
@@ -347,7 +381,7 @@ void LightingDocument::load(const QString& fileName)
             // Older readers must not silently discard geometry written under the wrong schema.
             throw std::invalid_argument("Placement transforms require schema 6");
         }
-        if (!catalog_.contains(placement.componentId)) throw std::invalid_argument("Document requires an unavailable component");
+        if (!candidate.components.contains(placement.componentId)) throw std::invalid_argument("Document requires an unavailable component");
         candidate.placements.append(placement);
     }
     validate(candidate);

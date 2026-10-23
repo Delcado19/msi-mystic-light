@@ -43,6 +43,7 @@ struct ComponentPlacement {
     double rotation = 0; // Degrees around the component origin, after scaling catalog coordinates.
 };
 struct LightingState {
+    ComponentCatalog components; // Document-owned geometry participates in undo and portable saves.
     QVector<ComponentPlacement> placements;
     QVector<EffectLayer> layers; // Bottom to top; panel presentation is reversed.
 };
@@ -53,12 +54,14 @@ class LightingDocument : public QObject {
 public:
     explicit LightingDocument(ComponentCatalog catalog, QObject* parent = nullptr);
     static QSize canvasSize() { return {640, 400}; }
-    const ComponentCatalog& catalog() const { return catalog_; }
+    const ComponentCatalog& catalog() const { return state_.components; }
     const LightingState& state() const { return state_; }
     QUndoStack* history() { return &history_; }
     void edit(const QString& label, const std::function<void(LightingState&)>& operation);
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
     QUuid importImage(const QString& fileName);
+    void defineComponent(const ComponentDefinition& component, bool replace = false);
+    void importComponent(const QString& fileName);
     QUuid addComponent(const QString& componentId);
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
     // Per-instance wire order, opaque RGB over black; caller may reuse one composed frame.
@@ -74,7 +77,7 @@ public:
 signals:
     void changed();
 private:
-    ComponentCatalog catalog_;
+    const ComponentCatalog initialCatalog_;
     LightingState state_;
     QUndoStack history_;
 };

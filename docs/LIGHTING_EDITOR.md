@@ -134,12 +134,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 6, including placements, ordered layer
+Save/Open uses `.lighting.json` schema 7, including placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..5 remain readable with their original
+and advanced persistence. Schemas 1..6 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 6; older versions reject it instead of silently losing effects.
+schema 7; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -153,13 +153,14 @@ project read/write, 16 MiB image input, 4096 pixels per image side, and total
 type conversion). Dimensions and accumulated pixels are checked before decode.
 An oversized save is rejected before replacing its destination. Undo snapshots
 share raster storage until edited. Save/Discard/Cancel protects unsaved changes.
-Catalog definitions are referenced, not embedded; changing a catalog can change
-layout geometry. Viewports/time/selection are session context, not project data.
+Schema 7 embeds document-owned component definitions, so changing the installed
+catalog cannot change a saved layout. Older schemas still resolve geometry from
+the catalog loaded at startup. Viewports/time/selection are session context.
 
 The accepted image/shape/gradient/motion/color/particle authoring increment is
-implemented. Separate future application work includes component geometry
-editing/import UI, resizing/rotating component layouts, per-channel targets,
-native-mode controls, reconnect handling, renderer-to-wire sampling, hardware
+implemented. Component geometry creation/edit/import, placement transforms and
+component sampling are also implemented. Separate future work includes channel
+assignment/targets, native-mode controls, reconnect handling, scheduling and hardware
 output, autosave and automatic session restoration. Keyframes, multistop gradient
 editing and animated image playback are not claimed by this increment.
 
@@ -196,3 +197,26 @@ is undoable; dragging and arrow keys retain the current scale/rotation.
 Schema 6 stores these transforms. Schemas 1..5 load with 100 percent scale and
 zero rotation; transform fields under older versions are rejected rather than
 silently lost. Layout transforms never modify effect-layer geometry or masks.
+
+## Component authoring and import
+
+In Layout, **Create component** opens a geometry table with a stable ID, name,
+LED count, X/Y coordinates and wire indices. **Edit component geometry** edits
+the definition selected in the catalog picker, affecting every instance with
+that ID in this document. Existing IDs stay fixed so placements remain valid.
+New rows default to a straight strip with sequential wiring. Each wire index
+from 0 to LED count - 1 must appear exactly once; coordinates must be finite.
+Invalid cells keep the dialog open and show the validation error. Cancel leaves
+the document untouched. Accepted changes are one undo step.
+
+**Import component JSON** uses the same schema-1 parser as startup catalogs,
+with a 1 MiB file limit. Duplicate IDs are rejected rather than replaced.
+Create/import adds a definition to the picker; **Add component** places an
+instance in Layout. Definitions and their edits participate in project undo,
+dirty state and saves, including definitions not currently placed. Limits are
+256 definitions per document and 65535 LEDs per definition, within the existing
+32 MiB project limit. Schema 7 embeds definitions and rejects duplicate or
+malformed embedded IDs before replacing live state/history. Schemas 1..6 remain
+readable using the original startup catalog. Embedded geometry under an older
+schema is rejected rather than silently discarded. This editor changes local
+data only; it does not download a repository or configure attached hardware.
