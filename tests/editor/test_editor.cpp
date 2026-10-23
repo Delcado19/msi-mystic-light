@@ -38,6 +38,7 @@ EffectLayer layer(QColor color)
 class EditorTest : public QObject {
     Q_OBJECT
 private slots:
+    void componentSampling();
     void rgbaAndMask();
     void blending();
     void softPaintingAndGradient();
@@ -56,6 +57,39 @@ private slots:
     void canvasTransformsAndCrop();
     void advancedControls();
 };
+
+void EditorTest::componentSampling()
+{
+    LightingDocument document(catalog());
+    const auto first = document.addComponent("test.strip");
+    const auto second = document.addComponent("test.strip");
+    document.edit("Position components", [](LightingState& state) {
+        state.placements[0].origin = {0.5, 0};
+        state.placements[1].origin = {-20, 0};
+    });
+    QImage frame(LightingDocument::canvasSize(), QImage::Format_ARGB32);
+    frame.fill(Qt::transparent);
+    frame.setPixelColor(0, 0, QColor(200, 100, 50, 128));
+    frame.setPixelColor(20, 0, Qt::green);
+    frame.setPixelColor(40, 0, Qt::blue);
+    const auto sampled = document.sampleComponents(frame);
+    QCOMPARE(sampled.size(), 2);
+    QCOMPARE(sampled[first][0], QColor(Qt::blue));
+    QCOMPARE(sampled[first][1], QColor(Qt::green));
+    QCOMPARE(sampled[first][2], QColor(100, 50, 25));
+    QCOMPARE(sampled[second][2], QColor(Qt::black));
+    QCOMPARE(sampled[second][1], QColor(100, 50, 25));
+    QCOMPARE(document.componentPoints(document.state().placements[0])[1], QPointF(20.5, 0));
+    QVERIFY_EXCEPTION_THROWN(document.sampleComponents(QImage()), std::invalid_argument);
+    document.edit("Off canvas", [](LightingState& state) {
+        state.placements[0].origin = {640, 400};
+        state.placements[1].origin = {1e100, -1e100};
+    });
+    for (const auto& colors : document.sampleComponents(frame))
+        for (const auto& color : colors) QCOMPARE(color, QColor(Qt::black));
+    document.history()->undo();
+    QCOMPARE(document.sampleComponents(frame)[first], sampled[first]);
+}
 
 void EditorTest::rgbaAndMask()
 {

@@ -58,6 +58,9 @@ public:
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
     QUuid importImage(const QString& fileName);
     QUuid addComponent(const QString& componentId);
+    QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
+    // Per-instance wire order, opaque RGB over black; caller may reuse one composed frame.
+    QMap<QUuid, QVector<QColor>> sampleComponents(const QImage& frame) const;
     QImage render(double seconds = 0) const;
     static QImage render(const LightingState& state, double seconds = 0);
     static QImage whiteMask();

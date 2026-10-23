@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792757418.418316,
-    "seen": 1792757484.9782977,
-    "ast_hash": "d30a9afb82766bd6c08423d9d1975cc9",
+    "mtime": 1792757852.8825696,
+    "seen": 1792757855.8523045,
+    "ast_hash": "3afe5e2397bcec6da0212134effa4610",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1792757418.4148154,
-    "seen": 1792757484.9782674,
-    "ast_hash": "6439945a96fd2456327926a8ab90d4e5",
+    "mtime": 1792757824.6871617,
+    "seen": 1792757855.852273,
+    "ast_hash": "59f875177ae7eda0e15dbcbb9161c516",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
@@ -330,15 +330,15 @@
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1792756858.3566575,
-    "seen": 1792757320.0613234,
-    "ast_hash": "7a68632a62f90dc638f1061e5d36ea67",
+    "mtime": 1792757824.6866603,
+    "seen": 1792757855.852275,
+    "ast_hash": "f43f5e469181ef2a5deef5fa13974844",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1792756330.6404676,
-    "seen": 1792757320.0613244,
-    "ast_hash": "e768dcc7bc18f195ac50cf0334a3b588",
+    "mtime": 1792757824.6851513,
+    "seen": 1792757855.8522756,
+    "ast_hash": "850fabdaead3c4528e8cfa3815e2904e",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
@@ -354,15 +354,15 @@
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1792757418.4168162,
-    "seen": 1792757484.978286,
-    "ast_hash": "a7bd65e85729a781fb6898f6b759c567",
+    "mtime": 1792757824.68766,
+    "seen": 1792757855.8522925,
+    "ast_hash": "58ad62305ae4862689f4d31842128d9d",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1792757117.3635552,
-    "seen": 1792757320.0613532,
-    "ast_hash": "55ec57324e22566a5d1f682f133bde11",
+    "mtime": 1792757852.8825696,
+    "seen": 1792757855.8523083,
+    "ast_hash": "fd768d1977e70eaa7b1e893c08bb7d61",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -408,9 +408,9 @@
     "semantic_hash": ""
   },
   "third_party/licenses/libwebp-COPYING.txt": {
-    "mtime": 1792756640.0056903,
-    "seen": 1792757320.0613632,
-    "ast_hash": "19f0b6b4a88473e1eed9ca57e11045f4",
+    "mtime": 1792757530.5169692,
+    "seen": 1792757855.8523204,
+    "ast_hash": "a18f71957e978b23a3bcf52583f7041c",
     "semantic_hash": ""
   },
   "third_party/licenses/libwebp-PATENTS.txt": {

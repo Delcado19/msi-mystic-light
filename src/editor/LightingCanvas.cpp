@@ -54,10 +54,7 @@ void LightingCanvas::cancelGesture()
 
 QVector<QPointF> LightingCanvas::componentPoints(const ComponentPlacement& placement) const
 {
-    const auto& definition = document_.catalog()[placement.componentId];
-    QVector<QPointF> points;
-    for (const auto& point : definition.positions) points.append(point * 20 + placement.origin);
-    return points;
+    return document_.componentPoints(placement);
 }
 
 void LightingCanvas::paintEvent(QPaintEvent*)

@@ -1,5 +1,15 @@
 # Implementation status
 
+## Component sampling backend (2026-10-23)
+
+- Added per-placement RGB sampling of a shared composed canvas in local wire order.
+- Layout and sampling share the same LED coordinate conversion. Transparency
+  composites over black; out-of-canvas positions are black; repeated instances
+  retain separate UUID keys. No channel assignment or hardware output is added.
+- Release and Debug each passed 10/10 CTest entries. Sampling tests cover reversed
+  wiring, alpha, fractional coordinates, repeated instances, canvas boundaries,
+  huge origins, invalid frame size and undo.
+
 ## Completed: accepted offline effect authoring scope (2026-10-23)
 
 - Built on published 0ab3ff6. Implemented drift X/Y, sinusoidal zoom, sine warp,

@@ -126,6 +126,38 @@ QUuid LightingDocument::addComponent(const QString& componentId)
     return placement.id;
 }
 
+QVector<QPointF> LightingDocument::componentPoints(const ComponentPlacement& placement) const
+{
+    const auto definition = catalog_.constFind(placement.componentId);
+    if (definition == catalog_.cend()) throw std::invalid_argument("Unknown component");
+    QVector<QPointF> points;
+    for (const auto& point : definition->positions) points.append(point * 20 + placement.origin);
+    return points;
+}
+
+QMap<QUuid, QVector<QColor>> LightingDocument::sampleComponents(const QImage& frame) const
+{
+    if (frame.size() != canvasSize()) throw std::invalid_argument("Sampling requires a canvas-sized frame");
+    // Premultiplication composites transparency onto black without boosting partially masked LEDs.
+    const auto rgb = frame.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QMap<QUuid, QVector<QColor>> result;
+    for (const auto& placement : state_.placements) {
+        const auto points = componentPoints(placement);
+        const auto& mapping = catalog_[placement.componentId].mapping;
+        QVector<QColor> colors(points.size(), QColor(Qt::black));
+        for (qsizetype i = 0; i < points.size(); ++i) {
+            const auto point = points[i];
+            // Test floating bounds before conversion: off-canvas and very large origins stay black.
+            if (point.x() >= 0 && point.y() >= 0 && point.x() < rgb.width() && point.y() < rgb.height()) {
+                const auto pixel = rgb.pixel(int(point.x()), int(point.y()));
+                colors[mapping[i]] = QColor(qRed(pixel), qGreen(pixel), qBlue(pixel));
+            }
+        }
+        result.insert(placement.id, colors);
+    }
+    return result;
+}
+
 QImage LightingDocument::render(double seconds) const { return render(state_, seconds); }
 
 void LightingDocument::save(const QString& fileName)

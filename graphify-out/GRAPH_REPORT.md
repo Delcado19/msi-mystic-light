@@ -1,17 +1,17 @@
 # Graph Report - msi-mystic-light  (2026-10-23)
 
 ## Corpus Check
-- 64 files · ~60,667 words
+- 64 files · ~61,105 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 3 file(s) not represented in the graph (top: (none) 2, .cmake 1)
 
 ## Summary
-- 976 nodes · 1630 edges · 61 communities (47 shown, 14 thin omitted)
-- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 193 edges (avg confidence: 0.87)
+- 984 nodes · 1645 edges · 59 communities (44 shown, 15 thin omitted)
+- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 192 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0ab3ff66`
+- Built from commit: `7f3f10f9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -52,62 +52,58 @@
 - EffectLayer
 - LightingWindow
 - LightingWindow.cpp
-- EffectRenderer.cpp
+- .mousePressEvent
 - Offline lighting editor
 - IHidDevice
-- Hardware modules
+- FakeProcesses
 - ConflictProcesses.cpp
 - EffectKind
-- MsiModule
-- NativeEffect
+- VirtualDriver
 - ModulesTest
 - ConflictDialog
-- LightingDocument.h
+- LightingState
 - SignalForge editor reference
 - VirtualModule
-- main.cpp
 - DriverInstance
-- EffectParameter
+- MaskTool
 - StartupTest
-- DocumentEdit
 - ComponentPlacement
 - IConflictProcesses
-- LayerBlend
+- LightingDocument.h
 - closeWindow
-- LightingDocument::LightingDocument
 
 ## God Nodes (most connected - your core abstractions)
 1. `LightingWindow` - 67 edges
 2. `LightingCanvas` - 58 edges
 3. `EffectLayer` - 45 edges
-4. `IHidDevice` - 27 edges
-5. `EffectKind` - 26 edges
-6. `LightingDocument` - 25 edges
+4. `LightingDocument` - 27 edges
+5. `IHidDevice` - 27 edges
+6. `EffectKind` - 26 edges
 7. `Lighting Studio Implementation Plan` - 23 edges
 8. `MsiZoneSettings` - 22 edges
 9. `MsiGen1AdvArea` - 22 edges
-10. `IDriver` - 20 edges
+10. `EditorTest` - 21 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Device plugins and gaps in our current contract` --references--> `IHidDevice`  [INFERRED]
   docs/SIGNALRGB_REPOSITORY_RESEARCH.md → src/hid/IHidDevice.h
+- `Inventory and pinned revisions` --references--> `main()`  [INFERRED]
+  docs/SIGNALRGB_REPOSITORY_RESEARCH.md → src/main.cpp
 - `Spatial model (extends, doesn't replace, v1's effect model)` --references--> `IDriver`  [INFERRED]
   docs/superpowers/specs/2026-10-19-lighting-studio-design.md → src/modules/IDriverModule.h
 - `Task 8: Canvas render loop` --references--> `FakeHidDevice`  [INFERRED]
   docs/superpowers/plans/2026-10-18-v1-skeleton.md → tests/hid/FakeHidDevice.h
 - `Component catalog schema 1` --references--> `channelMapping()`  [INFERRED]
   docs/HARDWARE_MODULES.md → src/components/ComponentCatalog.cpp
-- `Completed: HID transport (2026-10-23)` --references--> `IHidDevice`  [INFERRED]
-  CONTINUE.md → src/hid/IHidDevice.h
 
 ## Import Cycles
 - None detected.
 
-## Communities (61 total, 14 thin omitted)
+## Communities (59 total, 15 thin omitted)
 
 ### Community 0 - "Lighting Studio Implementation Plan"
 Cohesion: 0.11
-Nodes (17): Global Constraints, Lighting Studio Implementation Plan, Review Focus, Self-Review Notes, Task 10: Roccat Kone Aimo driver, Task 11: Razer Basilisk V3 driver, Task 12: Roccat Vulcan 100/120 Aimo driver (two HID interfaces), Task 13: Extend `Settings` — placement, source, global effect, profiles (+9 more)
+Nodes (18): Global Constraints, Lighting Studio Implementation Plan, Review Focus, Self-Review Notes, Task 10: Roccat Kone Aimo driver, Task 11: Razer Basilisk V3 driver, Task 12: Roccat Vulcan 100/120 Aimo driver (two HID interfaces), Task 13: Extend `Settings` — placement, source, global effect, profiles (+10 more)
 
 ### Community 1 - "Lighting Studio — Design Doc (v2)"
 Cohesion: 0.13
@@ -130,15 +126,15 @@ Cohesion: 0.22
 Nodes (9): MSI mainboard LED protocol, "800-series" generation (VID `0x0DB0`/PID `0x0076`), Record layout (16 bytes, per zone/"area"), Report `0x50` ("Gen1"), 290 bytes — status and default configuration, Report `0x51` ("Gen1_Adv"), 727 bytes — per-LED addressing of individual segments, Report `0x90`+port / `0xB0`+port ("Gen2"/"Gen2_Adv") — newer strip model, ⚠️ Safety-relevant finding: the `Store` flag is set on every write, Upstream OpenRGB bug found while cross-checking: `FeaturePacket_PerLED_761` is 727 bytes, not 761, Verification against the existing capture template (+1 more)
 
 ### Community 6 - "IDriverModule.h"
-Cohesion: 0.17
-Nodes (9): DiscoveryStatus, Available, Failed, Unknown, Unsupported, LedTopology, error, ledCounts (+1 more)
+Cohesion: 0.06
+Nodes (28): Build and inspect, Compatibility and trust, Hardware discovery, Hardware modules, LED discovery, Profile schema 1, Responsibilities, Startup process conflicts (+20 more)
 
 ### Community 7 - "HidDescriptor"
-Cohesion: 0.06
+Cohesion: 0.05
 Nodes (22): hid_device_, HidApiDevice, handle_, initialized_, HidDescriptor, interfaceNumber, manufacturer, path (+14 more)
 
 ### Community 8 - "stdexcept"
-Cohesion: 0.06
+Cohesion: 0.07
 Nodes (13): Component catalog schema 1, channelMapping(), ComponentDefinition::fromJson(), integer(), loadComponentCatalog(), requiredText(), DeviceProfile::fromJson(), DeviceProfile::load() (+5 more)
 
 ### Community 9 - "MsiGen1AdvArea"
@@ -150,24 +146,24 @@ Cohesion: 0.15
 Nodes (13): MsiZoneSettings, brightness, color1, color2, color3, color4, colorCount, colorSelectionUser (+5 more)
 
 ### Community 12 - "MsiLightingMode"
-Cohesion: 0.17
+Cohesion: 0.14
 Nodes (12): MsiLightingMode, Advanced, Breathing, ColorRing, Flame, GodLike, Lightning, Meteor (+4 more)
 
 ### Community 13 - ".create"
-Cohesion: 0.21
-Nodes (3): fail(), ModuleRegistry, entries_
+Cohesion: 0.22
+Nodes (4): main(), fail(), ModuleRegistry, entries_
 
 ### Community 14 - "MsiDriver"
-Cohesion: 0.24
-Nodes (4): MsiDriver, armed_, channels_, state_
+Cohesion: 0.13
+Nodes (5): MsiDriver, armed_, channels_, state_, MsiModule
 
 ### Community 15 - "IDriverModule"
 Cohesion: 0.15
 Nodes (4): Adding support, IDriverModule, IncompatibleModule, MissingInterface
 
 ### Community 16 - "findProfileCandidates"
-Cohesion: 0.17
-Nodes (8): Inventory and pinned revisions, BoardIdentity, manufacturer, model, deviceIdentity(), findProfileCandidates(), readBoardIdentity(), main()
+Cohesion: 0.12
+Nodes (9): BoardIdentity, manufacturer, model, deviceIdentity(), findProfileCandidates(), ProfileCandidate, device, profileId (+1 more)
 
 ### Community 17 - "BuildReport0x51"
 Cohesion: 0.18
@@ -178,20 +174,20 @@ Cohesion: 0.40
 Nodes (4): Global Constraints, Review Focus, Self-Review, Standalone Lighting App — v1 Skeleton Implementation Plan
 
 ### Community 20 - "FakeHidDevice"
-Cohesion: 0.15
-Nodes (8): Completed: HID transport (2026-10-23), Task 2: `IHidDevice` gains `write()` and interface-aware `open()`, Task 3: Canvas-global placement and "follow global effect", FakeHidDevice, opened_, openSucceeds, sendSucceeds, sentReports
+Cohesion: 0.17
+Nodes (7): Task 2: `IHidDevice` gains `write()` and interface-aware `open()`, Task 3: Canvas-global placement and "follow global effect", FakeHidDevice, opened_, openSucceeds, sendSucceeds, sentReports
 
 ### Community 21 - "Implementation status"
 Cohesion: 0.11
-Nodes (18): Accepted effect authoring follow-ups (2026-10-23), Completed: accepted offline effect authoring scope (2026-10-23), Completed: animation preview increment (2026-10-23), Completed: embedded image effects (2026-10-23), Completed: first offline editor increment (2026-10-23), Completed: gradient and shape effects (2026-10-23), Completed: local component catalog and channel mapping (2026-10-23), Completed: local hardware module framework (2026-10-23) (+10 more)
+Nodes (19): Accepted effect authoring follow-ups (2026-10-23), Completed: accepted offline effect authoring scope (2026-10-23), Completed: animation preview increment (2026-10-23), Completed: embedded image effects (2026-10-23), Completed: first offline editor increment (2026-10-23), Completed: gradient and shape effects (2026-10-23), Completed: local component catalog and channel mapping (2026-10-23), Completed: local hardware module framework (2026-10-23) (+11 more)
 
 ### Community 23 - "SignalRGB repository research"
-Cohesion: 0.25
-Nodes (8): Components are data, not hardware drivers, Device plugins and gaps in our current contract, Exact MSI B850 findings, Import validation and provenance, Recommended next implementation increment, Repository installation and update evidence, Result, SignalRGB repository research
+Cohesion: 0.22
+Nodes (9): Components are data, not hardware drivers, Device plugins and gaps in our current contract, Exact MSI B850 findings, Import validation and provenance, Inventory and pinned revisions, Recommended next implementation increment, Repository installation and update evidence, Result (+1 more)
 
 ### Community 24 - "LightingCanvas"
-Cohesion: 0.05
-Nodes (27): LightingCanvas, cropTool_, dragging_, gray_, handle_, hardness_, last_, maskTarget_ (+19 more)
+Cohesion: 0.06
+Nodes (24): LightingCanvas, cropTool_, dragging_, gray_, handle_, hardness_, last_, maskTarget_ (+16 more)
 
 ### Community 25 - "Mystic Light — Overall Architecture"
 Cohesion: 0.29
@@ -199,7 +195,7 @@ Nodes (7): Components, HID password mechanism (`HID_Basic.init`), LEDKeeper2.exe
 
 ### Community 26 - "test_editor.cpp"
 Cohesion: 0.11
-Nodes (7): isParticle(), document_, catalog(), EditorTest, private, EditorTest::rgbaAndMask(), layer()
+Nodes (7): isParticle(), renderEffect(), document_, catalog(), EditorTest, private, layer()
 
 ### Community 27 - "`Mystic Light Online Data.dat` — decryption and content"
 Cohesion: 0.40
@@ -214,12 +210,12 @@ Cohesion: 0.40
 Nodes (5): Contents, MSI Mystic Light — Reverse Engineering, Related repos, Research documents, Standalone app implementation
 
 ### Community 30 - "ConflictProcess"
-Cohesion: 0.10
-Nodes (14): ConflictProcess, executable, manualStop, path, pid, reason, started, FakeProcesses (+6 more)
+Cohesion: 0.15
+Nodes (7): ConflictProcess, executable, manualStop, path, pid, reason, started
 
 ### Community 32 - "LightingDocument.cpp"
-Cohesion: 0.15
-Nodes (5): LightingDocument, catalog_, public, state_, validate()
+Cohesion: 0.09
+Nodes (9): validateEffect(), DocumentEdit, apply_, LightingDocument, catalog_, LightingDocument::LightingDocument(), public, state_ (+1 more)
 
 ### Community 33 - "EffectLayer"
 Cohesion: 0.06
@@ -231,87 +227,75 @@ Nodes (43): Task 15: `LightingStudioWindow`, LightingWindow, advanced_, animatio
 
 ### Community 35 - "LightingWindow.cpp"
 Cohesion: 0.08
-Nodes (7): spin, button(), colorIcon(), LayerTree, reordered, LightingWindow::LightingWindow(), QTreeWidget
-
-### Community 36 - "EffectRenderer.cpp"
-Cohesion: 0.26
-Nodes (11): effectTransform(), interpolate(), isGradient(), polygon(), renderAtTime(), renderBaseEffect(), renderEffect(), renderMask() (+3 more)
+Nodes (8): isGradient(), spin, button(), colorIcon(), LayerTree, reordered, LightingWindow::LightingWindow(), QTreeWidget
 
 ### Community 37 - "Offline lighting editor"
-Cohesion: 0.20
-Nodes (9): Effects and direct tools, Images and crop, Layers and masks, Layout, Motion and color, Offline lighting editor, Project files and boundaries, Seeded particles and performance (+1 more)
+Cohesion: 0.18
+Nodes (10): Component sampling, Effects and direct tools, Images and crop, Layers and masks, Layout, Motion and color, Offline lighting editor, Project files and boundaries (+2 more)
 
 ### Community 38 - "IHidDevice"
-Cohesion: 0.22
-Nodes (4): Task 18: Final wire-up and real-hardware verification, Task 9: SteelSeries Apex 3 driver (T-Zone protocol), IHidDevice, VirtualDriver
+Cohesion: 0.18
+Nodes (3): Completed: HID transport (2026-10-23), Task 18: Final wire-up and real-hardware verification, IHidDevice
 
-### Community 39 - "Hardware modules"
-Cohesion: 0.22
-Nodes (8): Build and inspect, Compatibility and trust, Hardware discovery, Hardware modules, LED discovery, Profile schema 1, Startup process conflicts, Validation
+### Community 39 - "FakeProcesses"
+Cohesion: 0.20
+Nodes (7): FakeProcesses, denied, failScan, forced, graceful, restart, running
 
 ### Community 41 - "ConflictProcesses.cpp"
-Cohesion: 0.27
+Cohesion: 0.26
 Nodes (7): conflictReason(), creationTime(), matchesProcessIdentity(), normalized(), processPath(), requiresManualStop(), winError()
 
 ### Community 42 - "EffectKind"
-Cohesion: 0.10
-Nodes (21): EffectKind, Burst, Circle, ConicalGradient, Cross, Diamond, Fireflies, Heart (+13 more)
-
-### Community 44 - "NativeEffect"
-Cohesion: 0.12
-Nodes (11): Responsibilities, NativeEffect, brightness, colors, id, inward, speed, RgbColor (+3 more)
+Cohesion: 0.05
+Nodes (39): EffectDefinition, id, kind, label, EffectKind, Burst, Circle, ConicalGradient (+31 more)
 
 ### Community 46 - "ConflictDialog"
 Cohesion: 0.21
 Nodes (10): ConflictDialog, busy_, conflicts_, ignore_, status_, table_, terminateAll_, QLabel (+2 more)
 
-### Community 47 - "LightingDocument.h"
-Cohesion: 0.18
-Nodes (4): EffectLayer, LightingState, layers, placements
+### Community 47 - "LightingState"
+Cohesion: 0.50
+Nodes (3): LightingState, layers, placements
 
 ### Community 48 - "SignalForge editor reference"
-Cohesion: 0.40
+Cohesion: 0.29
 Nodes (5): Evidence and useful concepts, Proposed adaptation for this app, Reuse boundary, SignalForge editor reference, Sources
 
-### Community 50 - "main.cpp"
-Cohesion: 0.14
-Nodes (3): ProfileCandidate, device, profileId
-
 ### Community 51 - "DriverInstance"
-Cohesion: 0.18
+Cohesion: 0.16
 Nodes (7): DriverInstance, driver_, loader_, Entry, id, loader, module
 
-### Community 52 - "EffectParameter"
-Cohesion: 0.18
-Nodes (10): EffectDefinition, id, kind, label, EffectParameter, EffectLayer, id, label (+2 more)
+### Community 52 - "MaskTool"
+Cohesion: 0.50
+Nodes (3): MaskTool, Brush, Gradient
 
 ### Community 55 - "ComponentPlacement"
 Cohesion: 0.29
 Nodes (4): ComponentPlacement, componentId, id, origin
 
-### Community 57 - "LayerBlend"
-Cohesion: 0.40
+### Community 57 - "LightingDocument.h"
+Cohesion: 0.22
 Nodes (5): LayerBlend, Multiply, Normal, Overlay, Screen
 
 ## Knowledge Gaps
-- **360 isolated node(s):** `channels_`, `armed_`, `state_`, `manufacturer`, `model` (+355 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 528 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **362 isolated node(s):** `channels_`, `armed_`, `state_`, `manufacturer`, `model` (+357 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 533 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **15 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `LightingWindow` connect `LightingWindow` to `LightingDocument.cpp`, `LightingWindow.cpp`, `findProfileCandidates`, `LightingCanvas`, `test_editor.cpp`?**
+- **Why does `LightingWindow` connect `LightingWindow` to `LightingDocument.cpp`, `LightingWindow.cpp`, `.create`, `LightingCanvas`, `test_editor.cpp`?**
   _High betweenness centrality (0.179) - this node is a cross-community bridge._
-- **Why does `main()` connect `findProfileCandidates` to `LightingWindow`, `HidDescriptor`, `stdexcept`, `.create`, `main.cpp`?**
+- **Why does `main()` connect `.create` to `LightingWindow`, `HidDescriptor`, `stdexcept`, `findProfileCandidates`, `main.cpp`, `SignalRGB repository research`?**
   _High betweenness centrality (0.128) - this node is a cross-community bridge._
-- **Why does `IHidDevice` connect `IHidDevice` to `Lighting Studio Implementation Plan`, `File Structure`, `IDriverModule.h`, `HidDescriptor`, `stdexcept`, `MsiModule`, `.create`, `MsiDriver`, `IDriverModule`, `BuildReport0x51`, `VirtualModule`, `Self-Review`, `FakeHidDevice`, `SignalRGB repository research`?**
-  _High betweenness centrality (0.127) - this node is a cross-community bridge._
+- **Why does `IHidDevice` connect `IHidDevice` to `Lighting Studio Implementation Plan`, `File Structure`, `IDriverModule.h`, `HidDescriptor`, `VirtualDriver`, `.create`, `MsiDriver`, `IDriverModule`, `BuildReport0x51`, `VirtualModule`, `Self-Review`, `FakeHidDevice`, `SignalRGB repository research`?**
+  _High betweenness centrality (0.126) - this node is a cross-community bridge._
 - **Are the 9 inferred relationships involving `LightingWindow` (e.g. with `main()` and `.advancedControls()`) actually correct?**
   _`LightingWindow` has 9 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 10 inferred relationships involving `IHidDevice` (e.g. with `Completed: HID transport (2026-10-23)` and `Adding support`) actually correct?**
   _`IHidDevice` has 10 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `channels_`, `armed_`, `state_` to the rest of the system?**
-  _360 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _362 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Lighting Studio Implementation Plan` be split into smaller, more focused modules?**
-  _Cohesion score 0.10952380952380952 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10822510822510822 - nodes in this community are weakly interconnected._

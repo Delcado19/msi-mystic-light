@@ -171,3 +171,17 @@ image codecs, deterministic animation/particles, linked masks, canvas move/
 resize/rotate/crop, gesture cancellation, UI validation and undo. Native Windows
 checks complement offscreen tests, which may lack sandbox fonts. Screenshots
 are written to the build's editor-artifacts directory.
+
+## Component sampling
+
+`LightingDocument::sampleComponents(frame)` accepts one canvas-sized composed frame
+and returns RGB values keyed by placement UUID, in each component's local wire
+order. Repeated instances remain independent. Layout drawing and sampling share
+`componentPoints`: catalog coordinates use 20 canvas pixels per unit plus the
+placement origin. Sampling uses the containing pixel (floor for nonnegative
+coordinates); positions outside the canvas produce black. Premultiplied channels
+composite transparent effects onto black before discarding alpha.
+
+This is an offline backend contract, not channel assignment or device output.
+Callers can reuse a single rendered frame for all components. Channel offsets,
+calibration, scheduling and hardware transmission remain separate work.
