@@ -162,10 +162,10 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     painter.fillRect(QRect(QPoint(),LightingDocument::canvasSize()),QColor("#252b35"));
     painter.setRenderHint(QPainter::Antialiasing);
     for (auto placement : document_.state().placements) {
-        if (dragging_ && placement.id == selected_) placement.origin = origin_ + last_ - start_;
+        if (dragging_ && selectedPlacement(placement.id)) placement.origin += last_ - start_;
         const auto points = componentPoints(placement);
         const auto& definition = document_.catalog()[placement.componentId];
-        painter.setPen(QPen(placement.id == selected_ ? QColor("#a9c2ff") : Qt::white, 1.5 / zoom_));
+        painter.setPen(QPen(selectedPlacement(placement.id) ? QColor("#a9c2ff") : Qt::white, 1.5 / zoom_));
         for (int i = 0; i < points.size(); ++i) {
             const auto point = points[i];
             if (!QRectF(frame.rect()).adjusted(-20, -20, 20, 20).contains(point)) continue;
@@ -177,6 +177,14 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         if (QRectF(frame.rect()).contains(placement.origin))
             painter.drawText(placement.origin + QPointF(0, -22), definition.name);
     }
+}
+
+bool LightingCanvas::selectedPlacement(const QUuid& id) const
+{
+    if(id==selected_) return true;
+    for(const auto& assignment:document_.state().assignments)
+        if(assignment.id==selected_) return assignment.placements.contains(id);
+    return false;
 }
 
 void LightingCanvas::mousePressEvent(QMouseEvent* event)
@@ -193,7 +201,8 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
                 if (QLineF(point, start_).length() < 12 / zoom_) { hit = it->id; origin_ = it->origin; break; }
             if (!hit.isNull()) break;
         }
-        select(hit);
+        // A header selected in the tree keeps its chain together when dragging any member.
+        if(hit.isNull() || !selectedPlacement(hit)) select(hit);
         dragging_ = !hit.isNull();
     } else if (!maskTarget_) {
         emit effectGestureStarted();
@@ -280,9 +289,8 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
     if (event->button() != Qt::LeftButton || !dragging_) return;
     const auto id = selected_;
     if (context_ == Context::Layout) {
-        const auto target = origin_ + last_ - start_;
         if (last_ != start_) document_.edit("Move component", [&](LightingState& state) {
-            for (auto& placement : state.placements) if (placement.id == id) placement.origin = target;
+            for (auto& placement : state.placements) if (selectedPlacement(placement.id)) placement.origin += last_ - start_;
         });
     } else if (workingEffect_ && last_!=start_) {
         const auto effect=*workingEffect_;
@@ -325,7 +333,7 @@ void LightingCanvas::keyPressEvent(QKeyEvent* event)
         if (!delta.isNull()) {
             if (event->modifiers() & Qt::ShiftModifier) delta *= 10;
             document_.edit("Nudge component", [&](LightingState& state) {
-                for (auto& placement : state.placements) if (placement.id == selected_) placement.origin += delta;
+                for (auto& placement : state.placements) if (selectedPlacement(placement.id)) placement.origin += delta;
             });
             return;
         }

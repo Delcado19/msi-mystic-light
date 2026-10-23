@@ -143,7 +143,7 @@ int main(int argc, char** argv)
         return QMessageBox::question(&window,"Recover unsaved project","Recover the unsaved project from the previous session?",
             QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes)==QMessageBox::Yes;
     });
-    window.findChild<QAction*>("workspaceDevices")->trigger();
+    window.findChild<QAction*>("workspaceLayout")->trigger();
     window.show();
     return app.exec();
 }

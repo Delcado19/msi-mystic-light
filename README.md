@@ -1,6 +1,6 @@
 # MSI Mystic Light - Lighting Studio
 
-A standalone Windows lighting application with Devices, Layout and Effects in
+A standalone Windows lighting application with Layout and Effects in
 one window. Configure supported controllers/channels, arrange physical component
 geometry and create layered software effects with masks and live output.
 The current native module is msi.gen1 with an explicit B850 Edge TI board profile;
@@ -29,11 +29,14 @@ without changing a driver. Use `--component-dir` for another local catalog;
 repository downloads remain separate work. Layout and Effects have separate views,
 with component authoring, layered effects, soft masks, transparency and blend modes,
 undo/redo, portable projects, per-layer channel targets and independent channel clocks.
-The app opens on Devices, with Layout and Effects in the same window. Effects
+The app opens on Layout and automatically lists supported controllers and their headers.
+Select a header, attach quantities of fans and strips with their LED counts, then
+arrange the header group or individual components. Effects
 has an always-visible source toolbar, layered canvas and complete contextual
 properties; Layout shows only physical components. All colors use picker + RGB
 hex controls. Gradients support 2..16 colors with Add/Remove controls.
-See [editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
+See the [header layout screenshot](docs/images/header-layout.png),
+[editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
 
 Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio/`
 application folder and falls back to `build/ninja/Release/` for development builds.
@@ -43,7 +46,7 @@ Keep the entire Release folder together: `hidapi.dll`, Qt DLLs, plugins and cata
 are runtime dependencies. A missing `hidapi.dll` means the runtime folder is incomplete;
 rebuild/copy the full folder. Do not download unrelated DLLs. See `PORTABLE_README.txt`.
 
-`Devices > Review and start output` exposes explicit review/start and stop controls. Each start
+`Output > Review and start output` exposes explicit review/start and stop controls. Each start
 resolves process conflicts, revalidates the exact endpoint and shows initial report
 bytes for consent before opening HID. Worker output is bounded and faults stop all
 endpoints; reconnect requires another review. Effect edits update approved software channels live. Output-configuration changes and opening projects stop output.

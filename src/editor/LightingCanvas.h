@@ -37,6 +37,7 @@ protected:
     void keyPressEvent(QKeyEvent*) override;
     void hideEvent(QHideEvent*) override;
 private:
+    bool selectedPlacement(const QUuid& id) const;
     void cancelGesture();
     void updateEffectGesture(QPointF point);
     QPointF offset() const;

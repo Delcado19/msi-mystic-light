@@ -28,7 +28,7 @@ AppSession::AppSession(LightingWindow& window,QSettings& settings,QString recove
 void AppSession::persist()
 {
     settings_.setValue("window/geometry",window_.saveGeometry());
-    settings_.setValue("window/state",window_.saveState(1));
+    settings_.setValue("window/state",window_.saveState(2));
     settings_.setValue("project/path",window_.projectFile()); settings_.sync();
 }
 bool AppSession::writeRecovery()
@@ -44,8 +44,8 @@ bool AppSession::writeRecovery()
 void AppSession::restore(const std::function<bool()>& recover)
 {
     window_.restoreGeometry(settings_.value("window/geometry").toByteArray());
-    // Version 1 drops the old bottom-output-dock layout while retaining projects and window geometry.
-    window_.restoreState(settings_.value("window/state").toByteArray(),1);
+    // Version 2 restores the header-based workspace; projects and window geometry remain intact.
+    window_.restoreState(settings_.value("window/state").toByteArray(),2);
     const auto original=settings_.value("project/path").toString();
     const bool available=QFileInfo::exists(recoveryFile_);
     const bool recovering=available && recover && recover();

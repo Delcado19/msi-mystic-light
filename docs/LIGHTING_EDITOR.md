@@ -2,7 +2,8 @@
 
 ## Visual workspace
 
-The app opens on Devices & output. Switch to Layout or Effects in the main toolbar. Add a layer from the searchable effect gallery or
+The app opens on Layout. Controllers are discovered automatically using installed profiles;
+all their headers appear in the left tree. Switch between Layout and Effects in the main toolbar. Add a layer from the searchable effect gallery or
 import an image. The left sidebar shows named layers with an effect-type subtitle
 and independent source/mask thumbnails. Drag to reorder, double-click to rename,
 and use the visibility checkbox to compare layers.
@@ -16,14 +17,16 @@ the Motion page uses a compact grid so its parameters and color palette fit at
 desktop size. Hover parameter controls for units, behavior and special values. Play/Pause previews animation without
 altering the document. View can hide panels or reset the workspace.
 
-Devices contains discovery, channel setup and live output. Layout contains only
-component placement; its neutral background does not display the effect raster. Components can be moved
-on its canvas; the geometry editor starts with draggable LEDs and retains a
-Coordinates & wire mapping tab for precision. Channel setup shows either native
-firmware controls with color swatches or a software component chain.
+Layout keeps headers and their component chains on the left, the spatial canvas in
+the center, and settings for the selected header/component on the right. The neutral
+layout background does not display the effect raster. Select a header and use Add
+fans / strips to attach quantities with explicit LED counts. Header settings exposes
+native firmware controls or the existing editable physical chain and channel clock.
+The Component library disclosure retains custom geometry creation/import.
 
-Output: Stopped/Connecting/Running/Faulted in the main toolbar opens the Devices
-page. The output panel is part of that page, not a bottom dock. Review/start and Stop use the existing transport pipeline;
+Output: Stopped/Connecting/Running/Faulted opens a separate output window inside
+the same application. It occupies no persistent canvas area. Closing this window
+does not stop output; use Stop output explicitly. Review/start and Stop use the existing transport pipeline;
 adding layers or playing alone does not authorize a connection. See the
 [design review](EDITOR_DESIGN_REVIEW.md) and [output contract](OUTPUT_SESSION.md).
 
@@ -35,15 +38,25 @@ exclusive tabs in one Lighting category, with independent selection/zoom/pan.
 
 ## Layout
 
-Choose a component and Add component. Drag a LED point to move its instance;
-arrow keys move one unit, Shift+arrows ten. Remove selected component removes
-only that instance. Wire indices appear beside LEDs. Layout previews the
-composition but cannot author effects/masks. Wheel zooms; middle drag pans.
+Select a detected header and choose Add fans / strips. The dialog appends fans first,
+then strips; use Header settings to reorder a mixed physical chain. Generic fans
+use circular LED geometry, strips a straight sequential chain. Counts must match
+real hardware; they are not inferred from the controller descriptor. Capacity/fixed
+LED limits are validated atomically, including the new geometry and placements.
+Cancel or invalid capacity leaves the document untouched. One undo removes the batch.
 
-Scan supported devices reads descriptors and OS board identity. All matching
-profile/endpoint pairs remain selectable without auto-selection. Selection is
-staged/session-only, without connection or channel assignment. Rescan clears
-stale selections. Automatic unplug/reconnect monitoring is not implemented.
+Header groups and their individual components appear in the layout tree. Select a
+header to drag or nudge its complete chain; select a child to move one component.
+Arrow keys move one unit, Shift+arrows ten. Removing a component removes it from
+its chain too; removing the last member removes an empty software assignment and
+its explicit layer targets atomically. Wire indices appear beside LEDs. Wheel
+zooms; middle drag pans. Effects and masks are authored exclusively in Effects.
+
+Discovery reads descriptors and OS board identity without opening HID. Refresh
+headers repeats discovery and deduplicates profile/endpoint/header matches. Saved
+chains stay visible as offline groups when their controller is absent. Merely
+selecting or attaching components never starts output. Hotplug discovery is manual;
+a running output session still monitors endpoint presence independently.
 
 ## Layers and masks
 

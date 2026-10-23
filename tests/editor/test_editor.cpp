@@ -18,6 +18,7 @@
 #include <QDoubleSpinBox>
 #include <QPushButton>
 #include <QSlider>
+#include <QSpinBox>
 #include <QTabWidget>
 #include <QTreeWidget>
 #include <QTemporaryDir>
@@ -55,6 +56,7 @@ DeviceProfile channelProfile()
 }
 void addEffect(LightingWindow& window,EffectKind kind=EffectKind::StaticColor)
 {
+    window.findChild<QAction*>("workspaceEffects")->trigger();
     QTimer::singleShot(0,[kind] {
         auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());
         QVERIFY(dialog); QTimer::singleShot(2000,dialog,&QDialog::reject); auto* list=dialog->findChild<QListWidget*>("effectGalleryItems"); QVERIFY(list);
@@ -146,6 +148,7 @@ void EditorTest::visualWorkspace()
     QDir().mkpath(TEST_ARTIFACT_DIR);
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
     window.resize(1200,800); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
     auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas"); QVERIFY(canvas->isVisible());
     QVERIFY(canvas->width()>=360); QVERIFY(canvas->height()>=400);
     auto* tabs=window.findChild<QTabWidget*>("layerInspectorTabs"); QVERIFY(!tabs->isEnabled());
@@ -171,7 +174,8 @@ void EditorTest::visualWorkspace()
     window.document().history()->undo(); QCOMPARE(window.previewFrame(),old);
     QSignalSpy output(&window,&LightingWindow::outputRequested);
     window.findChild<QAction*>("reviewOutput")->trigger(); QCOMPARE(output.count(),1);
-    QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),1);
+    QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),0);
+    window.findChild<QDialog*>("outputDialog")->hide();
     window.findChild<QAction*>("workspaceEffects")->trigger();
     window.findChild<QPushButton*>("paintMaskTool")->click(); QCOMPARE(tabs->currentIndex(),2);
     QVERIFY(!window.findChild<QDoubleSpinBox*>("effectGeometry0")->isVisible());
@@ -379,13 +383,12 @@ void EditorTest::channelControls()
     QVERIFY(editor.grab().save(QString(TEST_ARTIFACT_DIR)+"/editor-channel.png"));
     buttons->button(QDialogButtonBox::Ok)->click(); QCOMPARE(editor.result(),int(QDialog::Accepted));
     window.document().assignChannel(editor.assignment());
-    auto* tree=window.findChild<QTreeWidget*>("channelAssignments"); QCOMPARE(tree->topLevelItemCount(),1);
-    QCOMPARE(tree->topLevelItem(0)->text(1),QString("Software"));
-    window.document().history()->undo(); QCOMPARE(tree->topLevelItemCount(),0);
-    window.document().history()->redo(); QCOMPARE(tree->topLevelItemCount(),1);
-    for(auto* button:window.findChildren<QPushButton*>()) if(button->text()=="Scan supported devices") button->click();
-    window.findChild<QComboBox*>("profileCandidates")->setCurrentIndex(1);
-    QCOMPARE(window.findChild<QComboBox*>("profileChannels")->count(),3);
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents");
+    QCoreApplication::processEvents(); QCOMPARE(tree->topLevelItemCount(),3);
+    QCOMPARE(tree->topLevelItem(0)->childCount(),2);
+    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->childCount(),0);
+    window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->childCount(),2);
+    tree->setCurrentItem(tree->topLevelItem(0));
     bool modalSeen=false, keptSoftware=false;
     QTimer::singleShot(0,[&] {
         auto* dialog=dynamic_cast<ChannelEditor*>(QApplication::activeModalWidget());
@@ -395,7 +398,7 @@ void EditorTest::channelControls()
             dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
         }
     });
-    for(auto* button:window.findChildren<QPushButton*>()) if(button->text()=="Configure channel") button->click();
+    window.findChild<QPushButton*>("headerSettings")->click();
     QVERIFY(modalSeen); QVERIFY(keptSoftware);
     QCOMPARE(window.document().state().assignments.size(),1);
     window.document().history()->setClean();
@@ -739,23 +742,59 @@ void EditorTest::separateEditingContexts()
 
 void EditorTest::explicitDiscovery()
 {
-    int scans = 0;
-    LightingWindow window(catalog(), [&] {
-        ++scans;
-        ProfileCandidate candidate; candidate.profileId = "test.board"; candidate.device.path = "exact-test-path";
-        return QVector<ProfileCandidate>{candidate, candidate};
+    int scans=0; bool connected=true; auto profile=channelProfile(); profile.channels[0].maxLeds=64;
+    LightingWindow window(catalog(),[&] {
+        ++scans; if(!connected) return QVector<ProfileCandidate>{};
+        ProfileCandidate candidate; candidate.profileId=profile.id; candidate.device.path="exact-test-path";
+        return QVector<ProfileCandidate>{candidate,candidate};
+    },nullptr,{profile});
+    window.show(); QCoreApplication::processEvents(); QCOMPARE(scans,1);
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents"); QCOMPARE(tree->topLevelItemCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0));
+    bool attached=false;
+    QTimer::singleShot(0,[&] {
+        auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget()); QVERIFY(dialog);
+        auto* ok=dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
+        dialog->findChild<QSpinBox*>("fanCount")->setValue(64); ok->click();
+        QVERIFY(!dialog->findChild<QLabel*>("attachError")->text().isEmpty());
+        QVERIFY(window.document().state().placements.isEmpty()); QVERIFY(window.document().state().assignments.isEmpty());
+        dialog->findChild<QSpinBox*>("fanCount")->setValue(2);
+        dialog->findChild<QSpinBox*>("stripCount")->setValue(1); ok->click(); attached=dialog->result()==QDialog::Accepted;
     });
-    QCOMPARE(scans, 0);
-    for (auto* button : window.findChildren<QPushButton*>())
-        if (button->text() == "Scan supported devices") button->click();
-    QCOMPARE(scans, 1);
-    auto* candidates = window.findChild<QComboBox*>("profileCandidates");
-    QCOMPARE(candidates->count(), 3);
-    QCOMPARE(candidates->currentIndex(), 0);
-    candidates->setCurrentIndex(2);
-    QCOMPARE(candidates->currentData().toMap().value("path").toString(), QString("exact-test-path"));
-    QCOMPARE(candidates->currentData().toMap().value("profileId").toString(), QString("test.board"));
-    QCOMPARE(scans, 1);
+    window.findChild<QPushButton*>("addHeaderComponents")->click(); QVERIFY(attached);
+    QCOMPARE(window.document().state().placements.size(),3); QCOMPARE(window.document().state().assignments.size(),1);
+    QCOMPARE(window.document().state().assignments[0].endpoint,QString("exact-test-path"));
+    for(const auto& placement:window.document().state().placements)
+        for(const auto& point:window.document().componentPoints(placement)) QVERIFY(QRectF(0,0,640,400).contains(point));
+    QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(2));
+    window.findChild<QPushButton*>("removeComponent")->click();
+    QCOMPARE(window.document().state().placements.size(),2);
+    QCOMPARE(window.document().state().assignments[0].placements.size(),2);
+    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0));
+    tree->setCurrentItem(tree->topLevelItem(0));
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");
+    const auto old=window.document().state().placements; QTest::keyClick(canvas,Qt::Key_Right);
+    for(int i=0;i<3;++i) QCOMPARE(window.document().state().placements[i].origin,old[i].origin+QPointF(1,0));
+    window.document().history()->undo();
+    const auto start=canvas->viewportPoint(window.document().componentPoints(old[0])[0]).toPoint();
+    const auto end=start+QPoint(20,15);
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,start);
+    QTest::mouseMove(canvas,end); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,end);
+    const auto moved=window.document().state().placements;
+    const auto delta=moved[0].origin-old[0].origin; QVERIFY(!delta.isNull());
+    for(int i=1;i<3;++i) QCOMPARE(moved[i].origin-old[i].origin,delta);
+    window.document().history()->undo(); window.document().history()->undo();
+    QVERIFY(window.document().state().placements.isEmpty()); QVERIFY(window.document().state().assignments.isEmpty());
+    window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    QCoreApplication::processEvents();
+    QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/header-layout.png"));
+    connected=false;
+    window.findChild<QPushButton*>("refreshHeaders")->click(); QCOMPARE(scans,2);
+    QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    QVERIFY(tree->topLevelItem(0)->text(0).contains("offline"));
+    window.document().history()->setClean();
 }
 
 void EditorTest::documentPersistence()

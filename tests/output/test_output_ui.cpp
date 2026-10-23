@@ -1,3 +1,4 @@
+#include <QDialog>
 #include "output/HardwareOutput.h"
 #include "protocol/MsiProtocol.h"
 #include <QCheckBox>
@@ -87,13 +88,14 @@ void OutputUiTest::applicationDevicePage()
     auto* panel=new OutputPanel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; },&window);
     window.installOutputPanel(panel); QObject::connect(panel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
     window.resize(1440,900); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
-    window.findChild<QAction*>("workspaceDevices")->trigger();
-    QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),1); QVERIFY(panel->isVisible());
+    window.findChild<QAction*>("reviewOutput")->trigger();
+    QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),0); QVERIFY(panel->isVisible());
     QCoreApplication::processEvents();
-    QVERIFY(!window.findChild<QToolBar*>("previewToolbar")->isVisible());
+    QVERIFY(window.findChild<QToolBar*>("previewToolbar")->isVisible());
     QVERIFY(!window.findChild<QDockWidget*>("hardwareOutputDock")); QVERIFY(!window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/application-devices.png"));
     panel->findChild<QPushButton*>("startOutput")->click(); QTRY_VERIFY(state(*panel,"Running")); QTRY_COMPARE(record->writes(),2);
+    window.findChild<QDialog*>("outputDialog")->hide();
     window.findChild<QAction*>("workspaceLayout")->trigger();
     auto* layout=window.findChild<LightingCanvas*>("layoutCanvas"); QVERIFY(layout->isVisible());
     QCOMPARE(layout->grab().toImage().pixelColor(layout->viewportPoint({320,200}).toPoint()),QColor("#252b35"));

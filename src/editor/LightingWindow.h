@@ -4,6 +4,7 @@
 #include "discovery/HardwareDiscovery.h"
 #include <QMainWindow>
 #include <QElapsedTimer>
+#include <QVariantMap>
 
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -43,6 +44,14 @@ protected:
     void closeEvent(QCloseEvent*) override;
 private:
     void refresh();
+    void scanHeaders();
+    void refreshHeader();
+    void addHeaderComponents();
+    ChannelAssignment selectedHeaderAssignment() const;
+    std::function<QVector<ProfileCandidate>()> scan_;
+    QVector<ProfileCandidate> discovered_;
+    QVariantMap selectedHeader_;
+    QLabel *headerTitle_, *headerSummary_;
     void refreshProperties();
     void updatePreview();
     void refreshPlacement();
@@ -60,7 +69,6 @@ private:
     QTabWidget* inspectorTabs_;
     QLabel* inspectorTitle_;
     QLabel* previewOverview_;
-    QTreeWidget* assignments_;
     QComboBox *catalog_, *blend_;
     QComboBox* effectType_;
     QComboBox* previewChannel_;

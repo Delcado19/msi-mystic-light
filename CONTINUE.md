@@ -1,5 +1,27 @@
 # Implementation status
 
+## Header-based application workflow (2026-10-23)
+
+Supersedes the Devices-page navigation below. Layout opens first, discovers
+supported controllers read-only and displays every profile header in its sidebar.
+Select a header to append fan/strip quantities and explicit LED counts in one
+validated undo transaction. Chains appear as groups with individually selectable
+components; group drag/nudge moves the whole chain. Saved chains remain offline
+editable. Custom component tools remain in a collapsed library. Output controls
+open on demand from the toolbar; no permanent bottom panel or Devices dashboard.
+Session layout version 2 resets obsolete dock arrangements without losing projects.
+
+Validation: Release build/next and Debug build/multi pass 14/14 CTest each.
+Native Windows editor passes 30/30 and output UI 8/8. Regression coverage includes
+automatic/deduplicated discovery, atomic capacity rejection, fan/strip batching,
+component removal, group drag/nudge, undo/redo and saved offline chains. Native
+capture: docs/images/header-layout.png. The read-only scan identifies this machine's
+B850 Edge TI and one matching endpoint. No HID reports were written.
+Updated build/dist/LightingStudio and its ZIP; source/folder/archive EXE bytes
+match, ZIP CRC validation passes, packaged --inspect exits 0. Start-Lighting.cmd
+selects this prepared folder. Physical colors/calibration remain unqualified.
+
+
 ## Unified application and complete color/property editing (2026-10-23)
 
 - Single app navigation: Devices (startup), Layout and Effects. Output is embedded

@@ -34,6 +34,10 @@
 #include <QTabWidget>
 #include <QToolBar>
 #include <QTimer>
+#include <QDialogButtonBox>
+#include <QTreeWidgetItemIterator>
+#include <QSet>
+#include <cmath>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QTreeWidget>
@@ -145,16 +149,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     tabs_->addTab(effectsCanvas_, "Effects");
     applicationPages_=new QStackedWidget; applicationPages_->setObjectName("applicationPages");
     applicationPages_->addWidget(tabs_); setCentralWidget(applicationPages_);
-    auto* devicesPage=new QWidget; devicesPage->setObjectName("devicesPage");
-    auto* devicesLayout=new QVBoxLayout(devicesPage); devicesLayout->setContentsMargins(24,20,24,20);
-    auto* devicesTitle=new QLabel("Devices & output"); devicesTitle->setProperty("heading",true); devicesLayout->addWidget(devicesTitle);
-    auto* devicesHint=new QLabel("Choose your controller and channels here. Arrange components in Layout and create their lighting in Effects.");
-    devicesHint->setWordWrap(true); devicesHint->setProperty("muted",true); devicesLayout->addWidget(devicesHint);
-    auto* deviceColumns=new QHBoxLayout; devicesLayout->addLayout(deviceColumns,1);
-    auto* deviceSettings=new QWidget; auto* deviceSettingsLayout=new QVBoxLayout(deviceSettings);
-    auto* deviceOutput=new QWidget; deviceOutput_=new QVBoxLayout(deviceOutput);
-    deviceColumns->addWidget(deviceSettings,1); deviceColumns->addWidget(deviceOutput,1);
-    applicationPages_->addWidget(devicesPage);
+    auto* outputDialog=new QDialog(this); outputDialog->setObjectName("outputDialog");
+    outputDialog->setWindowTitle("Hardware output"); outputDialog->resize(760,540);
+    deviceOutput_=new QVBoxLayout(outputDialog);
+    connect(this,&LightingWindow::outputRequested,outputDialog,[outputDialog] { outputDialog->show(); outputDialog->raise(); outputDialog->activateWindow(); });
 
     auto* dock = new QDockWidget("Properties", this); dock->setObjectName("propertiesDock");
     dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -218,27 +216,43 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             statusBar()->showMessage("Imported component definition. Select it and add an instance to Layout.", 6000);
         } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
     });
-    button(layoutControls, "Remove selected component", [this] {
+    auto* removeComponent=button(layoutControls, "Remove selected component", [this] {
         const auto id = layoutCanvas_->selection();
         if (id.isNull()) return;
         try {
             document_.edit("Remove component", [&](LightingState& state) {
+                for(auto& assignment:state.assignments) assignment.placements.removeAll(id);
+                // An empty direct chain has no samples; remove its output scope and layer references atomically.
+                QSet<QUuid> empty;
+                for(const auto& assignment:state.assignments) if(assignment.software && assignment.placements.isEmpty()) empty.insert(assignment.id);
+                state.assignments.removeIf([&](const auto& assignment) { return empty.contains(assignment.id); });
+                for(auto& layer:state.layers) for(const auto& removed:empty) layer.channelTargets.removeAll(removed);
                 state.placements.removeIf([&](const auto& placement) { return placement.id == id; });
             });
             layoutCanvas_->select({});
         } catch (const std::exception& error) {
-            statusBar()->showMessage("Remove this instance from its channel chain first. " + QString::fromUtf8(error.what()), 6000);
+            statusBar()->showMessage("Cannot remove component: " + QString::fromUtf8(error.what()), 6000);
         }
     });
-    // Component actions live beside the component list; precision controls stay in the inspector.
-    while(auto* item=layoutControls->takeAt(0)) { if(item->widget()) componentStack->addWidget(item->widget()); delete item; }
+    removeComponent->setObjectName("removeComponent");
+    auto* library=new QWidget; auto* libraryControls=new QVBoxLayout(library); libraryControls->setContentsMargins(0,0,0,0);
+    while(auto* item=layoutControls->takeAt(0)) { if(item->widget()) libraryControls->addWidget(item->widget()); delete item; }
+    disclosure(componentStack,"Component library",library);
     components_=new QTreeWidget; components_->setObjectName("layoutComponents");
-    components_->setHeaderHidden(true); components_->setRootIsDecorated(false); componentStack->insertWidget(1,components_,1);
+    components_->setHeaderHidden(true); components_->setRootIsDecorated(true); componentStack->insertWidget(0,components_,1);
     connect(components_,&QTreeWidget::currentItemChanged,this,[this](QTreeWidgetItem* item) {
-        if(item) layoutCanvas_->select(item->data(0,Qt::UserRole).toUuid());
+        if(item) {
+            layoutCanvas_->select(item->data(0,Qt::UserRole).toUuid());
+            auto* header=item->parent() ? item->parent() : item;
+            selectedHeader_=header->data(0,Qt::UserRole+1).toMap();
+            refreshHeader();
+        }
+    });
+    connect(components_,&QTreeWidget::itemClicked,this,[this](QTreeWidgetItem* item,int) {
+        layoutCanvas_->select(item->data(0,Qt::UserRole).toUuid());
     });
     auto* layoutTitle=new QLabel("Arrange your lighting"); layoutTitle->setProperty("heading",true); layoutControls->addWidget(layoutTitle);
-    auto* layoutHint=new QLabel("Select a component, then drag it on the canvas.\nUse the handles for effect layers in Effects.");
+    auto* layoutHint=new QLabel("Select a header to move its group, or a child to move one component.");
     layoutHint->setWordWrap(true); layoutHint->setProperty("muted",true); layoutControls->addWidget(layoutHint);
     auto* placementPrecision=new QWidget; auto* placementForm = new QFormLayout(placementPrecision);
     auto* placementSection=disclosure(layoutControls,"Precise placement",placementPrecision);
@@ -273,90 +287,37 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     }
     connect(layoutCanvas_, &LightingCanvas::selectionChanged, this, [this] {
         refreshPlacement(); const QSignalBlocker block(components_);
-        for(int i=0;i<components_->topLevelItemCount();++i) if(components_->topLevelItem(i)->data(0,Qt::UserRole).toUuid()==layoutCanvas_->selection()) components_->setCurrentItem(components_->topLevelItem(i));
+        for(QTreeWidgetItemIterator it(components_); *it; ++it)
+            if(!layoutCanvas_->selection().isNull() && (*it)->data(0,Qt::UserRole).toUuid()==layoutCanvas_->selection()) {
+                components_->setCurrentItem(*it); auto* header=(*it)->parent() ? (*it)->parent() : *it;
+                if(header) selectedHeader_=header->data(0,Qt::UserRole+1).toMap();
+            }
+        refreshHeader();
     });
+    layoutControls->addWidget(removeComponent);
     auto* instructions = new QLabel("Drag LEDs to move their component.\nArrow keys move; Shift moves by 10.\nWheel zooms; middle drag pans.\n\nLayout changes sampling positions only.");
     instructions->setWordWrap(true);
+    instructions->setProperty("muted",true);
     layoutControls->addWidget(instructions);
     layoutControls->addStretch();
 
-    auto* hardwarePage=new QWidget; auto* hardwareControls=new QVBoxLayout(hardwarePage);
-    hardwareControls->setContentsMargins(12,12,12,12); hardwareControls->setSpacing(10);
-    // Candidate selection is explicit and staged only: no transport is opened here.
-    auto* candidates = new QComboBox;
-    candidates->setObjectName("profileCandidates");
-    candidates->addItem("Scan to find supported controllers");
-    candidates->setToolTip("Read-only discovery lists exact controller interfaces matching an installed profile. Choose the controller you want to configure.");
-    candidates->setMinimumContentsLength(16);
-    candidates->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    button(hardwareControls, "Scan supported devices", [this, scan, candidates] {
-        candidates->clear();
+    // Match the original studio: headers beside the layout, settings beside the selection.
+    auto* headerPanel=new QWidget; auto* headerControls=new QVBoxLayout(headerPanel);
+    headerControls->setContentsMargins(0,0,0,0);
+    headerTitle_=new QLabel("Select a header"); headerTitle_->setProperty("heading",true); headerControls->addWidget(headerTitle_);
+    headerSummary_=new QLabel; headerSummary_->setWordWrap(true); headerSummary_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); headerControls->addWidget(headerSummary_);
+    button(headerControls,"Add fans / strips",[this] { addHeaderComponents(); })->setObjectName("addHeaderComponents");
+    button(headerControls,"Header settings",[this] {
+        if(selectedHeader_.isEmpty()) return;
         try {
-            const auto found = scan();
-            candidates->addItem("Select profile / endpoint…");
-            for (const auto& candidate : found) {
-                const auto& device = candidate.device;
-                candidates->addItem(QString("%1 · interface %2 · %3").arg(candidate.profileId).arg(device.interfaceNumber).arg(device.path),
-                    QVariantMap{{"profileId", candidate.profileId}, {"path", device.path}});
-                candidates->setItemData(candidates->count() - 1, device.path, Qt::ToolTipRole);
-            }
-            statusBar()->showMessage(QString("%1 profile/endpoint candidates (read-only scan).").arg(found.size()));
-        } catch (const std::exception& error) {
-            QMessageBox::warning(this, "Discovery failed", QString::fromUtf8(error.what()));
-        }
-    });
-    hardwareControls->addWidget(new QLabel("Controller"));
-    hardwareControls->addWidget(candidates);
-    auto* channelChoice = new QComboBox; channelChoice->setObjectName("profileChannels");
-    hardwareControls->addWidget(new QLabel("Channel / physical port"));
-    hardwareControls->addWidget(channelChoice);
-    connect(candidates, &QComboBox::currentIndexChanged, this, [this,candidates,channelChoice] {
-        channelChoice->clear();
-        const auto profileId=candidates->currentData().toMap().value("profileId").toString();
-        for(const auto& profile:document_.profiles()) if(profile.id==profileId)
-            for(const auto& channel:profile.channels) channelChoice->addItem(channel.id,channel.id);
-    });
-    auto* configureChannel=button(hardwareControls, "Configure channel", [this,candidates,channelChoice] {
-        if(channelChoice->currentIndex()<0) return;
-        const auto data=candidates->currentData().toMap();
-        ChannelAssignment assignment; assignment.endpoint=data.value("path").toString();
-        assignment.profileId=data.value("profileId").toString(); assignment.channelId=channelChoice->currentData().toString();
-        for(const auto& existing:document_.state().assignments)
-            if(existing.endpoint==assignment.endpoint && existing.channelId==assignment.channelId && existing.profileId==assignment.profileId) assignment=existing;
-        try {
-            ChannelEditor editor(document_,assignment,this);
+            ChannelEditor editor(document_,selectedHeaderAssignment(),this);
             if(editor.exec()==QDialog::Accepted) document_.assignChannel(editor.assignment());
         } catch(const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
-    });
-    configureChannel->setEnabled(false);
-    connect(channelChoice,&QComboBox::currentIndexChanged,configureChannel,[configureChannel](int index) { configureChannel->setEnabled(index>=0); });
-    assignments_=new QTreeWidget; assignments_->setObjectName("channelAssignments");
-    assignments_->setHeaderLabels({"Channel", "Mode", "Instances"}); assignments_->setMinimumHeight(80); assignments_->setMaximumHeight(200);
-    hardwareControls->addWidget(assignments_);
-    button(hardwareControls, "Edit assigned channel", [this] {
-        if(!assignments_->currentItem()) return;
-        const auto id=assignments_->currentItem()->data(0,Qt::UserRole).toUuid();
-        // Copy before opening the dialog; its accepted edit can invalidate document references.
-        for(const auto assignment:document_.state().assignments) if(assignment.id==id) {
-            try {
-                ChannelEditor editor(document_,assignment,this);
-                if(editor.exec()==QDialog::Accepted) document_.assignChannel(editor.assignment());
-            } catch(const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
-            break;
-        }
-    });
-    button(hardwareControls, "Remove channel assignment", [this] {
-        if(!assignments_->currentItem()) return;
-        const auto id=assignments_->currentItem()->data(0,Qt::UserRole).toUuid();
-        document_.edit("Remove channel assignment", [&](LightingState& state) {
-            state.assignments.removeIf([&](const auto& item) { return item.id==id; });
-            for(auto& layer:state.layers) layer.channelTargets.removeAll(id);
-        });
-    });
-    hardwareControls->addWidget(new QLabel("Assignments alone do not connect or write hardware."));
-
-    hardwareControls->addStretch();
-    deviceSettingsLayout->addWidget(hardwarePage);
+    })->setObjectName("headerSettings");
+    layoutControls->insertWidget(0,headerPanel);
+    button(componentStack,"Refresh headers",[this] { scanHeaders(); })->setObjectName("refreshHeaders");
+    scan_=std::move(scan);
+    QTimer::singleShot(0,this,[this] { scanHeaders(); });
 
     auto* previewToolbar = addToolBar("Preview"); previewToolbar->setObjectName("previewToolbar");
     playing_ = new QPushButton("Play"); playing_->setCheckable(true); playing_->setObjectName("playPreview");
@@ -754,7 +715,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(effectsCanvas_,&LightingCanvas::addRequested,this,[this] {
         for(auto* control:findChildren<QPushButton*>()) if(control->text()=="New layer") { control->click(); break; }
     });
-    connect(layoutCanvas_,&LightingCanvas::addRequested,this,[this] { findChild<QPushButton*>("addComponent")->click(); });
+    connect(layoutCanvas_,&LightingCanvas::addRequested,this,[this] { addHeaderComponents(); });
     connect(&document_, &LightingDocument::changed, this, &LightingWindow::refresh);
     connect(document_.history(), &QUndoStack::cleanChanged, this, [this](bool clean) { setWindowModified(!clean); });
     setWindowTitle("Lighting Studio[*] — MSI Mystic Light Standalone");
@@ -768,22 +729,16 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     auto* navigation=addToolBar("Workspace"); navigation->setObjectName("workspaceNavigation"); navigation->setMovable(false);
     insertToolBar(toolbar,navigation); auto* group=new QActionGroup(this); group->setExclusive(true);
-    const QStringList sections{"Devices", "Layout", "Effects"};
-    for(int index=0;index<3;++index) {
+    const QStringList sections{"Layout", "Effects"};
+    for(int index=0;index<2;++index) {
         auto* action=navigation->addAction(sections[index]); action->setObjectName("workspace"+sections[index]); action->setCheckable(true); group->addAction(action);
-        connect(action,&QAction::triggered,this,[this,index,sidebarDock,dock,tools,previewToolbar] {
-            applicationPages_->setCurrentIndex(index==0 ? 1 : 0);
-            sidebarDock->setVisible(index!=0); dock->setVisible(index!=0);
-            sidebarDock->toggleViewAction()->setEnabled(index!=0); dock->toggleViewAction()->setEnabled(index!=0);
-            previewToolbar->setVisible(index==2);
-            tools->setVisible(index==2); if(index!=0) tabs_->setCurrentIndex(index-1);
+        connect(action,&QAction::triggered,this,[this,index,tools,previewToolbar] {
+            tabs_->setCurrentIndex(index); previewToolbar->show(); tools->setVisible(index==1);
         });
-        if(index==2) action->setChecked(true);
     }
-    connect(this,&LightingWindow::outputRequested,this,[this] { findChild<QAction*>("workspaceDevices")->trigger(); });
     connect(tabs_,&QTabWidget::currentChanged,this,[this](int index) { findChild<QAction*>(index==0 ? "workspaceLayout" : "workspaceEffects")->setChecked(true); });
     tabs_->tabBar()->hide();
-    tabs_->setCurrentIndex(1);
+    findChild<QAction*>("workspaceLayout")->trigger();
     resizeDocks({sidebarDock,dock},{260,390},Qt::Horizontal);
     installParameterTooltips(this);
     refresh();
@@ -802,11 +757,113 @@ void LightingWindow::updateLayer(const QString& label, const std::function<void(
     }
 }
 
+void LightingWindow::scanHeaders()
+{
+    try {
+        discovered_=scan_(); refresh();
+        statusBar()->showMessage(discovered_.isEmpty() ? "No supported controller detected. Saved layouts remain available." : "Controllers detected. Select a header to attach fans and strips.");
+    } catch(const std::exception& error) {
+        statusBar()->showMessage("Header discovery failed: "+QString::fromUtf8(error.what()));
+    }
+}
+
+ChannelAssignment LightingWindow::selectedHeaderAssignment() const
+{
+    ChannelAssignment result; result.profileId=selectedHeader_.value("profileId").toString();
+    result.endpoint=selectedHeader_.value("path").toString(); result.channelId=selectedHeader_.value("channelId").toString();
+    for(const auto& assignment:document_.state().assignments)
+        if(assignment.profileId==result.profileId && assignment.endpoint==result.endpoint && assignment.channelId==result.channelId) return assignment;
+    const auto& channel=assignmentChannel(assignmentProfile(document_.profiles(),result.profileId),result.channelId);
+    result.software=channel.direct;
+    if(!channel.nativeModes.isEmpty()) result.native.id=channel.nativeModes.first();
+    return result;
+}
+
+void LightingWindow::refreshHeader()
+{
+    const bool selected=!selectedHeader_.isEmpty();
+    findChild<QPushButton*>("addHeaderComponents")->setEnabled(selected);
+    findChild<QPushButton*>("headerSettings")->setEnabled(selected);
+    if(!selected) { headerTitle_->setText("No header selected"); headerSummary_->setText("Detected headers appear on the left. Select one to attach your components."); return; }
+    const auto assignment=selectedHeaderAssignment();
+    const auto& profile=assignmentProfile(document_.profiles(),assignment.profileId);
+    const auto& channel=assignmentChannel(profile,assignment.channelId);
+    int leds=0;
+    for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements)
+        if(placement.id==id) leds+=document_.catalog()[placement.componentId].positions.size();
+    headerTitle_->setText(assignment.channelId);
+    headerSummary_->setText(QString("%1\n%2 components / %3 of %4 LEDs\n%5").arg(profile.name).arg(assignment.placements.size()).arg(leds).arg(channel.maxLeds)
+        .arg(channel.direct ? "Effects canvas supported" : "Native lighting only"));
+}
+
+void LightingWindow::addHeaderComponents()
+{
+    if(selectedHeader_.isEmpty()) { statusBar()->showMessage("Select a detected header on the left, or refresh headers after connecting your controller."); return; }
+    const auto assignment=selectedHeaderAssignment();
+    const auto& channel=assignmentChannel(assignmentProfile(document_.profiles(),assignment.profileId),assignment.channelId);
+    QDialog dialog(this); dialog.setObjectName("attachComponentsDialog"); dialog.setWindowTitle("Attach components to "+assignment.channelId);
+    auto* layout=new QVBoxLayout(&dialog);
+    auto* hint=new QLabel("Enter the components connected in physical chain order: fans first, then strips. LED counts must match your hardware.");
+    hint->setWordWrap(true); layout->addWidget(hint);
+    auto* form=new QFormLayout; layout->addLayout(form);
+    auto spin=[&](const QString& name,const QString& label,int minimum,int maximum,int value) {
+        auto* control=new QSpinBox; control->setObjectName(name); control->setRange(minimum,maximum); control->setValue(value); form->addRow(label,control); return control;
+    };
+    auto* fans=spin("fanCount","Fans",0,64,1);
+    auto* fanLeds=spin("fanLeds","LEDs per fan",1,channel.maxLeds,8);
+    auto* strips=spin("stripCount","Strips",0,64,0);
+    auto* stripLeds=spin("stripLeds","LEDs per strip",1,channel.maxLeds,8);
+    fans->setToolTip("Number of fans to append to this header's physical chain.");
+    strips->setToolTip("Number of strips to append after the fans. Reorder the chain in Header settings if needed.");
+    fanLeds->setToolTip("Actual addressable LED count of each fan; use the manufacturer's specification.");
+    stripLeds->setToolTip("Actual addressable LED count of each strip; total LEDs must fit this header's capacity.");
+    auto* error=new QLabel; error->setObjectName("attachError"); error->setWordWrap(true); layout->addWidget(error);
+    auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel); layout->addWidget(buttons);
+    buttons->button(QDialogButtonBox::Ok)->setText("Attach components");
+    connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
+    connect(buttons,&QDialogButtonBox::accepted,&dialog,[&,assignment] {
+        if(fans->value()+strips->value()==0) { error->setText("Choose at least one component."); return; }
+        try {
+            // Geometry, chain and instances share one undo command; capacity failure leaves everything untouched.
+            document_.edit("Attach fans and strips",[&](LightingState& state) {
+                auto updated=assignment;
+                for(int kind=0;kind<2;++kind) {
+                    const int count=kind==0 ? fans->value() : strips->value(), leds=kind==0 ? fanLeds->value() : stripLeds->value();
+                    if(count==0) continue;
+                    ComponentDefinition definition; definition.id=QString("generic.%1.%2").arg(kind==0 ? "fan" : "strip").arg(leds);
+                    definition.name=QString("%1 (%2 LEDs)").arg(kind==0 ? "Fan" : "Strip").arg(leds);
+                    // Catalog units become 20 canvas pixels in componentPoints().
+                    for(int led=0;led<leds;++led) {
+                        const double angle=6.283185307179586*led/leds;
+                        definition.positions.append(kind==0 ? QPointF(1.3+1.3*std::cos(angle),1.3+1.3*std::sin(angle)) : QPointF(led*0.4,0));
+                        definition.mapping.append(led);
+                    }
+                    // Existing document geometry with this ID remains authoritative.
+                    if(!state.components.contains(definition.id)) state.components.insert(definition.id,definition);
+                    else if(state.components[definition.id].positions.size()!=leds)
+                        throw std::invalid_argument("Existing component geometry has a different LED count; edit it in Component library first");
+                    for(int n=0;n<count;++n) {
+                        ComponentPlacement placement; placement.componentId=definition.id;
+                        const int index=state.placements.size(); placement.origin={40.0+(index%7)*80,40.0+(index/7)*80};
+                        state.placements.append(placement); updated.placements.append(placement.id);
+                    }
+                }
+                bool replaced=false;
+                for(auto& existing:state.assignments) if(existing.id==updated.id) { existing=updated; replaced=true; }
+                if(!replaced) state.assignments.append(updated);
+            });
+            dialog.accept();
+        } catch(const std::exception& failure) { error->setText(QString::fromUtf8(failure.what())); }
+    });
+    installParameterTooltips(&dialog); dialog.exec();
+}
+
 void LightingWindow::refreshPlacement()
 {
     const ComponentPlacement* selected = nullptr;
     for (const auto& placement : document_.state().placements)
         if (placement.id == layoutCanvas_->selection()) selected = &placement;
+    findChild<QPushButton*>("removeComponent")->setEnabled(selected!=nullptr);
     for (int i = 0; i < placementControls_.size(); ++i) {
         const QSignalBlocker block(placementControls_[i]);
         placementControls_[i]->setEnabled(selected != nullptr);
@@ -823,20 +880,47 @@ void LightingWindow::refresh()
     refreshPlacement();
     {
         const QSignalBlocker block(components_); components_->clear();
-        for(const auto& placement:document_.state().placements) {
-            auto* item=new QTreeWidgetItem(components_,{document_.catalog()[placement.componentId].name});
-            item->setData(0,Qt::UserRole,placement.id);
-            if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(item);
+        QVector<QVariantMap> headers;
+        auto append=[&](const QString& profile,const QString& endpoint,const QString& channel) {
+            QVariantMap data{{"profileId",profile},{"path",endpoint},{"channelId",channel}};
+            if(!headers.contains(data)) headers.append(data);
+        };
+        for(const auto& candidate:discovered_)
+            for(const auto& profile:document_.profiles()) if(profile.id==candidate.profileId)
+                for(const auto& channel:profile.channels) append(profile.id,candidate.device.path,channel.id);
+        // Saved chains stay editable while disconnected; discovery never rewrites their exact endpoint.
+        for(const auto& assignment:document_.state().assignments) append(assignment.profileId,assignment.endpoint,assignment.channelId);
+        QSet<QUuid> assigned;
+        for(const auto& data:headers) {
+            bool online=false;
+            for(const auto& candidate:discovered_) if(candidate.profileId==data["profileId"] && candidate.device.path==data["path"]) online=true;
+            auto* group=new QTreeWidgetItem(components_,{data["channelId"].toString()+(online ? "" : " (offline)")});
+            group->setData(0,Qt::UserRole+1,data); group->setExpanded(true);
+            const auto& profile=assignmentProfile(document_.profiles(),data["profileId"].toString());
+            group->setToolTip(0,profile.name+"\n"+data["path"].toString());
+            if(data==selectedHeader_) components_->setCurrentItem(group);
+            for(const auto& assignment:document_.state().assignments)
+                if(assignment.profileId==data["profileId"] && assignment.endpoint==data["path"] && assignment.channelId==data["channelId"]) {
+                    group->setData(0,Qt::UserRole,assignment.id);
+                    for(int i=0;i<assignment.placements.size();++i)
+                        for(const auto& placement:document_.state().placements) if(placement.id==assignment.placements[i]) {
+                            assigned.insert(placement.id);
+                            auto* child=new QTreeWidgetItem(group,{QString::number(i+1)+". "+document_.catalog()[placement.componentId].name});
+                            child->setData(0,Qt::UserRole,placement.id);
+                            if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);
+                        }
+                }
         }
+        QTreeWidgetItem* unassigned=nullptr;
+        for(const auto& placement:document_.state().placements) if(!assigned.contains(placement.id)) {
+            if(!unassigned) { unassigned=new QTreeWidgetItem(components_,{"Unassigned components"}); unassigned->setExpanded(true); }
+            auto* child=new QTreeWidgetItem(unassigned,{document_.catalog()[placement.componentId].name});
+            child->setData(0,Qt::UserRole,placement.id);
+            if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);
+        }
+        if(selectedHeader_.isEmpty() && !headers.isEmpty()) { selectedHeader_=headers.first(); components_->setCurrentItem(components_->topLevelItem(0)); }
     }
-    const auto selectedAssignment=assignments_->currentItem() ? assignments_->currentItem()->data(0,Qt::UserRole).toUuid() : QUuid{};
-    assignments_->clear();
-    assignments_->setFixedHeight(std::clamp(40+int(document_.state().assignments.size())*32,80,200));
-    for(const auto& assignment:document_.state().assignments) {
-        auto* item=new QTreeWidgetItem(assignments_,{assignment.channelId,assignment.software ? "Software" : "Native",QString::number(assignment.placements.size())});
-        item->setData(0,Qt::UserRole,assignment.id); item->setToolTip(0,assignment.profileId+"\n"+assignment.endpoint);
-        if(assignment.id==selectedAssignment) assignments_->setCurrentItem(item);
-    }
+    refreshHeader();
     {
         const QSignalBlocker block(previewChannel_); const auto before=previewChannel_->currentData();
         previewChannel_->clear(); previewChannel_->addItem("All layers",QUuid{});
@@ -880,7 +964,7 @@ void LightingWindow::refresh()
 
 void LightingWindow::installOutputPanel(QWidget* panel)
 {
-    deviceOutput_->addWidget(new QLabel("Live output")); deviceOutput_->addWidget(panel); deviceOutput_->addStretch();
+    deviceOutput_->addWidget(panel);
 }
 
 void LightingWindow::setOutputState(const QString& state)

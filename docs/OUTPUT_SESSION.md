@@ -94,7 +94,7 @@ A single MSI software driver call may contain both arming and color reports,
 so stop cannot interrupt between those internal reports. Destruction joins the
 worker and can therefore wait for an in-flight OS call; no unsafe forced thread
 termination is used. Transport creation, writes, close and destruction all occur
-on the worker. The Devices page connection controls are described below.
+on the worker. The output window connection controls are described below.
 
 Scheduler tests use blocked fake factories/writes and the actual MSI module.
 They verify 100-frame replacement during startup, replacement during a slow
@@ -105,7 +105,7 @@ a hung OS driver, unplug notification or actual device behavior.
 
 ## GUI authorization and presence
 
-Devices > Review and start output starts one scheduler per endpoint after process-conflict
+Output > Review and start output starts one scheduler per endpoint after process-conflict
 resolution, fresh exact-path/profile discovery and an explicit report review.
 A memory-only transport serializes initial reports with the real module; no HID
 handle is opened for this proof. The dialog requires a consent checkbox. Worker
