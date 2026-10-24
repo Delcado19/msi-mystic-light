@@ -72,6 +72,8 @@ public:
     QUuid addPaintLayer();
     QUuid importImage(const QString& fileName);
     void defineComponent(const ComponentDefinition& component, bool replace = false);
+    // Isolates geometry for one placement; physical LED count and wire order stay unchanged.
+    void setComponentGeometry(const QUuid& placement, const QVector<QPointF>& positions);
     void importComponent(const QString& fileName);
     QUuid addComponent(const QString& componentId);
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;

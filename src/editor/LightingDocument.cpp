@@ -147,6 +147,28 @@ void LightingDocument::defineComponent(const ComponentDefinition& component, boo
     });
 }
 
+void LightingDocument::setComponentGeometry(const QUuid& id, const QVector<QPointF>& positions)
+{
+    edit("Edit device LED arrangement", [&](LightingState& state) {
+        auto placement = std::find_if(state.placements.begin(), state.placements.end(),
+            [&](const auto& item) { return item.id == id; });
+        if (placement == state.placements.end()) throw std::invalid_argument("Select a component first");
+        auto definition = state.components.value(placement->componentId);
+        if (positions.size() != definition.positions.size()) throw std::invalid_argument("Device LED count cannot change here");
+        definition.positions = positions;
+        // Copy-on-edit uses portable definitions without changing siblings or the saved project schema.
+        const QString localId = "instance." + id.toString(QUuid::WithoutBraces);
+        if (placement->componentId != localId && state.components.contains(localId))
+            throw std::invalid_argument("Device geometry ID already exists");
+        if (!state.components.contains(localId) && state.components.size() >= 256)
+            throw std::invalid_argument("Catalog limit: 256 definitions");
+        definition.id = localId;
+        definition = ComponentDefinition::fromJson(definition.toJson());
+        state.components.insert(localId, definition);
+        placement->componentId = localId;
+    });
+}
+
 void LightingDocument::importComponent(const QString& fileName)
 {
     defineComponent(loadComponentDefinition(fileName));

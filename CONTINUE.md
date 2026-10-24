@@ -1,5 +1,28 @@
 # Implementation status
 
+## Per-device LED arrangements restored (2026-10-24)
+
+Select a placement in Layout or Hardware and choose Edit LED arrangement. The
+existing visual geometry dialog now provides Line, Circle, Ellipse and Rectangle
+presets matching the original Component::arrange shape set, individual dragging,
+wheel zoom, Fit LEDs and Reset arrangement. Device mode hides the definition ID
+and locks name, LED count and wire mapping. Shared definition authoring remains
+available separately.
+
+LightingDocument::setComponentGeometry copies geometry into an instance-specific
+embedded definition, keeping sibling placements, wire order and project schema
+unchanged. Validation, sampling, undo and portable save/load use existing paths.
+Private definitions count toward the existing 256-definition limit; repeated
+edits of the same placement reuse its definition. No hardware write was performed
+by the agent; physical illumination remains unobserved.
+
+Validation: Release and Debug each pass 15/15 CTest; native Windows editor passes
+36/36. Regression exercises instance isolation, undo/redo, rejected count/unknown
+placement, portable reload, shape actions, reset, original wire-order sampling and
+the actual Layout action/dialog/commit path. Native dialog screenshot inspected.
+Portable folder and ZIP refreshed; CRC, hidapi entry and EXE byte equality pass.
+Packaged EXE SHA256: 6439eeb66c0feb06c90a29b8da5b3b8d46719c688242cb28c81243bf4bf57619.
+
 ## Draggable group labels and automatic canvas output (2026-10-24)
 
 The user's current instruction explicitly removes the report-approval checkbox

@@ -99,6 +99,7 @@ private slots:
     void channelControls();
     void componentSampling();
     void componentAuthoring();
+    void deviceLedArrangement();
     void componentEditor();
     void placementTransforms();
     void rgbaAndMask();
@@ -653,6 +654,64 @@ void EditorTest::channelControls()
     QCOMPARE(nativeEditor.assignment().native.colors.size(),2);
     nativeEditor.findChild<ColorListEditor*>("nativeColors")->setColors({QColor("#80112233")});
     QVERIFY_EXCEPTION_THROWN(nativeEditor.assignment(),std::invalid_argument);
+}
+
+void EditorTest::deviceLedArrangement()
+{
+    LightingDocument document(catalog());
+    const auto definition=catalog().first();
+    const auto first=document.addComponent(definition.id), second=document.addComponent(definition.id);
+    auto positions=definition.positions; positions[0]+=QPointF(2,3);
+    document.setComponentGeometry(first,positions);
+    const auto local=document.state().placements[0].componentId;
+    QVERIFY(local!=definition.id);
+    QCOMPARE(document.catalog()[local].positions,positions);
+    QCOMPARE(document.catalog()[local].mapping,definition.mapping);
+    QCOMPARE(document.state().placements[1].componentId,definition.id);
+    QCOMPARE(document.catalog()[definition.id].positions,definition.positions);
+    QImage frame(LightingDocument::canvasSize(),QImage::Format_ARGB32_Premultiplied); frame.fill(Qt::black);
+    const auto points=document.componentPoints(document.state().placements[0]);
+    for(int row=0;row<points.size();++row) frame.setPixelColor(points[row].toPoint(),QColor(40+row*20,70,110));
+    const auto sampled=document.sampleComponents(frame).value(first);
+    for(int row=0;row<points.size();++row)
+        QCOMPARE(sampled[definition.mapping[row]],QColor(40+row*20,70,110));
+    document.history()->undo();
+    QCOMPARE(document.state().placements[0].componentId,definition.id);
+    QVERIFY(!document.catalog().contains(local));
+    document.history()->redo();
+    const auto index=document.history()->index();
+    QVERIFY_EXCEPTION_THROWN(document.setComponentGeometry(first,{}),std::invalid_argument);
+    QVERIFY_EXCEPTION_THROWN(document.setComponentGeometry(QUuid::createUuid(),positions),std::invalid_argument);
+    QCOMPARE(document.history()->index(),index);
+    QTemporaryDir directory; const auto file=directory.filePath("geometry.json"); document.save(file);
+    LightingDocument loaded({}); loaded.load(file);
+    QCOMPARE(loaded.catalog()[local].positions,positions);
+    QCOMPARE(loaded.state().placements[1].id,second);
+    ComponentEditor editor(definition,true,nullptr,true); editor.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    QVERIFY(!editor.findChild<QSpinBox*>("componentCount")->isEnabled());
+    for (const auto& shape:QStringList{"Line","Circle","Ellipse","Rectangle"}) {
+        auto* action=editor.findChild<QAction*>("arrange"+shape); QVERIFY(action); action->trigger();
+        const auto arranged=editor.component();
+        QCOMPARE(arranged.mapping,definition.mapping);
+        QCOMPARE(arranged.positions.size(),definition.positions.size());
+        for(const auto& point:arranged.positions) QVERIFY(std::isfinite(point.x()) && std::isfinite(point.y()));
+    }
+    editor.findChild<QPushButton*>("resetLedArrangement")->click();
+    QCOMPARE(editor.component().positions,definition.positions);
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+    const auto id=window.document().addComponent(definition.id);
+    window.findChild<LightingCanvas*>("layoutCanvas")->select(id);
+    QVERIFY(window.findChild<QPushButton*>("editLayoutLeds")->isEnabled());
+    QVERIFY(window.findChild<QPushButton*>("editHardwareLeds")->isEnabled());
+    QTimer::singleShot(0,&window,[&window] {
+        auto* dialog=window.findChild<QDialog*>();
+        QVERIFY(dialog);
+        dialog->findChild<QAction*>("arrangeCircle")->trigger();
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+    });
+    window.findChild<QPushButton*>("editLayoutLeds")->click();
+    QVERIFY(window.document().state().placements[0].componentId!=definition.id);
 }
 
 void EditorTest::componentAuthoring()

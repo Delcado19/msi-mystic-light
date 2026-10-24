@@ -24,6 +24,9 @@
 #include <cmath>
 #include <functional>
 #include <QTimer>
+#include <QHBoxLayout>
+#include <QToolButton>
+#include <QMenu>
 
 namespace {
 class GeometryView : public QGraphicsView {
@@ -39,27 +42,36 @@ protected:
     }
 };
 }
-ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existing, QWidget* parent)
+ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existing, QWidget* parent, bool instance)
     : QDialog(parent)
 {
-    setWindowTitle(existing ? "Edit component geometry" : "Create component");
+    setWindowTitle(instance ? "Arrange device LEDs" : existing ? "Edit component geometry" : "Create component");
     resize(760, 640);
     applyStudioStyle(this);
     auto* layout = new QVBoxLayout(this);
     auto* form = new QFormLayout; layout->addLayout(form);
-    auto* id = new QLineEdit(initial.id); id->setObjectName("componentId"); id->setReadOnly(existing);
+    auto* id = new QLineEdit(initial.id, this); id->setObjectName("componentId"); id->setReadOnly(existing);
     auto* name = new QLineEdit(initial.name); name->setObjectName("componentName");
     auto* count = new QSpinBox; count->setObjectName("componentCount");
     count->setRange(1, 65535); count->setKeyboardTracking(false);
     count->setValue(qMax(1, int(initial.positions.size())));
-    form->addRow("Stable ID", id); form->addRow("Name", name); form->addRow("LED count", count);
-    auto* note = new QLabel("Drag LEDs to arrange the component; wheel zooms. Numbers show the physical wire order. "
+    if (!instance) form->addRow("Stable ID", id);
+    else id->hide();
+    name->setReadOnly(instance); count->setEnabled(!instance);
+    form->addRow("Name", name); form->addRow("LED count", count);
+    auto* note = new QLabel(instance ? "Arrange LEDs using a shape, then drag individual LEDs to refine. Numbers show physical wire order. Only this device changes." : "Drag LEDs to arrange the component; wheel zooms. Numbers show the physical wire order. "
         "Use Coordinates for exact positions or wire mapping. Editing a definition changes all its instances.");
     note->setWordWrap(true); layout->addWidget(note);
     auto* table = new QTableWidget(0, 3); table->setObjectName("componentLeds");
     table->setHorizontalHeaderLabels({"X", "Y", "Wire index"});
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    if (instance) table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    auto* arrangement = new QHBoxLayout; layout->addLayout(arrangement);
+    auto* shape = new QToolButton; shape->setObjectName("ledArrangementShapes"); shape->setText("Arrange LEDs");
+    shape->setPopupMode(QToolButton::InstantPopup); auto* shapes = new QMenu(shape); shape->setMenu(shapes);
+    shape->setToolTip("Arrange this device's LED positions using a shape; physical wire order is preserved");
+    arrangement->addWidget(shape); arrangement->addStretch();
     auto* tabs=new QTabWidget; tabs->setObjectName("componentViews"); layout->addWidget(tabs,1);
     auto* geometry=new GeometryView; geometry->setObjectName("componentGeometry");
     auto* scene=new QGraphicsScene(geometry); geometry->setScene(scene); geometry->setRenderHint(QPainter::Antialiasing);
@@ -108,7 +120,53 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
     }
     connect(count, &QSpinBox::valueChanged, this, [resizeRows,rebuild](int rows) { resizeRows(rows); rebuild(); });
     connect(table,&QTableWidget::itemChanged,this,[rebuild] { rebuild(); });
-    auto* fit=new QPushButton("Fit LEDs"); layout->addWidget(fit); connect(fit,&QPushButton::clicked,this,rebuild);
+    for (const auto& label : QStringList{"Line", "Circle", "Ellipse", "Rectangle"}) {
+        auto* action = shapes->addAction(label); action->setObjectName("arrange" + label);
+        connect(action, &QAction::triggered, this, [table, geometry, rebuild, label] {
+            geometry->commit();
+            QRectF bounds;
+            for (int row=0; row<table->rowCount(); ++row) {
+                const QPointF point(table->item(row,0)->text().toDouble(), table->item(row,1)->text().toDouble());
+                if (!row) bounds=QRectF(point,QSizeF(0,0));
+                else bounds=QRectF(QPointF(qMin(bounds.left(),point.x()),qMin(bounds.top(),point.y())),
+                    QPointF(qMax(bounds.right(),point.x()),qMax(bounds.bottom(),point.y())));
+            }
+            const double width=qMax(4.0,bounds.width()), height=qMax(4.0,bounds.height());
+            const QSignalBlocker block(table);
+            for (int row=0; row<table->rowCount(); ++row) {
+                const double t=double(row)/table->rowCount(), angle=t*2*3.141592653589793-3.141592653589793/2;
+                QPointF point;
+                if (table->rowCount()==1) point={width/2,height/2};
+                else if (label=="Line") point={row*width/(table->rowCount()-1),0};
+                else if (label=="Circle" || label=="Ellipse")
+                    point={width/2+width/2*std::cos(angle),height/2+(label=="Circle" ? width : height)/2*std::sin(angle)};
+                else {
+                    const double edge=t*4, f=edge-int(edge);
+                    switch(int(edge)) {
+                    case 0: point={f*width,0}; break;
+                    case 1: point={width,f*height}; break;
+                    case 2: point={(1-f)*width,height}; break;
+                    default: point={0,(1-f)*height}; break;
+                    }
+                }
+                point+=bounds.topLeft();
+                table->item(row,0)->setText(QString::number(point.x(),'g',17));
+                table->item(row,1)->setText(QString::number(point.y(),'g',17));
+            }
+            rebuild();
+        });
+    }
+    auto* reset=new QPushButton("Reset arrangement"); reset->setObjectName("resetLedArrangement"); arrangement->addWidget(reset);
+    connect(reset,&QPushButton::clicked,this,[table,initial,rebuild] {
+        const QSignalBlocker block(table);
+        if (table->rowCount()!=initial.positions.size()) return;
+        for(int row=0;row<initial.positions.size();++row) {
+            table->item(row,0)->setText(QString::number(initial.positions[row].x(),'g',17));
+            table->item(row,1)->setText(QString::number(initial.positions[row].y(),'g',17));
+        }
+        rebuild();
+    });
+    auto* fit=new QPushButton("Fit LEDs"); arrangement->addWidget(fit); connect(fit,&QPushButton::clicked,this,rebuild);
     QTimer::singleShot(0,this,rebuild);
     auto* error = new QLabel; error->setObjectName("componentError"); error->setWordWrap(true);
     layout->addWidget(error);

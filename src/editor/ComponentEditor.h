@@ -2,9 +2,9 @@
 #include "components/ComponentCatalog.h"
 #include <QDialog>
 
-// Edits a document-owned definition; committing affects all instances of its ID.
+// Definition mode edits shared geometry; instance mode locks identity, count and wire mapping.
 class ComponentEditor : public QDialog {
 public:
-    ComponentEditor(const ComponentDefinition& initial, bool existing, QWidget* parent = nullptr);
+    ComponentEditor(const ComponentDefinition& initial, bool existing, QWidget* parent = nullptr, bool instance = false);
     ComponentDefinition component() const;
 };

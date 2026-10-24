@@ -257,6 +257,32 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardwareHelp=new QLabel("Select a detected header, then attach your fans and strips. Configure component definitions here; arrange their positions in Layout.");
     hardwareHelp->setWordWrap(true); hardwareControls->addWidget(hardwareHelp);
     disclosure(hardwareControls,"Custom component definitions",library);
+    const auto editDeviceLeds = [this] {
+        const auto id=layoutCanvas_->selection();
+        for (const auto& placement : document_.state().placements) if (placement.id==id) {
+            ComponentEditor editor(document_.catalog().value(placement.componentId), true, this, true);
+            if (editor.exec()==QDialog::Accepted) {
+                try { document_.setComponentGeometry(id, editor.component().positions); }
+                catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
+            }
+            return;
+        }
+    };
+    auto* editHardwareLeds=button(hardwareControls,"Edit LED arrangement",editDeviceLeds);
+    editHardwareLeds->setObjectName("editHardwareLeds");
+    auto* editLayoutLeds=button(layoutControls,"Edit LED arrangement",editDeviceLeds);
+    editLayoutLeds->setObjectName("editLayoutLeds");
+    const auto updateLedActions=[this,editHardwareLeds,editLayoutLeds] {
+        bool placed=false;
+        for (const auto& placement:document_.state().placements) if(placement.id==layoutCanvas_->selection()) placed=true;
+        for(auto* action:{editHardwareLeds,editLayoutLeds}) {
+            action->setEnabled(placed);
+            action->setToolTip("Select a device, then arrange its individual LEDs; other devices keep their geometry");
+        }
+    };
+    connect(layoutCanvas_,&LightingCanvas::selectionChanged,this,updateLedActions);
+    connect(&document_,&LightingDocument::changed,this,updateLedActions);
+    updateLedActions();
     auto* detachHardware=button(hardwareControls,"Remove selected component",[removeComponent] { removeComponent->click(); }); detachHardware->setObjectName("removeHardwareComponent"); detachHardware->setEnabled(false);
     connect(layoutCanvas_,&LightingCanvas::selectionChanged,detachHardware,[this,detachHardware] {
         bool placed=false; for(const auto& placement:document_.state().placements) if(placement.id==layoutCanvas_->selection()) placed=true;

@@ -35,3 +35,7 @@ bottom layer has no backdrop to blend with.
 Group labels in Layout are draggable: drag a header label to move its complete
 chain. Hardware has Stop output and Resume output; no report checkbox is required.
 Explicit Stop also cancels queued restarts and automatic connection retries.
+
+Select a component in Layout or Hardware, then Edit LED arrangement. Arrange LEDs
+offers Line/Circle/Ellipse/Rectangle; drag individual LEDs to refine. Only that
+device changes; physical LED count and wire order remain intact. Undo is supported.

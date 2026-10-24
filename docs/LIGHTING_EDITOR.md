@@ -457,3 +457,18 @@ backdrop to blend with; the tooltip explains this. No compositor replacement was
 needed. Live animated output is also tested through the UI timer, scheduler and
 real MSI serializer for both JARGB1/JARGB2 from a paused start. A recording transport
 confirms changing reports; actual device behavior remains a separate observation.
+
+### Per-device LED arrangement
+
+Select an individual component in Layout or Hardware and choose **Edit LED arrangement**.
+The **Arrange LEDs** menu provides Line, Circle, Ellipse and Rectangle templates;
+drag individual numbered LEDs to refine their positions, use the wheel to zoom,
+and **Fit LEDs** to frame the result. **Reset arrangement** restores the geometry
+from when the dialog opened. Cancel discards changes.
+
+This action changes only the selected device. LED count and physical wire order
+stay locked; sampling and hardware output use the new positions with the original
+wire mapping. Apply is one undo step and the arrangement is embedded in saved
+projects. Shared definition authoring remains under Hardware's custom component
+definitions. Device geometry uses a private embedded definition and counts toward
+the existing 256-definition project limit.
