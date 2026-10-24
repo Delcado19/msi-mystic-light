@@ -1,4 +1,5 @@
 #include "LightingCanvas.h"
+#include "SnapGrid.h"
 #include "StudioWidgets.h"
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -187,6 +188,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
                 }
         }
         painter.drawImage(0, 0, frame);
+        SnapGrid::load().paint(painter,QRectF(0,0,640,400).intersected(QRectF(canvasPoint({0,0}),canvasPoint({double(width()),double(height())}))),zoom_);
         if(maskTarget_ && tool_==MaskTool::Brush && underMouse()) {
             const auto cursor=canvasPoint(mapFromGlobal(QCursor::pos()));
             painter.setPen(QPen(QColor("#172337"),3/zoom_)); painter.setBrush(Qt::NoBrush); painter.drawEllipse(cursor,radius_,radius_);
@@ -229,6 +231,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     }
     // The same live raster explains sampling positions; Layout edits placements only.
     painter.drawImage(world,frame);
+    if(!previewOnly_) SnapGrid::load().paint(painter,world.intersected(QRectF(canvasPoint({0,0}),canvasPoint({double(width()),double(height())}))),zoom_);
     painter.setClipping(false);
     painter.setRenderHint(QPainter::Antialiasing);
     const auto placements=previewPlacements();
@@ -539,6 +542,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
     if (event->button() != Qt::LeftButton) return;
     if(minimapRect().contains(event->position())){cancelGesture();navigating_=true;navigateMinimap(event->position());return;}
     start_ = last_ = canvasPoint(event->position());
+    snapGesture_=SnapGrid::load().enabled && !(event->modifiers() & Qt::AltModifier);
     if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) return;
     if(context_==Context::Effects && drawingTool_!=Tool::Move) {
         emit effectGestureStarted();
@@ -549,6 +553,8 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
                 originalEffect_=workingEffect_=layer; dragging_=true; return;
             }
         }
+        if(snapGesture_ && drawingTool_!=Tool::Pencil && drawingTool_!=Tool::Eraser && drawingTool_!=Tool::Fill)
+            start_=last_=SnapGrid::load().snap(start_);
         beginDrawing(start_); return;
     }
     if (context_ == Context::Layout) {
@@ -601,6 +607,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
             if (handle) { originalEffect_=layer; workingEffect_=layer; handle_=handle; dragging_=true; }
         }
     } else if (maskTarget_) {
+        if(snapGesture_ && tool_==MaskTool::Gradient) start_=last_=SnapGrid::load().snap(start_);
         for (const auto& layer : document_.state().layers) if (layer.id == selected_) {
             workingMask_ = layer.mask;
             dragging_ = true;
@@ -616,14 +623,30 @@ void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
     if(navigating_){navigateMinimap(event->position());return;}
     if (panning_) { pan_ += event->position() - last_; last_ = event->position(); update(); return; }
     if (!dragging_) { if(maskTarget_) update(); return; }
-    const auto point = canvasPoint(event->position());
+    auto point = canvasPoint(event->position());
+    snapGesture_=SnapGrid::load().enabled && !(event->modifiers() & Qt::AltModifier);
+    if(snapGesture_) {
+        auto grid=SnapGrid::load();
+        if(context_==Context::Layout && handle_==0) {
+            // Snap one anchor and apply the same delta to every member; never distort a chain.
+            for(const auto& placement:document_.state().placements) if(selectedPlacement(placement.id)) {
+                point=start_+grid.snap(placement.origin+point-start_)-placement.origin; break;
+            }
+        } else if((drawing_ && drawingTool_!=Tool::Pencil && drawingTool_!=Tool::Eraser && drawingTool_!=Tool::Fill) ||
+                  (context_==Context::Layout && handle_!=5) ||
+                  (workingEffect_ && handle_!=6 && handle_!=5 && handle_!=9) ||
+                  (maskTarget_ && tool_==MaskTool::Gradient)) point=grid.snap(point);
+    }
     if(drawing_) { updateDrawing(point); last_=point; update(); return; }
     if (context_ == Context::Effects && maskTarget_ && tool_ == MaskTool::Brush)
         LightingDocument::paintMask(workingMask_, last_, point, radius_, hardness_, opacity_, gray_);
     last_ = point;
     if(context_==Context::Layout && handle_) {
         const auto a=start_-layoutBounds_.center(), b=point-layoutBounds_.center();
-        if(handle_==5) layoutRotation_=(std::atan2(b.y(),b.x())-std::atan2(a.y(),a.x()))*180/3.141592653589793;
+        if(handle_==5) {
+            layoutRotation_=(std::atan2(b.y(),b.x())-std::atan2(a.y(),a.x()))*180/3.141592653589793;
+            if(snapGesture_) layoutRotation_=SnapGrid{true,15}.snap(layoutRotation_);
+        }
         else {
             double minimum=.001, maximum=1000;
             for(const auto& placement:document_.state().placements) if(selectedPlacement(placement.id)) {
@@ -674,12 +697,14 @@ void LightingCanvas::updateEffectGesture(QPointF point)
         if (changed.crop.width()<0.001 || changed.crop.height()<0.001) return;
     } else if (handle_==6) {
         changed.center+=point-start_;
+        if(snapGesture_) changed.center=SnapGrid::load().snap(changed.center);
         changed.center.setX(std::clamp(changed.center.x(),-10000.0,10000.0));
         changed.center.setY(std::clamp(changed.center.y(),-10000.0,10000.0));
     } else if (handle_==5) {
         const auto center=transform.map(QPointF());
         const auto first=start_-center, last=point-center;
         changed.rotation=std::remainder(original.rotation+(std::atan2(last.y(),last.x())-std::atan2(first.y(),first.x()))*180/3.141592653589793,360.0);
+        if(snapGesture_) changed.rotation=SnapGrid{true,15}.snap(changed.rotation);
     } else {
         const auto local=transform.inverted().map(point);
         changed.extent={std::clamp(2*std::abs(local.x())*original.extent.width(),1.0,10000.0),
@@ -695,6 +720,7 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
     if(navigating_ && event->button()==Qt::LeftButton){navigating_=false;update();return;}
     if (event->button() == Qt::MiddleButton) { panning_ = false; update(); return; }
     if (event->button() != Qt::LeftButton || !dragging_) return;
+    if(canvasPoint(event->position())!=start_) mouseMoveEvent(event); // Include the final pointer position even without a preceding move event.
     const auto id = selected_;
     try {
     if(drawing_) {
@@ -764,7 +790,14 @@ void LightingCanvas::keyPressEvent(QKeyEvent* event)
         if (event->key() == Qt::Key_Up) delta.setY(-1);
         if (event->key() == Qt::Key_Down) delta.setY(1);
         if (!delta.isNull()) {
+            auto grid=SnapGrid::load(); grid.enabled=grid.enabled && !(event->modifiers() & Qt::AltModifier);
             if (event->modifiers() & Qt::ShiftModifier) delta *= 10;
+            if(grid.enabled) {
+                delta*=grid.spacing;
+                for(const auto& placement:document_.state().placements) if(selectedPlacement(placement.id)) {
+                    delta=grid.snap(placement.origin+delta)-placement.origin;break;
+                }
+            }
             document_.edit("Nudge component", [&](LightingState& state) {
                 for (auto& placement : state.placements) if (selectedPlacement(placement.id)) placement.origin += delta;
             });

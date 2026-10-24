@@ -1,5 +1,6 @@
 #include "editor/LightingWindow.h"
 #include "editor/ComponentEditor.h"
+#include "editor/SnapGrid.h"
 #include "editor/ChannelEditor.h"
 #include "editor/AppSession.h"
 #include "editor/StudioWidgets.h"
@@ -98,7 +99,23 @@ EffectLayer layer(QColor color)
 
 class EditorTest : public QObject {
     Q_OBJECT
+    QTemporaryDir settingsDirectory_;
 private slots:
+    void initTestCase() {
+        QVERIFY(settingsDirectory_.isValid());
+        QCoreApplication::setOrganizationName("LightingStudioTests");
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,settingsDirectory_.path());
+    }
+    void init() { SnapGrid{false,10}.save(); } // Legacy gesture tests exercise free placement; grid tests enable it explicitly.
+    void snapGridBoundaries();
+    void snapLayoutGroup();
+    void snapLayoutPositions_data();
+    void snapLayoutPositions();
+    void snapEffectAndGradient();
+    void snapLedArrangement();
+    void snapPaletteStops();
+    void snapControls();
     void drawingAndAnimationRegressions();
     void restoredLayoutAndDrawing();
     void legacyHardware();
@@ -1897,6 +1914,166 @@ void EditorTest::advancedControls()
     }
     QVERIFY(!window.findChild<QDoubleSpinBox*>("particleSeed")->isVisible());
     QVERIFY(window.grab().save(artifactDirectory()+"/editor-motion.png"));
+    window.document().history()->setClean();
+}
+
+void EditorTest::snapGridBoundaries()
+{
+    const SnapGrid grid{true,10};
+    QCOMPARE(grid.snap(QPointF(14.99,-14.99)),QPointF(10,-10));
+    QCOMPARE(grid.snap(QPointF(15,-15)),QPointF(20,-20));
+    QCOMPARE(grid.snap(QPointF(0,-0.01)),QPointF(0,0));
+    QCOMPARE((SnapGrid{false,10}.snap(13.25)),13.25);
+    QCOMPARE((SnapGrid{true,.1}.snap(std::numeric_limits<double>::max())),std::numeric_limits<double>::max());
+    for(double spacing:{0.,-1.,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()})
+        QCOMPARE((SnapGrid{true,spacing}.snap(13.25)),13.25);
+    QVERIFY(std::isnan(grid.snap(std::numeric_limits<double>::quiet_NaN())));
+    QSettings settings;
+    for(const QVariant value:{QVariant("garbage"),QVariant(-1),QVariant(0),QVariant(101),QVariant(std::numeric_limits<double>::infinity())}) {
+        settings.setValue("editor/gridSpacing",value);QCOMPARE(SnapGrid::load().spacing,10.);
+    }
+    for(int value:{1,100}) { settings.setValue("editor/gridSpacing",value);QCOMPARE(SnapGrid::load().spacing,double(value)); }
+    QImage image(100,100,QImage::Format_ARGB32);image.fill(Qt::black);QPainter painter(&image);
+    grid.paint(painter,QRectF(1e100,1e100,1e90,1e90),.001); // Huge coordinates must not hang the grid painter.
+}
+
+void EditorTest::snapLayoutGroup()
+{
+    SnapGrid{true,10}.save();
+    LightingDocument document(catalog(),nullptr,{channelProfile()});
+    const auto first=document.addComponent("test.strip"),second=document.addComponent("test.strip");
+    document.edit("Fixture",[&](auto& state){state.placements[0].origin={103,103};state.placements[1].origin={137,156};});
+    ChannelAssignment group;group.id=QUuid::createUuid();group.channelId="Direct";group.profileId="test.device";group.endpoint="test";
+    group.placements={first,second};group.software=true;document.assignChannel(group);
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);canvas.resize(900,600);canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.select(group.id);
+    const auto before=document.history()->count();
+    // A selected group's empty interior starts a group move without selecting a member.
+    const auto from=canvas.viewportPoint({123,140}).toPoint();
+    const auto to=canvas.viewportPoint({150,162}).toPoint();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);
+    QTest::mouseMove(&canvas,to);QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,to);
+    QCOMPARE(document.state().placements[0].origin,QPointF(130,130));
+    QCOMPARE(document.state().placements[1].origin,QPointF(164,183));
+    QCOMPARE(document.history()->count(),before+1);
+    document.history()->undo();QCOMPARE(document.state().placements[0].origin,QPointF(103,103));
+    canvas.select(first);QTest::keyClick(&canvas,Qt::Key_Left);
+    QCOMPARE(document.state().placements[0].origin,QPointF(90,100));
+    QCOMPARE(document.state().placements[1].origin,QPointF(137,156));
+    QTest::keyClick(&canvas,Qt::Key_Left,Qt::AltModifier);
+    QCOMPARE(document.state().placements[0].origin,QPointF(89,100));
+    QTest::keyClick(&canvas,Qt::Key_Right,Qt::ShiftModifier);
+    QCOMPARE(document.state().placements[0].origin,QPointF(190,100));
+}
+
+void EditorTest::snapEffectAndGradient()
+{
+    SnapGrid{true,10}.save();
+    LightingDocument document(catalog());const auto id=document.addLayer(EffectKind::Triangle);
+    document.edit("Fixture",[&](auto& state){state.layers[0].center={303,203};state.layers[0].extent={100,100};});
+    LightingCanvas canvas(document,LightingCanvas::Context::Effects);canvas.resize(900,600);canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.select(id);
+    auto from=canvas.viewportPoint({303,203}).toPoint(),to=canvas.viewportPoint({330,227}).toPoint();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);
+    QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,to); // Release-only displacement is not lost.
+    QCOMPARE(document.state().layers[0].center,QPointF(330,230));
+    document.history()->undo();QCOMPARE(document.state().layers[0].center,QPointF(303,203));
+    canvas.zoomBy(1.5);from=canvas.viewportPoint({303,203}).toPoint();to=canvas.viewportPoint({332,226}).toPoint();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::AltModifier,from);
+    QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::AltModifier,to);
+    QVERIFY(std::abs(document.state().layers[0].center.x()-332)<1);
+    QVERIFY(std::abs(document.state().layers[0].center.y()-226)<1);
+    document.history()->undo();
+    from=canvas.viewportPoint({253,153}).toPoint();to=canvas.viewportPoint({247,147}).toPoint();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);
+    QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,to);
+    QCOMPARE(document.state().layers[0].center,QPointF(303,203));
+    QCOMPARE(document.state().layers[0].extent,QSizeF(106,106));
+    document.history()->undo();
+    canvas.setTool(LightingCanvas::Tool::Gradient);
+    from=canvas.viewportPoint({253,154}).toPoint();to=canvas.viewportPoint({347,247}).toPoint();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);
+    QTest::mouseMove(&canvas,to);QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,to);
+    const auto& effect=document.state().layers[0];QVERIFY(effect.gradientFill);
+    QVERIFY(QLineF(effectTransform(effect).map(effect.gradientStart-QPointF(.5,.5)),QPointF(250,150)).length()<.001);
+    QVERIFY(QLineF(effectTransform(effect).map(effect.gradientEnd-QPointF(.5,.5)),QPointF(350,250)).length()<.001);
+}
+
+void EditorTest::snapLayoutPositions_data()
+{
+    QTest::addColumn<double>("zoom");QTest::addColumn<QPointF>("target");QTest::addColumn<QPointF>("expected");
+    QTest::addColumn<bool>("bypass");
+    QTest::newRow("negative-half-zoom")<<.5<<QPointF(-32,-22)<<QPointF(-30,-20)<<false;
+    QTest::newRow("negative-double-zoom")<<2.<<QPointF(-32,-22)<<QPointF(-30,-20)<<false;
+    QTest::newRow("positive-half-zoom")<<.5<<QPointF(132,122)<<QPointF(130,120)<<false;
+    QTest::newRow("positive-double-zoom")<<2.<<QPointF(132,122)<<QPointF(130,120)<<false;
+    QTest::newRow("alt-free")<<1.<<QPointF(132,122)<<QPointF(132,122)<<true;
+}
+
+void EditorTest::snapLayoutPositions()
+{
+    QFETCH(double,zoom);QFETCH(QPointF,target);QFETCH(QPointF,expected);QFETCH(bool,bypass);
+    SnapGrid{true,10}.save();LightingDocument document(catalog());const auto id=document.addComponent("test.strip");
+    document.edit("Fixture",[](auto& state){state.placements[0].origin={100,100};});
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);canvas.resize(900,600);canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.zoomBy(zoom);canvas.select(id);
+    const auto from=canvas.viewportPoint({100,100}),to=canvas.viewportPoint(target);
+    const auto modifiers=bypass ? Qt::AltModifier : Qt::NoModifier;
+    // Deliver exact world-derived coordinates, including off-viewport positions, without OS cursor rounding.
+    QMouseEvent press(QEvent::MouseButtonPress,from,canvas.mapToGlobal(from.toPoint()),Qt::LeftButton,Qt::LeftButton,modifiers);
+    QApplication::sendEvent(&canvas,&press);
+    QMouseEvent release(QEvent::MouseButtonRelease,to,canvas.mapToGlobal(to.toPoint()),Qt::LeftButton,Qt::NoButton,modifiers);
+    QApplication::sendEvent(&canvas,&release);
+    QVERIFY(QLineF(document.state().placements[0].origin,expected).length()<.0001);
+}
+
+void EditorTest::snapLedArrangement()
+{
+    SnapGrid{true,10}.save();
+    auto component=catalog().first();component.positions={{0,0},{3.25,0},{7,0}};
+    ComponentEditor editor(component,true);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    auto* view=editor.findChild<QGraphicsView*>("componentGeometry");
+    QTest::mouseClick(view->viewport(),Qt::LeftButton,Qt::NoModifier,view->mapFromScene({78,0}));
+    QCOMPARE(editor.component().positions,component.positions); // Selecting an off-grid LED must not move it.
+    auto from=view->mapFromScene({0,0}),to=view->mapFromScene({19,17});
+    QTest::mousePress(view->viewport(),Qt::LeftButton,Qt::NoModifier,from);
+    QTest::mouseMove(view->viewport(),to);QTest::mouseRelease(view->viewport(),Qt::LeftButton,Qt::NoModifier,to);
+    // 24 scene units = one component unit = 20 Layout pixels; 10 px snaps to half units.
+    QCOMPARE(editor.component().positions[0],QPointF(1,.5));
+    QCOMPARE(editor.component().positions[1],QPointF(3.25,0));
+    QCOMPARE(editor.component().mapping,component.mapping);
+}
+
+void EditorTest::snapPaletteStops()
+{
+    SnapGrid{true,10}.save();
+    ColorListEditor editor(2,10);editor.setGradientMode();editor.setColors({Qt::red,Qt::green,Qt::blue});editor.resize(600,350);editor.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&editor));auto* strip=editor.findChild<QWidget*>("colorStopBar");
+    const QPoint from(12+(strip->width()-24)/2,47),to(12+qRound((strip->width()-24)*.36),47);
+    QTest::mousePress(strip,Qt::LeftButton,Qt::NoModifier,from);QTest::mouseRelease(strip,Qt::LeftButton,Qt::NoModifier,to);
+    QVERIFY(std::abs(editor.positions()[1]-.4)<.0001);
+    QTest::mousePress(strip,Qt::LeftButton,Qt::AltModifier,QPoint(12+qRound((strip->width()-24)*.4),47));
+    QTest::mouseRelease(strip,Qt::LeftButton,Qt::AltModifier,to);
+    QVERIFY(std::abs(editor.positions()[1]-.36)<.005);
+}
+
+void EditorTest::snapControls()
+{
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});
+    auto* action=window.findChild<QAction*>("snapToGrid");auto* size=window.findChild<QSpinBox*>("gridSpacing");
+    QVERIFY(action);QVERIFY(size);QCOMPARE(size->minimum(),1);QCOMPARE(size->maximum(),100);
+    action->setChecked(true);size->setValue(20);QVERIFY(SnapGrid::load().enabled);QCOMPARE(SnapGrid::load().spacing,20.);
+    window.document().addComponent("test.strip");window.document().addLayer(EffectKind::LinearGradient);
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    window.resize(1600,960);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(window.grab().save(artifactDirectory()+"/snap-grid-workspace.png"));
+    ComponentEditor editor(catalog().first(),true,&window);
+    auto* ledSize=editor.findChild<QSpinBox*>("ledGridSpacing");QCOMPARE(ledSize->value(),20);
+    ledSize->setValue(5);QCOMPARE(size->value(),5);QCOMPARE(SnapGrid::load().spacing,5.);
+    size->setValue(25);QCOMPARE(ledSize->value(),25);
+    editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    QVERIFY(editor.grab().save(artifactDirectory()+"/snap-grid-leds.png"));
+    action->setChecked(false);QVERIFY(!SnapGrid::load().enabled);
     window.document().history()->setClean();
 }
 

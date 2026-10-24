@@ -193,6 +193,16 @@ The Effects raster stays 640x400 and maps across those Layout bounds for both li
 preview and hardware sampling. Canvas Start/Stop controls the shared animation
 clock; green means stopped/startable, red means running/stoppable.
 
+Snap to grid is enabled by default for spatial editing. The toolbar toggle and
+1–100 px spacing apply to Layout, Effects and the LED arrangement editor. Hold
+Alt for free placement; Ctrl+Shift+G toggles snapping even in fullscreen. Groups
+and selected LEDs move by a shared snapped delta, preserving their internal
+offsets and wire order. Drawing/gradient endpoints and resize handles snap in
+world coordinates; rotation snaps to 15 degrees. Freehand brushes, erasing, fill,
+camera navigation and explicitly entered numeric coordinates remain precise.
+Gradient palette stops use the same spacing number as a percentage (10 = 10%).
+Grid preferences are stored outside projects; opening a project does not resnap it.
+
 Documentation screenshots must come from a native Windows `test_editor` run
 (`QT_QPA_PLATFORM=windows`). Run `python scripts/update_doc_screenshots.py` after
 the test, then visually inspect the images before publishing. Test artifacts are

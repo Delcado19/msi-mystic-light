@@ -1,4 +1,5 @@
 #include "StudioWidgets.h"
+#include "SnapGrid.h"
 #include "LightingDocument.h"
 #include <QApplication>
 #include <QAbstractSpinBox>
@@ -187,6 +188,13 @@ public:
         QLinearGradient ramp(bar.topLeft(),bar.topRight());
         for(int i=0;i<colors.size();++i) ramp.setColorAt(positions.value(i),colors[i]);
         p.setPen(QPen(QColor("#565c6a"),1)); p.setBrush(ramp); p.drawRoundedRect(bar,5,5);
+        const auto grid=SnapGrid::load();
+        if(gradient && grid.enabled) {
+            p.setPen(QColor("#d9e6ff"));
+            for(double percent=0;percent<=100;percent+=grid.spacing) {
+                const double x=bar.left()+percent/100*bar.width();p.drawLine(QPointF(x,bar.bottom()-4),QPointF(x,bar.bottom()));
+            }
+        }
         for(int i=0;i<colors.size();++i) {
             const QPointF point(12+positions[i]*(width()-24),47);
             p.setPen(QPen(i==selected ? QColor("#e8eeff") : QColor("#777f91"),i==selected ? 2.5 : 1));
@@ -198,16 +206,19 @@ public:
         for(int i=0;i<positions.size();++i) if(std::abs(point.x()-(12+positions[i]*(width()-24)))<11) return i;
         return -1;
     }
-    double position(QPointF point) const { return std::clamp((point.x()-12)/std::max(1,width()-24),0.0,1.0); }
+    double position(QPointF point,Qt::KeyboardModifiers modifiers=Qt::NoModifier) const {
+        auto grid=SnapGrid::load();grid.enabled=grid.enabled && !(modifiers & Qt::AltModifier);grid.spacing/=100;
+        return std::clamp(grid.snap(std::clamp((point.x()-12)/std::max(1,width()-24),0.0,1.0)),0.0,1.0);
+    }
     void mousePressEvent(QMouseEvent* e) override {
         if(e->button()!=Qt::LeftButton) return;
         setFocus(); const int i=hit(e->position());
         if(i<0) return; select(i); dragging=gradient; if(dragging) begin();
     }
-    void mouseMoveEvent(QMouseEvent* e) override { if(dragging) move(position(e->position())); }
-    void mouseReleaseEvent(QMouseEvent*) override { if(dragging) { dragging=false; end(); } }
+    void mouseMoveEvent(QMouseEvent* e) override { if(dragging) move(position(e->position(),e->modifiers())); }
+    void mouseReleaseEvent(QMouseEvent* e) override { if(dragging) { move(position(e->position(),e->modifiers())); dragging=false; end(); } }
     void hideEvent(QHideEvent*) override { if(dragging) { dragging=false; end(); } }
-    void mouseDoubleClickEvent(QMouseEvent* e) override { if(gradient && hit(e->position())<0) add(position(e->position())); }
+    void mouseDoubleClickEvent(QMouseEvent* e) override { if(gradient && hit(e->position())<0) add(position(e->position(),e->modifiers())); }
     void keyPressEvent(QKeyEvent* e) override {
         if(e->key()==Qt::Key_Delete) remove();
         else if(e->key()==Qt::Key_Left || e->key()==Qt::Key_Right) select(std::clamp(selected+(e->key()==Qt::Key_Left ? -1 : 1),0,int(colors.size()-1)));

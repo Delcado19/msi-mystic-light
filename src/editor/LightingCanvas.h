@@ -32,6 +32,7 @@ public:
     void fitToView();
     // Non-finite/non-positive factors leave the view unchanged; valid zoom clamps to .001..4.
     void zoomBy(double factor);
+    void gridChanged() { cancelGesture(); update(); }
     QPointF viewportPoint(QPointF canvas) const;
     QPointF canvasPoint(QPointF viewport) const;
 signals:
@@ -97,4 +98,5 @@ private:
     double layoutScale_=1, layoutRotation_=0;
     std::optional<EffectLayer> originalEffect_, workingEffect_;
     int gray_ = 0;
+    bool snapGesture_ = false;
 };

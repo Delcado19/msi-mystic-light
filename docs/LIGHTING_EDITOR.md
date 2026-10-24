@@ -572,3 +572,24 @@ component coordinates and draft placements are validated before sampling. Finite
 coordinates must leave arithmetic headroom for world spans and navigation zoom.
 Scrollbar camera and thumb positions are synchronized at both endpoints; camera
 clamping waits for the current drag/pan/minimap gesture to finish.
+## Snap to grid
+
+The Preview toolbar provides a persistent Snap to grid toggle (default enabled)
+and 1–100 px world spacing. Ctrl+Shift+G works across fullscreen and LED dialogs;
+Alt temporarily bypasses snapping during a gesture. The LED dialog shares the
+same toggle/spacing; component units are converted through the Layout scale
+(20 px per component unit), independently of the dialog's presentation scale.
+
+Layout component/group drags use one placement anchor and one translation for
+the entire selection. Effects snap their base centers; drawing, gradient and crop
+endpoints and resize pointers use world grid points. Uniform Layout resizing
+preserves proportions, and rotation uses 15-degree increments. Selected LED
+markers retain their offsets while their shared anchor snaps. Palette stops use
+percentage increments and keep existing stop-order constraints. Freehand pencil,
+eraser, fill, camera panning/scrolling and numeric fields retain continuous input.
+
+The grid is an editing overlay only: preview frames and hardware output do not
+contain it. Grid changes cancel an in-progress canvas gesture. Project files and
+saved geometry are never resnapped merely by opening them or enabling the grid.
+Each completed canvas gesture remains one undo step. Layer-list ordering, window
+splitters and other non-spatial controls do not use a coordinate grid.

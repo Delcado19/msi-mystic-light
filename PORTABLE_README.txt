@@ -58,3 +58,11 @@ Canvas controls: Canvas Start/Stop is green when stopped and red while running.
 Use the canvas top-right fullscreen button; Escape returns to the workspace.
 Layout expands with its components. Use scrollbars or the bottom-right minimap to navigate.
 The Effects workspace keeps its separate 640x400 effect raster.
+
+Snap to grid is enabled by default. Toggle it in the toolbar and choose 1-100 px
+spacing. Hold Alt for free placement, or use Ctrl+Shift+G (also in fullscreen).
+Components/groups, effect layers, drawing/gradient endpoints, resize handles and
+individual LEDs snap in world coordinates; rotation uses 15-degree increments.
+Gradient palette stops use percentage increments (10 = 10%). Freehand brushes,
+camera navigation and exact numeric entries stay continuous. Existing projects
+are never resnapped simply by opening them. The grid is not sent to hardware.

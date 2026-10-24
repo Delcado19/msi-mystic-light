@@ -1,6 +1,7 @@
 #include <QDialog>
 #include <QPainter>
 #include "output/HardwareOutput.h"
+#include "editor/SnapGrid.h"
 #include "protocol/MsiProtocol.h"
 #include <QCheckBox>
 #include <QAction>
@@ -77,8 +78,15 @@ bool state(OutputPanel& panel,const QString& expected)
 }
 class OutputUiTest : public QObject {
     Q_OBJECT
+    QTemporaryDir settingsDirectory_;
 private slots:
-    void initTestCase() { QVERIFY(QDir().mkpath(TEST_ARTIFACT_DIR)); }
+    void initTestCase() {
+        QVERIFY(QDir().mkpath(TEST_ARTIFACT_DIR));QVERIFY(settingsDirectory_.isValid());
+        QCoreApplication::setOrganizationName("LightingStudioOutputTests");
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,settingsDirectory_.path());
+    }
+    void init() { SnapGrid{false,10}.save(); } // Output color assertions exclude the optional editing-grid overlay.
     void applicationDevicePage();
     void layoutDragOutput();
     void headerControls();
@@ -120,6 +128,13 @@ void OutputUiTest::layoutDragOutput()
     const auto placements=canvas->previewPlacements();
     const auto colors=prepareOutput(window.document(),window.previewFrame(),0,&placements)[0].channels[0].colors;
     QCOMPARE(colors[0].b,quint8(255)); QCOMPARE(colors[0].r,quint8(0));
+    const auto received=[record](const auto& expected) {
+        const std::lock_guard<std::mutex> lock(record->mutex);
+        return !record->reports.empty() && record->reports.back()==std::vector<std::uint8_t>(expected.begin(),expected.end());
+    };
+    const auto blue=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{0,0,255}});
+    // The scheduler may still be sending a previous red frame; wait for the actual blue packet, not just any write.
+    QTRY_VERIFY(received(blue));
     {
         const std::lock_guard<std::mutex> lock(record->mutex);
         const auto& last=record->reports.back();
@@ -127,7 +142,8 @@ void OutputUiTest::layoutDragOutput()
         QCOMPARE(last,std::vector<std::uint8_t>(expected.begin(),expected.end()));
     }
     QTest::keyClick(canvas,Qt::Key_Escape);
-    QTRY_VERIFY(record->writes()>3);
+    const auto red=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{255,0,0}});
+    QTRY_VERIFY(received(red));
     QCOMPARE(canvas->previewPlacements()[0].origin,before);
     QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,from); QTest::mouseMove(canvas,to);
     QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,to);
@@ -271,6 +287,8 @@ void OutputUiTest::applicationDevicePage()
     window.findChild<QAction*>("workspaceLayout")->trigger();
     auto* layout=window.findChild<LightingCanvas*>("layoutCanvas"); QVERIFY(layout->isVisible());
     QCOMPARE(layout->grab().toImage().pixelColor(layout->viewportPoint({320,200}).toPoint()),QColor(1,2,3));
+    window.findChild<QAction*>("snapToGrid")->setChecked(true);
+    QCOMPARE(window.previewFrame().pixelColor(320,200),QColor(1,2,3)); // Grid is UI-only and must never reach hardware colors.
     window.findChild<QAction*>("workspaceEffects")->trigger(); QVERIFY(window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     panel->stopOutput(); QTRY_VERIFY(state(*panel,"Stopped")); window.document().history()->setClean();
 }

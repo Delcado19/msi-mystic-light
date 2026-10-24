@@ -1,4 +1,5 @@
 #include "LightingWindow.h"
+#include "SnapGrid.h"
 #include "HardwarePicker.h"
 #include "LegacyHardware.h"
 #include <QStandardPaths>
@@ -424,6 +425,19 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         auto* action=previewToolbar->addAction(zoom.first); action->setToolTip(zoom.first+" (mouse wheel also zooms)");
         connect(action,&QAction::triggered,this,[this,factor=zoom.second] { (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->zoomBy(factor); });
     }
+    auto* snap=previewToolbar->addAction("Snap to grid"); snap->setObjectName("snapToGrid");
+    snap->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));snap->setShortcutContext(Qt::ApplicationShortcut);
+    snap->setCheckable(true);snap->setChecked(SnapGrid::load().enabled);
+    snap->setToolTip("Snap positions and resize handles to the world grid; rotation uses 15 degrees. Hold Alt to move freely. Ctrl+Shift+G toggles snapping, including fullscreen.");
+    auto* gridSize=new QSpinBox;gridSize->setObjectName("gridSpacing");gridSize->setRange(1,100);gridSize->setSuffix(" px");
+    gridSize->setValue(int(SnapGrid::load().spacing));gridSize->setKeyboardTracking(false);
+    gridSize->setAccessibleName("Snap grid spacing");gridSize->setToolTip("Grid spacing in canvas pixels. LED arrangement uses the same physical scale; gradient palette stops use this percentage.");
+    previewToolbar->addWidget(gridSize);
+    auto updateGrid=[this,snap,gridSize] {
+        SnapGrid{snap->isChecked(),double(gridSize->value())}.save();
+        layoutCanvas_->gridChanged();effectsCanvas_->gridChanged();update();
+    };
+    connect(snap,&QAction::toggled,this,updateGrid);connect(gridSize,&QSpinBox::valueChanged,this,updateGrid);
     auto* output=previewToolbar->addAction("Output: Stopped"); output->setObjectName("reviewOutput");
     output->setToolTip("Show connected hardware and output status; canvas output starts automatically");
     // Output status is informational; Hardware already has its own navigation button.

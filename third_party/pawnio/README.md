@@ -39,3 +39,18 @@ frame. The primary bus selection is restored afterwards, even on transfer errors
 The lock wait is bounded to 250 ms; module transfer timeouts are upstream-owned.
 Programs that ignore the shared mutex can still conflict; use the existing
 startup conflict dialog to choose which software may control RGB hardware.
+
+## Updating the dependency
+
+The runtime is loaded from the official installed location on each application
+start; updating that installation takes effect after restarting Lighting Studio.
+The current ABI guard accepts major version 2 and verifies required entry points.
+It is a compatibility check, not an online latest-version check.
+
+The SMBus module is separately pinned to 0.2.11, its size and SHA-256. Check
+https://github.com/namazso/PawnIO.Modules/releases/latest and https://pawnio.eu for
+upstream updates before qualifying a new application release. New modules require
+an explicit source/license, ABI and protocol review, updating the pinned binary,
+source archive and integrity check together, followed by Release/Debug and RAM
+regression checks. Physical output must be requalified separately. No automatic
+download, installation, driver replacement or online update checker is implemented.

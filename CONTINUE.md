@@ -1,5 +1,44 @@
 # Implementation status
 
+## Snap-to-grid editing (2026-10-24, after published 0.1.0)
+
+Added a shared, persistent UI-only grid preference, default enabled, spacing 1-100
+Layout pixels. Toolbar toggle and LED-dialog controls share settings; Alt bypasses
+snapping and Ctrl+Shift+G works across fullscreen. Layout drags snap one placement
+anchor and translate the entire group rigidly. Effects move/resize/gradient/drawing
+gestures, mask gradients, LED marker drags and palette stops participate. Freehand,
+fill, camera controls, exact numeric input and non-spatial list ordering stay free.
+Rotation snaps to 15-degree increments. World spacing is independent of zoom.
+
+LED scene units are converted using 24 presentation units per component unit and
+20 Layout pixels per component unit; selected LEDs keep offsets and wire mapping.
+Palette spacing is percentage-based. Grid painting is viewport-bounded, thinned
+at small zoom and capped for huge imported coordinates. No project schema changes.
+The implementation reuses Pixaroma's common-anchor/common-delta principle without
+importing its runtime or adding dependencies. Tests isolate preferences in temporary
+INI stores so they never modify real application settings. Existing free-placement
+checks remain; explicit grid tests use fixed expected positive/negative positions,
+different zoom levels, invalid spacing, overflow, undo, Alt and Shift, resize,
+gradient endpoints, LED mapping, palette positions and synchronized UI controls.
+Output tests assert that the editing grid never enters the hardware color frame.
+
+PawnIO follow-up: installed runtime accepts ABI major 2; no online updater exists.
+The bundled module is pinned to 0.2.11 with size/hash verification. Upstream latest
+module release still resolves to 0.2.11. Maintenance procedure documented in
+third_party/pawnio/README.md; no driver installation or ACL changes performed.
+Do not overwrite published 0.1.0 ZIP/tag with this development build.
+
+Validation: Release/Debug CTest each 17/17; native Windows editor 69/69 and output
+UI 14/14. Native grid screenshots visually inspected. Debug exposed an existing
+output-test race: wait for the exact expected blue/red packet rather than any
+write count; literal packet comparisons retained. An off-grid LED click is tested
+to leave coordinates unchanged. Package CRC and extracted --inspect pass.
+Local build: build/dist/LightingStudio-SnapGrid/msi_mystic_light.exe.
+EXE SHA256: 1c65fb7584b8629f160fd5d8db1d7637a5b55554eb64527d84b9d253a1eac907.
+ZIP: build/dist/MSI-Mystic-Light-0.1.0-snap-grid-windows-x64.zip (+ SHA-256).
+Published 0.1.0 ZIP hash verified unchanged. Running instance and user project
+were not modified. No physical hardware writes or new publication performed.
+
 ## Release 0.1.0 preparation (2026-10-24)
 
 Release and Debug CTest pass 17/17, including Python artifact checks. Native Windows

@@ -1,4 +1,5 @@
 #include "ComponentEditor.h"
+#include "SnapGrid.h"
 #include "StudioWidgets.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
@@ -23,6 +24,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <functional>
+#include <algorithm>
 #include <QTimer>
 #include <QHBoxLayout>
 #include <QToolButton>
@@ -33,8 +35,36 @@ class GeometryView : public QGraphicsView {
 public:
     using QGraphicsView::QGraphicsView;
     std::function<void()> commit;
+    QPointF pressPosition;
+    bool moved=false;
 protected:
-    void mouseReleaseEvent(QMouseEvent* event) override { QGraphicsView::mouseReleaseEvent(event); if(commit) commit(); }
+    void snapSelected(Qt::KeyboardModifiers modifiers) {
+        auto grid=SnapGrid::load();
+        if(!moved || !grid.enabled || (modifiers & Qt::AltModifier) || !scene()->mouseGrabberItem())return;
+        grid.spacing*=property("coordinateScale").toDouble()/20; // Component units are 20 Layout pixels, independent of presentation zoom.
+        auto items=scene()->selectedItems();
+        if(items.isEmpty())return;
+        auto* anchor=*std::min_element(items.begin(),items.end(),[](auto* a,auto* b){return a->data(0).toInt()<b->data(0).toInt();});
+        const auto delta=grid.snap(anchor->pos())-anchor->pos();
+        for(auto* item:items)item->setPos(item->pos()+delta);
+    }
+    void mousePressEvent(QMouseEvent* event) override {
+        pressPosition=event->position();moved=false;QGraphicsView::mousePressEvent(event);
+    }
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if(event->buttons() & Qt::LeftButton)moved=moved || event->position()!=pressPosition;
+        QGraphicsView::mouseMoveEvent(event);snapSelected(event->modifiers());
+    }
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        if(event->button()==Qt::LeftButton && event->position()!=pressPosition) {moved=true;QGraphicsView::mouseMoveEvent(event);snapSelected(event->modifiers());}
+        QGraphicsView::mouseReleaseEvent(event); if(commit) commit();
+        moved=false;
+    }
+    void drawBackground(QPainter* painter,const QRectF& rect) override {
+        QGraphicsView::drawBackground(painter,rect);
+        auto grid=SnapGrid::load();grid.spacing*=property("coordinateScale").toDouble()/20;
+        grid.paint(*painter,rect,transform().m11());
+    }
     void wheelEvent(QWheelEvent* event) override {
         const double factor=std::pow(1.15,event->angleDelta().y()/120.0);
         if(transform().m11()*factor>0.00001 && transform().m11()*factor<20) scale(factor,factor);
@@ -73,11 +103,25 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
     shape->setPopupMode(QToolButton::InstantPopup); auto* shapes = new QMenu(shape); shape->setMenu(shapes);
     shape->setToolTip("Arrange this device's LED positions using a shape; physical wire order is preserved");
     arrangement->addWidget(shape); arrangement->addStretch();
+    auto* snapAction=parent ? parent->findChild<QAction*>("snapToGrid") : nullptr;
+    if(!snapAction) {
+        snapAction=new QAction("Snap to grid",this);snapAction->setCheckable(true);snapAction->setChecked(SnapGrid::load().enabled);
+        connect(snapAction,&QAction::toggled,this,[](bool enabled){auto grid=SnapGrid::load();grid.enabled=enabled;grid.save();});
+    }
+    auto* snapButton=new QToolButton;snapButton->setDefaultAction(snapAction);arrangement->addWidget(snapButton);
+    snapButton->setToolTip("Snap LEDs to the grid without changing wire order. Hold Alt to move freely.");
+    auto* step=new QSpinBox;step->setObjectName("ledGridSpacing");step->setRange(1,100);step->setValue(int(SnapGrid::load().spacing));step->setSuffix(" px");
+    step->setAccessibleName("LED grid spacing in Layout pixels");arrangement->addWidget(step);
+    auto* mainStep=parent ? parent->findChild<QSpinBox*>("gridSpacing") : nullptr;
+    if(mainStep) connect(mainStep,&QSpinBox::valueChanged,step,&QSpinBox::setValue);
+    connect(step,&QSpinBox::valueChanged,this,[mainStep](int value){auto grid=SnapGrid::load();grid.spacing=value;grid.save();if(mainStep)mainStep->setValue(value);});
     auto* tabs=new QTabWidget; tabs->setObjectName("componentViews"); layout->addWidget(tabs,1);
     auto* geometry=new GeometryView; geometry->setObjectName("componentGeometry");
     auto* scene=new QGraphicsScene(geometry); geometry->setScene(scene); geometry->setRenderHint(QPainter::Antialiasing);
     geometry->setBackgroundBrush(QColor("#17191f")); geometry->setDragMode(QGraphicsView::RubberBandDrag);
     geometry->setMinimumHeight(260); tabs->addTab(geometry,"Visual layout"); tabs->addTab(table,"Coordinates & wire mapping");
+    connect(snapAction,&QAction::toggled,geometry->viewport(),qOverload<>(&QWidget::update));
+    connect(step,&QSpinBox::valueChanged,geometry->viewport(),qOverload<>(&QWidget::update));
     auto rebuild=[table,scene,geometry,reserved=nonPhysicalSlots_] {
         scene->clear();
         // Keep LED markers readable at any geometry scale; positions still use component units.
