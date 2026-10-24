@@ -12,6 +12,7 @@ public:
     enum class Tool { Move, Pencil, Line, Rectangle, Ellipse, Gradient, Fill, Eraser };
     Tool tool() const { return drawingTool_; }
     void setTool(Tool tool) { cancelGesture(); drawingTool_=tool; setCursor(tool==Tool::Move ? Qt::ArrowCursor : Qt::CrossCursor); }
+    void setGradientStops(QVector<QColor> colors,QVector<double> positions) { gradientColors_=std::move(colors); gradientPositions_=std::move(positions); }
     void setDrawing(QColor color,double width,bool filled) { drawColor_=color; drawWidth_=width; filled_=filled; }
     void setPreviewOnly() { previewOnly_=true; setMinimumHeight(160); setFocusPolicy(Qt::NoFocus); }
     enum class MaskTool { Brush, Gradient };
@@ -62,6 +63,7 @@ private:
     QPushButton* emptyAction_;
     bool autoFit_ = true, previewOnly_=false, drawing_=false, filled_=true;
     Tool drawingTool_=Tool::Move;
+    QVector<QColor> gradientColors_; QVector<double> gradientPositions_;
     QColor drawColor_=Qt::white;
     double drawWidth_=6;
     QImage drawingBase_, fillReference_;

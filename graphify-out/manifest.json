@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792788847.0206668,
-    "seen": 1792788893.4852145,
-    "ast_hash": "37cfe202636f71b0d052d7f23cbfa46f",
+    "mtime": 1792813433.0678306,
+    "seen": 1792813480.9309468,
+    "ast_hash": "87fd5e70ead3db2f8acc6bcf38cf295d",
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792789033.2612164,
-    "seen": 1792789069.255634,
-    "ast_hash": "2b65c5cb93f85b0f27abe04f1acbf059",
+    "mtime": 1792789093.4629953,
+    "seen": 1792813480.9309447,
+    "ast_hash": "ec2e40b2460c0187f533d4cef33dfedd",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -318,51 +318,51 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1792788449.8196142,
-    "seen": 1792788657.3379097,
-    "ast_hash": "1ce33f78570b23bc6802d18596c8d58f",
+    "mtime": 1792813236.2751987,
+    "seen": 1792813480.9309015,
+    "ast_hash": "780c15bdaf811b072a355afc0fc1694c",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
-    "mtime": 1792788449.8191147,
-    "seen": 1792788657.3379114,
-    "ast_hash": "f0443dbca52438daad560ee8ac9148ec",
+    "mtime": 1792812659.4001212,
+    "seen": 1792813480.9309022,
+    "ast_hash": "81f7870f6425e63fb1c3deae8187f3c1",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1792780291.6517737,
-    "seen": 1792782073.8930142,
-    "ast_hash": "66d6220162f4d0a21c92f8415d21e8ba",
+    "mtime": 1792813236.2751987,
+    "seen": 1792813480.930903,
+    "ast_hash": "4dd19508f87b5d39f87e6a9bf96f1712",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1792780291.6512735,
-    "seen": 1792782073.8930156,
-    "ast_hash": "24c3214bb85a2f96ca70d57358c7cf25",
+    "mtime": 1792813236.2741983,
+    "seen": 1792813480.9309034,
+    "ast_hash": "e7809f98af584079ec93e3ce97e6aba6",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1792788736.9363387,
-    "seen": 1792788893.4851413,
-    "ast_hash": "28858599d389e17f2eb86495678f91a4",
+    "mtime": 1792813516.9311752,
+    "seen": 1792813565.3971145,
+    "ast_hash": "7ff4110f6d30ae0ca9148703664b2feb",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1792787528.7075727,
-    "seen": 1792788271.9330764,
-    "ast_hash": "75eeeff45737f3e63f01b1c7c5240cf4",
+    "mtime": 1792812716.902119,
+    "seen": 1792813480.930905,
+    "ast_hash": "cffdf6cc44df27527a8b964c90703aee",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1792788944.4605515,
-    "seen": 1792789069.2556045,
-    "ast_hash": "b76f8b0afdcebce1b76be465320badd9",
+    "mtime": 1792813394.9306624,
+    "seen": 1792813480.930931,
+    "ast_hash": "dd775361b854d7870868ea69f9154d95",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1792788847.028699,
-    "seen": 1792788893.4852202,
-    "ast_hash": "7e161b78d7325af409153ea69555b753",
+    "mtime": 1792813433.0678306,
+    "seen": 1792813480.9309504,
+    "ast_hash": "e8a82a523d83df6d97ce31a57b05d92e",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "src/editor/EffectRenderer.cpp": {
-    "mtime": 1792787596.0417223,
-    "seen": 1792788271.9330678,
-    "ast_hash": "c5b19e6588450dcad658a2657aeb3c13",
+    "mtime": 1792813516.9311752,
+    "seen": 1792813565.3971064,
+    "ast_hash": "56061105940098c1d4733432facc627a",
     "semantic_hash": ""
   },
   "src/editor/EffectRenderer.h": {
@@ -468,9 +468,9 @@
     "semantic_hash": ""
   },
   "tests/output/test_output.cpp": {
-    "mtime": 1792760948.508036,
-    "seen": 1792761010.6760628,
-    "ast_hash": "912c93e9a4bec23c936330ae4b48a21d",
+    "mtime": 1792813448.0950055,
+    "seen": 1792813480.9309378,
+    "ast_hash": "2b443bd90e4a69516135e5c27af23be9",
     "semantic_hash": ""
   },
   "docs/OUTPUT_SESSION.md": {
@@ -540,15 +540,15 @@
     "semantic_hash": ""
   },
   "PORTABLE_README.txt": {
-    "mtime": 1792788847.0211687,
-    "seen": 1792788893.4852123,
-    "ast_hash": "9a0ba228918cf02a5d927c9974773aae",
+    "mtime": 1792813516.9311752,
+    "seen": 1792813565.3971534,
+    "ast_hash": "97e8d04e52fb19b780845aeab4a4f08e",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.cpp": {
-    "mtime": 1792787920.1060166,
-    "seen": 1792788271.9330773,
-    "ast_hash": "0978654a416f5fded8d568fb79e019b4",
+    "mtime": 1792813236.277197,
+    "seen": 1792813480.9309058,
+    "ast_hash": "94ea2312eab969f85e24c07b1f0bb770",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.h": {
@@ -558,9 +558,9 @@
     "semantic_hash": ""
   },
   "docs/EDITOR_DESIGN_REVIEW.md": {
-    "mtime": 1792788164.798422,
-    "seen": 1792788271.933127,
-    "ast_hash": "1cb2e0df222e80691bf8772610ed2c70",
+    "mtime": 1792813433.0678306,
+    "seen": 1792813480.9309494,
+    "ast_hash": "30187eaa5ac4815528c9fe1c722dc40f",
     "semantic_hash": ""
   },
   "docs/images/effect-gallery.png": {

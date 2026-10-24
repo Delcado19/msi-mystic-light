@@ -57,6 +57,7 @@ private:
     void refreshToolOptions();
     void updatePreview();
     void refreshPlacement();
+    void updateMotion(const QString& label,const std::function<void(EffectLayer&)>& operation);
     void updateLayer(const QString& label, const std::function<void(EffectLayer&)>& operation);
     bool saveDocument();
     bool confirmDiscard();

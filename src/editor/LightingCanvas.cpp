@@ -16,6 +16,7 @@ namespace {
 bool centeredGradient(EffectKind kind) { return kind==EffectKind::RadialGradient || kind==EffectKind::ConicalGradient; }
 QPair<QPointF,QPointF> gradientEndpoints(const EffectLayer& layer) {
     const auto transform=effectTransform(layer);
+    if(layer.gradientFill) return {transform.map(layer.gradientStart-QPointF(.5,.5)),transform.map(layer.gradientEnd-QPointF(.5,.5))};
     return {transform.map(QPointF(centeredGradient(layer.effect) ? 0 : -.5,0)),transform.map(QPointF(.5,0))};
 }
 }
@@ -44,9 +45,7 @@ void LightingCanvas::fitToView()
 {
     cancelGesture(); autoFit_=true; pan_={};
     if(previewOnly_) {
-        QRectF bounds;
-        for(const auto& placement:document_.state().placements) for(const auto& point:document_.componentPoints(placement)) bounds=bounds.united(QRectF(point,QSizeF(.01,.01)));
-        previewBounds_=bounds.isEmpty() ? QRectF(0,0,640,400) : bounds.adjusted(-25,-30,25,25);
+        previewBounds_=QRectF(0,0,640,400);
         zoom_=std::clamp(std::min((width()-60)/previewBounds_.width(),(height()-48)/previewBounds_.height()),.1,2.0);
     } else zoom_=std::clamp(std::min((width()-80)/640.0,(height()-100)/400.0),0.1,4.0);
     update();
@@ -102,7 +101,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     painter.fillRect(rect(), QColor("#17191f"));
     painter.setPen(QColor("#a6afc2"));
     painter.drawText(QRect(20,12,width()-40,24),Qt::AlignLeft|Qt::AlignVCenter,
-        QString("%1    /    640 x 400    /    %2%").arg(previewOnly_ ? "LIVE HARDWARE PREVIEW" : context_==Context::Layout ? "LAYOUT" : "EFFECT CANVAS").arg(qRound(zoom_*100)));
+        QString("%1    /    640 x 400    /    %2%").arg(previewOnly_ ? QString("LIVE HARDWARE / %1 s").arg(seconds_,0,'f',2) : context_==Context::Layout ? "LAYOUT" : "EFFECT CANVAS").arg(qRound(zoom_*100)));
     const bool empty=context_==Context::Effects ? document_.state().layers.isEmpty() : document_.state().placements.isEmpty();
     if(empty && previewOnly_) {
         painter.drawText(rect().adjusted(20,42,-20,-12),Qt::AlignCenter,"Attach hardware to see its live lighting here."); return;
@@ -161,7 +160,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             painter.setPen(QPen(QColor("#a9c2ff"), 1 / zoom_));
             painter.drawLine(start_, last_);
         }
-        if(!maskTarget_ && drawingTool_==Tool::Gradient) for(const auto& stored:document_.state().layers) if(stored.id==selected_ && isGradient(stored.effect)) {
+        if(!maskTarget_ && drawingTool_==Tool::Gradient) for(const auto& stored:document_.state().layers) if(stored.id==selected_ && (isGradient(stored.effect) || stored.gradientFill)) {
             const auto& layer=workingEffect_ ? *workingEffect_ : stored;
             const auto endpoints=gradientEndpoints(layer); const auto a=endpoints.first,b=endpoints.second;
             painter.setPen(QPen(QColor("#101722"),4/zoom_)); painter.drawLine(a,b);
@@ -193,7 +192,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         return;
     }
     // The same live raster explains sampling positions; Layout edits placements only.
-    if(!previewOnly_) painter.drawImage(0,0,frame);
+    painter.drawImage(0,0,frame);
     painter.setClipping(false);
     painter.setRenderHint(QPainter::Antialiasing);
     auto sampled=document_.sampleComponents(frame);
@@ -303,9 +302,13 @@ void LightingCanvas::beginDrawing(QPointF point)
     }
     if(maskTarget_ && !found) return;
     const bool gradient=drawingTool_==Tool::Gradient;
+    const bool solid=layer.effect==EffectKind::StaticColor || (layer.effect>=EffectKind::Circle && layer.effect<=EffectKind::Moon);
+    if(found && !maskTarget_ && drawingTool_==Tool::Fill && solid && renderEffect(layer).pixelColor(point.toPoint()).alpha()>0) {
+        originalEffect_=workingEffect_=layer; workingEffect_->color=drawColor_; workingEffect_->gradientFill=false; dragging_=true; handle_=9; return;
+    }
     // Bucket fills use the selected procedural source as their boundary, while keeping that source editable below the paint result.
     const auto reference=!maskTarget_ && found && drawingTool_==Tool::Fill && layer.effect!=EffectKind::Paint ? renderEffect(layer) : QImage{};
-    if(!maskTarget_ && (!found || (gradient ? !isGradient(layer.effect) && !(layer.effect==EffectKind::Paint && layer.image.isNull()) : layer.effect!=EffectKind::Paint))) {
+    if(!maskTarget_ && (!found || (gradient ? !isGradient(layer.effect) && layer.effect!=EffectKind::Paint && !solid : layer.effect!=EffectKind::Paint))) {
         if(document_.state().layers.size()>=64) { emit editingError("Layer limit reached. Select an existing paint layer or remove a layer first."); return; }
         select(gradient ? document_.addLayer(EffectKind::LinearGradient) : document_.addPaintLayer());
         for(const auto& candidate:document_.state().layers) if(candidate.id==selected_) layer=candidate;
@@ -323,7 +326,11 @@ void LightingCanvas::updateDrawing(QPointF point)
 {
     if(!originalEffect_) return;
     const bool gradient=drawingTool_==Tool::Gradient;
-    if(gradient && !maskTarget_) {
+    if(gradient && !maskTarget_ && originalEffect_->effect>=EffectKind::Circle && originalEffect_->effect<=EffectKind::Moon) {
+        workingEffect_->gradientFill=true; workingEffect_->gradientStart=QPointF(paintPoint(start_).x()/640,paintPoint(start_).y()/400); workingEffect_->gradientEnd=QPointF(paintPoint(point).x()/640,paintPoint(point).y()/400);
+        workingEffect_->gradientColors=gradientColors_.isEmpty() ? QVector<QColor>{drawColor_,Qt::black} : gradientColors_; workingEffect_->gradientPositions=gradientPositions_; return;
+    }
+    if(gradient && !maskTarget_ && !(originalEffect_->effect==EffectKind::Paint && !originalEffect_->image.isNull())) {
         workingEffect_->effect=isGradient(originalEffect_->effect) ? originalEffect_->effect : EffectKind::LinearGradient;
         const bool centered=centeredGradient(workingEffect_->effect);
         workingEffect_->center=centered ? start_ : (start_+point)/2;
@@ -343,7 +350,13 @@ void LightingCanvas::updateDrawing(QPointF point)
     const QPointF from=paintPoint(freehand ? last_ : start_), to=paintPoint(point);
     QColor color=maskTarget_ ? QColor(gray_,gray_,gray_) : drawColor_;
     if(maskTarget_ && drawingTool_==Tool::Eraser) color=Qt::black;
-    if(drawingTool_==Tool::Fill) {
+    if(gradient && !maskTarget_) {
+        QLinearGradient ramp(paintPoint(start_),paintPoint(point));
+        const auto colors=gradientColors_.isEmpty() ? QVector<QColor>{drawColor_,Qt::black} : gradientColors_;
+        for(int i=0;i<colors.size();++i) ramp.setColorAt(gradientPositions_.value(i,i/double(colors.size()-1)),colors[i]);
+        // SourceIn recolors only existing coverage, retaining every antialiased edge pixel.
+        QPainter painter(&image); painter.setCompositionMode(QPainter::CompositionMode_SourceIn); painter.fillRect(image.rect(),ramp);
+    } else if(drawingTool_==Tool::Fill) {
         const QPoint seed=to.toPoint();
         if(image.rect().contains(seed)) {
             const auto reference=fillReference_.isNull() ? image : fillReference_;
@@ -352,14 +365,20 @@ void LightingCanvas::updateDrawing(QPointF point)
                 // Mark on enqueue: a flood fill never retains duplicate pixels or recurses on the UI stack.
                 const auto matches=[&](QRgb pixel) {
                     if(qAlpha(before)==0) return qAlpha(pixel)==0;
-                    return std::abs(qAlpha(pixel)-qAlpha(before))<=24 && std::abs(qRed(pixel)-qRed(before))<=24 &&
-                        std::abs(qGreen(pixel)-qGreen(before))<=24 && std::abs(qBlue(pixel)-qBlue(before))<=24;
+                    if(qAlpha(pixel)==0) return false;
+                    const auto a=qUnpremultiply(pixel), b=qUnpremultiply(before);
+                    const int tolerance=24+255/qAlpha(pixel);
+                    return std::abs(qRed(a)-qRed(b))<=tolerance && std::abs(qGreen(a)-qGreen(b))<=tolerance && std::abs(qBlue(a)-qBlue(b))<=tolerance;
                 };
                 QImage visited(image.size(),QImage::Format_Grayscale8); visited.fill(0);
-                QVector<QPoint> pending{seed}; image.setPixel(seed,after); visited.scanLine(seed.y())[seed.x()]=1;
+                const auto replacement=[&](QPoint at) {
+                    auto value=color; value.setAlpha(fillReference_.isNull() && qAlpha(before)>0 ? qAlpha(reference.pixel(at)) : color.alpha());
+                    return qPremultiply(value.rgba());
+                };
+                QVector<QPoint> pending{seed}; image.setPixel(seed,replacement(seed)); visited.scanLine(seed.y())[seed.x()]=1;
                 for(qsizetype i=0;i<pending.size();++i) for(const auto delta:{QPoint(1,0),QPoint(-1,0),QPoint(0,1),QPoint(0,-1)}) {
                     const auto next=pending[i]+delta;
-                    if(image.rect().contains(next) && !visited.constScanLine(next.y())[next.x()] && matches(reference.pixel(next))) { visited.scanLine(next.y())[next.x()]=1; image.setPixel(next,after); pending.append(next); }
+                    if(image.rect().contains(next) && !visited.constScanLine(next.y())[next.x()] && matches(reference.pixel(next))) { visited.scanLine(next.y())[next.x()]=1; image.setPixel(next,replacement(next)); pending.append(next); }
                 }
             }
         }
@@ -397,7 +416,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
     if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) return;
     if(context_==Context::Effects && drawingTool_!=Tool::Move) {
         emit effectGestureStarted();
-        if(drawingTool_==Tool::Gradient && !maskTarget_) for(const auto& layer:document_.state().layers) if(layer.id==selected_ && isGradient(layer.effect)) {
+        if(drawingTool_==Tool::Gradient && !maskTarget_) for(const auto& layer:document_.state().layers) if(layer.id==selected_ && (isGradient(layer.effect) || layer.gradientFill)) {
             const auto endpoints=gradientEndpoints(layer); const auto a=endpoints.first,b=endpoints.second;
             if(QLineF(start_,a).length()<12/zoom_ || QLineF(start_,b).length()<12/zoom_) {
                 handle_=QLineF(start_,a).length()<12/zoom_ ? 7 : 8;
@@ -475,7 +494,7 @@ void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
             layoutScale_=std::clamp(QLineF(QPointF(),b).length()/std::max(.001,QLineF(QPointF(),a).length()),minimum,maximum);
         }
     }
-    if (workingEffect_) updateEffectGesture(point);
+    if (workingEffect_ && handle_!=9) updateEffectGesture(point);
     if (context_ == Context::Effects && maskTarget_ && tool_ == MaskTool::Gradient) {
         for (const auto& layer : document_.state().layers)
             if (layer.id == selected_) workingMask_ = layer.mask;
@@ -489,7 +508,10 @@ void LightingCanvas::updateEffectGesture(QPointF point)
     if (!originalEffect_) return;
     const auto& original=*originalEffect_; auto changed=original;
     const auto transform=effectTransform(original);
-    if(handle_==7 || handle_==8) {
+    if((handle_==7 || handle_==8) && original.gradientFill) {
+        const auto local=transform.inverted().map(point)+QPointF(.5,.5);
+        if(handle_==7) changed.gradientStart=local; else changed.gradientEnd=local;
+    } else if(handle_==7 || handle_==8) {
         const auto endpoints=gradientEndpoints(original); auto a=endpoints.first,b=endpoints.second;
         if(handle_==7) a=point; else b=point;
         const bool centered=centeredGradient(original.effect);
@@ -537,18 +559,21 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
         const auto changed=*workingEffect_; const auto mask=workingMask_;
         document_.edit(maskTarget_ ? "Draw mask" : "Draw layer",[&](LightingState& state) {
             for(auto& layer:state.layers) if(layer.id==id) {
-                if(maskTarget_) layer.mask=mask; else { layer.image=changed.image; layer.effect=changed.effect; layer.center=changed.center; layer.extent=changed.extent; layer.rotation=changed.rotation; layer.color=changed.color; layer.secondaryColor=changed.secondaryColor; }
+                if(maskTarget_) layer.mask=mask; else { layer.image=changed.image; layer.effect=changed.effect; layer.center=changed.center; layer.extent=changed.extent; layer.rotation=changed.rotation; layer.color=changed.color; layer.secondaryColor=changed.secondaryColor; layer.gradientFill=changed.gradientFill; layer.gradientStart=changed.gradientStart; layer.gradientEnd=changed.gradientEnd; layer.gradientColors=changed.gradientColors; layer.gradientPositions=changed.gradientPositions; }
             }
         });
     } else if (context_ == Context::Layout) {
         if (last_ != start_) document_.edit(handle_ ? "Transform components" : "Move components", [&](LightingState& state) {
             for (auto& placement : state.placements) placement=previewPlacement(placement);
         });
+    } else if(handle_==9 && workingEffect_) {
+        const auto color=workingEffect_->color;
+        document_.edit("Fill source color",[&](auto& state) { for(auto& layer:state.layers) if(layer.id==id) { layer.color=color; layer.gradientFill=false; } });
     } else if (workingEffect_ && last_!=start_) {
         const auto effect=*workingEffect_;
         document_.edit(cropTool_ ? "Crop image" : "Transform effect",[&](auto& state) {
             for (auto& layer : state.layers) if (layer.id==id) {
-                layer.center=effect.center; layer.extent=effect.extent; layer.rotation=effect.rotation; layer.crop=effect.crop;
+                layer.center=effect.center; layer.extent=effect.extent; layer.rotation=effect.rotation; layer.crop=effect.crop; layer.gradientStart=effect.gradientStart; layer.gradientEnd=effect.gradientEnd;
             }
         });
     } else if (maskTarget_) {

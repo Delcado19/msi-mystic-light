@@ -10,11 +10,11 @@ find-animation-opportunities, improve-animations and review-animations skills.
 | --- | --- | --- |
 | New layer opens an effect-selection dialog | New layer immediately creates a transparent paint source | Layer creation has one predictable result |
 | Twenty effect buttons masquerade as tools | Standard pencil, line, rectangle, ellipse, gradient, fill, eraser, move and crop | Match established drawing-app behavior |
-| Presets appear in several places | One Presets gallery, outside the toolbox | Separate choosing a source from editing its pixels |
+| Shapes and particles hidden in a general gallery | Direct Shapes and Particles toolbar flyouts; Other effects only holds gradients/patterns | Make source choices discoverable without duplication |
 | Only generic fan/strip quantities | Searchable product cards, categories, quantities and original M25 definitions | Restore the original hardware-selection workflow |
 | One hex row per gradient color | Draggable color-stop strip, RGB sliders, selected-color picker, Add/Remove | Edit the gradient spatially and continuously |
 | Tiny composition thumbnail; hardware in another view | Persistent live component preview below the effect canvas | See the effect's purpose while editing |
-| Particle modes presented as unrelated tools | One Particles gallery entry; contextual movement pattern and shared sliders | Group related controls by task |
+| Advanced motion only has numeric fields | Sliders beside every advanced value and explicit all-visible-layer scope | Keep adjustment and animation scope consistent |
 | Every motion number shown at once | Main motion/particle sliders; explicit Advanced motion disclosure | Prioritize controls that are used most |
 | Full-width foreground hex field | Bounded color control; contextual tool options | Keep workspace chrome proportionate |
 
@@ -80,3 +80,17 @@ stop-on-topology-change remain intact. UI tests use fake endpoints/transports.
 References: https://mail.getpaint.net/doc/latest/GradientTool.html and
 https://mail.getpaint.net/doc/latest/MoveTools.html. Tool gestures remain immediate;
 no ornamental transitions are added to frequently used editing actions.
+
+## Drawing and hardware regression pass (2026-10-24)
+
+| Before | After | Why |
+| --- | --- | --- |
+| Fill leaves original colored antialias edges | Unpremultiplied color matching preserves original coverage | Recolor the complete painted region |
+| Gradient gesture replaces a shape with a background | Independent shape-local fill arrow; paint uses SourceIn | Preserve the object being edited |
+| Paint palette has no visible activation | Enable color animation starts cycling and playback | Immediate feedback |
+| Hardware attachment without an inventory | Shared Layout tree model and selection, Add/Remove below | One authoritative hardware overview |
+| Tiny LED-only preview with unclear timing | Full composition backdrop and live time, shared sampling | Relate canvas movement to component colors |
+
+No decorative animation was added to repeated drawing gestures. Undo/redo use a
+continuous curved arrow path with a visible arrowhead. Real hardware writes retain
+the existing exact-report review rather than starting from a drawing operation.

@@ -86,6 +86,11 @@ const QVector<EffectParameter>& advancedParameters()
 void validateEffect(const EffectLayer& layer)
 {
     effectDefinition(layer.effect);
+    if(layer.gradientFill) {
+        if(layer.effect<EffectKind::Circle || layer.effect>EffectKind::Moon) throw std::invalid_argument("Gradient fill requires a shape");
+        for(const auto point:{layer.gradientStart,layer.gradientEnd})
+            if(!std::isfinite(point.x()) || !std::isfinite(point.y()) || std::abs(point.x())>20000 || std::abs(point.y())>20000) throw std::invalid_argument("Invalid gradient fill endpoint");
+    }
     if(layer.effect==EffectKind::Paint && !layer.image.isNull() && layer.image.size()!=LightingDocument::canvasSize())
         throw std::invalid_argument("Paint sources must match the canvas size");
     if(!layer.gradientColors.isEmpty() && (layer.gradientColors.size()<2 || layer.gradientColors.size()>16))
@@ -159,7 +164,8 @@ static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
         for (int y = 0; y < image.height(); ++y) {
             auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
             for (int x = 0; x < image.width(); ++x) {
-                const double dx = std::remainder(x+0.5-layer.center.x(),640.0), dy = std::remainder(y+0.5-layer.center.y(),400.0);
+                // Clamp stationary gradients at their endpoints; wrapping local coordinates creates an internal seam.
+                const double dx = x+0.5-layer.center.x(), dy = y+0.5-layer.center.y();
                 const double u = (dx * cosine + dy * sine) / layer.extent.width();
                 const double v = (-dx * sine + dy * cosine) / layer.extent.height();
                 double t = u + 0.5;
@@ -251,7 +257,12 @@ static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
     transform.scale(layer.extent.width(), layer.extent.height());
     QPainter painter(&image);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.fillPath(transform.map(path), layer.color);
+    if(layer.gradientFill) {
+        QLinearGradient gradient(transform.map(layer.gradientStart-QPointF(.5,.5)),transform.map(layer.gradientEnd-QPointF(.5,.5)));
+        const auto colors=layer.gradientColors.isEmpty() ? QVector<QColor>{layer.color,layer.secondaryColor} : layer.gradientColors;
+        for(int i=0;i<colors.size();++i) gradient.setColorAt(layer.gradientPositions.value(i,i/double(colors.size()-1)),colors[i]);
+        painter.fillPath(transform.map(path),gradient);
+    } else painter.fillPath(transform.map(path), layer.color);
     return image;
 }
 
@@ -325,7 +336,7 @@ static QImage renderAtTime(const EffectLayer& layer, double seconds)
     auto evaluated = layer;
     // Evaluate from absolute time, without accumulating drift or editing undoable state.
     const double scale = 1 + layer.zoom/100 * std::sin(2*pi*seconds);
-    evaluated.center += QPointF(layer.driftX*seconds, layer.driftY*seconds);
+    if(!isGradient(layer.effect)) evaluated.center += QPointF(layer.driftX*seconds, layer.driftY*seconds);
     evaluated.extent *= scale;
     evaluated.zoom = 0; evaluated.driftX = 0; evaluated.driftY = 0;
     // Evaluated geometry may be off-canvas or exceed editable bounds; only stored inputs are validated.
@@ -336,7 +347,14 @@ static QImage renderAtTime(const EffectLayer& layer, double seconds)
         const auto next = (index+1) % layer.colorCycle.size();
         evaluated.color = QColor::fromRgba(qUnpremultiply(interpolate(qPremultiply(layer.colorCycle[index].rgba()),
             qPremultiply(layer.colorCycle[next].rgba()), position - std::floor(position))));
-        if(!evaluated.gradientColors.isEmpty()) evaluated.gradientColors[0]=evaluated.color;
+        if(isGradient(layer.effect) || layer.gradientFill) {
+            const int count=layer.gradientColors.isEmpty() ? 2 : layer.gradientColors.size(); evaluated.gradientColors.clear();
+            for(int i=0;i<count;++i) {
+                const double phase=position+i*double(layer.colorCycle.size()-1)/(count-1);
+                const int a=int(std::floor(std::fmod(phase,double(layer.colorCycle.size())))),b=(a+1)%layer.colorCycle.size();
+                evaluated.gradientColors.append(QColor::fromRgba(qUnpremultiply(interpolate(qPremultiply(layer.colorCycle[a].rgba()),qPremultiply(layer.colorCycle[b].rgba()),phase-std::floor(phase)))));
+            }
+        }
     }
     if (layer.hueShift != 0 && layer.effect != EffectKind::Image) {
         auto shift = [&](QColor color) {
@@ -350,6 +368,16 @@ static QImage renderAtTime(const EffectLayer& layer, double seconds)
 
     }
     auto image = renderBaseEffect(evaluated, seconds);
+    // Wrap the completed gradient raster during travel so its clamped edge remains continuous at base time.
+    if(isGradient(layer.effect) && (layer.driftX!=0 || layer.driftY!=0)) {
+        auto shifted=image;
+        const int dx=int(std::remainder(layer.driftX*seconds,640)),dy=int(std::remainder(layer.driftY*seconds,400));
+        for(int y=0;y<400;++y) for(int x=0;x<640;++x) shifted.setPixel(x,y,image.pixel((x-dx+640)%640,(y-dy+400)%400));
+        image=shifted;
+    }
+    if(layer.effect==EffectKind::Paint && layer.cycleRate>0) {
+        QPainter painter(&image); painter.setCompositionMode(QPainter::CompositionMode_SourceIn); painter.fillRect(image.rect(),evaluated.color);
+    }
     if (layer.warp > 0) image=warpRaster(image,layer.warp,seconds,Qt::transparent);
     if (layer.effect == EffectKind::Image && layer.hueShift != 0) {
         for (int y=0; y<image.height(); ++y) {

@@ -283,13 +283,14 @@ void LightingDocument::save(const QString& fileName, bool markClean)
             {"animation", QJsonObject{{"spin", layer.spin}, {"pulse", layer.pulse}, {"hueShift", layer.hueShift}}},
             {"imagePng", QString::fromLatin1(imagePng.toBase64())}, {"imageFill", layer.imageFill},
             {"maskEnabled", layer.maskEnabled}, {"maskPng", QString::fromLatin1(png.toBase64())}});
+        if(layer.gradientFill) { auto json=layers.last().toObject(); json["gradientFill"]=QJsonArray{layer.gradientStart.x(),layer.gradientStart.y(),layer.gradientEnd.x(),layer.gradientEnd.y()}; layers[layers.size()-1]=json; }
     }
     for (const auto& placement : state_.placements)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()},
             {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
-    // Version 11 adds movable gradient stops and paint sources; old evenly spaced gradients retain their rendering.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 11}, {"width", 640}, {"height", 400},
+    // Version 12 adds independent shape gradient fills; old readers must reject them rather than discard their appearance.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 12}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -309,7 +310,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -388,6 +389,13 @@ void LightingDocument::load(const QString& fileName)
             validateEffect(layer);
         } else if (json.contains("effect")) {
             throw std::invalid_argument("Effect parameters require document schema 2");
+        }
+        if(json.contains("gradientFill")) {
+            if(schema<12 || !json.value("gradientFill").isArray() || json.value("gradientFill").toArray().size()!=4) throw std::invalid_argument("Shape gradient fills require schema 12 and four coordinates");
+            const auto points=json.value("gradientFill").toArray();
+            for(const auto& value:points) if(!value.isDouble()) throw std::invalid_argument("Invalid gradient fill coordinate");
+            layer.gradientFill=true; layer.gradientStart={points[0].toDouble(),points[1].toDouble()}; layer.gradientEnd={points[2].toDouble(),points[3].toDouble()};
+            validateEffect(layer);
         }
         if(schema<11 && layer.effect==EffectKind::Paint) throw std::invalid_argument("Paint layers require schema 11");
         if (schema < 3 && (layer.effect == EffectKind::Image || json.contains("imagePng")))

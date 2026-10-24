@@ -7,31 +7,34 @@ left tree. Hardware is a separate workspace containing attachment, component def
 the actual output controls. Its product picker has categories, quantities and header selection. It restores the original studio's product-oriented workflow,
 including the M25 models, generic fans/strips and validated installed component
 metadata. Browsing works offline; adding requires an available or saved header.
+Hardware also shows the same header/component tree and selection as Layout.
+Select a header or component, then Add or Remove; both views update together.
 No product selection starts output.
 
 Layout edits physical component placement. Effects is a separate authoring canvas
-with an independently fitted live hardware preview below it. The splitter
+with a live hardware preview below it using the same 640 by 400 coordinate space. The splitter
 resizes these two views. The hardware pane shows sampled component colors, including
 layer channel targets and channel clocks; it is a software preview, not device readback.
 Native firmware preview uses the configured first color, not a firmware simulation.
 
 New layer immediately creates a transparent Paint layer with a white mask. There is
-no effect-selection dialog. Shapes and effects is the only procedural-source gallery; Import
-image handles image files. The gallery shows Particles once, with motion patterns
-chosen in its contextual inspector. Layers show source and mask thumbnails, effect
+no effect-selection dialog. Shapes and Particles have direct toolbar flyout menus;
+Other effects contains gradients and patterns. Import image handles image files.
+Particle motion patterns remain editable in the contextual inspector. Layers show source and mask thumbnails, effect
 type, visibility and name. Drag to reorder; double-click to rename.
 
 The left toolbar contains Move (V), Pencil (B), Line (L), Rectangle (U), Ellipse (O),
 Gradient (G), Fill (F), Eraser (E), and Crop (C). Shapes support filled/outlined drawing.
 Tool options show only applicable color, stroke and shape controls. A stroke or shape
 commits one pixel edit on release; Escape discards the draft. Fill floods connected
-pixels of the same color, and erasing removes source alpha. On a procedural/image source, Eraser selects
+pixels of the same color while preserving antialiased coverage, and erasing removes source alpha. On a procedural/image source, Eraser selects
 the existing mask and hides coverage instead of flattening the source. Drawing on a procedural
 source creates a separate paint layer instead of flattening the source.
 
 Gradient draws a linear gradient along a drag. On an empty paint layer it turns that
-layer into an editable gradient; an existing painted image is preserved in its own
-layer. Its inspector offers draggable color points, Add/Remove for the selected stop,
+layer into an editable gradient. On painted coverage it recolors existing pixels
+while preserving alpha. On a procedural shape it changes the fill without changing
+the shape geometry; its arrow endpoints remain independently editable. Its inspector offers draggable color points, Add/Remove for the selected stop,
 RGB sliders, a color picker and an optional exact hex value. Stop drags are one undo
 step, and Add samples the existing gradient at the insertion position.
 
@@ -47,7 +50,10 @@ editing stays at base time. Preview time never changes the saved document. It do
 not authorize hardware output. The effect, motion and mask inspectors expose the
 current task; numeric transforms and additional motion parameters are disclosures.
 Particle motion patterns share Count, Speed and Radius sliders; seed and spatial
-motion remain in More animation settings. No decorative animation delays tools or shortcuts.
+motion remain in More animation settings, with sliders beside every number.
+Enable color animation starts palette cycling and playback, including painted sources.
+Apply animation to all visible layers applies subsequent motion edits to the full visible
+stack; otherwise only the selected layer changes. No decorative animation delays tools or shortcuts.
 
 Output: Stopped/Connecting/Running/Faulted opens the Hardware workspace.
 Changing workspace does not stop output; use Stop output. Review/start and Stop retain the existing
@@ -209,12 +215,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 11, including placements, ordered layer
+Save/Open uses `.lighting.json` schema 12, including placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..10 remain readable with their original
+and advanced persistence. Schemas 1..11 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 11; older versions reject it instead of silently losing effects.
+schema 12; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -389,9 +395,9 @@ The Gradient tool leaves an arrow with two draggable endpoints. Radial/conical
 sources retain their type and use the center as the starting handle. Fill targets
 connected paint pixels, matching transparent coverage and tolerating small edge
 color differences; visited pixels keep similar replacement colors from looping.
-On a procedural/image source, Fill uses that source raster to find the connected
-region and places the result on a new transparent paint layer; the original source
-stays editable. It no longer fills a blank new layer indiscriminately.
+On solid procedural shapes, Fill changes the source color directly. Other procedural
+patterns and images use their source raster to find a connected region and place
+the result on a new transparent paint layer; the original source stays editable. It no longer fills a blank new layer indiscriminately.
 The foreground picker remains available while drawing over a gradient source.
 
 The peripheral module restores the original pure protocol encoders for Kone Aimo,
@@ -417,3 +423,17 @@ Old recipes remain available in their original file.
 
 Reference: [Paint.NET gradient control nubs](https://mail.getpaint.net/doc/latest/GradientTool.html)
 and [move/resize controls](https://mail.getpaint.net/doc/latest/MoveTools.html).
+
+## Shape gradient fills (schema 12)
+
+Schema 12 stores optional normalized shape-local gradient endpoints in gradientFill.
+The shape kind, transform and mask remain independent. Older schema numbers reject
+this field; schemas 1 through 11 without it still load. Solid Fill clears the gradient
+fill on that shape. Moving an arrow endpoint never resizes the underlying shape.
+
+The hardware preview shows the live composition beneath sampled LEDs and its current
+clock. It is software feedback, not device readback. The same timed composition and
+component sampling feed OutputSession. A recording-transport regression verifies
+animated painted red/blue frames through the real MSI serializer for both JARGB1 and
+JARGB2. Physical illumination still requires Review and start output and an observed
+hardware test; a Stopped status sends nothing.

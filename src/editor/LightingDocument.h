@@ -18,6 +18,8 @@ struct EffectLayer {
     EffectKind effect = EffectKind::StaticColor;
     QColor secondaryColor = Qt::black;
     QVector<QColor> gradientColors; // Empty preserves the legacy two-color gradient. Otherwise 2..16 evenly spaced stops.
+    bool gradientFill = false;
+    QPointF gradientStart{0,.5}, gradientEnd{1,.5}; // Normalized shape-local fill endpoints; geometry stays editable.
     QVector<double> gradientPositions; // Empty means evenly spaced, preserving schemas 1..10.
     QPointF center{320, 200};
     QSizeF extent{240, 240};

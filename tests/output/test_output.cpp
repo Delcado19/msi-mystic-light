@@ -49,6 +49,7 @@ private slots:
     void failureAndReconnect();
     void lifecycle();
     void documentPreparation();
+    void animatedFanHeaders();
 };
 
 void OutputTest::latestFrameAndNativeCache()
@@ -217,6 +218,41 @@ void OutputTest::documentPreparation()
     QVERIFY(session.stage(fullPipeline[0])); QVERIFY(session.flush());
     const auto expected=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{50,25,13},{50,25,13}});
     QVERIFY(record->reports[1]==std::vector<std::uint8_t>(expected.begin(),expected.end()));
+}
+
+// Exercise the real serializer with a recording transport; never open a physical device.
+void OutputTest::animatedFanHeaders()
+{
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    ComponentDefinition fan; fan.id="fan"; fan.name="Test fan";
+    fan.positions={{0,0},{1,0}}; fan.mapping={1,0};
+    LightingDocument document({{fan.id,fan}},nullptr,{profile});
+    for(const auto& header:{QString("JARGB1"),QString("JARGB2")}) {
+        ChannelAssignment assignment; assignment.endpoint=identity().path; assignment.profileId=profile.id;
+        assignment.channelId=header; assignment.software=true; assignment.placements={document.addComponent(fan.id)};
+        document.assignChannel(assignment);
+    }
+    document.addPaintLayer();
+    document.edit("Animated painted coverage",[](auto& state) {
+        auto& paint=state.layers[0]; paint.image=QImage(LightingDocument::canvasSize(),QImage::Format_ARGB32_Premultiplied);
+        paint.image.fill(Qt::white); paint.cycleRate=1; paint.colorCycle={Qt::red,Qt::blue};
+    });
+    ModuleRegistry modules; QString error; QVERIFY2(modules.load(TEST_MODULE_PATH,&error),qPrintable(error));
+    auto record=std::make_shared<Recording>(); OutputSession session;
+    QVERIFY(session.connect(modules,identity(),profile,std::make_unique<Transport>(record)));
+    for(const double seconds:{0.0,.5}) {
+        const auto frames=prepareOutput(document,document.render(seconds),seconds);
+        QCOMPARE(frames.size(),1); QCOMPARE(frames[0].channels.size(),2);
+        QVERIFY(session.stage(frames[0])); QVERIFY(session.flush());
+        const auto color=seconds==0 ? MsiColor{255,0,0} : MsiColor{0,0,255};
+        const auto first=BuildReport0x51(MsiGen1AdvArea::JARGB1,{color,color});
+        const auto second=BuildReport0x51(MsiGen1AdvArea::JARGB2,{color,color});
+        std::vector<std::vector<std::uint8_t>> colors;
+        for(const auto& report:record->reports) if(report[0]==0x51) colors.push_back(report);
+        QCOMPARE(colors.size(),seconds==0 ? size_t(2) : size_t(4));
+        QVERIFY(colors[colors.size()-2]==std::vector<std::uint8_t>(first.begin(),first.end()));
+        QVERIFY(colors.back()==std::vector<std::uint8_t>(second.begin(),second.end()));
+    }
 }
 
 QTEST_GUILESS_MAIN(OutputTest)

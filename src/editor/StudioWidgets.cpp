@@ -15,6 +15,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPainter>
+#include <QPainterPath>
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QHideEvent>
@@ -60,9 +61,9 @@ void applyStudioStyle(QWidget* window)
         QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid #454b59; border-radius: 5px; background: #1d2027; padding: 6px; min-height: 18px; }
         QComboBox { padding-right: 20px; }
         QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { width: 0; }
-        QTreeWidget, QListWidget { background: #202229; border: 0; outline: 0; }
-        QTreeWidget::item, QListWidget::item { padding: 8px 4px; border-radius: 5px; }
-        QTreeWidget::item:selected, QListWidget::item:selected { background: #344667; color: white; }
+        QTreeWidget, QTreeView, QListWidget { background: #202229; border: 0; outline: 0; }
+        QTreeWidget::item, QTreeView::item, QListWidget::item { padding: 8px 4px; border-radius: 5px; }
+        QTreeWidget::item:selected, QTreeView::item:selected, QListWidget::item:selected { background: #344667; color: white; }
         QHeaderView::section { background: #24262d; color: #b6bdcd; border: 0; padding: 6px; }
         QSlider::groove:horizontal { background: #454c5e; height: 4px; border-radius: 2px; }
         QSlider::sub-page:horizontal { background: #91aaff; border-radius: 2px; }
@@ -118,13 +119,13 @@ std::optional<EffectKind> chooseEffect(QWidget* parent)
 {
     QDialog dialog(parent); dialog.setObjectName("effectGallery"); dialog.setWindowTitle("Add an effect layer"); dialog.resize(720,530);
     auto* layout=new QVBoxLayout(&dialog); layout->setContentsMargins(24,20,24,20); layout->setSpacing(12);
-    auto* title=new QLabel("Shapes, particles and effects"); title->setProperty("heading",true); layout->addWidget(title);
+    auto* title=new QLabel("Gradients and patterns"); title->setProperty("heading",true); layout->addWidget(title);
     auto* subtitle=new QLabel("Each effect becomes a layer with its own editable mask."); subtitle->setProperty("muted",true); layout->addWidget(subtitle);
-    auto* search=new QLineEdit; search->setPlaceholderText("Search: heart, star, particles, gradient..."); search->setObjectName("effectSearch"); layout->addWidget(search);
+    auto* search=new QLineEdit; search->setPlaceholderText("Search gradients and patterns..."); search->setObjectName("effectSearch"); layout->addWidget(search);
     auto* list=new QListWidget; list->setObjectName("effectGalleryItems"); list->setViewMode(QListView::IconMode);
     list->setMovement(QListView::Static); list->setResizeMode(QListView::Adjust); list->setIconSize({112,70}); list->setGridSize({150,116});
     for(const auto& definition:effectDefinitions()) {
-        if(definition.kind==EffectKind::Image || definition.kind==EffectKind::Paint || definition.kind==EffectKind::Orbit || definition.kind==EffectKind::Fireflies || definition.kind==EffectKind::Burst) continue; // Images use Import, so choosing an effect never creates an empty image layer.
+        if(definition.kind==EffectKind::Image || definition.kind==EffectKind::Paint || (definition.kind>=EffectKind::Circle && definition.kind<=EffectKind::Moon) || isParticle(definition.kind)) continue; // Images use Import, so choosing an effect never creates an empty image layer.
         EffectLayer layer; layer.effect=definition.kind; layer.color=QColor("#91aaff"); layer.secondaryColor=QColor("#ff91ba");
         // Gallery and canvas use the same source renderer, not approximate marketing thumbnails.
         QPixmap preview(112,70); preview.fill(QColor("#171b25")); QPainter painter(&preview);
@@ -164,7 +165,7 @@ QIcon studioToolIcon(const QString& name)
     painter.setRenderHint(QPainter::Antialiasing); painter.setPen(QPen(QColor("#e0e8fc"),1.7,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
     if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }
     else if(name=="save") { painter.drawRect(4,3,16,18); painter.drawRect(7,3,10,6); painter.drawRect(7,14,10,7); }
-    else if(name=="undo" || name=="redo") { if(name=="redo") { painter.translate(24,0); painter.scale(-1,1); } painter.drawLine(4,9,9,4); painter.drawLine(4,9,9,14); painter.drawArc(QRectF(5,8,15,12),0,180*16); }
+    else if(name=="undo" || name=="redo") { if(name=="redo") { painter.translate(24,0); painter.scale(-1,1); } QPainterPath arrow; arrow.moveTo(4,9); arrow.lineTo(13,9); arrow.cubicTo(23,9,23,20,13,20); painter.drawPath(arrow); painter.drawLine(4,9,9,4); painter.drawLine(4,9,9,14); }
     else if(name=="move") {
         painter.drawLine(12,3,12,21); painter.drawLine(3,12,21,12);
         for(int i=0;i<4;++i) { painter.save(); painter.translate(12,12); painter.rotate(90*i); painter.drawLine(0,-9,-3,-6); painter.drawLine(0,-9,3,-6); painter.restore(); }
@@ -176,6 +177,8 @@ QIcon studioToolIcon(const QString& name)
     } else if(name=="line") painter.drawLine(4,20,20,4);
     else if(name=="rectangle") painter.drawRect(QRectF(4,5,16,14));
     else if(name=="ellipse") painter.drawEllipse(QRectF(4,4,16,16));
+    else if(name=="shapes") { QPolygonF star; for(int i=0;i<10;++i) { const double angle=i*3.141592653589793/5-3.141592653589793/2, radius=i%2 ? 4 : 10; star<<QPointF(12+radius*std::cos(angle),12+radius*std::sin(angle)); } painter.drawPolygon(star); }
+    else if(name=="particles") { painter.setBrush(QColor("#e0e8fc")); for(const auto point:{QPointF(5,5),QPointF(15,4),QPointF(21,12),QPointF(12,12),QPointF(5,19),QPointF(16,20)}) painter.drawEllipse(point,1.7,1.7); }
     else if(name=="gradient") { QLinearGradient gradient(4,12,20,12); gradient.setColorAt(0,Qt::white); gradient.setColorAt(1,QColor("#414957")); painter.setBrush(gradient); painter.drawRect(QRectF(3,5,18,14)); }
     else if(name=="fill") { QPolygonF bucket; bucket<<QPointF(5,10)<<QPointF(12,3)<<QPointF(20,11)<<QPointF(12,19); painter.drawPolygon(bucket); painter.drawLine(4,10,14,10); painter.drawLine(19,15,21,20); }
     else if(name=="eraser") { QPolygonF eraser; eraser<<QPointF(3,15)<<QPointF(13,4)<<QPointF(21,11)<<QPointF(12,21)<<QPointF(9,21); painter.drawPolygon(eraser); painter.drawLine(9,10,17,17); }

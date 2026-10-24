@@ -23,6 +23,7 @@
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QTemporaryDir>
 #include <QFile>
 #include <QJsonDocument>
@@ -61,6 +62,9 @@ void addEffect(LightingWindow& window,EffectKind kind=EffectKind::StaticColor)
 {
     window.findChild<QAction*>("workspaceEffects")->trigger();
     window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    if(isParticle(kind) || (kind>=EffectKind::Circle && kind<=EffectKind::Moon)) {
+        auto* action=window.findChild<QAction*>("create_"+effectDefinition(kind).id); QVERIFY(action); action->trigger(); return;
+    }
     QTimer::singleShot(0,[kind] {
         auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());
         QVERIFY(dialog); QTimer::singleShot(2000,dialog,&QDialog::reject); auto* list=dialog->findChild<QListWidget*>("effectGalleryItems"); QVERIFY(list);
@@ -81,6 +85,7 @@ EffectLayer layer(QColor color)
 class EditorTest : public QObject {
     Q_OBJECT
 private slots:
+    void drawingAndAnimationRegressions();
     void restoredLayoutAndDrawing();
     void legacyHardware();
     void periodicEffectsAndGradientStops();
@@ -152,6 +157,65 @@ void EditorTest::hardwareLibrary()
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Dedicated RAM"); QVERIFY(!list->currentItem());
 }
 
+void EditorTest::drawingAndAnimationRegressions()
+{
+    LightingDocument document(catalog()); const auto id=document.addPaintLayer();
+    LightingCanvas canvas(document,LightingCanvas::Context::Effects); canvas.resize(800,600); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas)); canvas.select(id);
+    auto drag=[&](LightingCanvas::Tool tool,QPointF a,QPointF b) { canvas.setTool(tool); QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint(a).toPoint()); QTest::mouseMove(&canvas,canvas.viewportPoint(b).toPoint()); QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint(b).toPoint()); };
+    canvas.setDrawing(QColor("#ff5a00"),6,true); drag(LightingCanvas::Tool::Ellipse,{120,100},{280,260});
+    const auto before=document.state().layers[0].image;
+    canvas.setDrawing(Qt::cyan,6,true); drag(LightingCanvas::Tool::Fill,{200,180},{200,180});
+    const auto filled=document.state().layers[0].image;
+    for(int y=0;y<400;++y) for(int x=0;x<640;++x) {
+        QCOMPARE(qAlpha(filled.pixel(x,y)),qAlpha(before.pixel(x,y)));
+        if(qAlpha(before.pixel(x,y))>0) QCOMPARE(qRed(filled.pixel(x,y)),0);
+    }
+    canvas.setGradientStops({Qt::red,Qt::blue},{0,1}); drag(LightingCanvas::Tool::Gradient,{120,180},{280,180});
+    QCOMPARE(document.state().layers.size(),1); QCOMPARE(document.state().layers[0].effect,EffectKind::Paint);
+    const auto graded=document.state().layers[0].image;
+    for(int y=0;y<400;++y) for(int x=0;x<640;++x) QCOMPARE(qAlpha(graded.pixel(x,y)),qAlpha(before.pixel(x,y)));
+    QVERIFY(graded.pixelColor(150,180).red()>graded.pixelColor(250,180).red());
+    const auto shape=document.addLayer(EffectKind::Heart); canvas.select(shape);
+    const auto geometry=document.state().layers.last();
+    drag(LightingCanvas::Tool::Gradient,{260,200},{380,200});
+    const auto& shapeFill=document.state().layers.last(); QVERIFY(shapeFill.gradientFill);
+    QCOMPARE(shapeFill.effect,EffectKind::Heart); QCOMPARE(shapeFill.center,geometry.center); QCOMPARE(shapeFill.extent,geometry.extent);
+    QTemporaryDir saved; const auto path=saved.filePath("shape-gradient.json"); document.save(path);
+    LightingDocument restored(catalog()); restored.load(path); QCOMPARE(restored.render(),document.render());
+    QVERIFY(restored.state().layers.last().gradientFill);
+    QFile jsonFile(path); QVERIFY(jsonFile.open(QIODevice::ReadOnly)); auto json=QJsonDocument::fromJson(jsonFile.readAll()).object(); jsonFile.close();
+    json["schemaVersion"]=11; QVERIFY(jsonFile.open(QIODevice::WriteOnly)); jsonFile.write(QJsonDocument(json).toJson()); jsonFile.close();
+    QVERIFY_EXCEPTION_THROWN(restored.load(path),std::invalid_argument);
+    auto paint=document.state().layers[0]; paint.cycleRate=1; paint.colorCycle={Qt::red,Qt::blue};
+    QCOMPARE(renderEffect(paint,0).pixelColor(200,180),QColor(Qt::red)); QCOMPARE(renderEffect(paint,.5).pixelColor(200,180),QColor(Qt::blue));
+    auto gradient=layer(Qt::red); gradient.effect=EffectKind::LinearGradient; gradient.center={250,200}; gradient.extent={200,400}; gradient.secondaryColor=Qt::blue;
+    QCOMPARE(renderEffect(gradient).pixelColor(639,200),QColor(Qt::blue));
+    gradient.driftX=100; QCOMPARE(renderEffect(gradient,1).pixelColor(300,200),renderEffect(gradient,0).pixelColor(200,200));
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    addEffect(window,EffectKind::LinearGradient); addEffect(window,EffectKind::Circle);
+    window.findChild<QCheckBox*>("allLayerMotion")->setChecked(true); window.findChild<QDoubleSpinBox*>("driftX")->setValue(80);
+    QCOMPARE(window.document().state().layers[0].driftX,80.0); QCOMPARE(window.document().state().layers[1].driftX,80.0);
+    window.findChild<QCheckBox*>("enableColorCycle")->setChecked(true); QVERIFY(window.findChild<QPushButton*>("playPreview")->isChecked());
+    for(const auto& source:window.document().state().layers) QVERIFY(source.cycleRate>0);
+    for(const auto& name:{"driftX","driftY","zoom","warp","breathe","trails","particleSeed"}) {
+        auto* value=window.findChild<QDoubleSpinBox*>(name); bool linked=false;
+        for(auto* slider:window.findChildren<QSlider*>()) if(slider->property("numericField").value<QObject*>()==value) linked=true;
+        QVERIFY2(linked,name);
+    }
+    auto* tree=window.findChild<QTreeView*>("hardwareComponents"); QCOMPARE(tree->model(),window.findChild<QTreeWidget*>("layoutComponents")->model());
+    const auto component=window.document().addComponent("test.strip");
+    auto* live=window.findChild<LightingCanvas*>("hardwareLivePreview"); auto* time=window.findChild<QDoubleSpinBox*>("previewTime");
+    window.findChild<QPushButton*>("playPreview")->setChecked(false); time->setValue(0); const auto first=live->grab().toImage();
+    time->setValue(2); const auto next=live->grab().toImage();
+    const auto pixel=(live->viewportPoint({80,80})*first.devicePixelRatio()).toPoint(); QVERIFY(first.pixelColor(pixel)!=next.pixelColor(pixel));
+    window.findChild<QAction*>("workspaceHardware")->trigger();
+    auto* layoutTree=window.findChild<QTreeWidget*>("layoutComponents");
+    for(QTreeWidgetItemIterator it(layoutTree);*it;++it) if((*it)->data(0,Qt::UserRole).toUuid()==component) tree->setCurrentIndex(layoutTree->indexFromItem(*it));
+    QVERIFY(window.findChild<QPushButton*>("removeHardwareComponent")->isEnabled()); window.findChild<QPushButton*>("removeHardwareComponent")->click();
+    QVERIFY(window.document().state().placements.isEmpty()); window.document().history()->undo(); QCOMPARE(window.document().state().placements.size(),1);
+    window.document().history()->setClean();
+}
+
 void EditorTest::legacyHardware()
 {
     QTemporaryDir directory; const auto path=directory.filePath("settings.json");
@@ -185,6 +249,7 @@ void EditorTest::restoredLayoutAndDrawing()
     window.findChild<QPushButton*>("rectangleTool")->click(); setColor("#ff0000"); drag(canvas,{80,80},{200,180});
     window.findChild<QPushButton*>("fillTool")->click(); setColor("#0000ff"); QVERIFY(color->isVisible()); drag(canvas,{130,120},{130,120});
     QCOMPARE(window.document().render().pixelColor(130,120),QColor(Qt::blue));
+    window.findChild<QPushButton*>("newLayer")->click();
     window.findChild<QPushButton*>("gradientTool")->click(); drag(canvas,{40,240},{500,240});
     const auto gradient=window.document().state().layers.last();
     drag(canvas,{500,240},{400,330});
@@ -200,7 +265,7 @@ void EditorTest::restoredLayoutAndDrawing()
     drag(layout,{220,81},{310,155}); QVERIFY(std::abs(window.document().state().placements[0].rotation)>30);
     window.document().history()->undo(); QCOMPARE(window.document().state().placements[0].rotation,0.0);
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/restored-layout.png"));
-    window.findChild<QAction*>("workspaceHardware")->trigger(); QVERIFY(window.findChild<QComboBox*>("componentCatalog")->isVisible()); QVERIFY(!layout->isVisible());
+    window.findChild<QAction*>("workspaceHardware")->trigger(); QVERIFY(window.findChild<QTreeView*>("hardwareComponents")->isVisible()); QVERIFY(!layout->isVisible());
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/restored-hardware.png"));
     window.document().history()->setClean();
 }
@@ -246,11 +311,9 @@ void EditorTest::drawingTools()
     QCOMPARE(errors.count(),1); QCOMPARE(limited.state().layers.size(),64);
     const auto heart=document.addLayer(EffectKind::Heart); canvas.select(heart); canvas.setMaskTarget(false); canvas.setDrawing(Qt::green,6,true);
     drag(LightingCanvas::Tool::Fill,{320,200},{320,200});
-    QCOMPARE(document.state().layers[2].effect,EffectKind::Heart);
-    QCOMPARE(document.state().layers.last().effect,EffectKind::Paint);
-    QCOMPARE(document.state().layers.last().image.pixelColor(320,200),QColor(Qt::green));
-    QCOMPARE(document.state().layers.last().image.pixelColor(10,10).alpha(),0);
-    document.history()->undo(); document.history()->undo(); document.history()->undo();
+    QCOMPARE(document.state().layers.last().effect,EffectKind::Heart);
+    QCOMPARE(document.state().layers.last().color,QColor(Qt::green));
+    document.history()->undo(); document.history()->undo();
     const auto radial=document.addLayer(EffectKind::RadialGradient); canvas.select(radial); canvas.setMaskTarget(false);
     drag(LightingCanvas::Tool::Gradient,{200,180},{400,200});
     QCOMPARE(document.state().layers.last().effect,EffectKind::RadialGradient);
@@ -307,7 +370,7 @@ void EditorTest::visualWorkspace()
         auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget()); QVERIFY(dialog);
         QTimer::singleShot(2000,dialog,&QDialog::reject);
         auto* search=dialog->findChild<QLineEdit*>("effectSearch"); auto* list=dialog->findChild<QListWidget*>("effectGalleryItems");
-        search->setText("particles"); QCOMPARE(list->currentItem()->data(Qt::UserRole).toInt(),static_cast<int>(EffectKind::Rain));
+        search->setText("linear"); QCOMPARE(list->currentItem()->data(Qt::UserRole).toInt(),static_cast<int>(EffectKind::LinearGradient));
         search->setText("no such effect"); QVERIFY(!dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->isEnabled());
         search->clear(); QVERIFY(dialog->grab().save(QString(TEST_ARTIFACT_DIR)+"/studio-effect-gallery.png"));
         dialog->reject();
@@ -1145,7 +1208,7 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 11);
+    QCOMPARE(root.value("schemaVersion").toInt(), 12);
     // Published schema 2 has explicit effects but no image fields or Image type.
     auto version2 = root; version2.remove("components"); version2.remove("assignments"); QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {

@@ -1,5 +1,47 @@
 # Implementation status
 
+## Drawing, animation and hardware inventory corrections (2026-10-24)
+
+Supersedes the source-gallery/fill details in the previous status below. Shapes
+and Particles are toolbar flyouts; Other effects contains gradients and patterns.
+Bucket Fill compares unpremultiplied colors and retains antialiased alpha. Solid
+procedural fills edit source color directly. Gradient gestures recolor Paint
+coverage with SourceIn; procedural shapes retain their kind and geometry with
+independent normalized fill endpoints. Schema 12 persists those endpoints and
+rejects them under older schema numbers; documents 1..11 still load.
+
+Every advanced motion value has a slider. Enable color animation activates
+palette cycling and playback, including Paint coverage; gradient cycling updates
+all stops. Apply animation to all visible layers controls subsequent motion edits.
+Static gradients clamp without an internal wrap seam; animated drift wraps the
+completed raster. Live hardware preview includes the composition and clock,
+with canonical 640x400 sampling. Undo/redo icons use continuous curved arrows.
+
+Hardware has a header/component overview sharing Layout's exact model and
+selection. Add/Remove actions use existing validated, undoable chain operations.
+Custom component definitions are collapsed. Peripheral devices cannot receive
+motherboard fan/strip attachments. Actual OutputPanel remains in Hardware.
+
+Validation: final Release build/next and Debug build/multi both pass 15/15 CTest.
+Native Windows editor 35/35 and output UI 8/8 pass. New regressions cover alpha
+edges, gradient fill/save/load/old-schema rejection, palette animation, all-layer
+motion, live sampled LED changes, slider bindings and shared inventory/removal.
+A recording transport verifies animated red/blue Paint frames through document
+composition, component sampling, OutputSession and the real MSI serializer for
+both JARGB1 and JARGB2, including actual 0x51 report bytes. This is protocol proof,
+not physical illumination proof: no real HID writes were sent this turn.
+
+Refreshed native screenshots and portable folder/ZIP. Package CRC and source /
+folder / archived executable equality pass; hidapi.dll, qwindows.dll and both
+modules are present. Windows-only PATH --inspect and read-only --scan return 0;
+scan identifies MSI, Apex 3, Vulcan and Basilisk (four exact candidates).
+Packaged EXE SHA256: 0f5aa6bf8f16c26fb40dfa2e87e4f0d1e1a53e71af5be75cb2277555dfdb6b5a.
+
+Remaining hardware check: review the concrete reports in the app, explicitly
+start output, then observe JARGB1/JARGB2 colors and motion on the connected fans.
+Stopped sends nothing; no automatic output, process termination or reconnect was
+introduced. Existing running app and unsaved user project were left alone.
+
 ## Restore layout and peripheral regressions (2026-10-23)
 
 Supersedes the neutral Layout and detached output window below. Layout renders the

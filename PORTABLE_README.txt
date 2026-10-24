@@ -8,7 +8,7 @@ Output starts only after explicit review and confirmation in the Hardware
 workspace. Layout opens with automatic header discovery. Attach fans/strips to a
 header using Hardware, then arrange its group or individual components.
 New layer is a blank paint layer. Standard drawing tools are on the left;
-procedural sources are in Shapes and effects. Gradients use draggable stops and RGB sliders.
+Shapes and Particles have toolbar menus; Other effects contains gradients and patterns. Gradients use draggable stops and RGB sliders.
 Gradient arrows have draggable endpoints. Layout has a live effect background,
 group frames and resize/rotation handles. Effects includes a live hardware preview.
 Roccat Vulcan/Kone, Razer Basilisk V3 and Apex 3 are detected by the peripheral
@@ -19,3 +19,10 @@ not been physically qualified. No automatic reconnect or output on startup.
 
 Source and build instructions: https://github.com/Delcado19/msi-mystic-light
 See LICENSE and THIRD_PARTY_NOTICES.md for licenses and replacement instructions.
+
+Drawing and hardware update:
+Shapes and Particles are toolbar menus. Gradient fills preserve painted coverage
+and procedural shape geometry. Enable color animation starts playback; the motion
+scope can apply edits to all visible layers. Hardware shares Layout's selectable
+header/component overview with Add/Remove. The live preview shows software sampling;
+Review and start output is still required to send colors to the fans.
