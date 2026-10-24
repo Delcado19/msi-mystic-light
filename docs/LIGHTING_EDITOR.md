@@ -55,10 +55,10 @@ Enable color animation starts palette cycling and playback, including painted so
 Apply animation to all visible layers applies subsequent motion edits to the full visible
 stack; otherwise only the selected layer changes. No decorative animation delays tools or shortcuts.
 
-Output: Stopped/Connecting/Running/Faulted opens the Hardware workspace. Its tooltip
+Output: Stopped/Connecting/Running/Faulted is a read-only status beside Undo/Redo. Use Hardware to configure outputs. Its tooltip
 includes the current output status/reason; the Hardware status follows actual state.
 Changing workspace does not stop output; use Stop output. Output starts automatically for configured, detected hardware; there is no report
-approval checkbox. Stop disables retries until Resume or the next app launch. Starting an animated output resumes
+approval checkbox. Tray Stop disables retries until Resume or the next app launch. Starting an animated output resumes
 a paused preview so devices receive moving frames. Static output does not force
 playback. See [output](OUTPUT_SESSION.md).
 
@@ -472,3 +472,24 @@ wire mapping. Apply is one undo step and the arrangement is embedded in saved
 projects. Shared definition authoring remains under Hardware's custom component
 definitions. Device geometry uses a private embedded definition and counts toward
 the existing 256-definition project limit.
+
+### Live layout movement and output selection
+
+Layout retains the animated effect canvas behind the hardware. Dragging a component
+samples its temporary position immediately, including during resize/rotation;
+actual output receives those samples before mouse release. Escape restores original
+sampling positions; release commits one undo step. Clicking a member of a selected
+group selects that member. Drag the group label to move the complete chain.
+
+Hardware lists each detected controller/profile with all supported outputs beneath
+it, including unconfigured JARGB/JRGB/IOShield channels. Saved offline assignments
+also remain visible. These are channels of a shared controller, not invented USB
+endpoints. The left inventory retains the real configured components. Selecting a component
+selects its output in the status tree; selecting an output selects its header.
+
+Select a channel to stop/resume only its submissions; select the controller to act
+on its configured channels. Running channels disable Resume. Unconfigured channels
+have both actions disabled. Paused channels hold their last applied device state;
+firmware-native animations can continue independently. A currently executing report
+may finish when Stop is pressed. Other channels keep their controller connection.
+The output tree expands to use available space rather than a fixed 100-pixel box.

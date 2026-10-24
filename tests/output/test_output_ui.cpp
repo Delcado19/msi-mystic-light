@@ -1,4 +1,5 @@
 #include <QDialog>
+#include <QPainter>
 #include "output/HardwareOutput.h"
 #include "protocol/MsiProtocol.h"
 #include <QCheckBox>
@@ -56,18 +57,22 @@ void configure(LightingDocument& document)
 }
 OutputConnection connection(OutputFrame frame,std::shared_ptr<Record> record,std::function<bool()> present={})
 {
-    return {std::move(frame),[record] {
+    const auto endpoint=frame.endpoint;
+    return {std::move(frame),[record,endpoint] {
         ModuleRegistry modules; QString error;
         if(!modules.load(TEST_MODULE_PATH,&error)) throw std::runtime_error(error.toStdString());
         auto session=std::make_unique<OutputSession>();
-        if(!session->connect(modules,identity(),profile(),std::make_unique<Transport>(record))) throw std::runtime_error(session->error().toStdString());
+        auto device=identity(); device.path=endpoint;
+        if(!session->connect(modules,device,profile(),std::make_unique<Transport>(record))) throw std::runtime_error(session->error().toStdString());
         return session;
     },std::move(present)};
 }
 bool state(OutputPanel& panel,const QString& expected)
 {
     const auto* tree=panel.findChild<QTreeWidget*>("outputEndpoints");
-    return tree->topLevelItemCount()==1 && tree->topLevelItem(0)->text(1)==expected;
+    for(int i=0;i<tree->topLevelItemCount();++i)
+        if(tree->topLevelItem(i)->data(0,Qt::UserRole).toString()==identity().path) return tree->topLevelItem(i)->text(1)==expected;
+    return false;
 }
 }
 class OutputUiTest : public QObject {
@@ -75,6 +80,9 @@ class OutputUiTest : public QObject {
 private slots:
     void initTestCase() { QVERIFY(QDir().mkpath(TEST_ARTIFACT_DIR)); }
     void applicationDevicePage();
+    void layoutDragOutput();
+    void headerControls();
+    void independentConnections();
     void scopeGuard();
     void pausedGradientPlayback();
     void automaticOutput();
@@ -83,6 +91,121 @@ private slots:
     void cancelAndChangedReview();
     void unplugAndRestart();
 };
+void OutputUiTest::layoutDragOutput()
+{
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    window.document().edit("Sampling test image",[](auto& state) {
+        auto& layer=state.layers[0]; layer.effect=EffectKind::Image; layer.extent={640,400};
+        layer.image=QImage(640,400,QImage::Format_ARGB32_Premultiplied); layer.image.fill(Qt::red);
+        QPainter painter(&layer.image); painter.fillRect(200,0,440,400,Qt::blue);
+    });
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    auto record=std::make_shared<Record>();
+    OutputPanel panel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; });
+    panel.enableAutomaticOutput(); QTRY_VERIFY(state(panel,"Running")); QTRY_COMPARE(record->writes(),2);
+    window.resize(1440,900); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");
+    window.findChild<QAction*>("workspaceLayout")->trigger();
+    const auto id=window.document().state().placements[0].id;
+    canvas->select(window.document().state().assignments[0].id);
+    const auto before=window.document().state().placements[0].origin; const auto history=window.document().history()->index();
+    const auto from=canvas->viewportPoint(before).toPoint(), to=canvas->viewportPoint({300,80}).toPoint();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,from);
+    QCOMPARE(canvas->selection(),id);
+    QTest::mouseMove(canvas,to);
+    QTRY_VERIFY(record->writes()>2);
+    QCOMPARE(window.document().state().placements[0].origin,before);
+    QCOMPARE(window.document().history()->index(),history);
+    const auto placements=canvas->previewPlacements();
+    const auto colors=prepareOutput(window.document(),window.previewFrame(),0,&placements)[0].channels[0].colors;
+    QCOMPARE(colors[0].b,quint8(255)); QCOMPARE(colors[0].r,quint8(0));
+    {
+        const std::lock_guard<std::mutex> lock(record->mutex);
+        const auto& last=record->reports.back();
+        const auto expected=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{0,0,255}});
+        QCOMPARE(last,std::vector<std::uint8_t>(expected.begin(),expected.end()));
+    }
+    QTest::keyClick(canvas,Qt::Key_Escape);
+    QTRY_VERIFY(record->writes()>3);
+    QCOMPARE(canvas->previewPlacements()[0].origin,before);
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,from); QTest::mouseMove(canvas,to);
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,to);
+    QCOMPARE(window.document().history()->index(),history+1);
+    const auto origin=window.document().state().placements[0].origin;
+    QVERIFY(QLineF(origin,QPointF(300,80)).length()<2);
+    QCOMPARE(canvas->previewPlacements()[0].origin,origin);
+    panel.stopOutput(); window.document().history()->setClean();
+}
+void OutputUiTest::headerControls()
+{
+    const ProfileCandidate detected{identity(),profile().id};
+    LightingWindow window({},[detected] { return QVector<ProfileCandidate>{detected}; },nullptr,{profile()}); configure(window.document());
+    auto assignment=window.document().state().assignments[0]; assignment.id=QUuid::createUuid(); assignment.channelId="JARGB2";
+    assignment.placements={window.document().addComponent("test")}; window.document().assignChannel(assignment);
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    auto record=std::make_shared<Record>();
+    OutputPanel panel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; });
+    panel.enableAutomaticOutput(); QTRY_VERIFY(state(panel,"Running"));
+    auto* tree=panel.findChild<QTreeWidget*>("outputEndpoints");
+    QCOMPARE(tree->topLevelItem(0)->childCount(),profile().channels.size());
+    QVERIFY(tree->maximumHeight()>100);
+    auto* start=panel.findChild<QPushButton*>("startOutput"); auto* stop=panel.findChild<QPushButton*>("stopOutput");
+    QVERIFY(!start->isEnabled()); QVERIFY(!start->property("primary").toBool());
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0)); stop->click();
+    QCOMPARE(tree->topLevelItem(0)->child(0)->text(1),QString("Stopped"));
+    QCOMPARE(tree->topLevelItem(0)->child(1)->text(1),QString("Running"));
+    QVERIFY(start->isEnabled()); QVERIFY(!stop->isEnabled());
+    QTest::qWait(80); const int pausedWrites=record->writes();
+    window.document().edit("Peer keeps running",[](auto& state) { state.layers[0].color=Qt::blue; });
+    QTRY_VERIFY(record->writes()>pausedWrites);
+    {
+        const std::lock_guard<std::mutex> lock(record->mutex);
+        const auto expected=BuildReport0x51(MsiGen1AdvArea::JARGB2,{{0,0,255}});
+        for(int i=pausedWrites;i<record->reports.size();++i)
+            QCOMPARE(record->reports[i],std::vector<std::uint8_t>(expected.begin(),expected.end()));
+    }
+    start->click(); QTRY_COMPARE(tree->topLevelItem(0)->child(0)->text(1),QString("Running"));
+    QVERIFY(!start->isEnabled());
+    tree->setCurrentItem(tree->topLevelItem(0)->child(2));
+    QCOMPARE(tree->currentItem()->text(1),QString("Not configured"));
+    QVERIFY(!start->isEnabled()); QVERIFY(!stop->isEnabled());
+    auto* inventory=window.findChild<QTreeWidget*>("layoutComponents");
+    auto* member=inventory->topLevelItem(1)->child(0); QVERIFY(member);
+    inventory->setCurrentItem(member);
+    QCOMPARE(tree->currentItem()->data(0,Qt::UserRole+2).toString(),QString("JARGB2"));
+    QVERIFY(!start->isEnabled()); QVERIFY(stop->isEnabled());
+    panel.stopOutput(); window.document().history()->setClean();
+}
+
+void OutputUiTest::independentConnections()
+{
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    auto second=window.document().state().assignments[0]; second.id=QUuid::createUuid(); second.endpoint="second-endpoint";
+    second.placements={window.document().addComponent("test")}; window.document().assignChannel(second);
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    auto firstRecord=std::make_shared<Record>(), secondRecord=std::make_shared<Record>();
+    auto present=std::make_shared<std::atomic_bool>(true); bool rejectResume=false;
+    OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
+        QVector<OutputConnection> result;
+        for(const auto& frame:frames) {
+            if(frame.endpoint==identity().path) {
+                if(rejectResume) throw std::runtime_error("Test reconnection rejected");
+                result.append(connection(frame,firstRecord,[present] { return present->load(); }));
+            } else result.append(connection(frame,secondRecord));
+        }
+        return result;
+    });
+    panel.enableAutomaticOutput(); QTRY_COMPARE(firstRecord->writes(),2); QTRY_COMPARE(secondRecord->writes(),2);
+    present->store(false); QTRY_VERIFY(state(panel,"Faulted"));
+    rejectResume=true; panel.findChild<QPushButton*>("startOutput")->click();
+    QVERIFY(panel.findChild<QLabel*>("outputStatus")->text().contains("rejected"));
+    const int before=secondRecord->writes();
+    window.document().edit("Healthy peer stays connected",[](auto& state) { state.layers[0].color=Qt::blue; });
+    QTRY_VERIFY(secondRecord->writes()>before);
+    QCOMPARE(panel.findChild<QTreeWidget*>("outputEndpoints")->topLevelItem(1)->text(1),QString("Running"));
+    panel.stopOutput(); window.document().history()->setClean();
+}
+
 void OutputUiTest::applicationDevicePage()
 {
     LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document()); window.findChild<QPushButton*>("playPreview")->setChecked(false);
@@ -90,7 +213,9 @@ void OutputUiTest::applicationDevicePage()
     auto* panel=new OutputPanel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; },&window);
     window.installOutputPanel(panel); QObject::connect(panel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
     window.resize(1440,900); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
-    window.findChild<QAction*>("reviewOutput")->trigger();
+    QVERIFY(!window.findChild<QAction*>("reviewOutput")->isEnabled());
+    QVERIFY(window.findChild<QLabel*>("toolbarOutputStatus"));
+    window.findChild<QAction*>("workspaceHardware")->trigger();
     QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),0); QVERIFY(panel->isVisible());
     QCoreApplication::processEvents();
     QVERIFY(!window.findChild<QToolBar*>("previewToolbar")->isVisible());
@@ -138,17 +263,22 @@ void OutputUiTest::pausedGradientPlayback()
     OutputPanel panel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; });
     panel.findChild<QPushButton*>("startOutput")->click();
     QVERIFY(window.findChild<QPushButton*>("playPreview")->isChecked());
-    QTRY_VERIFY(state(panel,"Running")); QTest::qWait(200);
-    window.findChild<QPushButton*>("playPreview")->setChecked(false);
-    bool firstChanged=false,secondChanged=false;
-    {
+    QTRY_VERIFY(state(panel,"Running"));
+    const auto bothMoving=[&] {
         const std::lock_guard<std::mutex> lock(record->mutex);
-        std::vector<std::vector<std::uint8_t>> frames;
-        for(const auto& report:record->reports) if(report[0]==0x51) frames.push_back(report);
-        QVERIFY(frames.size()>=4);
-        firstChanged=frames[0]!=frames[frames.size()-2]; secondChanged=frames[1]!=frames.back();
-    }
-    QVERIFY(firstChanged); QVERIFY(secondChanged); panel.stopOutput(); window.document().history()->setClean();
+        QMap<int,std::vector<std::uint8_t>> first;
+        QSet<int> changed;
+        for(const auto& report:record->reports) if(report[0]==0x51) {
+            const int area=(report[2]<<8)|report[3];
+            if(!first.contains(area)) first.insert(area,report);
+            else if(first[area]!=report) changed.insert(area);
+        }
+        return changed.contains(0x0400) && changed.contains(0x0401);
+    };
+    // Wait for observed changes, not a fixed delay that races Debug rendering and worker scheduling.
+    QTRY_VERIFY_WITH_TIMEOUT(bothMoving(),5000);
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    panel.stopOutput(); window.document().history()->setClean();
 }
 
 void OutputUiTest::scopeGuard()

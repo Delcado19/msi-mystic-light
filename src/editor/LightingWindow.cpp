@@ -358,7 +358,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         refreshHeader();
     });
     layoutControls->addWidget(removeComponent);
-    auto* instructions = new QLabel("Drag a component or group to move it.\nDrag corners to resize; the circle rotates.\nArrow keys move; Shift moves by 10.\nWheel zooms; middle drag pans.\n\nLayout changes sampling positions only.");
+    auto* instructions = new QLabel("Drag a component to move it; drag a group label to move the group.\nDrag corners to resize; the circle rotates.\nArrow keys move; Shift moves by 10.\nWheel zooms; middle drag pans.\n\nLayout changes sampling positions only.");
     instructions->setWordWrap(true);
     instructions->setProperty("muted",true);
     layoutControls->addWidget(instructions);
@@ -408,9 +408,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     }
     auto* output=previewToolbar->addAction("Output: Stopped"); output->setObjectName("reviewOutput");
     output->setToolTip("Show connected hardware and output status; canvas output starts automatically");
-    previewToolbar->removeAction(output); toolbar->addSeparator(); toolbar->addAction(output);
-    connect(output,&QAction::triggered,this,&LightingWindow::outputRequested);
+    // Output status is informational; Hardware already has its own navigation button.
+    previewToolbar->removeAction(output); output->setEnabled(false);
+    auto* outputStatus=new QLabel("Output: Stopped"); outputStatus->setObjectName("toolbarOutputStatus");
+    toolbar->addSeparator(); toolbar->addWidget(outputStatus);
     connect(previewChannel_,&QComboBox::currentIndexChanged,this,&LightingWindow::updatePreview);
+    connect(layoutCanvas_,&LightingCanvas::layoutPreviewChanged,this,[this] { emit previewFrameChanged(previewFrame_); });
     auto* timer = new QTimer(this); timer->setInterval(33);
     connect(playing_, &QPushButton::toggled, this, [this, timer](bool play) {
         playing_->setText(play ? "Pause" : "Play"); playing_->setIcon(style()->standardIcon(play ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
@@ -893,7 +896,7 @@ void LightingWindow::scanHeaders()
                 });
             }
         }
-        refresh();
+        refresh(); emit hardwareDiscovered();
         statusBar()->showMessage(discovered_.isEmpty() ? "No supported controller detected. Saved layouts remain available." : "Controllers detected. Select a header to attach fans and strips.");
     } catch(const std::exception& error) {
         statusBar()->showMessage("Header discovery failed: "+QString::fromUtf8(error.what()));
@@ -1089,6 +1092,7 @@ void LightingWindow::setOutputState(const QString& state)
     findChild<QLabel*>("hardwareStatus")->setText(description);
     const auto* detail=findChild<QLabel*>("outputStatus");
     action->setToolTip(description+(detail ? "\n"+detail->text() : QString{}));
+    auto* label=findChild<QLabel*>("toolbarOutputStatus"); label->setText("Output: "+state); label->setToolTip(action->toolTip());
 }
 
 double LightingWindow::previewSeconds() const { return previewTime_->value(); }

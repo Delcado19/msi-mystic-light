@@ -76,7 +76,8 @@ Canvas output starts automatically for configured, detected hardware. Hardware h
 **Stop output** and **Resume output**, with no report-consent dialog. Endpoint/profile
 identity and serialized reports are still validated before opening HID. Changed
 channel configurations reconnect automatically; offline saved devices do not block
-present headers. Explicit Stop stays stopped until Resume or the next app launch.
+present headers. Hardware Stop pauses the selected output until Resume or the next app launch;
+tray Stop stops all connections and automatic retries.
 MSI configuration writes contain all 18 zones; unassigned firmware settings are not
 read back or preserved. Stop holds the last state. See [output](docs/OUTPUT_SESSION.md).
 Autosave/recovery, last-project/window restoration and a tray menu are implemented.
@@ -169,3 +170,9 @@ wire mapping. Apply is one undo step and the arrangement is embedded in saved
 projects. Shared definition authoring remains under Hardware's custom component
 definitions. Device geometry uses a private embedded definition and counts toward
 the existing 256-definition project limit.
+
+Layout movement samples the live canvas during dragging, before the single undoable
+commit. Click a component to select it independently; drag a header label to move
+its group. Hardware shows every supported channel beneath its detected controller,
+with selection-scoped Stop/Resume and an expanding status list. The toolbar output
+indicator is informational; Hardware remains the navigation action.

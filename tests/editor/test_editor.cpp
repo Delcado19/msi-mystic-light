@@ -410,7 +410,9 @@ void EditorTest::visualWorkspace()
     QVERIFY(window.previewFrame()!=old); QVERIFY(!window.findChild<LightingCanvas*>("hardwareLivePreview")->isVisible());
     window.document().history()->undo(); QCOMPARE(window.previewFrame(),old);
     QSignalSpy output(&window,&LightingWindow::outputRequested);
-    window.findChild<QAction*>("reviewOutput")->trigger(); QCOMPARE(output.count(),1);
+    QVERIFY(!window.findChild<QAction*>("reviewOutput")->isEnabled());
+    window.findChild<QAction*>("reviewOutput")->trigger(); QCOMPARE(output.count(),0);
+    window.findChild<QAction*>("workspaceHardware")->trigger();
     QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),0);
     QCOMPARE(window.findChild<QTabWidget*>("lightingViews")->currentIndex(),2);
     window.findChild<QAction*>("workspaceEffects")->trigger();
@@ -1115,7 +1117,8 @@ void EditorTest::explicitDiscovery()
     QTest::mouseMove(canvas,end); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,end);
     const auto moved=window.document().state().placements;
     const auto delta=moved[0].origin-old[0].origin; QVERIFY(!delta.isNull());
-    for(int i=1;i<3;++i) QCOMPARE(moved[i].origin-old[i].origin,delta);
+    QCOMPARE(canvas->selection(),old[0].id);
+    for(int i=1;i<3;++i) QCOMPARE(moved[i].origin,old[i].origin);
     window.document().history()->undo(); window.document().history()->undo(); window.document().history()->undo();
     QVERIFY(window.document().state().placements.isEmpty()); QVERIFY(window.document().state().assignments.isEmpty());
     window.document().history()->redo(); window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->childCount(),3);

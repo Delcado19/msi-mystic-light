@@ -3,6 +3,7 @@
 #include "editor/LightingWindow.h"
 #include <QWidget>
 #include <vector>
+#include <QSet>
 class QTimer;
 class QLabel;
 class QPushButton;
@@ -23,10 +24,14 @@ public:
 signals:
     void outputStateChanged(const QString& state);
 private:
-    void start();
+    void start(bool includeMissing = false);
     void stop(const QString& reason);
     void dispatch(const QImage& frame);
     void refresh();
+    void updateControls();
+    QStringList selectedChannels() const;
+    OutputFrame enabledFrame(OutputFrame frame) const;
+    QSet<QString> pausedChannels_;
     bool active() const;
     struct Connection {
         OutputFrame approved;

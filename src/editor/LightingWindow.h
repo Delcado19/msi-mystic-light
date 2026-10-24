@@ -30,6 +30,8 @@ public:
         std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {});
     LightingDocument& document() { return document_; }
     double previewSeconds() const;
+    QVector<ComponentPlacement> previewPlacements() const { return layoutCanvas_->previewPlacements(); }
+    const QVector<ProfileCandidate>& discoveredHardware() const { return discovered_; }
     void setOutputState(const QString& state);
     void installOutputPanel(QWidget* panel);
     void restoreLegacyHardware(const QString& path);
@@ -38,6 +40,7 @@ public:
     const QImage& previewFrame() const { return previewFrame_; }
 signals:
     void previewFrameChanged(const QImage& frame);
+    void hardwareDiscovered();
     void closing();
     void projectLoading();
     void outputRequested();

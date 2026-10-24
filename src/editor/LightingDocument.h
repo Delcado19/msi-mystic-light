@@ -77,10 +77,10 @@ public:
     void importComponent(const QString& fileName);
     QUuid addComponent(const QString& componentId);
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
-    // Per-instance wire order, opaque RGB over black; caller may reuse one composed frame.
-    QMap<QUuid, QVector<QColor>> sampleComponents(const QImage& frame) const;
+    // Per-instance wire order, opaque RGB over black; optional placement previews never mutate undo history.
+    QMap<QUuid, QVector<QColor>> sampleComponents(const QImage& frame, const QVector<ComponentPlacement>* placements = nullptr) const;
     void assignChannel(const ChannelAssignment& assignment);
-    QMap<QUuid, QVector<QColor>> sampleChannels(const QImage& frame, double seconds = 0) const;
+    QMap<QUuid, QVector<QColor>> sampleChannels(const QImage& frame, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr) const;
     double channelTime(const QUuid& assignment, double seconds) const;
     QImage renderForChannel(const QUuid& assignment, double seconds) const;
     QImage render(double seconds = 0) const;

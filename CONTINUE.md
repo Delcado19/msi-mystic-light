@@ -1,5 +1,46 @@
 # Implementation status
 
+## Live layout sampling and output inventory (2026-10-24)
+
+Layout member-body clicks now select the individual placement even from group
+selection. Group labels remain dedicated whole-chain drag targets. Transient move,
+scale and rotation placements drive both LED drawing and real output preparation
+without changing document state/history. Escape restores document sampling;
+release clears the preview delta before committing one undo step, avoiding double
+application during document notifications.
+
+Hardware's expanding Controller / output tree lists all supported channels of
+discovered controllers plus saved assignments, including unconfigured channels.
+JARGB1/2/3, EZConnector, IOShield and JRGB1 are channels of the exact MSI endpoint,
+not separate USB devices. Inventory and output selection follow each other. The
+status beside Redo is a plain label; the old action is disabled and removed from
+the toolbar. Resume is neutral and disabled for running/unconfigured selections.
+Stop/Resume targets the selected channel or all configured channels of a selected
+controller. Pausing filters channel commands, preserves the shared transport and
+holds the last state; already executing writes may finish and native firmware
+animations may continue. Peers keep running, including after another endpoint
+faults or fails to reconnect. Tray/global Stop still disables automatic retries.
+Pauses last for the session, survive scope reconnects and reset at next launch.
+
+The interrupted LED-presentation/tray experiment was removed from the working
+changes: the Vulcan geometry/model decision remains under discussion. The user's
+untracked default.lighting.json remains untouched and is not part of this commit.
+It currently has 1/5/4 placements on JARGB1/2/3; do not silently replace them with
+assumed hardware counts.
+
+Validation: final Release and Debug each pass 15/15 CTest. Native Windows editor
+36/36 and output UI 13/13 pass. Recording transports prove a changed physical wire
+report before mouse release, Escape restoration, one undo commit, selection from a
+group, independent header pause/resume, continued peer writes and fault isolation.
+The animation regression waits for observed per-area color changes rather than a
+fixed 200ms delay. Initial connection submits once; Resume only resubmits immediately
+for an already active controller. Screenshots refreshed and native Hardware UI
+inspected. No real hardware writes were performed by the agent.
+
+Portable folder and ZIP refreshed; CRC, required DLL/module entries and exact
+source/folder/archive EXE equality pass. Packaged SHA256:
+ee7f9af6e671eda63b4f0fe28894a39239d4cf9654caad2717a40f2303409fac.
+
 ## Per-device LED arrangements restored (2026-10-24)
 
 Select a placement in Layout or Hardware and choose Edit LED arrangement. The

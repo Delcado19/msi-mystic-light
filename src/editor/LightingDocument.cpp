@@ -195,13 +195,13 @@ QVector<QPointF> LightingDocument::componentPoints(const ComponentPlacement& pla
     return points;
 }
 
-QMap<QUuid, QVector<QColor>> LightingDocument::sampleComponents(const QImage& frame) const
+QMap<QUuid, QVector<QColor>> LightingDocument::sampleComponents(const QImage& frame, const QVector<ComponentPlacement>* placements) const
 {
     if (frame.size() != canvasSize()) throw std::invalid_argument("Sampling requires a canvas-sized frame");
     // Premultiplication composites transparency onto black without boosting partially masked LEDs.
     const auto rgb = frame.convertToFormat(QImage::Format_ARGB32_Premultiplied);
     QMap<QUuid, QVector<QColor>> result;
-    for (const auto& placement : state_.placements) {
+    for (const auto& placement : placements ? *placements : state_.placements) {
         result.insert(placement.id, sampleComponent(placement, rgb));
     }
     return result;
@@ -234,7 +234,7 @@ void LightingDocument::assignChannel(const ChannelAssignment& assignment)
     });
 }
 
-QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& frame, double seconds) const
+QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& frame, double seconds, const QVector<ComponentPlacement>* placements) const
 {
     if (!std::isfinite(seconds) || seconds<0 || seconds>86400) throw std::invalid_argument("Invalid global channel time");
     if (frame.size() != canvasSize()) throw std::invalid_argument("Sampling requires a canvas-sized frame");
@@ -247,7 +247,7 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
             ? renderForChannel(assignment.id,seconds) : rgb;
         QVector<QColor> chain;
         for (const auto& id : assignment.placements)
-            for (const auto& placement : state_.placements) if (placement.id == id)
+            for (const auto& placement : placements ? *placements : state_.placements) if (placement.id == id)
                 chain.append(sampleComponent(placement, raster));
         result.insert(assignment.id, chain);
     }

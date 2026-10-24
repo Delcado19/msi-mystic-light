@@ -112,3 +112,17 @@ bounds calculation. It selects the complete chain before member/transform hit te
 Canvas output now defaults to automatic after restoration/discovery, without report
 approval UI. Configuration changes reconnect; Stop/Resume remain explicit and Stop
 cancels queued reconnects. Status and fault feedback remain visible.
+
+## Layout feedback and hardware output controls (2026-10-24)
+
+| Before | After | Why |
+| --- | --- | --- |
+| Group selection captures member clicks | Member bodies select individually; labels drag groups | Selection follows the target under the pointer |
+| Hardware samples old positions until release | Temporary layout transforms drive output immediately | Physical feedback matches the visible gesture without undo spam |
+| Output status duplicates Hardware navigation | Read-only status beside Undo/Redo | A status indicator has one purpose |
+| 100-pixel output list above unused space | Controller/channel tree consumes available height | Small inventories remain readable |
+| Globally styled Resume command | Neutral, selection-scoped Stop/Resume enabled by actual state | Controls explain what can happen now |
+
+No decorative animation is added to continuously updated device state. Selection
+is preserved across status refreshes, and transport errors remain available in
+status text/tooltips. Native firmware motion is not stopped by pausing submissions.

@@ -20,6 +20,7 @@ public:
     Context context() const { return context_; }
     QUuid selection() const { return selected_; }
     void select(const QUuid& id);
+    QVector<ComponentPlacement> previewPlacements() const;
     void setMaskTarget(bool enabled);
     void setMaskTool(MaskTool tool) { cancelGesture(); tool_ = tool; }
     void setBrush(double radius, double hardness, double opacity, int gray);
@@ -32,6 +33,7 @@ public:
     QPointF canvasPoint(QPointF viewport) const;
 signals:
     void selectionChanged();
+    void layoutPreviewChanged();
     void effectGestureStarted();
     void gestureEnded();
     void maskEditingRequested();

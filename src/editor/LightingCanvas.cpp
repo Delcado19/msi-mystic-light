@@ -83,10 +83,12 @@ void LightingCanvas::setBrush(double radius, double hardness, double opacity, in
 }
 void LightingCanvas::cancelGesture()
 {
+    const bool restore=context_==Context::Layout && dragging_;
     drawing_=false; drawingBase_={}; fillReference_={};
     dragging_ = false;
     panning_ = false;
     workingMask_ = {}; originalEffect_.reset(); workingEffect_.reset(); handle_ = 0; layoutScale_=1; layoutRotation_=0;
+    if(restore) emit layoutPreviewChanged();
     update();
 }
 
@@ -195,16 +197,16 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     painter.drawImage(0,0,frame);
     painter.setClipping(false);
     painter.setRenderHint(QPainter::Antialiasing);
-    auto sampled=document_.sampleComponents(frame);
-    QMap<QUuid,QImage> placementFrames; QSet<QUuid> nativePlacements;
+    const auto placements=previewPlacements();
+    auto sampled=document_.sampleComponents(frame,&placements);
     bool scoped=false; for(const auto& layer:document_.state().layers) if(!layer.allChannels) scoped=true;
     for(const auto& assignment:document_.state().assignments) {
         auto channelFrame=frame; auto channelColors=sampled;
-        if(assignment.software && (scoped || assignment.timeScale!=1 || assignment.timeOffset!=0)) { channelFrame=document_.renderForChannel(assignment.id,seconds_); channelColors=document_.sampleComponents(channelFrame); }
+        if(assignment.software && (scoped || assignment.timeScale!=1 || assignment.timeOffset!=0)) { channelFrame=document_.renderForChannel(assignment.id,seconds_); channelColors=document_.sampleComponents(channelFrame,&placements); }
         for(const auto& id:assignment.placements) {
-            if(assignment.software) { sampled[id]=channelColors[id]; placementFrames[id]=channelFrame; }
+            if(assignment.software) sampled[id]=channelColors[id];
             else {
-                nativePlacements.insert(id); QColor color=Qt::black;
+                QColor color=Qt::black;
                 if(assignment.native.id!="off" && !assignment.native.colors.isEmpty()) { const auto rgb=assignment.native.colors.first(); color=QColor(rgb.r,rgb.g,rgb.b); }
                 if(sampled.contains(id)) sampled[id].fill(color);
             }
@@ -236,9 +238,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             const auto point = points[i];
             if(keyboard) { const auto key=qMakePair(qRound(point.x()*10),qRound(point.y()*10)); if(drawnKeys.contains(key)) continue; drawnKeys.insert(key); }
             if (!QRectF(frame.rect()).adjusted(-20, -20, 20, 20).contains(point)) continue;
-            const auto samplingFrame=placementFrames.value(placement.id,frame);
-            const QColor light = dragging_ && selectedPlacement(placement.id) && !nativePlacements.contains(placement.id) ?
-                (QRectF(samplingFrame.rect()).contains(point) ? samplingFrame.pixelColor(point.toPoint()) : QColor(Qt::black)) : sampled[placement.id].value(definition.mapping[i],Qt::black);
+            const QColor light=sampled[placement.id].value(definition.mapping[i],Qt::black);
             painter.setBrush(light);
             if(keyboard) painter.drawRoundedRect(QRectF(point-QPointF(4,4),QSizeF(8,8)),1.5,1.5); else painter.drawEllipse(point, 6, 6);
 
@@ -266,6 +266,13 @@ QRectF LightingCanvas::selectionBounds() const
         for(const auto& point:componentPoints(previewPlacement(placement))) bounds=bounds.united(QRectF(point,QSizeF(.01,.01)));
     return bounds.isEmpty() ? QRectF() : bounds.adjusted(-15,-15,15,15);
 }
+QVector<ComponentPlacement> LightingCanvas::previewPlacements() const
+{
+    auto placements=document_.state().placements;
+    if(context_==Context::Layout) for(auto& placement:placements) placement=previewPlacement(placement);
+    return placements;
+}
+
 ComponentPlacement LightingCanvas::previewPlacement(ComponentPlacement placement) const
 {
     if(!dragging_ || !selectedPlacement(placement.id)) return placement;
@@ -440,6 +447,15 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
         // Hit the exact painted label before member bodies or handles; it always moves the complete chain.
         for(auto it=document_.state().assignments.crbegin();it!=document_.state().assignments.crend();++it)
             if(groupLabel(*it).contains(start_)) { select(it->id); layoutBounds_=selectionBounds(); handle_=0; dragging_=true; return; }
+        bool groupSelected=false;
+        for(const auto& assignment:document_.state().assignments) if(assignment.id==selected_) groupSelected=true;
+        if(groupSelected) for(auto it=document_.state().placements.crbegin();it!=document_.state().placements.crend();++it) {
+            QRectF body;
+            for(const auto& point:componentPoints(*it)) body=body.united(QRectF(point,QSizeF(.01,.01)));
+            if(body.adjusted(-10,-10,10,10).contains(start_)) {
+                select(it->id); layoutBounds_=selectionBounds(); handle_=0; dragging_=true; return;
+            }
+        }
         layoutBounds_=selectionBounds();
         if(!layoutBounds_.isEmpty()) {
             for(const auto corner:{layoutBounds_.topLeft(),layoutBounds_.topRight(),layoutBounds_.bottomLeft(),layoutBounds_.bottomRight()})
@@ -457,8 +473,8 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
             if (!hit.isNull()) break;
         }
         if(hit.isNull() && !selected_.isNull() && layoutBounds_.contains(start_)) { dragging_=true; return; }
-        // A header selected in the tree keeps its chain together when dragging any member.
-        if(hit.isNull() || !selectedPlacement(hit)) select(hit);
+        // The group label moves the chain; a member body always selects that component.
+        select(hit);
         dragging_ = !hit.isNull();
     } else if (!maskTarget_) {
         emit effectGestureStarted();
@@ -508,6 +524,7 @@ void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
             layoutScale_=std::clamp(QLineF(QPointF(),b).length()/std::max(.001,QLineF(QPointF(),a).length()),minimum,maximum);
         }
     }
+    if(context_==Context::Layout) emit layoutPreviewChanged();
     if (workingEffect_ && handle_!=9) updateEffectGesture(point);
     if (context_ == Context::Effects && maskTarget_ && tool_ == MaskTool::Gradient) {
         for (const auto& layer : document_.state().layers)
@@ -577,8 +594,10 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
             }
         });
     } else if (context_ == Context::Layout) {
-        if (last_ != start_) document_.edit(handle_ ? "Transform components" : "Move components", [&](LightingState& state) {
-            for (auto& placement : state.placements) placement=previewPlacement(placement);
+        const auto placements=previewPlacements();
+        dragging_=false;
+        if(last_!=start_) document_.edit(handle_ ? "Transform components" : "Move components", [&](LightingState& state) {
+            state.placements=placements;
         });
     } else if(handle_==9 && workingEffect_) {
         const auto color=workingEffect_->color;

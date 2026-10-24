@@ -123,12 +123,32 @@ Topology/native-command changes stop the old workers and automatically rebuild
 connections with the new validated configuration. A project load closes old
 connections before replacing state, then resumes using the new assignments.
 
-Presence is checked approximately once per second. Faults stop the endpoint workers;
-automatic mode retries connection preparation every two seconds. Explicit Stop,
-tray Stop and accepted close disable automatic retries and queued restarts.
-Resume output enables them again. The next app launch defaults to automatic output.
+Presence is checked approximately once per second. Faults stop the affected endpoint worker;
+automatic mode retries connection preparation every two seconds. Tray Stop and accepted close disable automatic retries and queued restarts.
+Hardware Stop pauses selected channels while preserving their shared connection;
+Resume output resumes that selection. Global stopOutput disables automatic retries. The next app launch defaults to automatic output.
 Stop sends no restore/off command; devices retain their last applied state.
 
 Tests use recording transports and verify automatic startup, scope changes, offline
 subsets, changing reports, explicit Stop and queued-restart cancellation. Physical
 USB behavior and color calibration still require observation on the real hardware.
+
+### Transient layout sampling and per-channel pause
+
+The canvas exposes temporary placement transforms without modifying the document.
+Output preparation samples those placements during a gesture; release commits one
+undo entry and clears the preview delta before document notifications. Cancellation
+resubmits the unchanged document geometry. Rendering and per-channel time/scoped
+layers retain the existing composition path.
+
+Per-channel pauses filter commands from submitted frames, after full configuration
+scope validation. An empty frame sends no commands. Pausing a header never closes
+a shared controller or sends black/off/restore packets; other headers keep running.
+The selected controller row applies the action to its configured channels. Pauses
+are session-local, survive configuration reconnection and reset on the next launch.
+A worker call already in flight can complete. New connections receive exactly
+one initial submission; resuming an existing paused channel submits the current
+frame without reopening its controller. Native firmware animations are not
+frozen by withholding further commands. Paused state is independent of transport
+state and is displayed on each channel row. Failed connections can be resumed
+without closing other active controllers. Stop/Resume has no primary-button accent.

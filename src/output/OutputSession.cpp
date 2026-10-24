@@ -46,9 +46,9 @@ bool sameOutputScope(const OutputFrame& approved,const OutputFrame& candidate)
     return true;
 }
 
-QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds)
+QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds, const QVector<ComponentPlacement>* placements)
 {
-    const auto sampled = document.sampleChannels(composed,seconds);
+    const auto sampled = document.sampleChannels(composed,seconds,placements);
     QVector<OutputFrame> result;
     for (const auto& assignment : document.state().assignments) {
         int index = 0;

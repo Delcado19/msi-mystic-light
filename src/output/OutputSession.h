@@ -17,8 +17,8 @@ struct OutputFrame {
 // Only RGB payloads of approved software channels may change without another report review.
 bool sameOutputScope(const OutputFrame& approved, const OutputFrame& candidate);
 
-// Data preparation only: samples software chains once, never invokes a driver.
-QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds = 0);
+// Data preparation only; transient layout placements can drive live sampling before gesture commit.
+QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr);
 
 // Single-thread owned. The host schedules flush(); stage() replaces rather than queues frames.
 // The host must resolve conflicts, confirm output and open the exact path before handing over a transport.
