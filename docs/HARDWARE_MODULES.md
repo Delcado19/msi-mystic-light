@@ -248,4 +248,4 @@ connects this backend only after exact-path discovery and explicit report consen
 See [OUTPUT_SESSION.md](OUTPUT_SESSION.md) for lifecycle, validation and remaining
 authorization and remaining physical qualification work.
 
-Live output uses the reviewed exact-path connection gate described in [OUTPUT_SESSION.md](OUTPUT_SESSION.md). Physical protocol qualification remains pending.
+Live output uses the validated automatic exact-path connection flow described in [OUTPUT_SESSION.md](OUTPUT_SESSION.md). Physical protocol qualification remains pending.

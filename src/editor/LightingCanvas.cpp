@@ -211,14 +211,11 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         }
     }
     if(!previewOnly_) for(const auto& assignment:document_.state().assignments) {
-        QRectF bounds;
-        for(auto placement:document_.state().placements) if(assignment.placements.contains(placement.id))
-            for(const auto& point:componentPoints(previewPlacement(placement))) bounds=bounds.united(QRectF(point,QSizeF(.01,.01)));
+        const auto bounds=groupBounds(assignment);
         if(bounds.isEmpty()) continue;
-        bounds=bounds.adjusted(-18,-25,18,18);
         painter.setBrush(Qt::NoBrush); painter.setPen(QPen(QColor("#8196b8"),1/zoom_,Qt::DashLine));
         painter.drawRoundedRect(bounds,8,8);
-        const QRectF title(bounds.left(),bounds.top()-painter.fontMetrics().height()-6,painter.fontMetrics().horizontalAdvance(assignment.channelId)+12,painter.fontMetrics().height()+4);
+        const auto title=groupLabel(assignment);
         painter.fillRect(title,QColor("#202735")); painter.setPen(QColor("#dce7ff")); painter.drawText(title,Qt::AlignCenter,assignment.channelId);
     }
     for (auto placement : document_.state().placements) {
@@ -398,6 +395,20 @@ void LightingCanvas::updateDrawing(QPointF point)
     else workingEffect_->image=image;
 }
 
+QRectF LightingCanvas::groupBounds(const ChannelAssignment& assignment) const
+{
+    QRectF bounds;
+    for(auto placement:document_.state().placements) if(assignment.placements.contains(placement.id))
+        for(const auto& point:componentPoints(previewPlacement(placement))) bounds=bounds.united(QRectF(point,QSizeF(.01,.01)));
+    return bounds.isEmpty() ? QRectF{} : bounds.adjusted(-18,-25,18,18);
+}
+QRectF LightingCanvas::groupLabel(const ChannelAssignment& assignment) const
+{
+    const auto bounds=groupBounds(assignment); if(bounds.isEmpty()) return {};
+    const QFontMetrics metrics(font());
+    return {bounds.left(),bounds.top()-metrics.height()-6,metrics.horizontalAdvance(assignment.channelId)+12.,metrics.height()+4.};
+}
+
 bool LightingCanvas::selectedPlacement(const QUuid& id) const
 {
     if(id==selected_) return true;
@@ -426,6 +437,9 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
         beginDrawing(start_); return;
     }
     if (context_ == Context::Layout) {
+        // Hit the exact painted label before member bodies or handles; it always moves the complete chain.
+        for(auto it=document_.state().assignments.crbegin();it!=document_.state().assignments.crend();++it)
+            if(groupLabel(*it).contains(start_)) { select(it->id); layoutBounds_=selectionBounds(); handle_=0; dragging_=true; return; }
         layoutBounds_=selectionBounds();
         if(!layoutBounds_.isEmpty()) {
             for(const auto corner:{layoutBounds_.topLeft(),layoutBounds_.topRight(),layoutBounds_.bottomLeft(),layoutBounds_.bottomRight()})

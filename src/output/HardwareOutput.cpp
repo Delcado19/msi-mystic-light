@@ -1,12 +1,5 @@
 #include "HardwareOutput.h"
-#include "startup/ConflictDialog.h"
 #include "hid/HidApiDevice.h"
-#include <QCheckBox>
-#include <QDialogButtonBox>
-#include <QLabel>
-#include <QPlainTextEdit>
-#include <QPushButton>
-#include <QVBoxLayout>
 #include <stdexcept>
 
 namespace {
@@ -76,47 +69,10 @@ QVector<QByteArray> previewOutputReports(const ModuleRegistry& modules,const Out
         !session.stage(proof.initial) || !session.flush()) throw std::runtime_error(session.error().toStdString());
     return *reports;
 }
-bool confirmOutputReports(QWidget* parent,const QVector<OutputProof>& proofs)
-{
-    QDialog dialog(parent); dialog.setObjectName("outputConfirmation"); dialog.setWindowTitle("Review hardware output"); dialog.resize(840,640);
-    auto* layout=new QVBoxLayout(&dialog);
-    auto* note=new QLabel("Review exact initial reports below. Software output may subsequently vary RGB payloads "
-        "on the listed channels as effects are edited or preview time changes. MSI 0x50 reports include all 18 controller zone records; "
-        "unassigned zones are not read back or preserved. Stop closes the connection and leaves the last device state.");
-    note->setWordWrap(true); layout->addWidget(note);
-    QString text;
-    for(const auto& proof:proofs) {
-        text+=QString("Endpoint: %1\nProfile: %2\nVID:PID: %3:%4; interface %5; usage %6/%7\n")
-            .arg(proof.identity.path,proof.profile.name).arg(proof.identity.vendorId,4,16,QChar('0'))
-            .arg(proof.identity.productId,4,16,QChar('0')).arg(proof.identity.interfaceNumber)
-            .arg(proof.identity.usagePage).arg(proof.identity.usage);
-        if(!proof.controlIdentity.path.isEmpty()) text+="Control endpoint (feature reports): "+proof.controlIdentity.path+"\nLED endpoint (output reports): "+proof.identity.path+"\n";
-        if(proof.profile.driverId=="lighting.peripherals") {
-            const auto protocol=proof.profile.channels[0].address.value("protocol").toString();
-            text+=protocol=="vulcan" ? "Transfer order: control feature report, then seven LED output reports.\n" : protocol=="apex3" ? "Transfers: HID output reports (brightness, then colors).\n" : "Transfers: HID feature reports.\n";
-        }
-        for(const auto& channel:proof.initial.channels)
-            text+=QString("Channel %1: %2, %3 LEDs\n").arg(channel.channelId,channel.software ? "Software" : "Native "+channel.native.id).arg(channel.colors.size());
-        for(int index=0;index<proof.reports.size();++index)
-            text+=QString("Report %1 (%2 bytes):\n%3\n").arg(index+1).arg(proof.reports[index].size()).arg(QString::fromLatin1(proof.reports[index].toHex(' ')));
-        text+="\n";
-    }
-    auto* reports=new QPlainTextEdit(text); reports->setObjectName("outputReports"); reports->setReadOnly(true); layout->addWidget(reports);
-    auto* consent=new QCheckBox("I approve these reports and continuous RGB updates on the listed software channels.");
-    consent->setObjectName("approveOutput"); layout->addWidget(consent);
-    auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel); layout->addWidget(buttons);
-    buttons->button(QDialogButtonBox::Ok)->setEnabled(false); buttons->button(QDialogButtonBox::Ok)->setText("Start output");
-    buttons->button(QDialogButtonBox::Cancel)->setDefault(true);
-    QObject::connect(consent,&QCheckBox::toggled,buttons->button(QDialogButtonBox::Ok),&QPushButton::setEnabled);
-    QObject::connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
-    QObject::connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
-    return dialog.exec()==QDialog::Accepted;
-}
 QVector<OutputConnection> authorizeHardwareOutput(QWidget* parent,const QVector<DeviceProfile>& profiles,
     const QVector<OutputFrame>& frames,const QString& moduleDirectory)
 {
-    SystemConflictProcesses processes; ConflictDialog conflicts(processes,parent);
-    if(conflicts.exec()!=QDialog::Accepted) return {};
+    Q_UNUSED(parent);
     const auto devices=HidApiDevice::enumerate();
     const auto candidates=findProfileCandidates(devices,readBoardIdentity(),profiles);
     ModuleRegistry modules; loadModules(modules,moduleDirectory);
@@ -127,28 +83,27 @@ QVector<OutputConnection> authorizeHardwareOutput(QWidget* parent,const QVector<
         for(const auto& candidate:candidates) if(candidate.profileId==frame.profileId && candidate.device.path==frame.endpoint) {
             proof.identity=candidate.device; found=true; break;
         }
-        if(!found) throw std::runtime_error("A configured endpoint is absent or no longer matches its profile");
+        if(!found) continue; // Saved offline devices must not prevent live output to present headers.
         if(proof.profile.driverId=="lighting.peripherals" && proof.profile.channels[0].address.value("protocol")=="vulcan")
             proof.controlIdentity=vulcanControlIdentity(proof.identity,devices);
         proof.reports=previewOutputReports(modules,proof); proofs.append(proof);
     }
-    if(!confirmOutputReports(parent,proofs)) return {};
     QVector<OutputConnection> result;
     for(const auto& proof:proofs) {
         result.append({proof.initial,[proof,moduleDirectory] {
             ModuleRegistry modules; loadModules(modules,moduleDirectory);
-            // Recheck both serialization and live descriptors after the review, before opening hardware.
-            if(previewOutputReports(modules,proof)!=proof.reports) throw std::runtime_error("Driver reports changed since confirmation");
-            if(!present(proof)) throw std::runtime_error("Confirmed endpoint disappeared or changed identity");
+            // Recheck both serialization and live descriptors before opening hardware.
+            if(previewOutputReports(modules,proof)!=proof.reports) throw std::runtime_error("Driver reports changed during connection preparation");
+            if(!present(proof)) throw std::runtime_error("Configured endpoint disappeared or changed identity");
             std::unique_ptr<IHidDevice> transport;
             if(!proof.controlIdentity.path.isEmpty()) {
                 auto pair=std::make_unique<PairedTransport>();
                 if(!pair->control.openPath(proof.controlIdentity.path.toUtf8().toStdString()) || !pair->leds.openPath(proof.identity.path.toUtf8().toStdString()))
-                    throw std::runtime_error("Opening confirmed Vulcan interfaces failed");
+                    throw std::runtime_error("Opening configured Vulcan interfaces failed");
                 transport=std::move(pair);
             } else {
                 auto single=std::make_unique<HidApiDevice>();
-                if(!single->openPath(proof.identity.path.toUtf8().toStdString())) throw std::runtime_error("Opening confirmed HID path failed");
+                if(!single->openPath(proof.identity.path.toUtf8().toStdString())) throw std::runtime_error("Opening configured HID path failed");
                 transport=std::move(single);
             }
             auto session=std::make_unique<OutputSession>();

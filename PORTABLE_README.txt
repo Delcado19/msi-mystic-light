@@ -4,8 +4,7 @@ Run msi_mystic_light.exe from this complete folder. Keep hidapi.dll, Qt DLLs,
 platforms, imageformats, modules, profiles, components and third_party together.
 Do not copy only the EXE. Microsoft Visual C++ x64 runtime must be installed.
 
-Output starts only after explicit review and confirmation in the Hardware
-workspace. Layout opens with automatic header discovery. Attach fans/strips to a
+Canvas output starts automatically for configured, detected hardware. Layout opens with automatic header discovery. Attach fans/strips to a
 header using Hardware, then arrange its group or individual components.
 New layer is a blank paint layer. Standard drawing tools are on the left;
 Shapes and Particles have toolbar menus; Other effects contains gradients and patterns. Gradients use draggable stops and RGB sliders.
@@ -15,7 +14,7 @@ Roccat Vulcan/Kone, Razer Basilisk V3 and Apex 3 are detected by the peripheral
 module. Previous hardware layouts can be imported; old custom-effect recipes
 are preserved in their original settings file and are not converted. Layout and Effects are
 separate workspaces in the same window. Stop leaves the last hardware state. Device behavior/calibration has
-not been physically qualified. No automatic reconnect or output on startup.
+not been physically qualified. Automatic output/reconnect is enabled until Stop output is used.
 
 Source and build instructions: https://github.com/Delcado19/msi-mystic-light
 See LICENSE and THIRD_PARTY_NOTICES.md for licenses and replacement instructions.
@@ -25,10 +24,14 @@ Shapes and Particles are toolbar menus. Gradient fills preserve painted coverage
 and procedural shape geometry. Enable color animation starts playback; the motion
 scope can apply edits to all visible layers. Hardware shares Layout's selectable
 header/component overview with Add/Remove. The live preview shows software sampling;
-Review and start output is still required to send colors to the fans.
+Configured, present headers receive those colors automatically.
 
 Travelling gradients now close the last color back to the first in gradient-local
 coordinates; there is no rectangular wrap seam. Starting an animated output
 resumes paused playback. The output status tooltip includes the stop/fault reason.
 Blend modes affect the selected source against visible layers below it; a lone
 bottom layer has no backdrop to blend with.
+
+Group labels in Layout are draggable: drag a header label to move its complete
+chain. Hardware has Stop output and Resume output; no report checkbox is required.
+Explicit Stop also cancels queued restarts and automatic connection retries.

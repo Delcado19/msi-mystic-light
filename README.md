@@ -50,7 +50,7 @@ Starting animated hardware output resumes paused playback.
 
 The restored peripheral module detects Roccat Vulcan 100/120 Aimo, Roccat Kone Aimo,
 Razer Basilisk V3 and SteelSeries Apex 3, with dedicated keyboard/mouse geometry.
-Output reports and Vulcan's paired interfaces use the same exact-report review
+Output reports and Vulcan's paired interfaces use the same automatic connection
 and stop/fault pipeline as the motherboard. API 2 modules require the extended
 output-report transport; API 1 feature-report modules remain compatible.
 
@@ -72,14 +72,15 @@ Keep the entire Release folder together: `hidapi.dll`, Qt DLLs, plugins and cata
 are runtime dependencies. A missing `hidapi.dll` means the runtime folder is incomplete;
 rebuild/copy the full folder. Do not download unrelated DLLs. See `PORTABLE_README.txt`.
 
-The Hardware workspace contains **Review and start output** and **Stop output**. Each start
-resolves process conflicts, revalidates the exact endpoint and shows initial report
-bytes for consent before opening HID. Worker output is bounded and faults stop all
-endpoints; reconnect requires another review. Effect edits update approved software channels live. Output-configuration changes and opening projects stop output.
+Canvas output starts automatically for configured, detected hardware. Hardware has
+**Stop output** and **Resume output**, with no report-consent dialog. Endpoint/profile
+identity and serialized reports are still validated before opening HID. Changed
+channel configurations reconnect automatically; offline saved devices do not block
+present headers. Explicit Stop stays stopped until Resume or the next app launch.
 MSI configuration writes contain all 18 zones; unassigned firmware settings are not
 read back or preserved. Stop holds the last state. See [output](docs/OUTPUT_SESSION.md).
-Autosave/recovery, last-project/window restoration and a tray menu are implemented;
-startup never resumes output. `--editor` skips only the startup conflict dialog.
+Autosave/recovery, last-project/window restoration and a tray menu are implemented.
+`--editor` skips only the startup conflict dialog; configured output remains automatic.
 `--inspect` validates local catalogs and `--scan` performs read-only discovery.
 Hardware behavior and calibration remain physically unverified.
 

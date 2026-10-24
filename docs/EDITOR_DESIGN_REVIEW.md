@@ -104,3 +104,11 @@ paused playback after approval. Hardware status and the global output tooltip sh
 actual state instead of a permanent stopped message. Blend tooltip explains that a
 bottom layer has no visible backdrop; asymmetric RGB and inspector tests verify all
 four modes without changing the existing Qt compositor.
+
+## Direct group dragging and automatic output (2026-10-24)
+
+The visible group label is its drag target; paint and hit testing share the same
+bounds calculation. It selects the complete chain before member/transform hit tests.
+Canvas output now defaults to automatic after restoration/discovery, without report
+approval UI. Configuration changes reconnect; Stop/Resume remain explicit and Stop
+cancels queued reconnects. Status and fault feedback remain visible.

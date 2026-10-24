@@ -1,5 +1,44 @@
 # Implementation status
 
+## Draggable group labels and automatic canvas output (2026-10-24)
+
+The user's current instruction explicitly removes the report-approval checkbox
+and requires canvas output by default. This supersedes earlier handoff entries
+requiring exact-report consent. Do not reintroduce that dialog or a hidden opt-in.
+
+Layout group label painting and hit testing share the same bounds calculation.
+Dragging a label selects its assignment and moves every member in one undo step,
+even if an individual component was previously selected. Body, scale and rotation
+behavior remains available.
+
+Main enables automatic output after project restoration/import and window setup.
+Configured, discovered endpoints connect without a second process-conflict/report
+dialog. Startup conflict decisions remain user-controlled; no process is killed
+automatically. Exact descriptors, paired Vulcan interfaces, serialized reports and
+channel capacities are still validated before opening hardware. Offline saved
+endpoints are skipped so present headers can run. Topology/native changes stop old
+workers and rebuild automatically; project loading reconnects after replacement.
+
+Stop output disables automatic retries and pending queued restarts for the session;
+Resume or a new app launch enables them. Inactive automatic output retries every
+two seconds. Existing live connections are not periodically reopened. Partial
+online sessions currently discover additional saved endpoints when their configured
+scope changes or output is resumed; they do not rescan offline peers while active.
+
+Validation: final Release and Debug each pass 15/15 CTest. Native Windows editor
+35/35 and output UI 10/10 pass. Added regression covers dragging a group label
+from component selection, group translation/undo, automatic startup without a
+button, configuration reconnection, an offline subset and Stop before queued
+reconnection. The report-approval function/dialog and its checkbox were deleted;
+serialization tests remain memory-only.
+
+Portable folder and ZIP refreshed; CRC, runtime/module entries and source/folder/
+archived EXE equality pass. Windows-only PATH --inspect and read-only --scan exit 0.
+Packaged EXE SHA256: a1cf53ba20142da4fd8f1cf5caae6ac4dd44fe9ce4679ca2d4c49d2b9f54f3f6.
+Actual physical illumination remains unobserved; no real HID write was performed
+by these automated checks. Launching the updated app now automatically sends its
+canvas to present configured hardware, as expressly requested by the user.
+
 ## Travelling-gradient seam and paused output correction (2026-10-24)
 
 Supersedes the raster-wrapping behavior documented in the previous entry. The

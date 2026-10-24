@@ -9,7 +9,7 @@ including the M25 models, generic fans/strips and validated installed component
 metadata. Browsing works offline; adding requires an available or saved header.
 Hardware also shows the same header/component tree and selection as Layout.
 Select a header or component, then Add or Remove; both views update together.
-No product selection starts output.
+Configured, detected hardware receives the canvas automatically.
 
 Layout edits physical component placement. Effects is a separate authoring canvas
 with a live hardware preview below it using the same 640 by 400 coordinate space. The splitter
@@ -47,7 +47,7 @@ independent of procedural source parameters.
 Preview starts playing automatically and can be paused. Source gestures temporarily
 pause/reset to base time, then resume previous playback after commit/cancel; mask
 editing stays at base time. Preview time never changes the saved document. It does
-not authorize hardware output. The effect, motion and mask inspectors expose the
+not change hardware assignments. Configured hardware receives the current composition automatically. The effect, motion and mask inspectors expose the
 current task; numeric transforms and additional motion parameters are disclosures.
 Particle motion patterns share Count, Speed and Radius sliders; seed and spatial
 motion remain in More animation settings, with sliders beside every number.
@@ -57,14 +57,13 @@ stack; otherwise only the selected layer changes. No decorative animation delays
 
 Output: Stopped/Connecting/Running/Faulted opens the Hardware workspace. Its tooltip
 includes the current output status/reason; the Hardware status follows actual state.
-Changing workspace does not stop output; use Stop output. Review/start and Stop retain the existing
-exact-report approval and transport pipeline. Starting an animated output resumes
+Changing workspace does not stop output; use Stop output. Output starts automatically for configured, detected hardware; there is no report
+approval checkbox. Stop disables retries until Resume or the next app launch. Starting an animated output resumes
 a paused preview so devices receive moving frames. Static output does not force
 playback. See [output](OUTPUT_SESSION.md).
 
-Launch `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
-Normal startup runs the existing process-conflict dialog first. Neither editor
-view opens devices or sends HID reports. Layout and Effects are mutually
+Launch `build/ninja/Release/msi_mystic_light.exe --editor` to skip the startup process-conflict dialog.
+Normal startup runs the existing process-conflict dialog first. The application connects configured hardware automatically after startup. Layout and Effects are mutually
 exclusive tabs in one Lighting category, with independent selection/zoom/pan.
 
 ## Layout
@@ -87,7 +86,8 @@ mixed physical chain and edits native mode/channel clocks. Cancel changes nothin
 
 Header groups and their individual components appear in the layout tree. Select a
 header to drag or nudge its complete chain; select a child to move one component.
-Dashed group boundaries remain visible. Drag the selected frame corners to resize
+Dashed group boundaries remain visible. Drag the visible header label to move the
+whole group, even if an individual component was selected. Drag the selected frame corners to resize
 and its round handle to rotate the complete selection, with one undo step.
 The live effect raster stays visible behind the geometry; only placements are edited.
 Arrow keys move one unit, Shift+arrows ten. Removing a component removes it from
@@ -322,8 +322,8 @@ would exceed an assigned channel's capacity are rejected without altering undo.
 Native settings include a profile-supported mode, 1..4 opaque RGB colors,
 brightness 0..5, speed 0..2 and direction, matching the current driver contract.
 Native settings are disabled in Software mode and retained when switching back.
-Nothing is sent to hardware. Selecting a candidate, applying a dialog, loading a
-project and playing the preview do not open a transport or change firmware modes.
+Selecting a candidate alone changes nothing. Accepted assignments and loaded
+projects automatically update connected hardware, including configured firmware modes.
 The assignments list can edit saved entries even when the endpoint is absent;
 remove an assignment to release its component instances. Accepted changes and
 removal participate in undo/redo and project dirty state.
@@ -360,11 +360,10 @@ window and docks. Recovered documents remain unsaved. A single-instance lock
 protects the session. The tray offers Show editor, Stop output and Quit; hiding
 is explicit, and normal closing retains the unsaved-project prompt.
 
-Assignments and preview alone never open devices. Use Devices > Review and start output to
-review exact initial reports and explicitly start. Effect/mask edits and their undo
-update approved software channels live. Output-configuration changes or opening
-a project stop output; restart requires review. See [output session](OUTPUT_SESSION.md). No
-physical calibration or device-behavior qualification is claimed.
+Configured hardware receives the canvas automatically. Effect/mask edits and undo
+update software channels live; topology changes reconnect using validated endpoint
+identities. Hardware provides Stop output and Resume output. See
+[output session](OUTPUT_SESSION.md). Physical calibration remains unqualified.
 
 ## Colors, paint sources and gradient stops (schema 11)
 
@@ -440,8 +439,7 @@ The hardware preview shows the live composition beneath sampled LEDs and its cur
 clock. It is software feedback, not device readback. The same timed composition and
 component sampling feed OutputSession. A recording-transport regression verifies
 animated painted red/blue frames through the real MSI serializer for both JARGB1 and
-JARGB2. Physical illumination still requires Review and start output and an observed
-hardware test; a Stopped status sends nothing.
+JARGB2. Physical illumination must be observed on real hardware; a Stopped status sends nothing.
 
 ## Gradient travel and blend verification (2026-10-24)
 

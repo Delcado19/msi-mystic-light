@@ -275,6 +275,14 @@ void EditorTest::restoredLayoutAndDrawing()
     window.document().edit("Space components",[&](auto& state) { state.placements[0].origin={150,120}; state.placements[1].origin={250,180}; });
     ChannelAssignment chain; chain.endpoint="fake"; chain.profileId="test.device"; chain.channelId="Direct"; chain.software=true; chain.placements={one,two}; window.document().assignChannel(chain);
     window.findChild<QAction*>("workspaceLayout")->trigger(); auto* layout=window.findChild<LightingCanvas*>("layoutCanvas"); layout->select(chain.id);
+    layout->select(one);
+    const auto original=window.document().state().placements;
+    const auto labelPoint=QPointF(140,120-25-layout->fontMetrics().height()/2.-4);
+    drag(layout,labelPoint,labelPoint+QPointF(35,20));
+    QCOMPARE(layout->selection(),chain.id);
+    for(int i=0;i<original.size();++i) QVERIFY(QLineF(window.document().state().placements[i].origin,original[i].origin+QPointF(35,20)).length()<2);
+    window.document().history()->undo(); QCOMPARE(window.document().state().placements[0].origin,original[0].origin);
+    layout->select(chain.id);
     drag(layout,{135,105},{90,70}); QVERIFY(window.document().state().placements[0].scale.width()>1.1);
     window.document().history()->undo(); QCOMPARE(window.document().state().placements[0].scale,QSizeF(1,1));
     drag(layout,{220,81},{310,155}); QVERIFY(std::abs(window.document().state().placements[0].rotation)>30);

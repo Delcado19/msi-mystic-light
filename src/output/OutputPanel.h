@@ -3,6 +3,7 @@
 #include "editor/LightingWindow.h"
 #include <QWidget>
 #include <vector>
+class QTimer;
 class QLabel;
 class QPushButton;
 class QTreeWidget;
@@ -11,13 +12,14 @@ struct OutputConnection {
     OutputScheduler::SessionFactory factory;
     std::function<bool()> present;
 };
-// Authorization is an injected host boundary; tests supply fake connections and never open hardware.
+// Connection preparation is injected; tests supply fake transports and never open hardware.
 class OutputPanel : public QWidget {
     Q_OBJECT
 public:
     using Authorize = std::function<QVector<OutputConnection>(QWidget*, const QVector<OutputFrame>&)>;
     OutputPanel(LightingWindow& window, Authorize authorize, QWidget* parent = nullptr);
     void stopOutput();
+    void enableAutomaticOutput();
 signals:
     void outputStateChanged(const QString& state);
 private:
@@ -35,8 +37,10 @@ private:
     Authorize authorize_;
     std::vector<Connection> connections_;
     bool authorizing_ = false, stopping_ = false;
+    QTimer* automatic_;
+    QVector<OutputFrame> configured_;
     QPushButton *start_, *stop_;
     QLabel* status_;
     QTreeWidget* endpoints_;
-    QString message_ = "Stopped. Start reviews reports before opening hardware.";
+    QString message_ = "Waiting for configured hardware.";
 };

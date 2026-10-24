@@ -1,5 +1,6 @@
 #include "OutputPanel.h"
 #include <QLabel>
+#include <QTimer>
 #include <QPushButton>
 #include <QTreeWidget>
 #include <QHeaderView>
@@ -26,10 +27,10 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
     setObjectName("outputPanel");
     auto* layout=new QVBoxLayout(this);
     auto* note=new QLabel("Output follows preview time. Use Play preview for animation. "
-        "Effect edits update live. Changing output configuration requires a new review.");
+        "Canvas output starts automatically for configured, detected hardware. Changes update live.");
     note->setWordWrap(true); layout->addWidget(note);
     auto* actions=new QHBoxLayout; layout->addLayout(actions);
-    start_=new QPushButton("Review and start output"); start_->setObjectName("startOutput"); start_->setProperty("primary",true); actions->addWidget(start_);
+    start_=new QPushButton("Resume output"); start_->setObjectName("startOutput"); start_->setProperty("primary",true); actions->addWidget(start_);
     stop_=new QPushButton("Stop output"); stop_->setObjectName("stopOutput"); actions->addWidget(stop_); actions->addStretch();
     status_=new QLabel; status_->setWordWrap(true); status_->setObjectName("outputStatus"); layout->addWidget(status_);
     endpoints_=new QTreeWidget; endpoints_->setObjectName("outputEndpoints");
@@ -38,18 +39,26 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
     endpoints_->header()->setStretchLastSection(false);
     endpoints_->header()->setSectionResizeMode(0,QHeaderView::Stretch);
     endpoints_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents); layout->addWidget(endpoints_);
-    connect(start_,&QPushButton::clicked,this,&OutputPanel::start);
-    connect(stop_,&QPushButton::clicked,this,[this] { stop("Output stopped. Devices retain their last applied state."); });
+    automatic_=new QTimer(this); automatic_->setInterval(2000);
+    connect(automatic_,&QTimer::timeout,this,[this] { if(!active() && !window_.document().state().assignments.isEmpty()) start(); });
+    connect(start_,&QPushButton::clicked,this,&OutputPanel::enableAutomaticOutput);
+    connect(stop_,&QPushButton::clicked,this,&OutputPanel::stopOutput);
     connect(&window_,&LightingWindow::previewFrameChanged,this,&OutputPanel::dispatch);
     connect(&window_.document(),&LightingDocument::changed,this,[this] {
         refresh();
+        if(automatic_->isActive()) QTimer::singleShot(0,this,[this] { if(automatic_->isActive() && !window_.document().state().assignments.isEmpty()) start(); });
     });
     connect(&window_,&LightingWindow::closing,this,&OutputPanel::stopOutput);
-    connect(&window_,&LightingWindow::projectLoading,this,&OutputPanel::stopOutput);
+    connect(&window_,&LightingWindow::projectLoading,this,[this] { stop("Loading project..."); });
     layout->addStretch();
     refresh();
 }
-void OutputPanel::stopOutput() { stop("Output stopped. Devices retain their last applied state."); }
+void OutputPanel::enableAutomaticOutput()
+{
+    automatic_->start();
+    if(!window_.document().state().assignments.isEmpty()) start();
+}
+void OutputPanel::stopOutput() { automatic_->stop(); stop("Output stopped. Devices retain their last applied state."); }
 bool OutputPanel::active() const
 {
     for(const auto& connection:connections_) {
@@ -74,10 +83,10 @@ void OutputPanel::start()
         const auto frames=prepareOutput(window_.document(),window_.previewFrame(),window_.previewSeconds());
         if(frames.isEmpty()) throw std::invalid_argument("Configure at least one channel assignment first");
         auto requests=authorize_(this,frames);
-        if(window_.document().revision()!=revision) throw std::invalid_argument("Document changed during output review; review it again");
-        if(requests.isEmpty()) message_="Output review cancelled. No device opened.";
+        if(window_.document().revision()!=revision) throw std::invalid_argument("Document changed during connection preparation; retrying");
+        if(requests.isEmpty()) message_="No configured hardware available. Waiting for a connection.";
         else {
-            connections_.clear();
+            configured_=frames; connections_.clear();
             for(auto& request:requests) {
                 connections_.push_back({request.initial,std::make_unique<OutputScheduler>(),0});
                 auto& connection=connections_.back();
@@ -91,7 +100,7 @@ void OutputPanel::start()
                 if(!connection.generation || !connection.scheduler->submit(connection.generation,std::move(request.initial)))
                     throw std::runtime_error(connection.scheduler->status().error.isEmpty() ? "Output connection could not be started" : connection.scheduler->status().error.toStdString());
             }
-            // Starting an animated output from a paused editor must not freeze the device at the reviewed frame.
+            // Starting an animated output from a paused editor must not freeze the device at its initial frame.
             for(const auto& layer:window_.document().state().layers) if(layer.visible &&
                 (layer.spin!=0 || layer.pulse!=0 || layer.hueShift!=0 || layer.driftX!=0 || layer.driftY!=0 ||
                  layer.zoom!=0 || layer.warp!=0 || layer.breathe!=0 || layer.cycleRate!=0 || isParticle(layer.effect))) {
@@ -108,12 +117,19 @@ void OutputPanel::dispatch(const QImage& frame)
     try {
         const auto frames=prepareOutput(window_.document(),frame,window_.previewSeconds());
         QVector<const OutputFrame*> checked;
-        if(frames.size()!=int(connections_.size())) { stop("Output configuration changed. Review it before restarting."); return; }
-        // Validate every endpoint before submitting any frame; a structural edit must not partly escape the review gate.
+        bool changed=frames.size()!=configured_.size();
+        for(int i=0;!changed && i<frames.size();++i) changed=!sameOutputScope(configured_[i],frames[i]);
+        if(changed) {
+            // Rebuild channel capacities/native commands atomically; live edits need no approval dialog.
+            stop("Updating hardware configuration...");
+            if(automatic_->isActive()) QTimer::singleShot(0,this,[this] { if(automatic_->isActive() && !window_.document().state().assignments.isEmpty()) start(); });
+            return;
+        }
+        // Validate the complete live scope before submitting any endpoint.
         for(const auto& connection:connections_) {
             const OutputFrame* found=nullptr;
             for(const auto& candidate:frames) if(sameOutputScope(connection.approved,candidate)) { found=&candidate; break; }
-            if(!found) { stop("Output configuration changed. Review it before restarting."); return; }
+            if(!found) { stop("Output endpoint configuration changed."); return; }
             checked.append(found);
         }
         for(int i=0;i<int(connections_.size());++i) {
@@ -126,7 +142,7 @@ void OutputPanel::dispatch(const QImage& frame)
 void OutputPanel::refresh()
 {
     start_->setEnabled(!authorizing_ && !active() && bool(authorize_) && !window_.document().state().assignments.isEmpty());
-    stop_->setEnabled(active()); status_->setText(authorizing_ ? "Reviewing output..." : message_);
+    stop_->setEnabled(active()); status_->setText(authorizing_ ? "Connecting output..." : message_);
     endpoints_->clear();
     QString summary="Stopped";
     for(const auto& connection:connections_) {

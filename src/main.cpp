@@ -37,7 +37,7 @@ int main(int argc, char** argv)
         QCoreApplication::applicationDirPath() + "/components"});
     parser.addOption({"scan", "List HID endpoints and matching board profiles without opening devices."});
     parser.addOption({"inspect", "Validate local catalogs only; do not show the startup conflict dialog."});
-    parser.addOption({"editor", "Open the editor without the startup conflict dialog; live output still requires review."});
+    parser.addOption({"editor", "Open the editor without the startup conflict dialog; configured hardware receives the canvas automatically."});
     parser.process(app);
     if (!parser.isSet("inspect") && !parser.isSet("scan") && !parser.isSet("editor")) {
         SystemConflictProcesses processes;
@@ -108,7 +108,7 @@ int main(int argc, char** argv)
     }
     if (failed) return 1;
     if (parser.isSet("inspect") || parser.isSet("scan")) return 0;
-    // --editor skips only the startup conflict dialog; every live output start has its own gate.
+    // --editor skips only the startup conflict dialog; configured hardware output remains automatic.
     const auto sessionDirectory=QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
     if(!QDir().mkpath(sessionDirectory)) { QMessageBox::warning(nullptr,"Startup failed","Cannot create session directory"); return 1; }
     QLockFile instance(sessionDirectory+"/application.lock"); instance.setStaleLockTime(0);
@@ -150,5 +150,6 @@ int main(int argc, char** argv)
         window.restoreLegacyHardware(previous);
     window.findChild<QAction*>("workspaceLayout")->trigger();
     window.show();
+    outputPanel->enableAutomaticOutput();
     return app.exec();
 }

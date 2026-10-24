@@ -77,6 +77,7 @@ private slots:
     void applicationDevicePage();
     void scopeGuard();
     void pausedGradientPlayback();
+    void automaticOutput();
     void reviewReports();
     void liveEditsAndConfigurationStop();
     void cancelAndChangedReview();
@@ -102,6 +103,26 @@ void OutputUiTest::applicationDevicePage()
     window.findChild<QAction*>("workspaceEffects")->trigger(); QVERIFY(window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     panel->stopOutput(); QTRY_VERIFY(state(*panel,"Stopped")); window.document().history()->setClean();
 }
+void OutputUiTest::automaticOutput()
+{
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    auto record=std::make_shared<Record>(); int connections=0;
+    OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) { ++connections; return QVector<OutputConnection>{connection(frames[0],record)}; });
+    panel.enableAutomaticOutput(); QTRY_VERIFY(state(panel,"Running")); QTRY_COMPARE(record->writes(),2);
+    auto assignment=window.document().state().assignments[0]; assignment.native.brightness=3;
+    assignment.software=false; window.document().assignChannel(assignment);
+    QTRY_VERIFY(connections>=2); QTRY_VERIFY(state(panel,"Running"));
+    auto offline=assignment; offline.id=QUuid::createUuid(); offline.endpoint="offline"; offline.placements.clear();
+    window.document().assignChannel(offline); QTRY_VERIFY(connections>=3); QTRY_VERIFY(state(panel,"Running"));
+    const auto before=record->writes(); window.document().edit("Live color",[](auto& state) { state.layers[0].color=Qt::green; });
+    QTest::qWait(50); QCOMPARE(connections,3); // Missing saved endpoints do not cause a reconnect loop.
+    window.document().history()->undo(); // Queue a configuration reconnect, then stop before it runs.
+    panel.stopOutput(); const auto stopped=record->writes();
+    window.document().history()->undo(); QTest::qWait(50); QCOMPARE(record->writes(),stopped); QVERIFY(stopped>=before);
+    window.document().history()->setClean();
+}
+
 void OutputUiTest::pausedGradientPlayback()
 {
     LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
@@ -152,19 +173,8 @@ void OutputUiTest::reviewReports()
     ModuleRegistry modules; QString error; QVERIFY(modules.load(TEST_MODULE_PATH,&error));
     proof.reports=previewOutputReports(modules,proof);
     QCOMPARE(proof.reports.size(),2); QCOMPARE(proof.reports[0].size(),290); QCOMPARE(proof.reports[1].size(),727);
-    bool sawReports=false, disabled=false;
-    QTimer::singleShot(0,[&] {
-        auto* dialog=QApplication::activeModalWidget();
-        auto* buttons=dialog->findChild<QDialogButtonBox*>(); disabled=!buttons->button(QDialogButtonBox::Ok)->isEnabled();
-        const auto text=dialog->findChild<QPlainTextEdit*>("outputReports")->toPlainText();
-        sawReports=text.contains(identity().path) && text.contains(QString::fromLatin1(proof.reports[1].toHex(' ')));
-        dialog->findChild<QCheckBox*>("approveOutput")->setChecked(true);
-        QVERIFY(dialog->grab().save(QString(TEST_ARTIFACT_DIR)+"/output-confirmation.png"));
-        buttons->button(QDialogButtonBox::Ok)->click();
-    });
-    QVERIFY(confirmOutputReports(nullptr,{proof})); QVERIFY(disabled); QVERIFY(sawReports);
-    QTimer::singleShot(0,[] { QApplication::activeModalWidget()->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Cancel)->click(); });
-    QVERIFY(!confirmOutputReports(nullptr,{proof}));
+    QVERIFY(!proof.reports[1].isEmpty());
+
 }
 void OutputUiTest::liveEditsAndConfigurationStop()
 {
@@ -189,12 +199,13 @@ void OutputUiTest::liveEditsAndConfigurationStop()
     }
     window.document().history()->undo(); QTRY_COMPARE(record->writes(),5); QVERIFY(state(panel,"Running"));
     auto changed=window.document().state().assignments[0]; changed.software=false;
-    window.document().assignChannel(changed); QTRY_VERIFY(state(panel,"Stopped")); QCOMPARE(record->writes(),5);
+    window.document().assignChannel(changed); QTRY_VERIFY(state(panel,"Running")); QTRY_VERIFY(record->writes()>5);
+    panel.stopOutput(); const int stoppedWrites=record->writes();
     QVERIFY(start->isEnabled()); QVERIFY(!stop->isEnabled()); QCOMPARE(outputAction->text(),QString("Output: Stopped"));
-    window.document().history()->undo(); QCOMPARE(record->writes(),5); // Undo cannot restart a structurally invalidated connection.
-    start->click(); QTRY_COMPARE(record->writes(),7); QCOMPARE(authorizations,2);
+    window.document().history()->undo(); QTest::qWait(50); QCOMPARE(record->writes(),stoppedWrites); // Explicit Stop survives subsequent document changes.
+    start->click(); QTRY_VERIFY(record->writes()>stoppedWrites); QVERIFY(authorizations>=3);
     QTemporaryDir dir; const auto file=dir.filePath("project.lighting.json"); window.document().save(file);
-    window.loadProject(file); QTRY_VERIFY(state(panel,"Stopped")); QCOMPARE(record->writes(),7);
+    window.loadProject(file); QTRY_VERIFY(state(panel,"Running"));
     window.document().history()->setClean();
 }
 void OutputUiTest::cancelAndChangedReview()
@@ -202,7 +213,7 @@ void OutputUiTest::cancelAndChangedReview()
     LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document()); window.findChild<QPushButton*>("playPreview")->setChecked(false);
     OutputPanel cancelled(window,[](QWidget*,const QVector<OutputFrame>&) { return QVector<OutputConnection>{}; });
     cancelled.findChild<QPushButton*>("startOutput")->click();
-    QVERIFY(cancelled.findChild<QLabel*>("outputStatus")->text().contains("cancelled"));
+    QVERIFY(cancelled.findChild<QLabel*>("outputStatus")->text().contains("Waiting"));
     auto called=std::make_shared<std::atomic_int>(0);
     OutputPanel stale(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
         window.document().addLayer();

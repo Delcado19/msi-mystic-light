@@ -266,7 +266,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         const auto path=QFileDialog::getOpenFileName(this,"Import previous Lighting Studio hardware",qEnvironmentVariable("APPDATA")+"/MsiMysticLightApp/settings.json","Previous settings (*.json)");
         if(!path.isEmpty()) restoreLegacyHardware(path);
     });
-    auto* hardwareStatus=new QLabel("Output is stopped. Screen preview does not send colors to hardware. Attach or restore your chains, then review and start output.");
+    auto* hardwareStatus=new QLabel("Canvas output starts automatically for configured, detected hardware. Attach your fans and strips to their headers.");
     hardwareStatus->setObjectName("hardwareStatus"); hardwareStatus->setWordWrap(true); hardwareControls->addWidget(hardwareStatus);
     hardwareControls->addStretch();
 
@@ -381,7 +381,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         connect(action,&QAction::triggered,this,[this,factor=zoom.second] { (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->zoomBy(factor); });
     }
     auto* output=previewToolbar->addAction("Output: Stopped"); output->setObjectName("reviewOutput");
-    output->setToolTip("Review channel assignments, connect devices or stop output");
+    output->setToolTip("Show connected hardware and output status; canvas output starts automatically");
     previewToolbar->removeAction(output); toolbar->addSeparator(); toolbar->addAction(output);
     connect(output,&QAction::triggered,this,&LightingWindow::outputRequested);
     connect(previewChannel_,&QComboBox::currentIndexChanged,this,&LightingWindow::updatePreview);
@@ -791,7 +791,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(&document_, &LightingDocument::changed, this, &LightingWindow::refresh);
     connect(document_.history(), &QUndoStack::cleanChanged, this, [this](bool clean) { setWindowModified(!clean); });
     setWindowTitle("Lighting Studio[*] — MSI Mystic Light Standalone");
-    statusBar()->showMessage("Lighting Studio - Create effects, arrange components, then review output.");
+    statusBar()->showMessage("Lighting Studio - Create effects and arrange components; canvas output is automatic.");
     auto* viewMenu=menuBar()->addMenu("View"); viewMenu->setObjectName("workspaceViewMenu");
     viewMenu->addAction(sidebarDock->toggleViewAction()); viewMenu->addAction(dock->toggleViewAction());
     auto* resetWorkspace=viewMenu->addAction("Reset workspace"); resetWorkspace->setObjectName("resetWorkspace");
@@ -1059,7 +1059,7 @@ void LightingWindow::setOutputState(const QString& state)
 {
     auto* action=findChild<QAction*>("reviewOutput"); action->setText("Output: "+state);
     const auto description=state=="Running" ? QString("Output is running. Canvas edits and playback update software channels live.") :
-        state=="Stopped" ? QString("Output is stopped. Screen preview sends no colors. Open Hardware and choose Review and start output.") : "Output: "+state;
+        state=="Stopped" ? QString("Output is stopped. Screen preview sends no colors. Open Hardware to resume output.") : "Output: "+state;
     findChild<QLabel*>("hardwareStatus")->setText(description);
     const auto* detail=findChild<QLabel*>("outputStatus");
     action->setToolTip(description+(detail ? "\n"+detail->text() : QString{}));

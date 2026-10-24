@@ -103,27 +103,32 @@ I/O/startup, old-generation rejection, explicit reconnect, factory/input/write
 faults and worker-thread teardown. These do not qualify physical USB timing,
 a hung OS driver, unplug notification or actual device behavior.
 
-## GUI authorization and presence
+## Automatic GUI output and presence
 
-Output > Review and start output starts one scheduler per endpoint after process-conflict
-resolution, fresh exact-path/profile discovery and an explicit report review.
-A memory-only transport serializes initial reports with the real module; no HID
-handle is opened for this proof. The dialog requires a consent checkbox. Worker
-factories revalidate discovery and serialized bytes before opening the exact path.
-Consent covers subsequent RGB frames for the listed software channels. MSI 0x50
-includes all 18 zones; existing unassigned zone settings are not preserved.
+The app enables canvas output after project restoration and initial discovery.
+Configured, detected endpoints connect automatically, without an initial report
+approval checkbox. Startup process-conflict choices remain user-controlled; no
+RGB process is terminated automatically. --editor skips that startup conflict dialog
+but still enables configured hardware output. --inspect and --scan never write.
 
-The document revision is frozen during modal review; any edit before consent
-returns invalidates that review. Once running, software RGB payloads may change
-live through effect/mask edits, preview time, layout sampling and their undo.
-`sameOutputScope` requires identical endpoint/profile, ordered channel IDs/modes,
-software LED counts and complete native commands. Every endpoint is checked before
-any replacement frame is submitted. Changed topology/native commands stop all
-workers and require review; undo does not restart them. Opening a project stops
-before its document is loaded, even if its target configuration matches.
-Selected-channel preview does not alter other output channels. Faults stop all endpoint workers. Presence is
-re-enumerated approximately once per second, including idle native-only sessions;
-a disappeared endpoint faults the worker. No automatic reconnect occurs. Stop
-sends no restore/off command. Tray Stop and accepted window close stop workers.
-Tests use fake transports and memory-only report proof; physical USB behavior,
-calibration and clean-machine deployment remain unqualified.
+The host serializes initial reports through the real module using a memory-only
+transport. Worker factories revalidate exact endpoint/profile identity, paired
+Vulcan interfaces and serialized bytes before opening HID. Saved offline endpoints
+are skipped rather than preventing output to reachable devices. MSI 0x50 includes
+all 18 zones; existing unassigned zone settings are not preserved.
+
+Software RGB payloads update live through effects, masks, layout sampling, the
+preview clock and undo. Animated output starts playback if it was paused.
+Topology/native-command changes stop the old workers and automatically rebuild
+connections with the new validated configuration. A project load closes old
+connections before replacing state, then resumes using the new assignments.
+
+Presence is checked approximately once per second. Faults stop the endpoint workers;
+automatic mode retries connection preparation every two seconds. Explicit Stop,
+tray Stop and accepted close disable automatic retries and queued restarts.
+Resume output enables them again. The next app launch defaults to automatic output.
+Stop sends no restore/off command; devices retain their last applied state.
+
+Tests use recording transports and verify automatic startup, scope changes, offline
+subsets, changing reports, explicit Stop and queued-restart cancellation. Physical
+USB behavior and color calibration still require observation on the real hardware.

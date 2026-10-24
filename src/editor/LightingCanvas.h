@@ -48,6 +48,8 @@ protected:
     void hideEvent(QHideEvent*) override;
 private:
     bool selectedPlacement(const QUuid& id) const;
+    QRectF groupBounds(const ChannelAssignment& assignment) const;
+    QRectF groupLabel(const ChannelAssignment& assignment) const;
     QRectF selectionBounds() const;
     ComponentPlacement previewPlacement(ComponentPlacement placement) const;
     void cancelGesture();
