@@ -26,3 +26,9 @@ and procedural shape geometry. Enable color animation starts playback; the motio
 scope can apply edits to all visible layers. Hardware shares Layout's selectable
 header/component overview with Add/Remove. The live preview shows software sampling;
 Review and start output is still required to send colors to the fans.
+
+Travelling gradients now close the last color back to the first in gradient-local
+coordinates; there is no rectangular wrap seam. Starting an animated output
+resumes paused playback. The output status tooltip includes the stop/fault reason.
+Blend modes affect the selected source against visible layers below it; a lone
+bottom layer has no backdrop to blend with.

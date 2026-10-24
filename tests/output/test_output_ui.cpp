@@ -76,6 +76,7 @@ private slots:
     void initTestCase() { QVERIFY(QDir().mkpath(TEST_ARTIFACT_DIR)); }
     void applicationDevicePage();
     void scopeGuard();
+    void pausedGradientPlayback();
     void reviewReports();
     void liveEditsAndConfigurationStop();
     void cancelAndChangedReview();
@@ -101,6 +102,34 @@ void OutputUiTest::applicationDevicePage()
     window.findChild<QAction*>("workspaceEffects")->trigger(); QVERIFY(window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     panel->stopOutput(); QTRY_VERIFY(state(*panel,"Stopped")); window.document().history()->setClean();
 }
+void OutputUiTest::pausedGradientPlayback()
+{
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    const auto secondPlacement=window.document().addComponent("test");
+    window.document().edit("Travelling gradient",[&](auto& state) {
+        auto& source=state.layers[0]; source.effect=EffectKind::LinearGradient;
+        source.color=Qt::red; source.secondaryColor=Qt::blue; source.driftX=114; source.rotation=-30;
+        auto second=state.assignments[0]; second.id=QUuid::createUuid(); second.channelId="JARGB2"; second.placements={secondPlacement};
+        state.assignments.append(second);
+    });
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    auto record=std::make_shared<Record>();
+    OutputPanel panel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; });
+    panel.findChild<QPushButton*>("startOutput")->click();
+    QVERIFY(window.findChild<QPushButton*>("playPreview")->isChecked());
+    QTRY_VERIFY(state(panel,"Running")); QTest::qWait(200);
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    bool firstChanged=false,secondChanged=false;
+    {
+        const std::lock_guard<std::mutex> lock(record->mutex);
+        std::vector<std::vector<std::uint8_t>> frames;
+        for(const auto& report:record->reports) if(report[0]==0x51) frames.push_back(report);
+        QVERIFY(frames.size()>=4);
+        firstChanged=frames[0]!=frames[frames.size()-2]; secondChanged=frames[1]!=frames.back();
+    }
+    QVERIFY(firstChanged); QVERIFY(secondChanged); panel.stopOutput(); window.document().history()->setClean();
+}
+
 void OutputUiTest::scopeGuard()
 {
     LightingDocument document({},nullptr,{profile()}); configure(document);

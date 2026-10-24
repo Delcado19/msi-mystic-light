@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792789093.4629953,
-    "seen": 1792813480.9309447,
-    "ast_hash": "ec2e40b2460c0187f533d4cef33dfedd",
+    "mtime": 1792813626.4908879,
+    "seen": 1792815347.973807,
+    "ast_hash": "8a6d25bffa2ecf1401c50e1f9abd7968",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1792813516.9311752,
-    "seen": 1792813565.3971145,
-    "ast_hash": "7ff4110f6d30ae0ca9148703664b2feb",
+    "mtime": 1792815280.4554253,
+    "seen": 1792815347.9737678,
+    "ast_hash": "39cd05edf401cfc1305a4d15777f6b4a",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
@@ -354,15 +354,15 @@
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1792813394.9306624,
-    "seen": 1792813480.930931,
-    "ast_hash": "dd775361b854d7870868ea69f9154d95",
+    "mtime": 1792815280.454424,
+    "seen": 1792815347.9737942,
+    "ast_hash": "14a95cfefecea160ec8ac865ac9eb543",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1792813433.0678306,
-    "seen": 1792813480.9309504,
-    "ast_hash": "e8a82a523d83df6d97ce31a57b05d92e",
+    "mtime": 1792813626.48989,
+    "seen": 1792815347.9738126,
+    "ast_hash": "3f169d9501d6b226f9df8088fe06107d",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "src/editor/EffectRenderer.cpp": {
-    "mtime": 1792813516.9311752,
-    "seen": 1792813565.3971064,
-    "ast_hash": "56061105940098c1d4733432facc627a",
+    "mtime": 1792815186.5910296,
+    "seen": 1792815347.9737585,
+    "ast_hash": "917118aff51ba7e4a1aedf2a197889d2",
     "semantic_hash": ""
   },
   "src/editor/EffectRenderer.h": {
@@ -522,9 +522,9 @@
     "semantic_hash": ""
   },
   "src/output/OutputPanel.cpp": {
-    "mtime": 1792772961.610757,
-    "seen": 1792773906.0449097,
-    "ast_hash": "1784de68ee61598e6aa0da1cddc970af",
+    "mtime": 1792815186.5920293,
+    "seen": 1792815347.9737794,
+    "ast_hash": "e79d314c906795565ff0a6f6647b5a5c",
     "semantic_hash": ""
   },
   "src/output/OutputPanel.h": {
@@ -534,9 +534,9 @@
     "semantic_hash": ""
   },
   "tests/output/test_output_ui.cpp": {
-    "mtime": 1792787920.1050148,
-    "seen": 1792788271.9331164,
-    "ast_hash": "9bd19b6f24e9dcba93768048a565742d",
+    "mtime": 1792815254.8237767,
+    "seen": 1792815347.9738011,
+    "ast_hash": "e08f7485e533431a7ac70e2f14809555",
     "semantic_hash": ""
   },
   "PORTABLE_README.txt": {
@@ -582,9 +582,9 @@
     "semantic_hash": ""
   },
   "docs/images/lighting-properties.png": {
-    "mtime": 1792789033.2602136,
-    "seen": 1792789069.2556849,
-    "ast_hash": "929390a695ea8f66a9aa974f6528298f",
+    "mtime": 1792813566.5976343,
+    "seen": 1792815347.9738297,
+    "ast_hash": "c34fc75dab2185117b9c283c19467c07",
     "semantic_hash": ""
   },
   "src/editor/HardwarePicker.cpp": {
@@ -600,9 +600,9 @@
     "semantic_hash": ""
   },
   "docs/images/header-layout.png": {
-    "mtime": 1792789033.2602136,
-    "seen": 1792789069.2556834,
-    "ast_hash": "011989539580859280f112779e5248a0",
+    "mtime": 1792813566.2539942,
+    "seen": 1792815347.973829,
+    "ast_hash": "01ddc9189618e6953157537aed359cf0",
     "semantic_hash": ""
   },
   "components/peripheral-apex3.json": {
@@ -744,21 +744,21 @@
     "semantic_hash": ""
   },
   "docs/images/hardware-picker.png": {
-    "mtime": 1792789033.259718,
-    "seen": 1792789069.2556787,
+    "mtime": 1792813566.14351,
+    "seen": 1792815347.973827,
     "ast_hash": "ad65ec7d0ade572af093ee9513ebbe94",
     "semantic_hash": ""
   },
   "docs/images/studio-workspace.png": {
-    "mtime": 1792789033.2592144,
-    "seen": 1792789069.2556887,
-    "ast_hash": "f5b21593090530a024ff420acd8740da",
+    "mtime": 1792813566.5976343,
+    "seen": 1792815347.973831,
+    "ast_hash": "c34fc75dab2185117b9c283c19467c07",
     "semantic_hash": ""
   },
   "docs/images/hardware-workspace.png": {
-    "mtime": 1792789033.260717,
-    "seen": 1792789069.2556815,
-    "ast_hash": "6faa22edc78cc73860a5856a0008ea44",
+    "mtime": 1792813569.7656305,
+    "seen": 1792815347.9738286,
+    "ast_hash": "3cbccd0ee4d691c6affcebbf2373bf1a",
     "semantic_hash": ""
   }
 }

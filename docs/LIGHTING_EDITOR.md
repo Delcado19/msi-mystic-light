@@ -55,9 +55,12 @@ Enable color animation starts palette cycling and playback, including painted so
 Apply animation to all visible layers applies subsequent motion edits to the full visible
 stack; otherwise only the selected layer changes. No decorative animation delays tools or shortcuts.
 
-Output: Stopped/Connecting/Running/Faulted opens the Hardware workspace.
+Output: Stopped/Connecting/Running/Faulted opens the Hardware workspace. Its tooltip
+includes the current output status/reason; the Hardware status follows actual state.
 Changing workspace does not stop output; use Stop output. Review/start and Stop retain the existing
-exact-report approval and transport pipeline. See [output](OUTPUT_SESSION.md).
+exact-report approval and transport pipeline. Starting an animated output resumes
+a paused preview so devices receive moving frames. Static output does not force
+playback. See [output](OUTPUT_SESSION.md).
 
 Launch `build/ninja/Release/msi_mystic_light.exe --editor` for offline editing.
 Normal startup runs the existing process-conflict dialog first. Neither editor
@@ -136,7 +139,9 @@ Image; Particle Rain, Particle Orbit, Fireflies and Particle Burst.
 Gradients use 2..16 movable color stops, interpolated in premultiplied space
 to avoid transparent-stop halos. Stripes alternate colors and Waves interpolate
 sinusoidally; repetitions are editable. Conical gradients start along positive
-X and progress clockwise, with a seam. Linear/radial gradients clamp; patterns
+X and progress clockwise, with a seam. Stationary linear/radial gradients clamp; travelling gradients close their palette
+back to the first color and advance in gradient-local coordinates. They never tile
+a finite canvas raster, which would introduce a hard rectangular seam. Patterns
 repeat. Shapes use antialiased fixed templates (five-point star, fixed ring
 thickness and fixed moon cutout).
 
@@ -437,3 +442,20 @@ component sampling feed OutputSession. A recording-transport regression verifies
 animated painted red/blue frames through the real MSI serializer for both JARGB1 and
 JARGB2. Physical illumination still requires Review and start output and an observed
 hardware test; a Stopped status sends nothing.
+
+## Gradient travel and blend verification (2026-10-24)
+
+Travelling linear/radial gradients evaluate the moving coordinates directly. Palette
+stops reserve one final segment returning from the last color to the first, like the
+original CustomGradientEffect paletteAt. A diagonal arrow retains its direction
+throughout travel. Stationary gradients retain their endpoint-clamped appearance.
+Tests cover horizontal pixel continuity across the complete diagonal canvas at
+0, 0.25, 1 and 144.87 seconds, perpendicular-axis invariance and travel direction.
+
+Blend verification now uses asymmetric RGB foreground/background values, 50%
+transparency, a half-gray mask and the actual inspector selector. Normal, Multiply,
+Screen and Overlay match their expected formulas. An isolated bottom layer has no
+backdrop to blend with; the tooltip explains this. No compositor replacement was
+needed. Live animated output is also tested through the UI timer, scheduler and
+real MSI serializer for both JARGB1/JARGB2 from a paused start. A recording transport
+confirms changing reports; actual device behavior remains a separate observation.

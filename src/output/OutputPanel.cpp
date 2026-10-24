@@ -91,6 +91,12 @@ void OutputPanel::start()
                 if(!connection.generation || !connection.scheduler->submit(connection.generation,std::move(request.initial)))
                     throw std::runtime_error(connection.scheduler->status().error.isEmpty() ? "Output connection could not be started" : connection.scheduler->status().error.toStdString());
             }
+            // Starting an animated output from a paused editor must not freeze the device at the reviewed frame.
+            for(const auto& layer:window_.document().state().layers) if(layer.visible &&
+                (layer.spin!=0 || layer.pulse!=0 || layer.hueShift!=0 || layer.driftX!=0 || layer.driftY!=0 ||
+                 layer.zoom!=0 || layer.warp!=0 || layer.breathe!=0 || layer.cycleRate!=0 || isParticle(layer.effect))) {
+                window_.findChild<QPushButton*>("playPreview")->setChecked(true); break;
+            }
             message_="Output active. Effect edits and preview time update software channels live.";
         }
     } catch(const std::exception& error) { stop(QString::fromUtf8(error.what())); }

@@ -44,7 +44,9 @@ boundaries, corner resize and rotation handles. Zoom in/out and Fit are explicit
 Gradient arrows remain editable after drawing; the fill tool handles connected
 paint areas while preserving antialiased edges. Gradient fills recolor painted coverage
 or procedural shapes without replacing their geometry. Palette animation supports paint;
-an explicit scope can apply motion edits to all visible layers.
+an explicit scope can apply motion edits to all visible layers. Travelling gradients
+use a closed color cycle in the arrow direction, avoiding canvas-edge seams.
+Starting animated hardware output resumes paused playback.
 
 The restored peripheral module detects Roccat Vulcan 100/120 Aimo, Roccat Kone Aimo,
 Razer Basilisk V3 and SteelSeries Apex 3, with dedicated keyboard/mouse geometry.

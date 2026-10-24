@@ -523,9 +523,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(transparency_, &QSlider::sliderReleased, this, [this] {
         document_.history()->endMacro();
     });
-    blend_ = new QComboBox;
+    blend_ = new QComboBox; blend_->setObjectName("layerBlendMode");
     blend_->addItems({"Normal", "Multiply", "Screen", "Overlay"});
-    blend_->setToolTip("How this layer combines with visible layers below it: Normal replaces, Multiply darkens, Screen lightens, Overlay increases contrast.");
+    blend_->setToolTip("How this layer combines with visible layers below it: Normal replaces, Multiply darkens, Screen lightens, Overlay increases contrast. The bottom layer has no backdrop; select an upper layer to see blending.");
     form->addRow("Blend mode", blend_);
     connect(blend_, &QComboBox::currentIndexChanged, this, [this](int index) {
         updateLayer("Layer blend mode", [index](auto& layer) { layer.blend = static_cast<LayerBlend>(index); });
@@ -1057,7 +1057,12 @@ void LightingWindow::installOutputPanel(QWidget* panel)
 
 void LightingWindow::setOutputState(const QString& state)
 {
-    findChild<QAction*>("reviewOutput")->setText("Output: "+state);
+    auto* action=findChild<QAction*>("reviewOutput"); action->setText("Output: "+state);
+    const auto description=state=="Running" ? QString("Output is running. Canvas edits and playback update software channels live.") :
+        state=="Stopped" ? QString("Output is stopped. Screen preview sends no colors. Open Hardware and choose Review and start output.") : "Output: "+state;
+    findChild<QLabel*>("hardwareStatus")->setText(description);
+    const auto* detail=findChild<QLabel*>("outputStatus");
+    action->setToolTip(description+(detail ? "\n"+detail->text() : QString{}));
 }
 
 double LightingWindow::previewSeconds() const { return previewTime_->value(); }

@@ -94,3 +94,13 @@ no ornamental transitions are added to frequently used editing actions.
 No decorative animation was added to repeated drawing gestures. Undo/redo use a
 continuous curved arrow path with a visible arrowhead. Real hardware writes retain
 the existing exact-report review rather than starting from a drawing operation.
+
+## Gradient/output feedback correction (2026-10-24)
+
+Travelling gradients now interpolate a closed palette in source coordinates rather
+than wrapping a rendered rectangle. The arrow remains the spatial direction. No
+new animation control or dependency was added. Starting an animated output resumes
+paused playback after approval. Hardware status and the global output tooltip show
+actual state instead of a permanent stopped message. Blend tooltip explains that a
+bottom layer has no visible backdrop; asymmetric RGB and inspector tests verify all
+four modes without changing the existing Qt compositor.

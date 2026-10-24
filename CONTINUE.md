@@ -1,5 +1,46 @@
 # Implementation status
 
+## Travelling-gradient seam and paused output correction (2026-10-24)
+
+Supersedes the raster-wrapping behavior documented in the previous entry. The
+reported diagonal gradient at 144.87 seconds exposed a rectangular discontinuity:
+wrapping a completed clamped image joins unrelated endpoint colors. Travelling
+linear/radial gradients now evaluate translated source coordinates, with a closing
+palette segment from the last color to the first as in the original
+CustomGradientEffect::paletteAt. Arrow orientation and global X/Y travel remain
+independent. Stationary gradients keep their clamped endpoint appearance.
+
+Starting an animated output now resumes paused preview playback after successful
+review/connection submission. Previously it could send the reviewed frozen frame
+indefinitely. Static output does not force playback. Hardware's status label now
+reflects actual output state, and the global action tooltip includes the status /
+stop reason. Review and start remains an explicit user operation; no HID writes
+were performed by this agent.
+
+Expanded blend tests cover asymmetric RGB colors for Normal, Multiply, Screen and
+Overlay, partial transparency plus gray masks, and the actual inspector selector.
+All match expected results; no compositor defect was reproduced. A single bottom
+layer has no backdrop to blend with; the tooltip now explains that. Blend issues
+in an unprovided multi-layer project remain unverified rather than presumed fixed.
+
+Validation: Release and Debug 15/15 CTest each. Native Windows editor 35/35 and
+output UI 9/9. Seam regression scans every row of a diagonal three-stop gradient
+at 0, 0.25, 1 and 144.87 seconds, checking continuity, perpendicular-axis invariance
+and travel direction. A new paused-start output UI test runs the real timer,
+scheduler and MSI serializer and confirms changing 0x51 reports for JARGB1 and
+JARGB2 using a recording transport. No physical illumination proof is claimed.
+
+Portable folder and ZIP refreshed; CRC, required runtime/module entries and
+source/folder/archived EXE equality pass. Windows-only PATH --inspect and read-only
+--scan return 0; four profile/endpoint matches found.
+Packaged EXE SHA256: 231c4a07224dc180ca80e99335aa074fb18131fd281fb3953819c104ab1f2e4f.
+
+Pending user observation: after Review and start output, does state stay Running
+with static hardware, stop/fault, or was output never started? The supplied
+screenshot shows both Stopped output and paused Play. This distinguishes physical
+transport/configuration failures from intentionally unsent/frozen preview frames.
+Do not auto-start hardware, terminate RGB processes or infer physical success.
+
 ## Drawing, animation and hardware inventory corrections (2026-10-24)
 
 Supersedes the source-gallery/fill details in the previous status below. Shapes

@@ -130,6 +130,21 @@ void EditorTest::periodicEffectsAndGradientStops()
     auto gradient=layer(Qt::red); gradient.effect=EffectKind::LinearGradient; gradient.extent={640,400};
     gradient.gradientColors={Qt::red,Qt::green,Qt::blue}; const auto frame=renderEffect(gradient);
     QVERIFY(frame.pixelColor(320,200).green()>253); QVERIFY(frame.pixelColor(1,200).red()>250); QVERIFY(frame.pixelColor(638,200).blue()>250);
+    gradient.rotation=-30; gradient.driftX=114;
+    for(const double time:{0.,.25,1.,144.87}) {
+        const auto moving=renderEffect(gradient,time);
+        int worst=0;
+        for(int y=0;y<400;++y) for(int x=1;x<640;++x) {
+            const auto a=moving.pixelColor(x-1,y),b=moving.pixelColor(x,y);
+            worst=std::max({worst,std::abs(a.red()-b.red()),std::abs(a.green()-b.green()),std::abs(a.blue()-b.blue())});
+        }
+        QVERIFY2(worst<=4,"Travelling diagonal gradient must not contain a canvas-edge color discontinuity");
+        const auto a=moving.pixelColor(250,150), b=moving.pixelColor(300,237);
+        QVERIFY(std::abs(a.red()-b.red())<=2 && std::abs(a.blue()-b.blue())<=2);
+    }
+    const auto direction=renderEffect(gradient,1);
+    const auto earlier=renderEffect(gradient,0);
+    QCOMPARE(direction.pixelColor(300,200),earlier.pixelColor(186,200));
     LightingDocument document(catalog()); document.addLayer(EffectKind::LinearGradient);
     document.edit("Three stops",[&](auto& state) { state.layers[0].gradientColors=gradient.gradientColors; });
     QTemporaryDir dir; const auto file=dir.filePath("gradient.json"); document.save(file); LightingDocument loaded(catalog()); loaded.load(file);
@@ -859,6 +874,29 @@ void EditorTest::blending()
         state.layers = {layer(QColor(128, 128, 128)), gray};
         QVERIFY(std::abs(LightingDocument::render(state).pixelColor(5, 5).red() - expected[i]) <= 1);
     }
+    const QVector<QColor> asymmetric{QColor(192,96,32),QColor(48,60,28),QColor(208,196,228),QColor(96,137,201)};
+    for(int i=0;i<modes.size();++i) {
+        auto top=layer(QColor(192,96,32)); top.blend=modes[i];
+        LightingState pair; pair.layers={layer(QColor(64,160,224)),top};
+        const auto pixel=LightingDocument::render(pair).pixelColor(10,10);
+        for(int channel=0;channel<3;++channel) {
+            const auto channelValue=[channel](QColor color) { return channel==0 ? color.red() : channel==1 ? color.green() : color.blue(); };
+            QVERIFY(std::abs(channelValue(pixel)-channelValue(asymmetric[i]))<=1);
+        }
+        pair.layers[1].transparency=50; pair.layers[1].mask.fill(128);
+        const auto partial=LightingDocument::render(pair).pixelColor(10,10);
+        QVERIFY(std::abs(partial.red()-qRound(64*.75+asymmetric[i].red()*.25))<=2);
+    }
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+    addEffect(window,EffectKind::StaticColor); addEffect(window,EffectKind::StaticColor);
+    window.document().edit("Distinct blend colors",[](auto& state) { state.layers[0].color=QColor(64,160,224); state.layers[1].color=QColor(192,96,32); });
+    auto* selector=window.findChild<QComboBox*>("layerBlendMode"); QVERIFY(selector);
+    for(int i=0;i<modes.size();++i) {
+        selector->setCurrentIndex(i); QCOMPARE(window.document().state().layers[1].blend,modes[i]);
+        const auto pixel=window.document().render().pixelColor(10,10);
+        QVERIFY(std::abs(pixel.red()-asymmetric[i].red())<=1);
+    }
+    window.document().history()->setClean();
     LightingState state; state.layers = {layer(Qt::blue), layer(Qt::red)};
     QCOMPARE(LightingDocument::render(state).pixelColor(5, 5), QColor(Qt::red));
     state.layers[1].mask.fill(128);

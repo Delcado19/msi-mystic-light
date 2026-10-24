@@ -161,11 +161,21 @@ static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
         const double cosine = std::cos(angle), sine = std::sin(angle);
         const auto colors=layer.gradientColors.isEmpty() ? QVector<QColor>{layer.color,layer.secondaryColor} : layer.gradientColors;
         QVector<QRgb> stops; for(const auto& color:colors) stops.append(qPremultiply(color.rgba()));
+        const bool travelling=layer.driftX!=0 || layer.driftY!=0;
+        auto positions=layer.gradientPositions;
+        if(travelling && (layer.effect==EffectKind::LinearGradient || layer.effect==EffectKind::RadialGradient)) {
+            // Like the original paletteAt: reserve a closing segment from the last color back to the first.
+            if(positions.isEmpty()) for(int i=0;i<stops.size();++i) positions.append(i/double(stops.size()-1));
+            const double span=(stops.size()-1)/double(stops.size());
+            for(auto& position:positions) position*=span;
+            positions.append(1); stops.append(stops.first());
+        }
+
         for (int y = 0; y < image.height(); ++y) {
             auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
             for (int x = 0; x < image.width(); ++x) {
                 // Clamp stationary gradients at their endpoints; wrapping local coordinates creates an internal seam.
-                const double dx = x+0.5-layer.center.x(), dy = y+0.5-layer.center.y();
+                const double dx = x+0.5-layer.center.x()-layer.driftX*seconds, dy = y+0.5-layer.center.y()-layer.driftY*seconds;
                 const double u = (dx * cosine + dy * sine) / layer.extent.width();
                 const double v = (-dx * sine + dy * cosine) / layer.extent.height();
                 double t = u + 0.5;
@@ -180,12 +190,12 @@ static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
                 case EffectKind::Waves: t = (1 - std::cos(2 * pi * t * layer.repetitions)) / 2; break;
                 default: break;
                 }
-                if(layer.gradientPositions.isEmpty()) {
+                if(travelling && (layer.effect==EffectKind::LinearGradient || layer.effect==EffectKind::RadialGradient)) t-=std::floor(t);
+                if(positions.isEmpty()) {
                     const double position=std::clamp(t,0.0,1.0)*(stops.size()-1);
                     const int stop=std::min(int(position),int(stops.size()-2));
                     row[x]=interpolate(stops[stop],stops[stop+1],position-stop);
                 } else {
-                    const auto& positions=layer.gradientPositions;
                     int right=int(std::upper_bound(positions.begin(),positions.end(),t)-positions.begin());
                     if(right==0) row[x]=stops.first();
                     else if(right==stops.size()) row[x]=stops.last();
@@ -338,7 +348,8 @@ static QImage renderAtTime(const EffectLayer& layer, double seconds)
     const double scale = 1 + layer.zoom/100 * std::sin(2*pi*seconds);
     if(!isGradient(layer.effect)) evaluated.center += QPointF(layer.driftX*seconds, layer.driftY*seconds);
     evaluated.extent *= scale;
-    evaluated.zoom = 0; evaluated.driftX = 0; evaluated.driftY = 0;
+    evaluated.zoom = 0;
+    if(!isGradient(layer.effect)) { evaluated.driftX = 0; evaluated.driftY = 0; }
     // Evaluated geometry may be off-canvas or exceed editable bounds; only stored inputs are validated.
     evaluated.rotation = std::remainder(layer.rotation + layer.spin * seconds, 360.0);
     if (layer.cycleRate > 0) {
@@ -368,13 +379,6 @@ static QImage renderAtTime(const EffectLayer& layer, double seconds)
 
     }
     auto image = renderBaseEffect(evaluated, seconds);
-    // Wrap the completed gradient raster during travel so its clamped edge remains continuous at base time.
-    if(isGradient(layer.effect) && (layer.driftX!=0 || layer.driftY!=0)) {
-        auto shifted=image;
-        const int dx=int(std::remainder(layer.driftX*seconds,640)),dy=int(std::remainder(layer.driftY*seconds,400));
-        for(int y=0;y<400;++y) for(int x=0;x<640;++x) shifted.setPixel(x,y,image.pixel((x-dx+640)%640,(y-dy+400)%400));
-        image=shifted;
-    }
     if(layer.effect==EffectKind::Paint && layer.cycleRate>0) {
         QPainter painter(&image); painter.setCompositionMode(QPainter::CompositionMode_SourceIn); painter.fillRect(image.rect(),evaluated.color);
     }
