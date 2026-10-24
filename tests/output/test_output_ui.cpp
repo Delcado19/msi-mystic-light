@@ -71,7 +71,7 @@ bool state(OutputPanel& panel,const QString& expected)
 {
     const auto* tree=panel.findChild<QTreeWidget*>("outputEndpoints");
     for(int i=0;i<tree->topLevelItemCount();++i)
-        if(tree->topLevelItem(i)->data(0,Qt::UserRole).toString()==identity().path) return tree->topLevelItem(i)->text(1)==expected;
+        if(tree->topLevelItem(i)->data(0,Qt::UserRole).toString()==identity().path) return tree->topLevelItem(i)->text(2)==expected;
     return false;
 }
 }
@@ -82,6 +82,7 @@ private slots:
     void applicationDevicePage();
     void layoutDragOutput();
     void headerControls();
+    void auxiliaryInventory();
     void independentConnections();
     void scopeGuard();
     void pausedGradientPlayback();
@@ -147,13 +148,17 @@ void OutputUiTest::headerControls()
     OutputPanel panel(window,[record](QWidget*,const QVector<OutputFrame>& frames) { return QVector<OutputConnection>{connection(frames[0],record)}; });
     panel.enableAutomaticOutput(); QTRY_VERIFY(state(panel,"Running"));
     auto* tree=panel.findChild<QTreeWidget*>("outputEndpoints");
-    QCOMPARE(tree->topLevelItem(0)->childCount(),profile().channels.size());
+    QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),0);
+    QCOMPARE(tree->topLevelItem(0)->text(0),identity().path);
+    QCOMPARE(tree->topLevelItem(0)->text(1),profile().id);
     QVERIFY(tree->maximumHeight()>100);
     auto* start=panel.findChild<QPushButton*>("startOutput"); auto* stop=panel.findChild<QPushButton*>("stopOutput");
     QVERIFY(!start->isEnabled()); QVERIFY(!start->property("primary").toBool());
-    tree->setCurrentItem(tree->topLevelItem(0)->child(0)); stop->click();
-    QCOMPARE(tree->topLevelItem(0)->child(0)->text(1),QString("Stopped"));
-    QCOMPARE(tree->topLevelItem(0)->child(1)->text(1),QString("Running"));
+    auto* inventory=window.findChild<QTreeWidget*>("layoutComponents");
+    inventory->setCurrentItem(inventory->topLevelItem(1));
+    inventory->setCurrentItem(inventory->topLevelItem(0)); stop->click();
+    QCOMPARE(tree->topLevelItem(0)->text(2),QString("Partly running"));
+    QCOMPARE(tree->currentItem()->data(0,Qt::UserRole+2).toString(),QString("JARGB1"));
     QVERIFY(start->isEnabled()); QVERIFY(!stop->isEnabled());
     QTest::qWait(80); const int pausedWrites=record->writes();
     window.document().edit("Peer keeps running",[](auto& state) { state.layers[0].color=Qt::blue; });
@@ -164,17 +169,58 @@ void OutputUiTest::headerControls()
         for(int i=pausedWrites;i<record->reports.size();++i)
             QCOMPARE(record->reports[i],std::vector<std::uint8_t>(expected.begin(),expected.end()));
     }
-    start->click(); QTRY_COMPARE(tree->topLevelItem(0)->child(0)->text(1),QString("Running"));
+    start->click(); QTRY_COMPARE(tree->topLevelItem(0)->text(2),QString("Running"));
     QVERIFY(!start->isEnabled());
-    tree->setCurrentItem(tree->topLevelItem(0)->child(2));
-    QCOMPARE(tree->currentItem()->text(1),QString("Not configured"));
+    inventory->setCurrentItem(inventory->topLevelItem(2));
     QVERIFY(!start->isEnabled()); QVERIFY(!stop->isEnabled());
-    auto* inventory=window.findChild<QTreeWidget*>("layoutComponents");
-    auto* member=inventory->topLevelItem(1)->child(0); QVERIFY(member);
-    inventory->setCurrentItem(member);
+    auto* member=inventory->topLevelItem(1)->child(0); QVERIFY(member); inventory->setCurrentItem(member);
     QCOMPARE(tree->currentItem()->data(0,Qt::UserRole+2).toString(),QString("JARGB2"));
     QVERIFY(!start->isEnabled()); QVERIFY(stop->isEnabled());
     panel.stopOutput(); window.document().history()->setClean();
+}
+
+void OutputUiTest::auxiliaryInventory()
+{
+    const QDir directory=QFileInfo(TEST_PROFILE_PATH).absoluteDir();
+    QVector<DeviceProfile> profiles{profile()};
+    ComponentCatalog components;
+    for(const auto& id:QStringList{"gpu.aero5080","msi.ioshield","ram.xpg"}) {
+        const auto component=loadComponentDefinition(directory.filePath("../components/"+id+".json")); components.insert(component.id,component);
+    }
+    QVector<ProfileCandidate> candidates{{identity(),profile().id}};
+    for(const auto& file:QStringList{"gigabyte-aero-5080","xpg-ram-71","xpg-ram-73"}) {
+        const auto item=DeviceProfile::load(directory.filePath(file+".json")); profiles.append(item);
+        DeviceIdentity device;device.path=item.match["endpoint"].toString();device.transport=item.match["transport"].toString();
+        device.vendorId=item.match["vendorId"].toInt();device.productId=item.match["productId"].toInt();candidates.append({device,item.id});
+    }
+    LightingWindow offline(components,[] { return QVector<ProfileCandidate>{}; },nullptr,profiles);
+    OutputPanel panel(offline,{});
+    auto* table=panel.findChild<QTreeWidget*>("outputEndpoints"); QCOMPARE(table->topLevelItemCount(),3);
+    for(int i=0;i<3;++i) { QCOMPARE(table->topLevelItem(i)->childCount(),0); QCOMPARE(table->topLevelItem(i)->text(2),QString("Not detected")); }
+    LightingWindow detected(components,[candidates] { return candidates; },nullptr,profiles);
+    detected.document().edit("Older embedded catalog",[](auto& state) { state.components.clear(); });
+    QTRY_COMPARE(detected.document().state().assignments.size(),4);
+    QSet<QString> channels;
+    for(const auto& assignment:detected.document().state().assignments) { QVERIFY(assignment.software);channels.insert(assignment.channelId); }
+    QCOMPARE(channels,QSet<QString>({"IOShield","GigabyteAero5080","XpgRam1","XpgRam2"}));
+    for (const auto& placement : detected.document().state().placements) if (placement.componentId == "ram.xpg") {
+        const auto points = detected.document().componentPoints(placement);
+        QCOMPARE(points.size(), 8);
+        QVERIFY(qAbs(points.last().x() - points.first().x() - 126.0) < .001);
+    }
+    QTemporaryDir projects;
+    const auto project = projects.filePath("ram.json");
+    detected.document().edit("Legacy RAM geometry", [](auto& state) {
+        for (int i = 0; i < 8; ++i) state.components["ram.xpg"].positions[i] = QPointF(i * 18, 0);
+    });
+    detected.document().save(project);
+    LightingDocument restored(components, nullptr, profiles); restored.load(project);
+    QCOMPARE(restored.catalog()["ram.xpg"].positions, components["ram.xpg"].positions);
+    QCOMPARE(restored.state().placements.first().origin, detected.document().state().placements.first().origin);
+    detected.document().edit("Custom RAM geometry", [](auto& state) { state.components["ram.xpg"].positions[1].setY(1); });
+    detected.document().save(project); restored.load(project);
+    QCOMPARE(restored.catalog()["ram.xpg"].positions, detected.document().catalog()["ram.xpg"].positions);
+    detected.document().history()->setClean();offline.document().history()->setClean();
 }
 
 void OutputUiTest::independentConnections()
@@ -202,7 +248,7 @@ void OutputUiTest::independentConnections()
     const int before=secondRecord->writes();
     window.document().edit("Healthy peer stays connected",[](auto& state) { state.layers[0].color=Qt::blue; });
     QTRY_VERIFY(secondRecord->writes()>before);
-    QCOMPARE(panel.findChild<QTreeWidget*>("outputEndpoints")->topLevelItem(1)->text(1),QString("Running"));
+    QCOMPARE(panel.findChild<QTreeWidget*>("outputEndpoints")->topLevelItem(1)->text(2),QString("Running"));
     panel.stopOutput(); window.document().history()->setClean();
 }
 
@@ -359,6 +405,8 @@ void OutputUiTest::cancelAndChangedReview()
 void OutputUiTest::unplugAndRestart()
 {
     LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document()); window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    // Finish queued startup discovery before asserting the initial connection report count.
+    QCoreApplication::processEvents();
     auto present=std::make_shared<std::atomic_bool>(true); auto record=std::make_shared<Record>(); int reviews=0;
     OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
         ++reviews; return QVector<OutputConnection>{connection(frames[0],record,[present] { return present->load(); })};

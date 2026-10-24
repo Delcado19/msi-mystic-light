@@ -5,6 +5,7 @@
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <stdexcept>
+#include <limits>
 
 class ComponentsTest : public QObject {
     Q_OBJECT
@@ -31,6 +32,17 @@ private slots:
         catalog["test"].mapping = {2, 0};
         QVERIFY_EXCEPTION_THROWN(channelMapping(channel, {"test"}, catalog), std::invalid_argument);
     }
+    void reservedSlots() {
+        auto json=definition(); json["nonPhysicalSlots"]=QJsonArray{1};
+        const auto component=ComponentDefinition::fromJson(json);
+        QCOMPARE(ComponentDefinition::fromJson(component.toJson()).nonPhysicalSlots,QVector<int>{1});
+        for(const auto invalid : {QJsonArray{1,1},QJsonArray{2},QJsonArray{0,1},QJsonArray{.5}}) {
+            json["nonPhysicalSlots"]=invalid;
+            QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+        }
+        json["nonPhysicalSlots"]="bad";
+        QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+    }
     void rejectInvalidDefinitions() {
         for (const auto& key : {"schemaVersion", "id", "name", "ledCount", "mapping", "positions"}) {
             auto json = definition(); json.remove(key);
@@ -46,6 +58,31 @@ private slots:
         QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json), std::invalid_argument);
         json = definition(); json["schemaVersion"] = 2;
         QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json), std::invalid_argument);
+    }
+    void numericAndFileBoundaries() {
+        auto json=definition();
+        for(const auto bad : {QJsonValue(-1),QJsonValue(0),QJsonValue(65536),QJsonValue(1.5),QJsonValue("2"),QJsonValue(true),QJsonValue(QJsonValue::Null)}) {
+            json=definition();json["ledCount"]=bad;QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+        }
+        json=definition();json["ledCount"]=1;json["mapping"]=QJsonArray{0};json["positions"]=QJsonArray{QJsonValue(QJsonArray{-1,0})};
+        QVERIFY(json["positions"].toArray()[0].isArray());
+        QCOMPARE(ComponentDefinition::fromJson(json).positions,QVector<QPointF>({{-1,0}}));
+        QJsonArray positions,mapping;for(int i=0;i<65535;++i){positions.append(QJsonArray{0,0});mapping.append(i);}
+        json["ledCount"]=65535;json["mapping"]=mapping;json["positions"]=positions;json["nonPhysicalSlots"]=QJsonArray{65534};
+        const auto maximum=ComponentDefinition::fromJson(json);QCOMPARE(maximum.mapping.size(),65535);QCOMPARE(maximum.mapping.last(),65534);QCOMPARE(maximum.nonPhysicalSlots,QVector<int>{65534});
+        for(double bad : {std::numeric_limits<double>::quiet_NaN(),std::numeric_limits<double>::infinity(),-std::numeric_limits<double>::infinity()}) {
+            json=definition();json["positions"]=QJsonArray{QJsonArray{bad,0},QJsonArray{1,0}};
+            QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+        }
+        for(const auto bad : {QJsonValue(-1),QJsonValue(2),QJsonValue(.5),QJsonValue("0"),QJsonValue(QJsonValue::Null)}) {
+            json=definition();json["nonPhysicalSlots"]=QJsonArray{bad};QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+        }
+        QTemporaryDir directory;const auto path=directory.filePath("limit.json");
+        auto bytes=QJsonDocument(definition()).toJson(QJsonDocument::Compact);bytes.append(QByteArray(1024*1024-bytes.size(),' '));
+        QFile file(path);QVERIFY(file.open(QIODevice::WriteOnly));QCOMPARE(file.write(bytes),qint64(1024*1024));file.close();
+        QCOMPARE(loadComponentDefinition(path).mapping,QVector<int>({1,0}));
+        QVERIFY(file.open(QIODevice::Append));QCOMPARE(file.write(" "),qint64(1));file.close();
+        QVERIFY_EXCEPTION_THROWN(loadComponentDefinition(path),std::invalid_argument);
     }
     void catalogBoundary() {
         QTemporaryDir dir;

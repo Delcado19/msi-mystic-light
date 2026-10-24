@@ -43,10 +43,10 @@ protected:
 };
 }
 ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existing, QWidget* parent, bool instance)
-    : QDialog(parent)
+    : QDialog(parent), nonPhysicalSlots_(initial.nonPhysicalSlots)
 {
     setWindowTitle(instance ? "Arrange device LEDs" : existing ? "Edit component geometry" : "Create component");
-    resize(760, 640);
+    resize(1180, 760);
     applyStudioStyle(this);
     auto* layout = new QVBoxLayout(this);
     auto* form = new QFormLayout; layout->addLayout(form);
@@ -57,8 +57,9 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
     count->setValue(qMax(1, int(initial.positions.size())));
     if (!instance) form->addRow("Stable ID", id);
     else id->hide();
-    name->setReadOnly(instance); count->setEnabled(!instance);
-    form->addRow("Name", name); form->addRow("LED count", count);
+    name->setReadOnly(instance); count->setEnabled(!instance && nonPhysicalSlots_.isEmpty());
+    form->addRow("Name", name); form->addRow(nonPhysicalSlots_.isEmpty() ? "LED count" : "Protocol slots", count);
+    if (!nonPhysicalSlots_.isEmpty()) form->addRow("Physical LEDs", new QLabel(QString::number(initial.positions.size()-nonPhysicalSlots_.size())));
     auto* note = new QLabel(instance ? "Arrange LEDs using a shape, then drag individual LEDs to refine. Numbers show physical wire order. Only this device changes." : "Drag LEDs to arrange the component; wheel zooms. Numbers show the physical wire order. "
         "Use Coordinates for exact positions or wire mapping. Editing a definition changes all its instances.");
     note->setWordWrap(true); layout->addWidget(note);
@@ -77,30 +78,37 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
     auto* scene=new QGraphicsScene(geometry); geometry->setScene(scene); geometry->setRenderHint(QPainter::Antialiasing);
     geometry->setBackgroundBrush(QColor("#17191f")); geometry->setDragMode(QGraphicsView::RubberBandDrag);
     geometry->setMinimumHeight(260); tabs->addTab(geometry,"Visual layout"); tabs->addTab(table,"Coordinates & wire mapping");
-    auto rebuild=[table,scene,geometry] {
+    auto rebuild=[table,scene,geometry,reserved=nonPhysicalSlots_] {
         scene->clear();
+        // Keep LED markers readable at any geometry scale; positions still use component units.
+        const double coordinateScale=24;
+        geometry->setProperty("coordinateScale",coordinateScale);
         for(int row=0;row<table->rowCount();++row) {
             if(!table->item(row,0) || !table->item(row,1) || !table->item(row,2)) continue;
+            if (reserved.contains(table->item(row,2)->text().toInt())) continue;
             bool validX=false,validY=false;
             const double x=table->item(row,0)->text().toDouble(&validX),y=table->item(row,1)->text().toDouble(&validY);
             if(!validX || !validY || !std::isfinite(x) || !std::isfinite(y) || std::abs(x)>100000 || std::abs(y)>100000) continue;
-            auto* dot=scene->addEllipse(-7,-7,14,14,QPen(QColor("#c7d8ff")),QBrush(QColor("#7199ee")));
-            dot->setData(0,row); dot->setPos(x*24,y*24);
-            dot->setFlags(QGraphicsItem::ItemIsMovable|QGraphicsItem::ItemIsSelectable);
-            auto* text=new QGraphicsSimpleTextItem(table->item(row,2)->text(),dot); text->setBrush(QColor("#dce7ff")); text->setPos(9,-16);
+            auto* dot=scene->addEllipse(-16,-16,32,32,QPen(QColor("#93bfff"),1.5),QBrush(QColor("#243b53")));
+            dot->setData(0,row); dot->setPos(x*coordinateScale,y*coordinateScale);
+            dot->setFlags(QGraphicsItem::ItemIsMovable|QGraphicsItem::ItemIsSelectable|QGraphicsItem::ItemIgnoresTransformations);
+            auto* text=new QGraphicsSimpleTextItem(table->item(row,2)->text(),dot); text->setBrush(QColor("#ffffff")); QFont font=text->font(); font.setPixelSize(12); font.setWeight(QFont::DemiBold); text->setFont(font);
+            text->setScale(qMin(1.0,25.0/qMax(1.0,text->boundingRect().width())));
+            const auto size=text->boundingRect().size()*text->scale(); text->setPos(-size.width()/2,-size.height()/2);
+            text->setAcceptedMouseButtons(Qt::NoButton);
         }
-        scene->setSceneRect(scene->itemsBoundingRect().adjusted(-28,-28,28,28));
+        scene->setSceneRect(scene->itemsBoundingRect().adjusted(-8,-8,8,8));
         geometry->fitInView(scene->sceneRect(),Qt::KeepAspectRatio);
         // Do not magnify a single LED until it fills the dialog.
-        if(geometry->transform().m11()>2) { geometry->resetTransform(); geometry->scale(2,2); }
+        if(table->rowCount()==1 && geometry->transform().m11()>2) { geometry->resetTransform(); geometry->scale(2,2); }
     };
     // Commit only on release; table validation remains the single boundary when accepting the definition.
-    geometry->commit=[table,scene] {
+    geometry->commit=[table,scene,geometry] {
         const QSignalBlocker block(table);
         for(auto* item:scene->items()) if(item->type()==QGraphicsEllipseItem::Type) {
             const int row=item->data(0).toInt();
-            table->item(row,0)->setText(QString::number(item->pos().x()/24,'g',17));
-            table->item(row,1)->setText(QString::number(item->pos().y()/24,'g',17));
+            table->item(row,0)->setText(QString::number(item->pos().x()/geometry->property("coordinateScale").toDouble(),'g',17));
+            table->item(row,1)->setText(QString::number(item->pos().y()/geometry->property("coordinateScale").toDouble(),'g',17));
         }
     };
     auto resizeRows = [table](int rows) {
@@ -122,7 +130,7 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
     connect(table,&QTableWidget::itemChanged,this,[rebuild] { rebuild(); });
     for (const auto& label : QStringList{"Line", "Circle", "Ellipse", "Rectangle"}) {
         auto* action = shapes->addAction(label); action->setObjectName("arrange" + label);
-        connect(action, &QAction::triggered, this, [table, geometry, rebuild, label] {
+        connect(action, &QAction::triggered, this, [table, geometry, rebuild, label, reserved=nonPhysicalSlots_] {
             geometry->commit();
             QRectF bounds;
             for (int row=0; row<table->rowCount(); ++row) {
@@ -132,12 +140,16 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
                     QPointF(qMax(bounds.right(),point.x()),qMax(bounds.bottom(),point.y())));
             }
             const double width=qMax(4.0,bounds.width()), height=qMax(4.0,bounds.height());
+            const int physicalCount=table->rowCount()-reserved.size();
+            int physicalRow=0;
             const QSignalBlocker block(table);
             for (int row=0; row<table->rowCount(); ++row) {
-                const double t=double(row)/table->rowCount(), angle=t*2*3.141592653589793-3.141592653589793/2;
+                if (reserved.contains(table->item(row,2)->text().toInt())) continue;
+                const int index=physicalRow++;
+                const double t=double(index)/physicalCount, angle=t*2*3.141592653589793-3.141592653589793/2;
                 QPointF point;
-                if (table->rowCount()==1) point={width/2,height/2};
-                else if (label=="Line") point={row*width/(table->rowCount()-1),0};
+                if (physicalCount==1) point={width/2,height/2};
+                else if (label=="Line") point={index*width/(physicalCount-1),0};
                 else if (label=="Circle" || label=="Ellipse")
                     point={width/2+width/2*std::cos(angle),height/2+(label=="Circle" ? width : height)/2*std::sin(angle)};
                 else {
@@ -197,7 +209,8 @@ ComponentDefinition ComponentEditor::component() const
         }
         positions.append(QJsonArray{values[0], values[1]}); mapping.append(values[2]);
     }
-    return ComponentDefinition::fromJson({{"schemaVersion", 1},
+    QJsonArray reserved; for (int wire : nonPhysicalSlots_) reserved.append(wire);
+    return ComponentDefinition::fromJson({{"schemaVersion", 1}, {"nonPhysicalSlots", reserved},
         {"id", findChild<QLineEdit*>("componentId")->text()},
         {"name", findChild<QLineEdit*>("componentName")->text()},
         {"ledCount", table->rowCount()}, {"positions", positions}, {"mapping", mapping}});

@@ -1,5 +1,258 @@
 # Implementation status
 
+## Release 0.1.0 preparation (2026-10-24)
+
+Release and Debug CTest pass 17/17, including Python artifact checks. Native Windows
+editor tests previously passed 58/58. Added a tracked portable packaging script,
+release notes and corrected outdated UI/RAM documentation. Package inputs explicitly
+exclude user projects and stale catalogs; missing runtime, empty catalog and missing
+PawnIO source cases are covered. The extracted ZIP passes --inspect with all three
+modules, ten profiles and nine component definitions. No physical writes were made.
+
+Portable: build/dist/LightingStudio/msi_mystic_light.exe
+ZIP: build/dist/MSI-Mystic-Light-0.1.0-windows-x64.zip (adjacent SHA-256 file).
+EXE SHA256: d3e5484478dabfbf586453b817578f8245d8bc5016901abfbbaae8120975eb12.
+Unsigned; RAM still needs separately installed PawnIO and permitted elevated access.
+The user-owned default.lighting.json remains untouched and excluded from Git/package.
+Public push, tag and GitHub Release are not part of this local preparation.
+
+## Native documentation screenshots and permission verification (2026-10-24)
+
+Replaced five documentation screenshots with visually inspected native Windows
+captures, fixing missing-font boxes. Editor artifacts now use platform-specific
+directories and rendering metadata. The promotion script rejects offscreen,
+missing-glyph and incomplete sets; three Python tests and all 58 native editor
+tests pass. These changes have not been committed or pushed.
+
+The packaged EXE manifest was extracted and confirms `asInvoker`. RAM access uses
+the installed PawnIO kernel driver, unlike the HID-only public baseline. The
+non-elevated probe logged access denied (0x80070005); signing the app does not grant
+driver access. No manifest, driver installation, service or ACL changes were made.
+
+## Independent test review and scrollbar endpoint fix (2026-10-24)
+
+User requested boundary/invalid-value tests independent of implementation and
+reports LightingStudio-Scrollbars navigation is not working. Review found a
+self-derived layout-color oracle and replaced it with literal world/pixel/color
+fixtures. Native mouse-drag, exact-fit/one-pixel/axis and camera-endpoint cases added.
+Red tests exposed invalid zoom, overflowing transforms/non-finite draft positions
+and a thumb-at-limit/camera-out-of-range mismatch. Production guards and idle
+camera clamping fixed these without relaxing the tests. RAM literal vectors and
+all-transfer failure injection added; two deliberate encoder mutations detected.
+Details and evidence: docs/TEST_REVIEW_2026-10-24.md.
+Final Release/Debug each 16/16; native Windows editor 58/58, output UI 14/14.
+Debug also exposed/fixed a dangling temporary in a test; expectations retained.
+Updated portable: build/dist/LightingStudio; ZIP CRC/content verified.
+EXE SHA256: d3e5484478dabfbf586453b817578f8245d8bc5016901abfbbaae8120975eb12.
+No hardware writes, external signing submission or Git publication performed.
+
+
+## Canvas scrollbars and right-hand minimap (2026-10-24)
+
+Release CTest 16/16 passed; native Windows scrollbar/fullscreen tests passed.
+Updated portable: build/dist/LightingStudio-Scrollbars; ZIP rebuilt/CRC/content verified.
+EXE SHA256: 87db32940830da9808ed8414252a2572c38abec9d0009e66ba279b6fa5818f9a.
+No physical hardware writes performed; user default.lighting.json untouched.
+
+
+Added as-needed horizontal/vertical Qt scrollbars bound to canvas world/pan state.
+Bounds include draft placements, zoom and negative coordinates. Integer scrollbar
+ranges are capped while retaining double world coordinates for large layouts.
+Minimap moved to bottom-right, inset around visible bars; scrollbar/minimap/middle
+mouse navigation share one pan state. Preview-only hardware canvas hides bars.
+
+
+## Canvas Start/Stop, fullscreen and growing Layout (2026-10-24)
+
+Release CTest 16/16 passed. Native editor/output UI: 39/39 and 14/14;
+final targeted fullscreen/Escape/triangle checks passed after the icon/focus fix.
+Native screenshots inspected; no physical RGB writes by the agent.
+Latest portable: build/dist/LightingStudio (ZIP rebuilt/CRC/content verified).
+EXE SHA256: 41f706265a1bdebdd1730b713cd000815f35e029f5bebbdc15807e3865584788.
+Changes are uncommitted; user default.lighting.json was not edited.
+
+
+User clarified auto-expansion ONLY for Layout. Single green/red Canvas Start/Stop
+button replaces Play/Pause plus toolbar output status; no numeric timer.
+Fullscreen reuses the same canvas through a wrapper and restores it on Escape.
+Minimap supports click/drag navigation. Layout bounds derive from physical LEDs
+including draft transforms and negative positions. Composite effect raster stays
+640x400 and maps across these bounds consistently in preview and hardware output.
+Expanding/shrinking bounds changes peer samples too; no new project schema.
+Previous Other effects removal and shape interaction fixes are included.
+
+
+## Shape interaction and toolbar cleanup (2026-10-24)
+
+Removed numeric preview time from toolbar; its internal clock remains. Shape and
+particle creation exits crop mode. Move hit-testing/resize use the visible animated
+transform and preserve preview time; rotation pivots around the visible center.
+Regression covers triangle move/resize after crop, undo and animated hit-testing.
+Other effects button/gallery removal is included in this update.
+
+
+## Remove Other effects (2026-10-24)
+
+Removed the Other effects button and its unused gallery function/declaration.
+Shapes/Particles toolbar menus and direct drawing/gradient tools remain available.
+Existing procedural layers retain their renderer and project compatibility.
+Tests now create non-toolbar fixtures through the document API and assert that
+the removed button is absent.
+
+
+## LED marker readability (2026-10-24)
+
+Release 16/16 passed; native Windows keyboard/fan presentation test passed.
+Keyboard screenshot inspected, no marker overlap at default size.
+Latest portable: build/dist/LightingStudio-ReadableLEDs; ZIP verified.
+EXE SHA256: 7b8d509ba07bddc4a9695cd31c94cbc0b8a15bde4765201825a235299bfa958c.
+
+
+Markers increased from 20 to 32 logical screen pixels; labels from 8 to 12 pixels
+semibold. White text on dark blue replaces low-contrast white on light blue.
+Default dialog is 1180x760 with smaller scene padding so a full keyboard retains
+separated circles at opening. Stored geometry and RAM transport are unchanged.
+
+
+## Fan LED marker correction / RAM confirmation (2026-10-24)
+
+Release 16/16 passed; native Windows keyboard/fan presentation test passed.
+Both screenshots inspected. Latest portable: build/dist/LightingStudio-LedFix.
+ZIP rebuilt and verified; includes the user-confirmed working RAM backend.
+EXE SHA256: 2343ffb9f02f4c3d6f3de03b0167257aab5a519e3274d082498675b7a9e4c2eb.
+
+
+User confirms RAM Canvas output works with LightingStudio-RamDiagnostics.
+This is user-observed physical output, not an agent hardware test.
+Fan screenshot exposed the shared minimum-axis-spacing calculation: nearly equal
+axis values magnified scene extent and shrank markers to subpixels. Removed that
+calculation. Qt ItemIgnoresTransformations keeps LED circles/labels at a readable
+constant screen size; fit/zoom still positions the LEDs without changing geometry.
+Keyboard/fan presentation test checks viewport circles and preserves coordinates.
+
+
+## RAM still ignores Canvas: diagnostic readback (2026-10-24)
+
+Release CTest 16/16 passed; readback tests cover mode rejection, color mismatch,
+read errors and all eight distinct RGB values. Portable + ZIP verified.
+Latest executable: build/dist/LightingStudio-RamDiagnostics/msi_mystic_light.exe
+SHA256: ed9ea389ad56567bdb13314ec20382d1c04b799c1ca3d82d848b2ae869f3443e.
+
+
+User confirms RAM status Running but native color cycling continues after Apply fix.
+Root cause is NOT yet established. Added per-address identity and first-frame logs,
+first-frame direct-register/color-buffer readback, exact register mismatch errors
+and transport error propagation to OutputSession. Readback does not prove light
+output. No agent hardware writes were performed. Await user logs from this build.
+
+
+## RAM Canvas activation fix (2026-10-24)
+
+Release CTest 16/16 passed, including mode/apply ordering and transfer failures.
+Updated portable: build/dist/LightingStudio-CanvasFix; ZIP rebuilt/verified.
+Includes earlier RAM geometry and keyboard presentation fixes.
+EXE SHA256: 366808f4bf981e63d93f873fa52c706423fc3286c3beaf9c4319fae558f443cc.
+
+
+User reports RAM ignores Canvas. Reference ENESMBusController::SetDirect writes
+DIRECT then APPLY; our implementation omitted APPLY. pushColors now writes
+0x8020=1 and 0x80A0=1 before live colors. This is volatile Apply, never flash save
+(0xAA). Tests verify ordering and aborts at mode/apply/color transfer boundaries.
+Physical RAM output remains to be confirmed by the user.
+
+
+## Keyboard LED editor correction (2026-10-24)
+
+Release CTest 16/16 passed; native Windows keyboard presentation test passed.
+Rendered screenshot checked: 105 separate circles, centered contained labels.
+Latest portable with BOTH RAM and keyboard fixes: build/dist/LightingStudio-Update.
+ZIP refreshed and CRC/content verified. Original portable remains running/locked.
+EXE SHA256: 0f4a5617fc4c77e110b229d751f1fe60832f3376750b1c8826c3d9f53bdb840c.
+
+
+Shared LED view uses adaptive display spacing with centered numbers inside circles.
+Explicit optional nonPhysicalSlots preserves all wire slots while hiding reserved
+slots from the visual editor/Layout and excluding them from shape arrangement.
+Vulcan has 105 visible keys/144 report slots; wire 0 (Esc) is retained.
+Legacy embedded Vulcan definitions, including instance copies, acquire the explicit
+reserved slot list during parsing. Coordinates/output ordering remain unchanged.
+
+
+## RAM layout unit correction (2026-10-24)
+
+Release CTest: 16/16 passed, including legacy repair/custom geometry preservation.
+Updated portable: build/dist/LightingStudio-RamFix (original app is running and
+locks its executable); ZIP refreshed from the corrected build.
+Current corrected EXE SHA256: 85132738c07752bd8c97afc88487c0d15a33fb7d0c050d064b900b290eaf4c17.
+
+
+The initial ram.xpg definition incorrectly used pixel distances as component units.
+Use 0.9 units per LED (18 canvas pixels, 126 total at 100% scale).
+Document load repairs only the exact shipped eight-point 18-unit line with identity
+mapping; custom arrangements, placement transforms and wire order remain intact.
+The user-owned default.lighting.json is not rewritten. Reload a saved project in
+the updated application to repair its embedded definition.
+
+
+## Direct PawnIO RAM integration (2026-10-24)
+
+The user now explicitly permits PawnIO for a lightweight direct integration.
+This supersedes the earlier exclusion below; OpenRGB/helper processes remain
+excluded. The host loads the installed official PawnIOLib 2.x and the pinned
+signed SmbusPIIX4 module 0.2.11. ENE detection/output is restricted to primary
+AMD 1022:790b bus, addresses 0x71/0x73, AUDA0-E6K5-0101, eight LEDs.
+GUI discovery reads identity registers; --scan remains passive. Module creation
+and report proof are memory-only. Worker open rechecks identity; complete ENE
+operations hold the shared SMBus mutex and restore the previous bus port.
+RAM profiles/components participate in existing Hardware/Layout/output paths.
+No driver is installed or started automatically. User default.lighting.json
+remains untouched. Physical RAM output has not been tested by the agent.
+The explicit --probe-ram diagnostic was attempted without color writes. The
+execution environment could not open PawnIO (HRESULT 0x80070005), so physical
+RAM identity/output remains unverified. The installed official driver ACL grants
+SYSTEM/administrator access; run Lighting Studio as administrator for RAM.
+Hardware rows expose this access error rather than silently claiming detection.
+
+Validation: final Release and Debug each pass 16/16 CTest. Native Windows editor
+and output UI passed 36/36 and 14/14. Protocol tests cover both addresses, exact
+firmware/LED-count rejection, R-B-G blocks, failed transfers and invalid payloads.
+The Debug editor timeout is now 60 seconds to accommodate unoptimized particle
+rendering; unplug/restart setup drains queued discovery before exact report-count
+assertions. Graph updated (12 existing partial C++ parser warnings).
+Portable folder and ZIP refreshed and verified for required runtime/profile/module
+files, CRC and EXE byte equality. No OpenRGB/QtNetwork/PawnIOLib is bundled.
+EXE SHA256: 8ef53262d373a8c99655bbd7a152e621edf9184ca24be862c5bce7b3948b552b.
+Changes remain uncommitted/unpushed.
+
+
+## Superseded RAM dependency decision (2026-10-24, before PawnIO approval)
+
+Earlier user constraint at that stage: no PawnIO and no OpenRGB dependency.
+The unpublished RAM SDK/helper experiment was removed: no launch code, TCP RAM
+adapter, RAM profiles, helper resource or QtNetwork dependency remains. The old
+RAM implementation used that helper; its removal does NOT mean RAM is restored.
+Do not reintroduce it or an SDK dependency without discussing the access design.
+
+Current uncommitted changes retain the flat Endpoint / Profile / State table,
+IOShield shared-color 0x50 Canvas fallback, and the qualified RTX 5080 AERO NVAPI
+backend. The user-owned default.lighting.json must remain untouched/untracked.
+No replacement RAM backend is implemented. No package/commit/push of these changes
+has been made. The installed portable folder remains the prior 091de5b build.
+
+Official research: SignalRGB documents SMBus plugins and its Internals Driver:
+https://docs.signalrgb.com/developer/plugins/determining-device-type/
+https://docs.signalrgb.com/troubleshooting/software-conflicts/blocked-drivers/
+MSI's public SDK guide (version 1.0.0.08, Jan 2022, still linked by MSI) explicitly
+requires MSI Mystic Light related applications to be installed before SDK use:
+https://storage-asset.msi.com/files/pdf/Mystic_Light_Software_Development_Kit.pdf
+These documents do not identify the exact current proprietary kernel interfaces.
+No driver installation, RGB process termination or real color write was performed.
+
+The read-only NVAPI PCI scan detected the RTX 5080 AERO; the separate RAM helper
+was not listening on port 6745. That helper must remain unused per user direction.
+Final verification/packaging of the retained changes is still outstanding; do not
+claim the ongoing parity task complete or current portable hardware support fixed.
+
 ## Live layout sampling and output inventory (2026-10-24)
 
 Layout member-body clicks now select the individual placement even from group

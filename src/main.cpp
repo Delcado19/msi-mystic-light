@@ -1,4 +1,5 @@
 #include <QApplication>
+#include "backends/AuxiliaryHardware.h"
 #include <QFileInfo>
 #include <algorithm>
 #include <stdexcept>
@@ -35,11 +36,12 @@ int main(int argc, char** argv)
         QCoreApplication::applicationDirPath() + "/profiles"});
     parser.addOption({"component-dir", "Read data-only component definitions from this directory.", "directory",
         QCoreApplication::applicationDirPath() + "/components"});
-    parser.addOption({"scan", "List HID endpoints and matching board profiles without opening devices."});
+    parser.addOption({"scan", "List HID and read-only PCI profile candidates without changing lighting."});
+    parser.addOption({"probe-ram", "Verify qualified RAM identity through PawnIO; selects read registers but does not write colors."});
     parser.addOption({"inspect", "Validate local catalogs only; do not show the startup conflict dialog."});
     parser.addOption({"editor", "Open the editor without the startup conflict dialog; configured hardware receives the canvas automatically."});
     parser.process(app);
-    if (!parser.isSet("inspect") && !parser.isSet("scan") && !parser.isSet("editor")) {
+    if (!parser.isSet("inspect") && !parser.isSet("scan") && !parser.isSet("probe-ram") && !parser.isSet("editor")) {
         SystemConflictProcesses processes;
         ConflictDialog conflicts(processes);
         if (conflicts.exec() != QDialog::Accepted) return 0;
@@ -80,6 +82,16 @@ int main(int argc, char** argv)
         qWarning().noquote() << error.what();
         failed = true;
     }
+    if (parser.isSet("probe-ram") && !failed) {
+        // Explicit diagnostic: ENE pointer selection is a write, so passive --scan never enters this path.
+        const auto candidates=scanAuxiliaryHardware(availableProfiles,true);
+        int found=0;
+        for(const auto& candidate:candidates) if(candidate.device.transport=="pawnio") {
+            ++found;qInfo().noquote()<<"Verified RAM:"<<candidate.profileId<<candidate.device.path;
+        }
+        qInfo()<<"Verified RAM modules:"<<found;
+        return found>0 ? 0 : 1;
+    }
     if (parser.isSet("scan") && !failed) {
         try {
             const auto board = readBoardIdentity();
@@ -95,7 +107,8 @@ int main(int argc, char** argv)
                     << QString::fromStdWString(descriptor.product);
                 qInfo().noquote() << "  Path:" << QString::fromUtf8(descriptor.path.c_str());
             }
-            const auto candidates = findProfileCandidates(devices, board, availableProfiles);
+            auto candidates = findProfileCandidates(devices, board, availableProfiles);
+            candidates+=scanAuxiliaryHardware(availableProfiles);
             for (const auto& candidate : candidates)
                 qInfo().noquote() << "Profile candidate:" << candidate.profileId << candidate.device.path;
             qInfo() << "Matching profile/endpoint pairs:" << candidates.size();
@@ -119,7 +132,8 @@ int main(int argc, char** argv)
     }
     QSettings settings;
     LightingWindow window(catalog, [availableProfiles] {
-        return findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
+        auto candidates=findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
+        candidates+=scanAuxiliaryHardware(availableProfiles,true); return candidates;
     }, nullptr, availableProfiles);
     auto* outputPanel=new OutputPanel(window,[availableProfiles,directory=parser.value("module-dir")](QWidget* parent,const QVector<OutputFrame>& frames) {
         return authorizeHardwareOutput(parent,availableProfiles,frames,directory);

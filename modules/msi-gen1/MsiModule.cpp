@@ -43,6 +43,7 @@ public:
         settings.directionInward = effect.inward;
         if (!apply(next)) return false;
         armed_.remove(channelId);
+        if(channelId=="IOShield") shieldSent_=false;
         return true;
     }
 
@@ -53,6 +54,16 @@ public:
         if (channel == channels_.cend() || !channel->direct || colors.isEmpty() ||
             colors.size() > channel->maxLeds ||
             (channel->fixedLeds && colors.size() != channel->fixedLeds)) return false;
+        if(channelId=="IOShield") {
+            unsigned r=0,g=0,b=0; for(const auto& color:colors) { r+=color.r; g+=color.g; b+=color.b; }
+            const RgbColor color{quint8(r/colors.size()),quint8(g/colors.size()),quint8(b/colors.size())};
+            if(shieldSent_ && color.r==shieldColor_.r && color.g==shieldColor_.g && color.b==shieldColor_.b) return true;
+            // The shared worker caps reports at 30 Hz; do not discard a final static edit behind the old 100 ms gate.
+            // Original Lighting Studio IO COVER path: volatile 0x50 Steady, preserving peer Advanced zones.
+            NativeEffect effect; effect.id="steady"; effect.colors={color};
+            if(!setNativeMode(channelId,effect)) return false;
+            shieldSent_=true; shieldColor_=color;  return true;
+        }
         if (!armed_.contains(channelId)) {
             auto next = state_;
             next[channel->address.value("zone").toInt()] = {};
@@ -94,6 +105,7 @@ private:
     QMap<QString, ChannelProfile> channels_;
     QSet<QString> armed_;
     std::array<MsiZoneSettings, 18> state_{};
+    bool shieldSent_=false; RgbColor shieldColor_;
 };
 }
 
@@ -125,7 +137,10 @@ public:
             ids.insert(channel.id);
             for (const auto& mode : channel.nativeModes)
                 if (!modes.contains(mode)) return reject("Unsupported MSI native mode: " + mode);
-            if (channel.direct) {
+            if (channel.direct && channel.id=="IOShield") {
+                if(zone!=4 || channel.maxLeds!=11 || channel.fixedLeds!=0 || channel.address.contains("area"))
+                    return reject("IOShield Canvas requires the qualified whole-zone fallback");
+            } else if (channel.direct) {
                 const auto areaValue = channel.address.value("area");
                 const int area = areaValue.toInt(-1);
                 // Only the documented ARGB/EZ paths are enabled. The older

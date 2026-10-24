@@ -11,6 +11,7 @@ struct DeviceIdentity {
     // -1 distinguishes unavailable descriptor fields from a reported zero.
     int usagePage = -1, usage = -1, interfaceNumber = -1;
     QString boardManufacturer, boardModel;
+    QString transport = "hid";
 };
 
 struct ChannelProfile {

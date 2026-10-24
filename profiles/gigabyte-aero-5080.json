@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "gigabyte-aero-5080",
+  "driverId": "lighting.auxiliary",
+  "name": "Gigabyte RTX 5080 AERO OC",
+  "match": {
+    "transport": "nvapi",
+    "endpoint": "nvapi://10de:2c02/1458:4179",
+    "vendorId": 4318,
+    "productId": 11266
+  },
+  "channels": [
+    {
+      "id": "GigabyteAero5080",
+      "maxLeds": 1,
+      "fixedLeds": 1,
+      "direct": true,
+      "nativeModes": [],
+      "address": {
+        "componentId": "gpu.aero5080"
+      }
+    }
+  ]
+}

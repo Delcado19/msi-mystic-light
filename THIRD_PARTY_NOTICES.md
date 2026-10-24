@@ -29,3 +29,19 @@ OpenRGB provenance from the original Lighting Studio source worktree. They cover
 Roccat Kone/Vulcan, Razer Basilisk V3 and SteelSeries Apex 3. The Vulcan ISO geometry
 also derives from OpenRGB's RoccatVulcan120AimoLayouts, as documented in the original
 RoccatVulcanDriver. See LICENSE and the detailed source-header attribution.
+
+The restored AeroBackend derives from the original Lighting Studio
+GigabyteAeroDriver, with GPL-2.0-or-later provenance to OpenRGB's
+GigabyteRGBFusion2BlackwellGPUController and i2c_smbus_nvapi. The NVIDIA
+NVAPI driver is not bundled. Source headers retain their attribution.
+No OpenRGB executable, PawnIO driver/library or RAM helper is distributed.
+
+RAM support directly calls the installed official PawnIOLib ABI. ENE register
+encoding and AMD SMBus transfer layout follow OpenRGB's GPL-2.0-or-later
+ENESMBusController/ENESMBusInterface and i2c_smbus_pawnio references; source
+comments retain provenance. The unchanged signed SmbusPIIX4.bin is from
+namazso/PawnIO.Modules 0.2.11 (Steve-Tech and upstream contributors), under
+LGPL-2.1-or-later. Its corresponding source archive and license are included
+under third_party/pawnio and third_party/licenses. See third_party/pawnio/README.md.
+The official installed PawnIO binaries have separate upstream distribution terms;
+this app neither redistributes nor silently installs them.

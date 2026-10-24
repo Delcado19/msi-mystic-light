@@ -126,3 +126,19 @@ cancels queued reconnects. Status and fault feedback remain visible.
 No decorative animation is added to continuously updated device state. Selection
 is preserved across status refreshes, and transport errors remain available in
 status text/tooltips. Native firmware motion is not stopped by pausing submissions.
+
+## Endpoint list correction and restored backends (2026-10-24)
+
+| Before | After | Why |
+| --- | --- | --- |
+| Right side repeats the header inventory | Flat Endpoint / Profile / State table | Technical connections retain their distinct purpose |
+| IOShield exposes Native only | Restored shared-color Canvas fallback | Preserve the working original output path |
+| GPU adapter absent | Qualified NVAPI adapter restored | Preserve the original supported output path |
+| Unavailable native targets disappear | Not detected rows | Missing endpoints remain visible |
+
+Left selection scopes the action to its header; clicking an endpoint row scopes
+it to that connection. No new decorative animation or duplicated hardware hierarchy.
+
+RAM now uses the user-approved direct PawnIO transport. The previous OpenRGB
+helper remains removed. Missing access rights are shown as Run as administrator
+in the flat hardware table; actual RAM lighting still needs physical validation.

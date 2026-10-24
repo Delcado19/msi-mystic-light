@@ -1,4 +1,5 @@
 #include "OutputPanel.h"
+#include "backends/PawnIoRam.h"
 #include <QLabel>
 #include <QTimer>
 #include <QPushButton>
@@ -41,32 +42,27 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
     status_=new QLabel; status_->setWordWrap(true); status_->setObjectName("outputStatus"); layout->addWidget(status_);
     endpoints_=new QTreeWidget; endpoints_->setObjectName("outputEndpoints");
     endpoints_->setMinimumHeight(220);
-    endpoints_->setHeaderLabels({"Controller / output", "State"});
+    endpoints_->setHeaderLabels({"Endpoint", "Profile", "State"});
+    endpoints_->setTextElideMode(Qt::ElideMiddle);
     endpoints_->header()->setStretchLastSection(false);
     endpoints_->header()->setSectionResizeMode(0,QHeaderView::Stretch);
-    endpoints_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents); layout->addWidget(endpoints_,1);
+    endpoints_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
+    endpoints_->header()->setSectionResizeMode(2,QHeaderView::ResizeToContents); layout->addWidget(endpoints_,1);
     automatic_=new QTimer(this); automatic_->setInterval(2000);
     connect(automatic_,&QTimer::timeout,this,[this] { if(!active() && !window_.document().state().assignments.isEmpty()) start(); });
     auto* inventory=window_.findChild<QTreeWidget*>("layoutComponents");
-    connect(endpoints_,&QTreeWidget::currentItemChanged,this,[this,inventory] {
-        updateControls();
-        const auto* output=endpoints_->currentItem();
-        if(!output || output->data(0,Qt::UserRole+2).toString().isEmpty()) return;
-        const auto* current=inventory->currentItem();
-        const auto currentHeader=current ? (current->parent() ? current->parent() : current)->data(0,Qt::UserRole+1).toMap() : QVariantMap{};
-        for(int i=0;i<inventory->topLevelItemCount();++i) {
-            auto* header=inventory->topLevelItem(i); const auto data=header->data(0,Qt::UserRole+1).toMap();
-            if(data.value("path")==output->data(0,Qt::UserRole) && data.value("profileId")==output->data(0,Qt::UserRole+1) &&
-                data.value("channelId")==output->data(0,Qt::UserRole+2) && data!=currentHeader) inventory->setCurrentItem(header);
-        }
+    connect(endpoints_,&QTreeWidget::currentItemChanged,this,[this] { updateControls(); });
+    connect(endpoints_,&QTreeWidget::itemClicked,this,[this](QTreeWidgetItem* row) {
+        row->setData(0,Qt::UserRole+2,QString{}); updateControls();
     });
     const auto followInventory=[this,inventory] {
         const auto* current=inventory->currentItem(); if(!current) return;
         const auto data=(current->parent() ? current->parent() : current)->data(0,Qt::UserRole+1).toMap();
-        for(int i=0;i<endpoints_->topLevelItemCount();++i) for(int j=0;j<endpoints_->topLevelItem(i)->childCount();++j) {
-            auto* row=endpoints_->topLevelItem(i)->child(j);
-            if(data.value("path")==row->data(0,Qt::UserRole) && data.value("profileId")==row->data(0,Qt::UserRole+1) &&
-                data.value("channelId")==row->data(0,Qt::UserRole+2)) endpoints_->setCurrentItem(row);
+        for(int i=0;i<endpoints_->topLevelItemCount();++i) {
+            auto* row=endpoints_->topLevelItem(i);
+            if(data.value("path")==row->data(0,Qt::UserRole) && data.value("profileId")==row->data(0,Qt::UserRole+1)) {
+                row->setData(0,Qt::UserRole+2,data.value("channelId")); endpoints_->setCurrentItem(row); updateControls();
+            }
         }
     };
     connect(inventory,&QTreeWidget::currentItemChanged,this,followInventory);
@@ -232,14 +228,20 @@ void OutputPanel::updateControls()
     }
     start_->setEnabled(!authorizing_ && bool(authorize_) && resume);
     stop_->setEnabled(!authorizing_ && pause);
-    start_->setToolTip("Resume the selected output, or all configured outputs of the selected controller");
+    const auto* current=endpoints_->currentItem();
+    const auto target=current ? current->data(0,Qt::UserRole+2).toString() : QString{};
+    start_->setText(target.isEmpty() ? "Resume endpoint" : "Resume "+target);
+    stop_->setText(target.isEmpty() ? "Stop endpoint" : "Stop "+target);
+    start_->setToolTip("Select a component/header on the left to resume only that channel, or select an endpoint for all its configured channels");
     stop_->setToolTip("Pause the selected output; devices retain their last color. Other headers keep running");
 }
 void OutputPanel::refresh()
 {
     status_->setText(authorizing_ ? "Connecting output..." : message_);
     const auto* selected=endpoints_->currentItem();
-    const QString selectedKey=selected ? channelKey(selected->data(0,Qt::UserRole).toString(),selected->data(0,Qt::UserRole+1).toString(),selected->data(0,Qt::UserRole+2).toString()) : QString{};
+    const QString selectedEndpoint=selected ? selected->data(0,Qt::UserRole).toString() : QString{};
+    const QString selectedProfile=selected ? selected->data(0,Qt::UserRole+1).toString() : QString{};
+    const QString selectedChannel=selected ? selected->data(0,Qt::UserRole+2).toString() : QString{};
     const QSignalBlocker block(endpoints_); endpoints_->clear();
     QVector<QPair<QString,QString>> devices;
     const auto append=[&](const QString& endpoint,const QString& profile) {
@@ -247,40 +249,38 @@ void OutputPanel::refresh()
     };
     for(const auto& candidate:window_.discoveredHardware()) append(candidate.device.path,candidate.profileId);
     for(const auto& assignment:window_.document().state().assignments) append(assignment.endpoint,assignment.profileId);
-    bool anyRunning=false, anyPaused=false, anyStopped=false, faulted=false, starting=false;
+    for(const auto& profile:window_.document().profiles()) if(profile.match.contains("endpoint")) append(profile.match.value("endpoint").toString(),profile.id);
+    bool anyRunning=false, anyStopped=false, faulted=false, starting=false;
     QTreeWidgetItem* restore=nullptr;
     for(const auto& device:devices) {
         const auto& profile=assignmentProfile(window_.document().profiles(),device.second);
+        bool detected=false;
+        for(const auto& candidate:window_.discoveredHardware()) if(candidate.device.path==device.first && candidate.profileId==device.second) detected=true;
         QString connectionState="Stopped", error;
         for(const auto& connection:connections_) if(connection.approved.endpoint==device.first && connection.approved.profileId==device.second) {
             const auto status=connection.scheduler->status(); connectionState=stateName(status.state); error=status.error;
         }
-        auto* parent=new QTreeWidgetItem(endpoints_,{profile.name,connectionState}); parent->setExpanded(true);
-        parent->setData(0,Qt::UserRole,device.first); parent->setData(0,Qt::UserRole+1,device.second);
-        parent->setToolTip(0,device.first+" / "+device.second); parent->setToolTip(1,error);
-        if(channelKey(device.first,device.second,{})==selectedKey) restore=parent;
-        bool parentRunning=false,parentStopped=false;
-        for(const auto& channel:profile.channels) {
-            const ChannelAssignment* assignment=nullptr;
-            for(const auto& item:window_.document().state().assignments) if(item.endpoint==device.first && item.profileId==device.second && item.channelId==channel.id) assignment=&item;
-            const auto key=channelKey(device.first,device.second,channel.id);
-            const bool paused=pausedChannels_.contains(key);
-            const auto state=!assignment ? QString("Not configured") : paused ? QString("Stopped") : connectionState;
-            auto* row=new QTreeWidgetItem(parent,{channel.id,state});
-            row->setData(0,Qt::UserRole,device.first); row->setData(0,Qt::UserRole+1,device.second); row->setData(0,Qt::UserRole+2,channel.id);
-            row->setToolTip(0,channel.direct ? "Supports canvas output" : "Native lighting only; this profile does not support canvas output"); row->setToolTip(1,error);
-            if(assignment) {
-                row->setText(0,channel.id+QString(" / %1 components").arg(assignment->placements.size()));
-                parentRunning|=state=="Running"; parentStopped|=paused || state=="Stopped";
-                anyRunning|=state=="Running"; anyPaused|=paused; anyStopped|=state=="Stopped"; faulted|=state=="Faulted"; starting|=state=="Connecting";
-            }
-            if(key==selectedKey) restore=row;
+        bool running=false, stopped=false, configured=false;
+        for(const auto& assignment:window_.document().state().assignments) if(assignment.endpoint==device.first && assignment.profileId==device.second) {
+            configured=true;
+            const auto state=pausedChannels_.contains(channelKey(device.first,device.second,assignment.channelId)) ? QString("Stopped") : connectionState;
+            running|=state=="Running"; stopped|=state=="Stopped";
+            anyRunning|=state=="Running"; anyStopped|=state=="Stopped"; faulted|=state=="Faulted"; starting|=state=="Connecting";
         }
-        if(parentRunning && parentStopped) parent->setText(1,"Partly running");
-        else if(parentStopped && !parentRunning && connectionState=="Running") parent->setText(1,"Stopped");
+        const bool ram=profile.match.value("transport")=="pawnio";
+        const auto ramError=ram && !detected ? pawnIoRamDiscoveryError() : QString{};
+        auto state=!configured ? (detected ? QString("Not configured") : QString("Not detected")) : running && stopped ? QString("Partly running") : stopped ? QString("Stopped") : connectionState;
+        if(!detected && ramError.contains("0x80070005"))state="Run as administrator";
+        auto* row=new QTreeWidgetItem(endpoints_,{device.first,device.second,state});
+        row->setData(0,Qt::UserRole,device.first); row->setData(0,Qt::UserRole+1,device.second);
+        row->setToolTip(0,device.first); row->setToolTip(1,profile.name);
+        if(error.isEmpty() && !detected && ram)
+            error=ramError+"\nRAM requires the official PawnIO 2.x driver (https://pawnio.eu) and a supported AMD/ENE module. Install PawnIO if missing, run Lighting Studio as administrator, then use Hardware > Refresh. No OpenRGB installation is needed.";
+        row->setToolTip(2,error);
+        if(device.first==selectedEndpoint && device.second==selectedProfile) { row->setData(0,Qt::UserRole+2,selectedChannel); restore=row; }
     }
     if(restore) endpoints_->setCurrentItem(restore);
     else if(endpoints_->topLevelItemCount()) endpoints_->setCurrentItem(endpoints_->topLevelItem(0));
     updateControls();
-    emit outputStateChanged(anyRunning ? (anyPaused || anyStopped || faulted ? "Partly running" : "Running") : starting ? "Connecting" : faulted ? "Faulted" : "Stopped");
+    emit outputStateChanged(anyRunning ? (anyStopped || faulted ? "Partly running" : "Running") : starting ? "Connecting" : faulted ? "Faulted" : "Stopped");
 }

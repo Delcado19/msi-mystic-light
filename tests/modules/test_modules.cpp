@@ -236,7 +236,7 @@ private slots:
         auto& driver = instance->driver();
         QVERIFY(!driver.pushColors("JARGB1", {{1, 2, 3}}));
         QVERIFY(transport.open(1, 2));
-        QVERIFY(!driver.pushColors("IOShield", {{1, 2, 3}}));
+        QVERIFY(!driver.pushColors("IOShield", QVector<RgbColor>(12)));
         QVERIFY(!driver.pushColors("JRGB1", {{1, 2, 3}}));
         QVERIFY(!driver.pushColors("unknown", {{1, 2, 3}}));
         QVERIFY(!driver.pushColors("JARGB1", {}));

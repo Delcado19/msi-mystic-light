@@ -152,3 +152,29 @@ frame without reopening its controller. Native firmware animations are not
 frozen by withholding further commands. Paused state is independent of transport
 state and is displayed on each channel row. Failed connections can be resumed
 without closing other active controllers. Stop/Resume has no primary-button accent.
+
+### Restored native transports
+
+The flat endpoint/profile table is separate from Hardware's component tree. Left
+inventory selection scopes Stop/Resume to a channel; clicking a technical endpoint
+row selects all configured channels of that connection. The table includes exact
+NVAPI targets even when unavailable, with no duplicated header rows.
+
+The worker/session path owns the qualified NVAPI transport adapter. Module creation
+and proof generation remain memory-only. The GPU lighting handshake occurs when
+the worker opens that actual endpoint. Presence checks enumerate PCI without
+changing lighting. IOShield uses volatile shared-color `0x50` updates, preserving
+other successfully applied MSI zone settings. RAM now uses a worker-owned direct
+PawnIO transport, approved by the user on 2026-10-24. GUI discovery verifies ENE
+identity first; worker opening re-verifies it before volatile color output. Proof
+generation remains memory-only; passive presence checks use the verified inventory
+and transfer failures fault the endpoint. No RGB helper or socket is started.
+See HARDWARE_MODULES.md for qualification and remaining physical validation.
+
+Layout sampling uses LightingDocument::layoutBounds, derived from all physical
+LED positions (including transient placements). The 640x400 composite is mapped
+onto this growing world rectangle for both preview and output, so moved components
+remain lit beyond the old edges. Global bounds are shared across endpoint and
+channel-scoped renders. Changing the bounds also changes peers' sample positions.
+Canvas Stop freezes animation time while devices retain/update the current frame;
+per-endpoint stop/resume remains available in Hardware.

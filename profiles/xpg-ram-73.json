@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "xpg-ram-73",
+  "driverId": "lighting.auxiliary",
+  "name": "ADATA XPG RAM / module 2",
+  "match": {
+    "transport": "pawnio",
+    "endpoint": "pawnio://amd-piix4/0/0x73",
+    "vendorId": 4130,
+    "productId": 30987
+  },
+  "channels": [
+    {
+      "id": "XpgRam2",
+      "maxLeds": 8,
+      "fixedLeds": 8,
+      "direct": true,
+      "nativeModes": [],
+      "address": {
+        "componentId": "ram.xpg"
+      }
+    }
+  ]
+}

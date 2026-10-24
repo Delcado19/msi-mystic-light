@@ -35,7 +35,7 @@ with the same selectable header/component overview as Layout and Add/Remove acti
 Its searchable picker supplies product categories, quantities and physical LED mappings. Header groups and individual components can be arranged independently.
 Effects has standard drawing tools: pencil, line, rectangle, ellipse, gradient,
 fill, eraser and move/crop. New layer creates a transparent paint layer immediately;
-Shapes and Particles are direct toolbar menus; Other effects contains gradients and patterns. A persistent live hardware
+Shapes and Particles are direct toolbar menus. The gradient tool draws editable gradients. A persistent live hardware
 preview shows the lighting while authoring. Particle motion patterns share one
 parameter inspector. Gradients have movable color stops, RGB sliders and Add/Remove;
 color pickers and optional exact RGB hex values remain available.
@@ -83,7 +83,7 @@ read back or preserved. Stop holds the last state. See [output](docs/OUTPUT_SESS
 Autosave/recovery, last-project/window restoration and a tray menu are implemented.
 `--editor` skips only the startup conflict dialog; configured output remains automatic.
 `--inspect` validates local catalogs and `--scan` performs read-only discovery.
-Hardware behavior and calibration remain physically unverified.
+Hardware regression tests do not establish physical color calibration; the user has confirmed RAM Canvas output.
 
 Build from an x64 Visual Studio developer prompt with CMake, Ninja, and a
 shared Qt6 installation available (adjust the Qt path for your machine).
@@ -112,7 +112,8 @@ are not on CMake's search path, add `-Dhidapi_ROOT=C:/path/to/hidapi-sdk`
 to the configure command; the root should contain `include/hidapi.h` and
 `lib/hidapi.lib` (or `x64/hidapi.lib` on Windows). The validated local SDK is
 the existing `../OpenRGB/OpenRGB/dependencies/hidapi-win` directory; no
-OpenRGB application code is linked or copied. The Windows build copies the matching HIDAPI DLL beside the executable. Qt must remain dynamically linked.
+OpenRGB application code is linked. Qualified protocol adapters retain their
+OpenRGB provenance; no external RGB application is required. RAM uses the separately installed official PawnIO 2.x runtime. The Windows build copies the matching HIDAPI DLL beside the executable. Qt must remain dynamically linked.
 
 Original project code is licensed under GPL-2.0-or-later; see [LICENSE](LICENSE).
 Qt remains under its own license; see [third-party notices](THIRD_PARTY_NOTICES.md) for the WebP plugin source, build/replacement instructions and license texts. Research references do not relicense vendor
@@ -173,6 +174,42 @@ the existing 256-definition project limit.
 
 Layout movement samples the live canvas during dragging, before the single undoable
 commit. Click a component to select it independently; drag a header label to move
-its group. Hardware shows every supported channel beneath its detected controller,
-with selection-scoped Stop/Resume and an expanding status list. The toolbar output
-indicator is informational; Hardware remains the navigation action.
+its group. Hardware keeps the header/component inventory on the left and a flat
+Endpoint / Profile / State table on the right,
+with selection-scoped Stop/Resume and an expanding status list. Canvas Start/Stop
+controls shared animation playback; Hardware remains the navigation action.
+
+IOShield Canvas and RTX 5080 AERO OC lighting restore the original shared-color
+`0x50` fallback and qualified NVAPI path. RAM now uses PawnIO directly, with the
+signed AMD SMBus module and an exact ENE firmware/eight-LED handshake at 0x71/0x73.
+Install official PawnIO 2.x from https://pawnio.eu, run Lighting Studio as administrator, then use Hardware > Refresh.
+No OpenRGB process or network helper is used. The user confirmed physical RAM Canvas
+output with the diagnostic build; automated register checks alone are not physical-output proof.
+See third_party/pawnio/README.md for scope and prerequisites.
+
+Layout includes a fullscreen canvas and click/drag minimap. Its world bounds grow
+with hardware placements beyond the original area, including negative coordinates.
+The Effects raster stays 640x400 and maps across those Layout bounds for both live
+preview and hardware sampling. Canvas Start/Stop controls the shared animation
+clock; green means stopped/startable, red means running/stoppable.
+
+Documentation screenshots must come from a native Windows `test_editor` run
+(`QT_QPA_PLATFORM=windows`). Run `python scripts/update_doc_screenshots.py` after
+the test, then visually inspect the images before publishing. Test artifacts are
+separated by Qt platform; promotion rejects offscreen renders, missing Latin
+glyphs, and incomplete image sets. Run the promotion checks with
+`python -m unittest discover -s tests/docs -v`.
+
+## Preparing a Windows release
+
+Build and test both Release and Debug using the build instructions above. With
+Python 3 installed, CTest also runs the package/screenshot regression checks.
+Create the portable archive with `python scripts/package_release.py` (use
+`--runtime` for a different Release output directory). The default output is
+`build/dist/MSI-Mystic-Light-0.1.0-windows-x64.zip`, with an adjacent SHA-256 file.
+Packaging validates required DLLs, includes source catalogs and license notices,
+and excludes personal projects and stale build catalogs. Extract the whole ZIP
+to a new folder; do not merge it into an older installation.
+
+See [release notes](docs/RELEASE_NOTES_0.1.0.md) for supported hardware and limitations.
+The application is currently unsigned; no SignPath acceptance or signing is claimed.

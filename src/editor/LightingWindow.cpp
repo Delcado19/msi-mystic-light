@@ -3,6 +3,7 @@
 #include "LegacyHardware.h"
 #include <QStandardPaths>
 #include <QDir>
+#include <QDialog>
 #include <QSplitter>
 #include <QButtonGroup>
 #include "ComponentEditor.h"
@@ -156,10 +157,26 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     effectsCanvas_ = new LightingCanvas(document_, LightingCanvas::Context::Effects);
     layoutCanvas_->setObjectName("layoutCanvas");
     effectsCanvas_->setObjectName("effectsCanvas");
-    tabs_->addTab(layoutCanvas_, "Layout");
+    auto wrapCanvas=[this](LightingCanvas* canvas) {
+        auto* wrapper=new QWidget; auto* layout=new QVBoxLayout(wrapper);layout->setContentsMargins(0,0,0,0);layout->addWidget(canvas);
+        connect(canvas,&LightingCanvas::fullscreenRequested,this,[this,canvas,layout] {
+            if(auto* host=qobject_cast<QDialog*>(canvas->window());host && host->objectName()=="canvasFullscreen") {host->reject();return;}
+            auto* host=new QDialog(this);host->setObjectName("canvasFullscreen");host->setAttribute(Qt::WA_DeleteOnClose);
+            auto* full=new QVBoxLayout(host);full->setContentsMargins(0,0,0,0);
+            auto* playback=new QPushButton(playing_->text(),host);playback->setObjectName("fullscreenCanvasPlayback");
+            playback->setCheckable(true);playback->setChecked(playing_->isChecked());playback->setStyleSheet(playing_->styleSheet());
+            full->addWidget(playback,0,Qt::AlignLeft);full->addWidget(canvas);
+            connect(playback,&QPushButton::toggled,playing_,&QPushButton::setChecked);
+            connect(playing_,&QPushButton::toggled,playback,[playback](bool running){playback->setChecked(running);playback->setText(running ? "Canvas Stop" : "Canvas Start");});
+            connect(host,&QDialog::finished,this,[canvas,layout] {layout->addWidget(canvas);canvas->show();canvas->fitToView();});
+            host->showFullScreen();canvas->fitToView();
+        });
+        return wrapper;
+    };
+    tabs_->addTab(wrapCanvas(layoutCanvas_), "Layout");
     auto* effectWorkspace=new QSplitter(Qt::Vertical); effectWorkspace->setObjectName("effectWorkspace");
     hardwarePreview_=new LightingCanvas(document_,LightingCanvas::Context::Layout); hardwarePreview_->setObjectName("hardwareLivePreview"); hardwarePreview_->setPreviewOnly();
-    effectWorkspace->addWidget(effectsCanvas_); effectWorkspace->addWidget(hardwarePreview_); effectWorkspace->setStretchFactor(0,4); effectWorkspace->setStretchFactor(1,1); effectWorkspace->setSizes({560,180});
+    effectWorkspace->addWidget(wrapCanvas(effectsCanvas_)); effectWorkspace->addWidget(hardwarePreview_); effectWorkspace->setStretchFactor(0,4); effectWorkspace->setStretchFactor(1,1); effectWorkspace->setSizes({560,180});
     tabs_->addTab(effectWorkspace, "Effects");
     applicationPages_=new QStackedWidget; applicationPages_->setObjectName("applicationPages");
     applicationPages_->addWidget(tabs_); setCentralWidget(applicationPages_);
@@ -384,19 +401,20 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardwareActions=new QHBoxLayout;
     for(auto* control:{addHardware,detachHardware,refreshHardware}) { hardwareControls->removeWidget(control); hardwareActions->addWidget(control); }
     addHardware->setText("Add..."); detachHardware->setText("Remove");
-    refreshHardware->setToolTip("Refresh detected hardware without opening devices or starting output");
+    refreshHardware->setToolTip("Refresh connected hardware and verify supported RAM identity through PawnIO. Discovery does not change colors; configured canvas output resumes automatically.");
     hardwareControls->insertLayout(3,hardwareActions);
     scan_=std::move(scan);
     QTimer::singleShot(0,this,[this] { scanHeaders(); });
 
     auto* previewToolbar = addToolBar("Preview"); previewToolbar->setObjectName("previewToolbar");
-    playing_ = new QPushButton("Play"); playing_->setCheckable(true); playing_->setObjectName("playPreview");
-    playing_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay)); playing_->setAccessibleName("Play or pause the effect preview");
-    previewTime_ = new QDoubleSpinBox; previewTime_->setObjectName("previewTime");
+    playing_ = new QPushButton("Canvas Start"); playing_->setCheckable(true); playing_->setObjectName("playPreview");
+    playing_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay)); playing_->setAccessibleName("Canvas Start/Stop");
+    playing_->setStyleSheet("QPushButton { background: #244b39; color: #effff4; border: 1px solid #5eaa7e; padding: 7px 14px; } QPushButton:checked { background: #6a2b32; color: #fff3f3; border-color: #da717b; }");
+    previewTime_ = new QDoubleSpinBox(this); previewTime_->setObjectName("previewTime");
     previewTime_->setRange(0, 86400); previewTime_->setDecimals(2); previewTime_->setSuffix(" s");
     previewTime_->setKeyboardTracking(false); previewTime_->setAccessibleName("Preview time in seconds");
     previewToolbar->setMovable(false);
-    previewToolbar->addWidget(playing_); previewToolbar->addWidget(previewTime_);
+    previewToolbar->addWidget(playing_); previewTime_->hide(); // Keep the animation clock internal, without a numeric toolbar field.
     previewChannel_=new QComboBox; previewChannel_->setObjectName("previewChannel");
     previewChannel_->setMaximumWidth(180);
     previewChannel_->addItem("All layers",QUuid{}); previewToolbar->addWidget(previewChannel_);
@@ -411,12 +429,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     // Output status is informational; Hardware already has its own navigation button.
     previewToolbar->removeAction(output); output->setEnabled(false);
     auto* outputStatus=new QLabel("Output: Stopped"); outputStatus->setObjectName("toolbarOutputStatus");
-    toolbar->addSeparator(); toolbar->addWidget(outputStatus);
+    outputStatus->setParent(this); outputStatus->hide();
     connect(previewChannel_,&QComboBox::currentIndexChanged,this,&LightingWindow::updatePreview);
     connect(layoutCanvas_,&LightingCanvas::layoutPreviewChanged,this,[this] { emit previewFrameChanged(previewFrame_); });
     auto* timer = new QTimer(this); timer->setInterval(33);
     connect(playing_, &QPushButton::toggled, this, [this, timer](bool play) {
-        playing_->setText(play ? "Pause" : "Play"); playing_->setIcon(style()->standardIcon(play ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
+        playing_->setText(play ? "Canvas Stop" : "Canvas Start"); playing_->setIcon(style()->standardIcon(play ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
         if (play) { playbackStart_ = previewTime_->value(); previewClock_.restart(); timer->start(); }
         else timer->stop();
     });
@@ -446,11 +464,6 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         editingMask_=false; inspectorTabs_->setCurrentIndex(0);
         selectedLayer_=document_.addPaintLayer(); refresh();
     })->setObjectName("newLayer");
-    button(layerStack,"Other effects...",[this] {
-        if(document_.state().layers.size()>=64) return;
-        const auto kind=chooseEffect(this); if(!kind) return;
-        editingMask_=false; inspectorTabs_->setCurrentIndex(0); selectedLayer_=document_.addLayer(*kind); inspectorTabs_->setCurrentIndex(isParticle(*kind) ? 1 : 0); refresh();
-    })->setObjectName("effectPresets");
     button(layerStack, "Import image...", [this] {
         const auto file = QFileDialog::getOpenFileName(this, "Import image", {}, "Images (*.png *.jpg *.jpeg *.gif *.bmp *.webp)");
         if (file.isEmpty()) return;
@@ -752,7 +765,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             auto* action=menu->addAction(definition.label); action->setObjectName("create_"+definition.id);
             connect(action,&QAction::triggered,this,[this,kind=definition.kind] {
                 if(document_.state().layers.size()>=64) { statusBar()->showMessage("Layer limit reached."); return; }
-                editingMask_=false; selectedLayer_=document_.addLayer(kind); effectsCanvas_->setTool(LightingCanvas::Tool::Move);
+                editingMask_=false; findChild<QCheckBox*>("cropTool")->setChecked(false);
+                selectedLayer_=document_.addLayer(kind); effectsCanvas_->setCropTool(false); effectsCanvas_->setTool(LightingCanvas::Tool::Move);
                 inspectorTabs_->setCurrentIndex(isParticle(kind) ? 1 : 0); effectTarget_->setChecked(true); refresh();
             });
         }
@@ -763,7 +777,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     cropButton->setToolTip("Crop imported image (C)"); cropButton->setAccessibleName("Crop image"); cropButton->setShortcut(QKeySequence(Qt::Key_C)); tools->addWidget(cropButton);
     connect(cropButton,&QToolButton::toggled,cropTool,&QCheckBox::setChecked); connect(cropTool,&QCheckBox::toggled,cropButton,&QToolButton::setChecked);
     connect(cropTool,&QCheckBox::toggled,this,[this](bool crop) { if(crop) { editingMask_=false; effectsCanvas_->setTool(LightingCanvas::Tool::Move); } effectsCanvas_->setCropTool(crop); });
-    connect(effectsCanvas_,&LightingCanvas::effectGestureStarted,this,[this] { resumePreview_=playing_->isChecked() && !editingMask_; playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0); });
+    connect(effectsCanvas_,&LightingCanvas::effectGestureStarted,this,[this] {
+        resumePreview_=playing_->isChecked() && !editingMask_; playing_->setChecked(false); previewChannel_->setCurrentIndex(0);
+        // Transform the frame under the pointer; resetting animated geometry makes visible shapes unclickable.
+        if(effectsCanvas_->tool()!=LightingCanvas::Tool::Move || editingMask_) previewTime_->setValue(0);
+    });
     connect(effectsCanvas_,&LightingCanvas::maskEditingRequested,this,[this] { inspectorTabs_->setCurrentIndex(2); });
     connect(effectsCanvas_,&LightingCanvas::editingError,this,[this](const QString& message) { statusBar()->showMessage(message,8000); });
     connect(effectsCanvas_,&LightingCanvas::gestureEnded,this,[this] { if(resumePreview_ && !editingMask_) playing_->setChecked(true); resumePreview_=false; });
@@ -881,13 +899,16 @@ void LightingWindow::scanHeaders()
         discovered_=scan_();
         for(const auto& candidate:discovered_) {
             const auto& profile=assignmentProfile(document_.profiles(),candidate.profileId);
-            if(profile.driverId!="lighting.peripherals") continue;
+            const bool dedicated=profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary";
             for(const auto& channel:profile.channels) {
                 bool configured=false;
                 for(const auto& assignment:document_.state().assignments) if(assignment.endpoint==candidate.device.path && assignment.channelId==channel.id) configured=true;
                 const auto componentId=channel.address.value("componentId").toString();
-                if(configured || !document_.catalog().contains(componentId)) continue;
-                document_.edit("Detect keyboard or mouse",[&](LightingState& state) {
+                if(configured || (!dedicated && channel.id!="IOShield")) continue;
+                if(!document_.catalog().contains(componentId) && document_.installedCatalog().contains(componentId))
+                    document_.defineComponent(document_.installedCatalog()[componentId]);
+                if(!document_.catalog().contains(componentId)) continue;
+                document_.edit("Detect integrated lighting",[&](LightingState& state) {
                     ComponentPlacement placement; placement.componentId=componentId;
                     placement.origin={80.0+100*(state.placements.size()%5),260.0};
                     ChannelAssignment assignment; assignment.endpoint=candidate.device.path; assignment.profileId=profile.id;
@@ -924,7 +945,7 @@ void LightingWindow::refreshHeader()
     const auto assignment=selectedHeaderAssignment();
     const auto& profile=assignmentProfile(document_.profiles(),assignment.profileId);
     const auto& channel=assignmentChannel(profile,assignment.channelId);
-    findChild<QPushButton*>("addHeaderComponents")->setEnabled(profile.driverId!="lighting.peripherals");
+    findChild<QPushButton*>("addHeaderComponents")->setEnabled(profile.driverId!="lighting.peripherals" && profile.driverId!="lighting.auxiliary" && channel.id!="IOShield");
     int leds=0;
     for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements)
         if(placement.id==id) leds+=document_.catalog()[placement.componentId].positions.size();
@@ -943,8 +964,9 @@ void LightingWindow::addHeaderComponents()
     for(int i=0;i<components_->topLevelItemCount();++i) {
         const auto data=components_->topLevelItem(i)->data(0,Qt::UserRole+1).toMap(); if(data.isEmpty()) continue;
         const auto& profile=assignmentProfile(document_.profiles(),data.value("profileId").toString());
-        if(profile.driverId=="lighting.peripherals") continue; // Dedicated devices are detected, never attached to ARGB headers.
+        if(profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary") continue; // Dedicated devices are detected, never attached to ARGB headers.
         const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
+        if(channel.id=="IOShield") continue; // Integrated shared-color zone, not an attachable fan header.
         int used=0;
         for(const auto& assignment:document_.state().assignments) if(assignment.profileId==profile.id && assignment.endpoint==data.value("path") && assignment.channelId==channel.id)
             for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements) if(placement.id==id) used+=document_.catalog()[placement.componentId].positions.size();

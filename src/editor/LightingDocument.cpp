@@ -12,6 +12,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>
+#include <limits>
 
 namespace {
 class DocumentEdit : public QUndoCommand {
@@ -23,6 +24,27 @@ public:
 private:
     std::function<void(bool)> apply_;
 };
+QVector<QPointF> placedPoints(const ComponentPlacement& placement,const ComponentDefinition& definition)
+{
+    if(!std::isfinite(placement.origin.x()) || !std::isfinite(placement.origin.y()) ||
+       !std::isfinite(placement.scale.width()) || !std::isfinite(placement.scale.height()) ||
+       placement.scale.width()<.01 || placement.scale.width()>100 || placement.scale.height()<.01 || placement.scale.height()>100 ||
+       !std::isfinite(placement.rotation) || std::abs(placement.rotation)>360)
+        throw std::invalid_argument("Invalid component placement");
+    QTransform transform;transform.translate(placement.origin.x(),placement.origin.y());
+    transform.rotate(placement.rotation);transform.scale(20*placement.scale.width(),20*placement.scale.height());
+    QVector<QPointF> points;points.reserve(definition.positions.size());
+    // Leave arithmetic headroom for world spans, marker margins and the maximum 4x navigation zoom.
+    constexpr double limit=std::numeric_limits<double>::max()/32;
+    for(const auto& local:definition.positions) {
+        const auto point=transform.map(local);
+        if(!std::isfinite(point.x()) || !std::isfinite(point.y()) || std::abs(point.x())>limit || std::abs(point.y())>limit)
+            throw std::invalid_argument("Component coordinates exceed the navigable range");
+        points.append(point);
+    }
+    return points;
+}
+
 void validate(const LightingState& state)
 {
     if (state.layers.size() > 64 || state.placements.size() > 256)
@@ -42,13 +64,9 @@ void validate(const LightingState& state)
         ids.insert(layer.id);
     }
     for (const auto& placement : state.placements) {
-        if (placement.id.isNull() || ids.contains(placement.id) ||
-            !std::isfinite(placement.origin.x()) || !std::isfinite(placement.origin.y()) ||
-            !std::isfinite(placement.scale.width()) || !std::isfinite(placement.scale.height()) ||
-            placement.scale.width() < 0.01 || placement.scale.width() > 100 ||
-            placement.scale.height() < 0.01 || placement.scale.height() > 100 ||
-            !std::isfinite(placement.rotation) || std::abs(placement.rotation) > 360)
+        if (placement.id.isNull() || ids.contains(placement.id) || !state.components.contains(placement.componentId))
             throw std::invalid_argument("Invalid component placement");
+        placedPoints(placement,state.components[placement.componentId]);
         ids.insert(placement.id);
     }
 }
@@ -186,13 +204,22 @@ QVector<QPointF> LightingDocument::componentPoints(const ComponentPlacement& pla
 {
     const auto definition = catalog().constFind(placement.componentId);
     if (definition == catalog().cend()) throw std::invalid_argument("Unknown component");
-    QVector<QPointF> points;
-    QTransform transform;
-    transform.translate(placement.origin.x(), placement.origin.y());
-    transform.rotate(placement.rotation);
-    transform.scale(20 * placement.scale.width(), 20 * placement.scale.height());
-    for (const auto& point : definition->positions) points.append(transform.map(point));
-    return points;
+    return placedPoints(placement,*definition);
+}
+
+QRectF LightingDocument::layoutBounds(const QVector<ComponentPlacement>* placements) const
+{
+    QRectF bounds(QPointF(),canvasSize());
+    for(const auto& placement:placements ? *placements : state_.placements) {
+        const auto points=componentPoints(placement);const auto& definition=catalog()[placement.componentId];
+        if(definition.mapping.size()!=points.size())throw std::invalid_argument("Component geometry/mapping length mismatch");
+        for(int i=0;i<points.size();++i) if(!definition.nonPhysicalSlots.contains(definition.mapping[i])) {
+            // Retain a nonzero rectangle even for legacy coordinates whose magnitude exceeds pixel precision.
+            const double margin=std::max(12.0,std::max(std::abs(points[i].x()),std::abs(points[i].y()))*1e-12);
+            bounds=bounds.united(QRectF(points[i]-QPointF(margin,margin),QSizeF(2*margin,2*margin)));
+        }
+    }
+    return bounds;
 }
 
 QMap<QUuid, QVector<QColor>> LightingDocument::sampleComponents(const QImage& frame, const QVector<ComponentPlacement>* placements) const
@@ -200,14 +227,15 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleComponents(const QImage& fr
     if (frame.size() != canvasSize()) throw std::invalid_argument("Sampling requires a canvas-sized frame");
     // Premultiplication composites transparency onto black without boosting partially masked LEDs.
     const auto rgb = frame.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    const auto bounds=layoutBounds(placements);
     QMap<QUuid, QVector<QColor>> result;
     for (const auto& placement : placements ? *placements : state_.placements) {
-        result.insert(placement.id, sampleComponent(placement, rgb));
+        result.insert(placement.id, sampleComponent(placement, rgb, bounds));
     }
     return result;
 }
 
-QVector<QColor> LightingDocument::sampleComponent(const ComponentPlacement& placement, const QImage& rgb) const
+QVector<QColor> LightingDocument::sampleComponent(const ComponentPlacement& placement, const QImage& rgb, const QRectF& bounds) const
 {
     const auto points = componentPoints(placement);
     if (catalog()[placement.componentId].mapping.size() != points.size())
@@ -215,8 +243,9 @@ QVector<QColor> LightingDocument::sampleComponent(const ComponentPlacement& plac
     const auto mapping = channelMapping(ChannelProfile{"sampling", 65535}, {placement.componentId}, catalog());
     QVector<QColor> colors(points.size(), QColor(Qt::black));
     for (qsizetype i = 0; i < points.size(); ++i) {
-        const auto point = points[i];
-        // Check floating bounds before converting potentially huge off-canvas coordinates.
+        const QPointF point((points[i].x()-bounds.left())/bounds.width()*rgb.width(),
+                            (points[i].y()-bounds.top())/bounds.height()*rgb.height());
+        // Preview and hardware use the same world-to-raster mapping, including transient drags.
         if (point.x() >= 0 && point.y() >= 0 && point.x() < rgb.width() && point.y() < rgb.height()) {
             const auto pixel = rgb.pixel(int(point.x()), int(point.y()));
             colors[mapping[i]] = QColor(qRed(pixel), qGreen(pixel), qBlue(pixel));
@@ -240,6 +269,7 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
     if (frame.size() != canvasSize()) throw std::invalid_argument("Sampling requires a canvas-sized frame");
     validateChannelAssignments(state_, profiles_);
     const auto rgb = frame.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    const auto bounds=layoutBounds(placements);
     QMap<QUuid, QVector<QColor>> result;
     const bool restricted=std::any_of(state_.layers.cbegin(),state_.layers.cend(),[](const auto& layer) { return !layer.allChannels; });
     for (const auto& assignment : state_.assignments) if (assignment.software) {
@@ -248,7 +278,7 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
         QVector<QColor> chain;
         for (const auto& id : assignment.placements)
             for (const auto& placement : placements ? *placements : state_.placements) if (placement.id == id)
-                chain.append(sampleComponent(placement, raster));
+                chain.append(sampleComponent(placement, raster, bounds));
         result.insert(assignment.id, chain);
     }
     return result; // Native channels are deliberately absent, never overwritten with sampled colors.
@@ -347,7 +377,15 @@ void LightingDocument::load(const QString& fileName)
         candidate.components.clear();
         for (const auto& entry : root.value("components").toArray()) {
             if (!entry.isObject()) throw std::invalid_argument("Invalid embedded component");
-            const auto component = ComponentDefinition::fromJson(entry.toObject());
+            auto component = ComponentDefinition::fromJson(entry.toObject());
+            // Repair the shipped RAM pixel/unit mistake only; preserve custom geometry and wire order.
+            if (component.id == "ram.xpg" && component.positions.size() == 8 &&
+                component.mapping == QVector<int>({0, 1, 2, 3, 4, 5, 6, 7})) {
+                bool legacy = true;
+                for (int i = 0; i < 8; ++i)
+                    legacy = legacy && component.positions[i] == QPointF(i * 18, 0);
+                if (legacy) for (auto& point : component.positions) point /= 20;
+            }
             if (candidate.components.contains(component.id)) throw std::invalid_argument("Duplicate embedded component ID");
             candidate.components.insert(component.id, component);
         }

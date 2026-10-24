@@ -9,6 +9,8 @@ struct ComponentDefinition {
     QVector<QPointF> positions;
     // Logical LED index -> wire index; a permutation, never extra LEDs.
     QVector<int> mapping;
+    // Reserved wire slots remain in reports but have no physical LED to arrange.
+    QVector<int> nonPhysicalSlots;
     QJsonObject toJson() const;
     static ComponentDefinition fromJson(const QJsonObject& json);
 };

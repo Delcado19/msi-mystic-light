@@ -5,6 +5,8 @@
 #include <optional>
 
 class QPushButton;
+class QPainter;
+class QScrollBar;
 class LightingCanvas : public QWidget {
     Q_OBJECT
 public:
@@ -14,7 +16,7 @@ public:
     void setTool(Tool tool) { cancelGesture(); drawingTool_=tool; setCursor(tool==Tool::Move ? Qt::ArrowCursor : Qt::CrossCursor); }
     void setGradientStops(QVector<QColor> colors,QVector<double> positions) { gradientColors_=std::move(colors); gradientPositions_=std::move(positions); }
     void setDrawing(QColor color,double width,bool filled) { drawColor_=color; drawWidth_=width; filled_=filled; }
-    void setPreviewOnly() { previewOnly_=true; setMinimumHeight(160); setFocusPolicy(Qt::NoFocus); }
+    void setPreviewOnly();
     enum class MaskTool { Brush, Gradient };
     LightingCanvas(LightingDocument& document, Context context, QWidget* parent = nullptr);
     Context context() const { return context_; }
@@ -28,6 +30,7 @@ public:
     void setCropTool(bool enabled) { cancelGesture(); cropTool_ = enabled; update(); }
     void setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel = {});
     void fitToView();
+    // Non-finite/non-positive factors leave the view unchanged; valid zoom clamps to .001..4.
     void zoomBy(double factor);
     QPointF viewportPoint(QPointF canvas) const;
     QPointF canvasPoint(QPointF viewport) const;
@@ -39,6 +42,7 @@ signals:
     void maskEditingRequested();
     void editingError(const QString& message);
     void addRequested();
+    void fullscreenRequested();
 protected:
     void resizeEvent(QResizeEvent*) override;
     void paintEvent(QPaintEvent*) override;
@@ -65,6 +69,15 @@ private:
     Context context_;
     QImage rendered_, workingMask_;
     QPushButton* emptyAction_;
+    QPushButton* fullscreen_;
+    QScrollBar *horizontalScroll_, *verticalScroll_;
+    void syncScrollbars();
+    QSizeF scrollUnits_{1,1};
+    void paintMinimap(QPainter& painter);
+    QRectF navigationBounds() const;
+    QRectF minimapRect() const;
+    void navigateMinimap(QPointF position);
+    bool navigating_=false;
     bool autoFit_ = true, previewOnly_=false, drawing_=false, filled_=true;
     Tool drawingTool_=Tool::Move;
     QVector<QColor> gradientColors_; QVector<double> gradientPositions_;

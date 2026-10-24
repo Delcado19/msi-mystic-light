@@ -63,6 +63,7 @@ public:
     explicit LightingDocument(ComponentCatalog catalog, QObject* parent = nullptr, QVector<DeviceProfile> profiles = {});
     static QSize canvasSize() { return {640, 400}; }
     const ComponentCatalog& catalog() const { return state_.components; }
+    const ComponentCatalog& installedCatalog() const { return initialCatalog_; }
     const LightingState& state() const { return state_; }
     const QVector<DeviceProfile>& profiles() const { return profiles_; }
     quint64 revision() const { return revision_; }
@@ -77,6 +78,8 @@ public:
     void importComponent(const QString& fileName);
     QUuid addComponent(const QString& componentId);
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
+    // Layout grows around physical LEDs; the effect raster is mapped over these same bounds for output.
+    QRectF layoutBounds(const QVector<ComponentPlacement>* placements = nullptr) const;
     // Per-instance wire order, opaque RGB over black; optional placement previews never mutate undo history.
     QMap<QUuid, QVector<QColor>> sampleComponents(const QImage& frame, const QVector<ComponentPlacement>* placements = nullptr) const;
     void assignChannel(const ChannelAssignment& assignment);
@@ -94,7 +97,7 @@ public:
 signals:
     void changed();
 private:
-    QVector<QColor> sampleComponent(const ComponentPlacement& placement, const QImage& premultiplied) const;
+    QVector<QColor> sampleComponent(const ComponentPlacement& placement, const QImage& premultiplied, const QRectF& bounds) const;
     const QVector<DeviceProfile> profiles_;
     const ComponentCatalog initialCatalog_;
     LightingState state_;

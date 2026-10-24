@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "msi.ioshield",
+  "name": "MSI MPG B850 Edge TI / I/O shield",
+  "ledCount": 1,
+  "positions": [
+    [
+      0,
+      0
+    ]
+  ],
+  "mapping": [
+    0
+  ]
+}

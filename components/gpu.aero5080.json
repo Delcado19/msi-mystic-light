@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "gpu.aero5080",
+  "name": "Gigabyte RTX 5080 AERO OC / logo",
+  "ledCount": 1,
+  "positions": [
+    [
+      0,
+      0
+    ]
+  ],
+  "mapping": [
+    0
+  ]
+}

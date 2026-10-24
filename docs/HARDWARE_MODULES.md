@@ -100,9 +100,11 @@ protocol limits and validates addresses before driver creation.
 
 The MSI module accepts 18-zone Gen1 profiles with at most 120 LEDs per
 channel. Direct mode is enabled only for the documented ARGB/EZ zone-area
-pairs. Historical Lighting Studio work found that IO COVER did not respond
-to per-LED `0x51`; this profile conservatively exposes its native modes only.
-The older worktree's whole-zone software fallback is not ported here.
+pairs. IO COVER follows Canvas through the restored whole-zone `0x50` Steady
+fallback; it has no qualified per-LED `0x51` area. It uses one sampling component,
+accepts 1..11 samples and averages their RGB into one shared color. Identical colors
+are suppressed; changed colors run at the shared worker's maximum 30 Hz. The old
+100 ms discard gate is removed so the final static edit cannot be lost.
 Direct-mode headers are armed to Advanced via transient `0x50` before `0x51`.
 Full `0x50` reports initially set unconfigured zones to Off, then preserve
 successfully applied state. No module path persists settings to board NVRAM.
@@ -249,3 +251,48 @@ See [OUTPUT_SESSION.md](OUTPUT_SESSION.md) for lifecycle, validation and remaini
 authorization and remaining physical qualification work.
 
 Live output uses the validated automatic exact-path connection flow described in [OUTPUT_SESSION.md](OUTPUT_SESSION.md). Physical protocol qualification remains pending.
+
+### Native GPU endpoint
+
+The restored `lighting.auxiliary` module carries qualified RGB payloads through
+host-owned NVAPI transport. Match selectors `transport` and `endpoint` explicitly
+identify native targets; omitted transport remains `hid` for existing profiles.
+VID/PID remain nonzero. The module pins PCI identity, endpoint, channel and LED count.
+
+`nvapi://10de:2c02/1458:4179` identifies exactly one RTX 5080 AERO OC matching PCI
+device `2C0210DE` and subsystem `41791458`. Discovery enumerates PCI identity only.
+Opening output verifies the original lighting signature through NVAPI I2C V3;
+output sends volatile 64-byte `0x16` RGB commands on port 1/address `0x75`.
+No flash-save `0x13` is sent. Multiple matching GPUs are rejected.
+
+Missing installed component definitions can be added when an older embedded
+project detects qualified GPU/IOShield hardware; existing placements and modes
+are preserved. Integrated devices are not attachable ARGB fan products.
+
+### Direct PawnIO RAM endpoints
+
+The user approved PawnIO on 2026-10-24. Transport `pawnio` identifies the AMD
+1022:790b controller, primary bus 0, with qualified RAM endpoints at 0x71 and 0x73.
+The auxiliary module pins profile/channel/LED count; the host verifies exact
+ENE AUDA0-E6K5-0101 firmware and eight LEDs before direct output. It writes volatile
+R-B-G direct colors only. No remapping, SPD or flash writes are exposed.
+
+The official PawnIO 2.x driver/library must already be installed. Only the signed
+0.2.11 AMD module and its corresponding source/license are distributed. Discovery
+in the GUI reads identity via ENE register selection; passive --scan skips RAM.
+The shared SMBus mutex covers complete register operations/frames and bus-port
+selection/restoration. Transfer failures reach the existing output fault/retry path.
+No OpenRGB process, socket or extra helper is involved. The user confirmed physical
+RAM Canvas output with the diagnostic build; this does not qualify other RAM models. See ../third_party/pawnio/README.md.
+
+RAM direct-mode activation writes `0x8020 = 1` followed by the required volatile
+apply `0x80A0 = 1` before sending the live `0x8100` color buffer. This follows
+`ENESMBusController::SetDirect`; omitting Apply can leave the previous native
+effect running despite successful discovery and transfers. The flash-save value
+`0xAA` is never sent. Failure of either mode write aborts the frame.
+
+The first RAM frame now reads back 0x8020 and all 24 direct-buffer bytes under the
+SMBus lock. A mismatch faults the endpoint with the exact register instead of
+reporting Running after write acknowledgements alone. RAM identity and first-frame
+RGB bytes are logged per address. Matching readback proves register contents, not
+physical light output; later frames keep the normal write-only path.

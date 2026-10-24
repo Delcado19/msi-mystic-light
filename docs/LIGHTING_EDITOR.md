@@ -19,7 +19,9 @@ Native firmware preview uses the configured first color, not a firmware simulati
 
 New layer immediately creates a transparent Paint layer with a white mask. There is
 no effect-selection dialog. Shapes and Particles have direct toolbar flyout menus;
-Other effects contains gradients and patterns. Import image handles image files.
+The redundant Other effects button/gallery is removed. Gradients are drawn with
+the gradient tool; Shapes and Particles retain their toolbar menus. Import image
+handles image files. Existing procedural effect layers still load and render.
 Particle motion patterns remain editable in the contextual inspector. Layers show source and mask thumbnails, effect
 type, visibility and name. Drag to reorder; double-click to rename.
 
@@ -481,15 +483,92 @@ actual output receives those samples before mouse release. Escape restores origi
 sampling positions; release commits one undo step. Clicking a member of a selected
 group selects that member. Drag the group label to move the complete chain.
 
-Hardware lists each detected controller/profile with all supported outputs beneath
-it, including unconfigured JARGB/JRGB/IOShield channels. Saved offline assignments
-also remain visible. These are channels of a shared controller, not invented USB
-endpoints. The left inventory retains the real configured components. Selecting a component
-selects its output in the status tree; selecting an output selects its header.
+Hardware keeps its component/header inventory on the left. The right side is a
+flat **Endpoint / Profile / State** table, one row per endpoint/profile pair,
+including saved offline endpoints and explicit NVAPI profile targets not yet
+detected. HID paths and PCI endpoints remain technical identities;
+there is no duplicate header tree. Full endpoint paths are available in tooltips.
+Selecting a component/header on the left scopes Stop/Resume to its channel and
+names it in the button. Clicking an endpoint row scopes the actions to that
+endpoint's configured channels.
 
 Select a channel to stop/resume only its submissions; select the controller to act
 on its configured channels. Running channels disable Resume. Unconfigured channels
 have both actions disabled. Paused channels hold their last applied device state;
 firmware-native animations can continue independently. A currently executing report
 may finish when Stop is pressed. Other channels keep their controller connection.
-The output tree expands to use available space rather than a fixed 100-pixel box.
+The endpoint table expands to use available space rather than a fixed 100-pixel box.
+
+### Restored integrated lighting
+
+IOShield uses the original Canvas-to-`0x50` shared-color fallback, without claiming
+per-LED control. The qualified RTX 5080 AERO OC uses NVAPI. Detected devices are
+added to Hardware/Layout even for older embedded catalogs. Qualified ENE RAM
+uses the installed official PawnIO 2.x driver directly, approved by the user on
+2026-10-24. Run the app as administrator and use Hardware > Refresh. Discovery
+verifies firmware and eight LEDs at 0x71/0x73; detected modules receive their own
+Hardware/Layout placements. No OpenRGB process or network helper is used.
+
+### RAM component geometry correction
+
+Component coordinates use 20 canvas pixels per unit. The XPG eight-LED line uses
+0.9 units per LED (126 pixels total at 100% scale). Loading a project repairs the
+exact initially shipped 18-unit spacing; custom arrangements and placement
+transforms are preserved. This changes spatial sampling only, never wire order.
+
+### Physical LEDs and reserved protocol slots
+
+Optional component `nonPhysicalSlots` lists reserved wire indices. They remain in
+fixed-length reports and the coordinate table, but are excluded from visual LEDs
+and shape arrangement. Vulcan has 105 physical keys and 39 reserved slots in its
+144-slot buffer; Esc (wire 0 at 0,0) remains physical. Old embedded Vulcan definitions
+receive the same explicit slot list on load, including instance geometry.
+The geometry editor uses a constant screen size for LED circles and centered wire
+numbers. Fit/zoom changes their positions on screen without shrinking the markers
+or changing sampling coordinates. This also handles near-equal axis coordinates
+in circular fan arrangements.
+
+LED arrangement opens in a larger window with 32-pixel markers and 12-pixel
+semibold white wire labels on dark blue. Markers retain their screen size when
+fitting the device; reduced outer padding gives the geometry more room.
+
+The toolbar hides the numeric preview-time field; Play/Pause still drives the
+shared animation/output clock. Move/resize/rotation freezes the current frame and
+uses that frame's animated transform for hit testing, rather than jumping to time
+zero. Creating a shape or particle clears crop mode so the new layer is immediately
+movable, even after cropping an image.
+
+### Canvas playback, fullscreen and growing Layout
+
+The main toolbar has one Canvas Start/Stop button: green when stopped, red while
+running. Stop freezes the shared preview/output time; it does not turn off LEDs.
+The numeric seconds field and duplicate toolbar output status are hidden.
+
+The top-right canvas button opens that same live canvas in a fullscreen window.
+The fullscreen view has the same Start/Stop control. Escape or the canvas button
+returns it to its original workspace without losing document edits.
+
+Only Layout expands: its bounds include the initial 640x400 area and all physical
+LED positions plus their marker margin, including negative coordinates. Bounds are
+derived from placements on every draft/committed move, scale or rotation; undo and
+project reload therefore restore them without a new file schema. Effects retain
+the separate 640x400 raster. The composite effect image stretches across the Layout
+world bounds; preview, component/channel sampling and real output share exactly
+the same world-to-raster mapping. Expanding the bounds consequently changes other
+components' sampled locations too. This does not allocate a larger effect image.
+
+The bottom-right minimap shows the effect image, hardware locations in Layout and
+the visible viewport. Click or drag inside it to navigate; wheel zoom and middle
+mouse panning remain available. Fit canvas includes the expanded Layout bounds.
+
+Horizontal and vertical canvas scrollbars appear as needed when the world exceeds
+the visible area at the current zoom. They share the same pan position with the
+minimap and middle-mouse navigation, including negative Layout coordinates and
+transient hardware moves. The minimap sits above/left of any visible scrollbars
+in the lower-right corner. Fit canvas hides scrollbars when everything fits.
+
+Boundary validation: zoom ignores non-finite/non-positive factors; transformed
+component coordinates and draft placements are validated before sampling. Finite
+coordinates must leave arithmetic headroom for world spans and navigation zoom.
+Scrollbar camera and thumb positions are synchronized at both endpoints; camera
+clamping waits for the current drag/pan/minimap gesture to finish.

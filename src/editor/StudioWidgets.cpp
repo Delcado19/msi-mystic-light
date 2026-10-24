@@ -7,13 +7,10 @@
 #include <QColorDialog>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
-#include <QDialog>
-#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
@@ -115,55 +112,17 @@ QWidget* disclosure(QVBoxLayout* layout,const QString& title,QWidget* content)
     QObject::connect(toggle,&QToolButton::toggled,content,[toggle,content](bool open) { content->setVisible(open); toggle->setArrowType(open ? Qt::DownArrow : Qt::RightArrow); });
     layout->addWidget(box); return box;
 }
-std::optional<EffectKind> chooseEffect(QWidget* parent)
-{
-    QDialog dialog(parent); dialog.setObjectName("effectGallery"); dialog.setWindowTitle("Add an effect layer"); dialog.resize(720,530);
-    auto* layout=new QVBoxLayout(&dialog); layout->setContentsMargins(24,20,24,20); layout->setSpacing(12);
-    auto* title=new QLabel("Gradients and patterns"); title->setProperty("heading",true); layout->addWidget(title);
-    auto* subtitle=new QLabel("Each effect becomes a layer with its own editable mask."); subtitle->setProperty("muted",true); layout->addWidget(subtitle);
-    auto* search=new QLineEdit; search->setPlaceholderText("Search gradients and patterns..."); search->setObjectName("effectSearch"); layout->addWidget(search);
-    auto* list=new QListWidget; list->setObjectName("effectGalleryItems"); list->setViewMode(QListView::IconMode);
-    list->setMovement(QListView::Static); list->setResizeMode(QListView::Adjust); list->setIconSize({112,70}); list->setGridSize({150,116});
-    for(const auto& definition:effectDefinitions()) {
-        if(definition.kind==EffectKind::Image || definition.kind==EffectKind::Paint || (definition.kind>=EffectKind::Circle && definition.kind<=EffectKind::Moon) || isParticle(definition.kind)) continue; // Images use Import, so choosing an effect never creates an empty image layer.
-        EffectLayer layer; layer.effect=definition.kind; layer.color=QColor("#91aaff"); layer.secondaryColor=QColor("#ff91ba");
-        // Gallery and canvas use the same source renderer, not approximate marketing thumbnails.
-        QPixmap preview(112,70); preview.fill(QColor("#171b25")); QPainter painter(&preview);
-        painter.drawImage(preview.rect(),renderEffect(layer,1)); painter.end();
-        auto* item=new QListWidgetItem(QIcon(preview),definition.kind==EffectKind::Rain ? "Particles" : definition.label,list); item->setData(Qt::UserRole,static_cast<int>(definition.kind));
-        item->setToolTip("Add "+definition.label+" with a white mask"); item->setTextAlignment(Qt::AlignCenter);
-    }
-    layout->addWidget(list,1); auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
-    buttons->button(QDialogButtonBox::Ok)->setText("Add layer"); layout->addWidget(buttons);
-    QObject::connect(search,&QLineEdit::textChanged,list,[list,buttons](const QString& text) {
-        QListWidgetItem* first=nullptr;
-        for(int i=0;i<list->count();++i) {
-            auto* item=list->item(i); item->setHidden(!item->text().contains(text,Qt::CaseInsensitive));
-            if(!item->isHidden() && !first) first=item;
-        }
-        list->setCurrentItem(first); buttons->button(QDialogButtonBox::Ok)->setEnabled(first!=nullptr);
-    });
-    auto* animate=new QCheckBox("Animate selected preset"); animate->setChecked(dialog.style()->styleHint(QStyle::SH_Widget_Animate)); layout->insertWidget(3,animate);
-    QElapsedTimer clock; clock.start(); QTimer previewTimer; previewTimer.setInterval(100);
-    QObject::connect(&previewTimer,&QTimer::timeout,list,[list,animate,&clock] {
-        if(!animate->isChecked() || !list->currentItem()) return;
-        const auto kind=static_cast<EffectKind>(list->currentItem()->data(Qt::UserRole).toInt()); if(!isParticle(kind)) return;
-        EffectLayer sample; sample.effect=kind; sample.color=QColor("#91aaff"); sample.secondaryColor=QColor("#ff91ba");
-        list->currentItem()->setIcon(QIcon(QPixmap::fromImage(renderEffect(sample,clock.elapsed()/1000.0).scaled(112,70,Qt::IgnoreAspectRatio,Qt::SmoothTransformation))));
-    }); previewTimer.start();
-    QObject::connect(list,&QListWidget::itemDoubleClicked,&dialog,&QDialog::accept);
-    QObject::connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
-    QObject::connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
-    list->setCurrentRow(0); search->setFocus();
-    if(dialog.exec()!=QDialog::Accepted || !list->currentItem() || list->currentItem()->isHidden()) return {};
-    return static_cast<EffectKind>(list->currentItem()->data(Qt::UserRole).toInt());
-}
-
 QIcon studioToolIcon(const QString& name)
 {
     QPixmap pixmap(24,24); pixmap.fill(Qt::transparent); QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing); painter.setPen(QPen(QColor("#e0e8fc"),1.7,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
-    if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }
+    if(name=="fullscreen") {
+        for(const auto corner : {QPointF(4,4),QPointF(20,4),QPointF(4,20),QPointF(20,20)}) {
+            painter.drawLine(corner,corner+QPointF(corner.x()<12 ? 5 : -5,0));
+            painter.drawLine(corner,corner+QPointF(0,corner.y()<12 ? 5 : -5));
+        }
+    }
+    else if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }
     else if(name=="save") { painter.drawRect(4,3,16,18); painter.drawRect(7,3,10,6); painter.drawRect(7,14,10,7); }
     else if(name=="undo" || name=="redo") { if(name=="redo") { painter.translate(24,0); painter.scale(-1,1); } QPainterPath arrow; arrow.moveTo(4,9); arrow.lineTo(13,9); arrow.cubicTo(23,9,23,20,13,20); painter.drawPath(arrow); painter.drawLine(4,9,9,4); painter.drawLine(4,9,9,14); }
     else if(name=="move") {

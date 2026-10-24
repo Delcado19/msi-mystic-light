@@ -42,6 +42,20 @@ target_link_libraries(peripherals_module PRIVATE Qt6::Core)
 set_target_properties(peripherals_module PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
+add_library(auxiliary_module MODULE modules/auxiliary/AuxiliaryModule.cpp)
+target_include_directories(auxiliary_module PRIVATE src)
+target_link_libraries(auxiliary_module PRIVATE Qt6::Core)
+set_target_properties(auxiliary_module PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
+add_library(lighting_backends src/backends/AuxiliaryHardware.cpp src/backends/PawnIoRam.cpp)
+target_include_directories(lighting_backends PUBLIC src)
+target_link_libraries(lighting_backends PUBLIC lighting_modules Qt6::Core)
+foreach(component IN ITEMS gpu.aero5080 msi.ioshield ram.xpg)
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/${component}.json"
+        INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/${component}.json")
+endforeach()
+
 file(GLOB peripheral_profiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiles/*-*.json")
 foreach(profile IN LISTS peripheral_profiles)
     if(profile MATCHES "msi-mpg")
@@ -79,12 +93,12 @@ target_link_libraries(lighting_output PUBLIC lighting_editor Threads::Threads)
 
 add_library(lighting_output_ui src/output/OutputPanel.cpp src/output/HardwareOutput.cpp)
 target_include_directories(lighting_output_ui PUBLIC src)
-target_link_libraries(lighting_output_ui PUBLIC lighting_output lighting_startup msi_hid)
+target_link_libraries(lighting_output_ui PUBLIC lighting_output lighting_startup msi_hid lighting_backends)
 
 add_executable(msi_mystic_light src/main.cpp)
 set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
 target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor lighting_output_ui)
-add_dependencies(msi_mystic_light msi_gen1_module peripherals_module)
+add_dependencies(msi_mystic_light msi_gen1_module peripherals_module auxiliary_module)
 if(WIN32)
     # A matching SDK plugin is preferred; the documented source build supplies SDKs without ImageFormats.
     set(WEBP_PLUGIN_HINTS "${Qt6_DIR}/../../../plugins/imageformats")
@@ -110,6 +124,8 @@ if(WIN32)
             "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/third_party/licenses"
             "$<TARGET_FILE_DIR:msi_mystic_light>/third_party/licenses"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/third_party/pawnio"
+            "$<TARGET_FILE_DIR:msi_mystic_light>/third_party/pawnio"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md" "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/PORTABLE_README.txt"
             "$<TARGET_FILE_DIR:msi_mystic_light>")
 endif()

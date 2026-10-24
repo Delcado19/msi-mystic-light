@@ -51,9 +51,10 @@ set_tests_properties(startup_conflicts PROPERTIES TIMEOUT 20
 
 add_executable(test_editor editor/test_editor.cpp)
 target_link_libraries(test_editor PRIVATE lighting_editor Qt6::Test)
-target_compile_definitions(test_editor PRIVATE TEST_ARTIFACT_DIR="${CMAKE_BINARY_DIR}/editor-artifacts")
+target_compile_definitions(test_editor PRIVATE TEST_COMPONENT_DIR="${PROJECT_SOURCE_DIR}/components" TEST_ARTIFACT_DIR="${CMAKE_BINARY_DIR}/editor-artifacts")
 add_test(NAME lighting_editor COMMAND test_editor)
-set_tests_properties(lighting_editor PROPERTIES TIMEOUT 30
+# Debug raster/particle rendering is substantially slower than the optimized build.
+set_tests_properties(lighting_editor PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,60,30>"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
 
 add_executable(test_output output/test_output.cpp)
@@ -115,5 +116,22 @@ add_test(NAME peripheral_reports COMMAND test_peripherals)
 if(WIN32)
     add_custom_command(TARGET test_peripherals POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:test_peripherals> $<TARGET_FILE_DIR:test_peripherals>
+        COMMAND_EXPAND_LISTS)
+endif()
+
+add_executable(test_auxiliary output/test_auxiliary.cpp)
+target_link_libraries(test_auxiliary PRIVATE lighting_backends Qt6::Test)
+target_compile_definitions(test_auxiliary PRIVATE AUX_MODULE_PATH="$<TARGET_FILE:auxiliary_module>"
+    MSI_MODULE_PATH="$<TARGET_FILE:msi_gen1_module>" PROFILE_DIR="${PROJECT_SOURCE_DIR}/profiles")
+add_dependencies(test_auxiliary auxiliary_module msi_gen1_module)
+add_test(NAME auxiliary_lighting COMMAND test_auxiliary -o -,txt)
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME release_artifact_checks COMMAND "${Python3_EXECUTABLE}"
+        -m unittest discover -s "${CMAKE_CURRENT_SOURCE_DIR}/docs" -v)
+endif()
+if(WIN32)
+    add_custom_command(TARGET test_auxiliary POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:test_auxiliary> $<TARGET_FILE_DIR:test_auxiliary>
         COMMAND_EXPAND_LISTS)
 endif()

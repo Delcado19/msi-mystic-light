@@ -7,4 +7,6 @@ class ComponentEditor : public QDialog {
 public:
     ComponentEditor(const ComponentDefinition& initial, bool existing, QWidget* parent = nullptr, bool instance = false);
     ComponentDefinition component() const;
+private:
+    QVector<int> nonPhysicalSlots_;
 };

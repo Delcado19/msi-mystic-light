@@ -1,4 +1,5 @@
 #include "LightingCanvas.h"
+#include "StudioWidgets.h"
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QKeyEvent>
@@ -11,6 +12,9 @@
 #include <cmath>
 #include <stdexcept>
 #include <QSet>
+#include <QScrollBar>
+#include <QSignalBlocker>
+#include <QStyle>
 
 namespace {
 bool centeredGradient(EffectKind kind) { return kind==EffectKind::RadialGradient || kind==EffectKind::ConicalGradient; }
@@ -25,6 +29,23 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
     : QWidget(parent), document_(document), context_(context)
 {
     setMinimumSize(360, 280);
+    fullscreen_=new QPushButton(this);fullscreen_->setIcon(studioToolIcon("fullscreen"));fullscreen_->setObjectName("canvasFullscreenButton");
+    fullscreen_->setFixedSize(36,32);fullscreen_->setToolTip("Toggle canvas fullscreen (Escape to return)");
+    fullscreen_->setAccessibleName("Canvas fullscreen");
+    connect(fullscreen_,&QPushButton::clicked,this,&LightingCanvas::fullscreenRequested);
+    horizontalScroll_=new QScrollBar(Qt::Horizontal,this);horizontalScroll_->setObjectName("canvasHorizontalScroll");
+    verticalScroll_=new QScrollBar(Qt::Vertical,this);verticalScroll_->setObjectName("canvasVerticalScroll");
+    horizontalScroll_->setAccessibleName("Canvas horizontal scroll");verticalScroll_->setAccessibleName("Canvas vertical scroll");
+    horizontalScroll_->hide();verticalScroll_->hide();
+    for(auto* bar : {horizontalScroll_,verticalScroll_}) connect(bar,&QScrollBar::sliderPressed,this,&LightingCanvas::cancelGesture);
+    connect(horizontalScroll_,&QScrollBar::valueChanged,this,[this](int value) {
+        const auto bounds=navigationBounds();autoFit_=false;
+        pan_.setX(-bounds.left()*zoom_-value*scrollUnits_.width()-(width()-640*zoom_)/2);update();
+    });
+    connect(verticalScroll_,&QScrollBar::valueChanged,this,[this](int value) {
+        const auto bounds=navigationBounds();autoFit_=false;
+        pan_.setY(-bounds.top()*zoom_-value*scrollUnits_.height()-(height()-400*zoom_)/2);update();
+    });
     emptyAction_=new QPushButton(context==Context::Layout ? "Add a component" : "Add an effect layer",this);
     emptyAction_->setObjectName("canvasAdd"); emptyAction_->setProperty("primary",true); emptyAction_->setFixedSize(190,38);
     connect(emptyAction_,&QPushButton::clicked,this,&LightingCanvas::addRequested);
@@ -41,17 +62,24 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
     rendered_ = LightingDocument::render(document_.state(),seconds_,previewChannel_);
 }
 
+void LightingCanvas::setPreviewOnly() {previewOnly_=true;fullscreen_->hide();setMinimumHeight(160);setFocusPolicy(Qt::NoFocus);}
+
 void LightingCanvas::fitToView()
 {
     cancelGesture(); autoFit_=true; pan_={};
     if(previewOnly_) {
-        previewBounds_=QRectF(0,0,640,400);
+        previewBounds_=document_.layoutBounds();
         zoom_=std::clamp(std::min((width()-60)/previewBounds_.width(),(height()-48)/previewBounds_.height()),.1,2.0);
-    } else zoom_=std::clamp(std::min((width()-80)/640.0,(height()-100)/400.0),0.1,4.0);
+    } else {
+        const auto bounds=context_==Context::Layout ? document_.layoutBounds() : QRectF(0,0,640,400);
+        zoom_=std::clamp(std::min((width()-80)/bounds.width(),(height()-100)/bounds.height()),0.001,4.0);
+        pan_=(QPointF(320,200)-bounds.center())*zoom_;
+    }
     update();
 }
 void LightingCanvas::resizeEvent(QResizeEvent*)
 {
+    fullscreen_->move(width()-48,10);fullscreen_->setVisible(!previewOnly_);
     if(autoFit_) fitToView();
     if(previewOnly_) emptyAction_->hide();
     emptyAction_->move((width()-emptyAction_->width())/2,height()/2+32);
@@ -86,7 +114,7 @@ void LightingCanvas::cancelGesture()
     const bool restore=context_==Context::Layout && dragging_;
     drawing_=false; drawingBase_={}; fillReference_={};
     dragging_ = false;
-    panning_ = false;
+    panning_ = false; navigating_=false;
     workingMask_ = {}; originalEffect_.reset(); workingEffect_.reset(); handle_ = 0; layoutScale_=1; layoutRotation_=0;
     if(restore) emit layoutPreviewChanged();
     update();
@@ -99,11 +127,14 @@ QVector<QPointF> LightingCanvas::componentPoints(const ComponentPlacement& place
 
 void LightingCanvas::paintEvent(QPaintEvent*)
 {
+    syncScrollbars();
     QPainter painter(this);
     painter.fillRect(rect(), QColor("#17191f"));
     painter.setPen(QColor("#a6afc2"));
-    painter.drawText(QRect(20,12,width()-40,24),Qt::AlignLeft|Qt::AlignVCenter,
-        QString("%1    /    640 x 400    /    %2%").arg(previewOnly_ ? QString("LIVE HARDWARE / %1 s").arg(seconds_,0,'f',2) : context_==Context::Layout ? "LAYOUT" : "EFFECT CANVAS").arg(qRound(zoom_*100)));
+    const auto placementsForBounds=previewPlacements();
+    const auto world=context_==Context::Layout ? document_.layoutBounds(&placementsForBounds) : QRectF(0,0,640,400);
+    painter.drawText(QRect(20,12,width()-70,24),Qt::AlignLeft|Qt::AlignVCenter,
+        QString("%1    /    "+QString::number(std::ceil(world.width()))+" x "+QString::number(std::ceil(world.height()))+"    /    %2%").arg(previewOnly_ ? QString("LIVE HARDWARE") : context_==Context::Layout ? "LAYOUT" : "EFFECT CANVAS").arg(qRound(zoom_*100)));
     const bool empty=context_==Context::Effects ? document_.state().layers.isEmpty() : document_.state().placements.isEmpty();
     if(empty && previewOnly_) {
         painter.drawText(rect().adjusted(20,42,-20,-12),Qt::AlignCenter,"Attach hardware to see its live lighting here."); return;
@@ -119,11 +150,14 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     painter.scale(zoom_, zoom_);
     painter.setPen(QPen(QColor("#626d85"),1/zoom_)); painter.setBrush(Qt::NoBrush);
     if(!previewOnly_) {
-    painter.drawRect(QRectF(QPointF(),LightingDocument::canvasSize()).adjusted(-1,-1,1,1));
-    painter.setClipRect(QRect(QPoint(), LightingDocument::canvasSize()));
-    for (int y = 0; y < 400; y += 16)
-        for (int x = 0; x < 640; x += 16)
-            painter.fillRect(x, y, 16, 16, (x / 16 + y / 16) % 2 ? QColor("#484b50") : QColor("#35383d"));
+    painter.drawRect(world.adjusted(-1,-1,1,1));
+    painter.setClipRect(world);
+    // Bound checkerboard work to the visible world even when distant hardware expands the layout.
+    const auto visible=world.intersected(QRectF(canvasPoint(QPointF()),canvasPoint(QPointF(width(),height()))));
+    const double tile=16/std::min(1.0,zoom_);
+    for(double y=std::floor(visible.top()/tile)*tile;y<visible.bottom();y+=tile)
+        for(double x=std::floor(visible.left()/tile)*tile;x<visible.right();x+=tile)
+            painter.fillRect(QRectF(x,y,tile,tile),std::fmod(std::floor(x/tile)+std::floor(y/tile),2.0)!=0 ? QColor("#484b50") : QColor("#35383d"));
     }
     auto frame = rendered_;
     if (context_ == Context::Effects) {
@@ -191,10 +225,10 @@ void LightingCanvas::paintEvent(QPaintEvent*)
                 painter.drawLine(top,rotation); painter.drawEllipse(rotation,5/zoom_,5/zoom_);
             }
         }
-        return;
+        paintMinimap(painter);return;
     }
     // The same live raster explains sampling positions; Layout edits placements only.
-    painter.drawImage(0,0,frame);
+    painter.drawImage(world,frame);
     painter.setClipping(false);
     painter.setRenderHint(QPainter::Antialiasing);
     const auto placements=previewPlacements();
@@ -235,15 +269,16 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         const bool keyboard=definition.name.contains("Vulcan",Qt::CaseInsensitive) || definition.name.contains("Apex",Qt::CaseInsensitive);
         QSet<QPair<int,int>> drawnKeys;
         for (int i = 0; i < points.size(); ++i) {
+            if (definition.nonPhysicalSlots.contains(definition.mapping[i])) continue;
             const auto point = points[i];
             if(keyboard) { const auto key=qMakePair(qRound(point.x()*10),qRound(point.y()*10)); if(drawnKeys.contains(key)) continue; drawnKeys.insert(key); }
-            if (!QRectF(frame.rect()).adjusted(-20, -20, 20, 20).contains(point)) continue;
+            if (!world.adjusted(-20, -20, 20, 20).contains(point)) continue;
             const QColor light=sampled[placement.id].value(definition.mapping[i],Qt::black);
             painter.setBrush(light);
             if(keyboard) painter.drawRoundedRect(QRectF(point-QPointF(4,4),QSizeF(8,8)),1.5,1.5); else painter.drawEllipse(point, 6, 6);
 
         }
-        if (!previewOnly_ && placement.id==selected_ && QRectF(frame.rect()).contains(placement.origin))
+        if (!previewOnly_ && placement.id==selected_ && world.contains(placement.origin))
             painter.drawText(body.topLeft() + QPointF(0, -6), painter.fontMetrics().elidedText(definition.name,Qt::ElideRight,110));
     }
     if(!previewOnly_ && !selected_.isNull()) {
@@ -257,6 +292,78 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         const QPointF top(bounds.center().x(),bounds.top()), rotation=top-QPointF(0,24/zoom_);
         painter.drawLine(top,rotation); painter.drawEllipse(rotation,6/zoom_,6/zoom_);
     }
+    paintMinimap(painter);
+}
+
+QRectF LightingCanvas::navigationBounds() const
+{
+    const auto placements=previewPlacements();
+    if(context_==Context::Layout)return document_.layoutBounds(&placements);
+    QRectF bounds(0,0,640,400);
+    for(const auto& stored:document_.state().layers) if(stored.visible) {
+        const auto& layer=workingEffect_ && stored.id==selected_ ? *workingEffect_ : stored;
+        bounds=bounds.united(effectTransform(layer,seconds_).mapRect(QRectF(-.5,-.5,1,1)));
+    }
+    return bounds;
+}
+void LightingCanvas::syncScrollbars()
+{
+    if(previewOnly_){horizontalScroll_->hide();verticalScroll_->hide();return;}
+    const auto world=navigationBounds();
+    const int thickness=style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    bool horizontal=world.width()*zoom_>width();
+    bool vertical=world.height()*zoom_>height()-(horizontal ? thickness : 0);
+    horizontal=world.width()*zoom_>width()-(vertical ? thickness : 0);
+    vertical=world.height()*zoom_>height()-(horizontal ? thickness : 0);
+    const int visibleWidth=width()-(vertical ? thickness : 0),visibleHeight=height()-(horizontal ? thickness : 0);
+    horizontalScroll_->setGeometry(0,height()-thickness,visibleWidth,thickness);
+    verticalScroll_->setGeometry(width()-thickness,0,thickness,visibleHeight);
+    horizontalScroll_->setVisible(horizontal);verticalScroll_->setVisible(vertical);
+    auto origin=viewportPoint(world.topLeft());
+    if(!dragging_ && !panning_ && !navigating_) {
+        // A clamped thumb must describe the actual camera; an already-maximal value emits no change signal.
+        // Defer correction during gestures so growing bounds never move the canvas under the pointer.
+        if(horizontal)pan_.rx()+=std::clamp(origin.x(),visibleWidth-world.width()*zoom_,0.0)-origin.x();
+        if(vertical)pan_.ry()+=std::clamp(origin.y(),visibleHeight-world.height()*zoom_,0.0)-origin.y();
+        origin=viewportPoint(world.topLeft());
+    }
+    const auto sync=[](QScrollBar* bar,double extent,int visible,double origin) {
+        // Bound the integer scrollbar range even for very large legacy coordinates; preserve double world positions.
+        const double unit=std::max(1.0,extent/1000000.0);
+        const QSignalBlocker block(bar);
+        bar->setRange(0,int(std::clamp(std::ceil((extent-visible)/unit),0.0,1000000.0)));
+        bar->setPageStep(std::max(1,int(std::ceil(visible/unit))));
+        bar->setValue(int(std::clamp(std::round(-origin/unit),0.0,double(bar->maximum()))));
+        return unit;
+    };
+    scrollUnits_={sync(horizontalScroll_,world.width()*zoom_,visibleWidth,origin.x()),
+                  sync(verticalScroll_,world.height()*zoom_,visibleHeight,origin.y())};
+    fullscreen_->move(width()-48-(vertical ? thickness : 0),10);
+}
+QRectF LightingCanvas::minimapRect() const {
+    return QRectF(width()-190-(verticalScroll_->isHidden() ? 0 : verticalScroll_->width()),
+                  height()-124-(horizontalScroll_->isHidden() ? 0 : horizontalScroll_->height()),176,110);
+}
+void LightingCanvas::paintMinimap(QPainter& painter)
+{
+    if(previewOnly_)return;
+    painter.save();painter.resetTransform();painter.setClipping(false);
+    const auto box=minimapRect();const auto world=navigationBounds();
+    painter.fillRect(box,QColor("#10151f"));
+    const auto map=[&](QPointF point){return box.topLeft()+QPointF((point.x()-world.left())/world.width()*box.width(),(point.y()-world.top())/world.height()*box.height());};
+    const auto image=context_==Context::Layout ? box : QRectF(map(QPointF()),map(QPointF(640,400)));
+    painter.drawImage(image,rendered_);painter.setPen(QColor("#e6f1ff"));
+    if(context_==Context::Layout)for(const auto& placement:previewPlacements())for(const auto& point:componentPoints(placement))painter.drawEllipse(map(point),2,2);
+    const auto viewport=QRectF(map(canvasPoint(QPointF())),map(canvasPoint(QPointF(width(),height())))).intersected(box);
+    painter.setBrush(Qt::NoBrush);painter.setPen(QPen(QColor("#93bfff"),2));painter.drawRect(viewport);
+    painter.setPen(QColor("#596981"));painter.drawRect(box);painter.restore();
+}
+void LightingCanvas::navigateMinimap(QPointF position)
+{
+    const auto box=minimapRect(),world=navigationBounds();
+    const QPointF target(world.left()+std::clamp((position.x()-box.left())/box.width(),0.0,1.0)*world.width(),
+                         world.top()+std::clamp((position.y()-box.top())/box.height(),0.0,1.0)*world.height());
+    autoFit_=false;pan_+=QPointF(width()/2.0,height()/2.0)-viewportPoint(target);update();
 }
 
 QRectF LightingCanvas::selectionBounds() const
@@ -430,6 +537,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
     setFocus();
     if (event->button() == Qt::MiddleButton) { cancelGesture(); autoFit_=false; panning_ = true; last_ = event->position(); return; }
     if (event->button() != Qt::LeftButton) return;
+    if(minimapRect().contains(event->position())){cancelGesture();navigating_=true;navigateMinimap(event->position());return;}
     start_ = last_ = canvasPoint(event->position());
     if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) return;
     if(context_==Context::Effects && drawingTool_!=Tool::Move) {
@@ -479,7 +587,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
     } else if (!maskTarget_) {
         emit effectGestureStarted();
         for (const auto& layer : document_.state().layers) if (layer.id==selected_ && layer.effect!=EffectKind::StaticColor) {
-            const auto transform=effectTransform(layer);
+            const auto transform=effectTransform(layer,seconds_);
             const QRectF bounds(-0.5,-0.5,1,1);
             if (cropTool_ && (layer.effect!=EffectKind::Image || layer.image.isNull())) return;
             int handle=0;
@@ -505,6 +613,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
 
 void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
 {
+    if(navigating_){navigateMinimap(event->position());return;}
     if (panning_) { pan_ += event->position() - last_; last_ = event->position(); update(); return; }
     if (!dragging_) { if(maskTarget_) update(); return; }
     const auto point = canvasPoint(event->position());
@@ -538,7 +647,7 @@ void LightingCanvas::updateEffectGesture(QPointF point)
 {
     if (!originalEffect_) return;
     const auto& original=*originalEffect_; auto changed=original;
-    const auto transform=effectTransform(original);
+    const auto transform=effectTransform(original,seconds_);
     if((handle_==7 || handle_==8) && original.gradientFill) {
         const auto local=transform.inverted().map(point)+QPointF(.5,.5);
         if(handle_==7) changed.gradientStart=local; else changed.gradientEnd=local;
@@ -568,7 +677,8 @@ void LightingCanvas::updateEffectGesture(QPointF point)
         changed.center.setX(std::clamp(changed.center.x(),-10000.0,10000.0));
         changed.center.setY(std::clamp(changed.center.y(),-10000.0,10000.0));
     } else if (handle_==5) {
-        const auto first=start_-original.center, last=point-original.center;
+        const auto center=transform.map(QPointF());
+        const auto first=start_-center, last=point-center;
         changed.rotation=std::remainder(original.rotation+(std::atan2(last.y(),last.x())-std::atan2(first.y(),first.x()))*180/3.141592653589793,360.0);
     } else {
         const auto local=transform.inverted().map(point);
@@ -582,7 +692,8 @@ void LightingCanvas::updateEffectGesture(QPointF point)
 void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
 {
     if(previewOnly_) return;
-    if (event->button() == Qt::MiddleButton) { panning_ = false; return; }
+    if(navigating_ && event->button()==Qt::LeftButton){navigating_=false;update();return;}
+    if (event->button() == Qt::MiddleButton) { panning_ = false; update(); return; }
     if (event->button() != Qt::LeftButton || !dragging_) return;
     const auto id = selected_;
     try {
@@ -624,7 +735,8 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
 
 void LightingCanvas::zoomBy(double factor)
 {
-    autoFit_=false; cancelGesture(); zoom_=std::clamp(zoom_*factor,.1,4.0); update();
+    if(!std::isfinite(factor) || factor<=0)return; // Reject invalid factors before they poison view/scroll coordinates.
+    autoFit_=false; cancelGesture(); zoom_=std::clamp(zoom_*factor,.001,4.0); update();
 }
 
 void LightingCanvas::wheelEvent(QWheelEvent* event)
@@ -633,14 +745,18 @@ void LightingCanvas::wheelEvent(QWheelEvent* event)
     autoFit_=false;
     cancelGesture();
     const auto before = canvasPoint(event->position());
-    zoom_ = std::clamp(zoom_ * std::pow(1.15, event->angleDelta().y() / 120.0), 0.25, 4.0);
+    zoom_ = std::clamp(zoom_ * std::pow(1.15, event->angleDelta().y() / 120.0), 0.001, 4.0);
     pan_ += event->position() - (before * zoom_ + offset());
     update();
 }
 
 void LightingCanvas::keyPressEvent(QKeyEvent* event)
 {
-    if (event->key() == Qt::Key_Escape) { cancelGesture(); emit gestureEnded(); return; }
+    if (event->key() == Qt::Key_Escape) {
+        // Canvas focus consumes Escape; allow returning from fullscreen once no edit needs cancelling.
+        if(!dragging_ && !panning_ && !navigating_ && window()->objectName()=="canvasFullscreen") {emit fullscreenRequested();return;}
+        cancelGesture(); emit gestureEnded(); return;
+    }
     if (context_ == Context::Layout && !selected_.isNull()) {
         QPointF delta;
         if (event->key() == Qt::Key_Left) delta.setX(-1);

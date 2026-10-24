@@ -1,5 +1,6 @@
 #include "HardwareOutput.h"
 #include "hid/HidApiDevice.h"
+#include "backends/AuxiliaryHardware.h"
 #include <stdexcept>
 
 namespace {
@@ -20,7 +21,7 @@ private:
 };
 bool sameEndpoint(const DeviceIdentity& a,const DeviceIdentity& b)
 {
-    return a.path==b.path && a.vendorId==b.vendorId && a.productId==b.productId &&
+    return a.transport==b.transport && a.path==b.path && a.vendorId==b.vendorId && a.productId==b.productId &&
         a.usagePage==b.usagePage && a.usage==b.usage && a.interfaceNumber==b.interfaceNumber;
 }
 class PairedTransport final : public IHidDevice {
@@ -52,7 +53,8 @@ bool present(const OutputProof& proof)
         try { if(!sameEndpoint(vulcanControlIdentity(proof.identity,devices),proof.controlIdentity)) return false; }
         catch(const std::exception&) { return false; }
     }
-    const auto candidates=findProfileCandidates(devices,readBoardIdentity(),{proof.profile});
+    auto candidates=findProfileCandidates(devices,readBoardIdentity(),{proof.profile});
+    candidates+=scanAuxiliaryHardware({proof.profile});
     for(const auto& candidate:candidates) if(sameEndpoint(candidate.device,proof.identity)) return true;
     return false;
 }
@@ -74,7 +76,8 @@ QVector<OutputConnection> authorizeHardwareOutput(QWidget* parent,const QVector<
 {
     Q_UNUSED(parent);
     const auto devices=HidApiDevice::enumerate();
-    const auto candidates=findProfileCandidates(devices,readBoardIdentity(),profiles);
+    auto candidates=findProfileCandidates(devices,readBoardIdentity(),profiles);
+    candidates+=scanAuxiliaryHardware(profiles);
     ModuleRegistry modules; loadModules(modules,moduleDirectory);
     QVector<OutputProof> proofs;
     for(const auto& frame:frames) {
@@ -96,7 +99,8 @@ QVector<OutputConnection> authorizeHardwareOutput(QWidget* parent,const QVector<
             if(previewOutputReports(modules,proof)!=proof.reports) throw std::runtime_error("Driver reports changed during connection preparation");
             if(!present(proof)) throw std::runtime_error("Configured endpoint disappeared or changed identity");
             std::unique_ptr<IHidDevice> transport;
-            if(!proof.controlIdentity.path.isEmpty()) {
+            if(proof.identity.transport!="hid") transport=openAuxiliaryTransport(proof.identity);
+            else if(!proof.controlIdentity.path.isEmpty()) {
                 auto pair=std::make_unique<PairedTransport>();
                 if(!pair->control.openPath(proof.controlIdentity.path.toUtf8().toStdString()) || !pair->leds.openPath(proof.identity.path.toUtf8().toStdString()))
                     throw std::runtime_error("Opening configured Vulcan interfaces failed");

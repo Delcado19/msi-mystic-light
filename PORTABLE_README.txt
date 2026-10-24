@@ -7,7 +7,7 @@ Do not copy only the EXE. Microsoft Visual C++ x64 runtime must be installed.
 Canvas output starts automatically for configured, detected hardware. Layout opens with automatic header discovery. Attach fans/strips to a
 header using Hardware, then arrange its group or individual components.
 New layer is a blank paint layer. Standard drawing tools are on the left;
-Shapes and Particles have toolbar menus; Other effects contains gradients and patterns. Gradients use draggable stops and RGB sliders.
+Shapes and Particles have toolbar menus; gradients use the gradient tool. Gradients use draggable stops and RGB sliders.
 Gradient arrows have draggable endpoints. Layout has a live effect background,
 group frames and resize/rotation handles. Effects includes a live hardware preview.
 Roccat Vulcan/Kone, Razer Basilisk V3 and Apex 3 are detected by the peripheral
@@ -43,5 +43,18 @@ offers Line/Circle/Ellipse/Rectangle; drag individual LEDs to refine. Only that
 device changes; physical LED count and wire order remain intact. Undo is supported.
 
 Layout sends live colors while components are dragged. Click a component to select
-it individually, or drag a group label to move its chain. Hardware lists all
-supported outputs under each controller; the toolbar output text is status only.
+it individually, or drag a group label to move its chain. Hardware has a flat
+Endpoint / Profile / State list, alongside the header/component inventory; Canvas Start/Stop controls animation playback.
+
+Restored output paths: IOShield Canvas as a shared color zone and RTX 5080 AERO OC
+through NVAPI. RAM uses the separately installed official PawnIO 2.x runtime
+(https://pawnio.eu). The signed AMD module is included under third_party/pawnio.
+After installation, run Lighting Studio as administrator and use Hardware > Refresh. Supported: AMD 1022:790b primary bus,
+ENE AUDA0-E6K5-0101, eight LEDs at 0x71/0x73. No OpenRGB/helper process is needed.
+--scan skips active RAM probing; GUI discovery reads ENE identity registers.
+The user confirmed physical RAM Canvas output with the diagnostic build.
+
+Canvas controls: Canvas Start/Stop is green when stopped and red while running.
+Use the canvas top-right fullscreen button; Escape returns to the workspace.
+Layout expands with its components. Use scrollbars or the bottom-right minimap to navigate.
+The Effects workspace keeps its separate 640x400 effect raster.

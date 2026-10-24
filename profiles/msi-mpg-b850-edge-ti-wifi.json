@@ -14,7 +14,7 @@
     {"id": "JARGB2", "maxLeds": 120, "direct": true, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 1, "area": 1025}},
     {"id": "JARGB3", "maxLeds": 120, "direct": true, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 2, "area": 1026}},
     {"id": "EZConnector", "maxLeds": 120, "direct": true, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 3, "area": 2048}},
-    {"id": "IOShield", "maxLeds": 11, "fixedLeds": 11, "direct": false, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 4}},
+    {"id": "IOShield", "maxLeds": 11, "direct": true, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 4, "componentId": "msi.ioshield"}},
     {"id": "JRGB1", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "wave", "steady", "flame", "breathing", "color-ring", "lightning", "recreation", "meteor", "godlike"], "address": {"zone": 9}}
   ]
 }

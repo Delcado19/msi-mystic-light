@@ -112,7 +112,7 @@ void OutputTest::invalidFrames()
     invalid=valid; invalid.channels.append(invalid.channels[0]); reject(invalid);
     invalid=valid; invalid.channels[0].colors.clear(); reject(invalid);
     invalid=valid; invalid.channels[0].colors.resize(121); reject(invalid);
-    invalid=valid; invalid.channels[0].channelId="IOShield"; invalid.channels.resize(1); reject(invalid);
+    invalid=valid; invalid.channels[0].channelId="JRGB1"; invalid.channels.resize(1); reject(invalid);
     invalid=valid; invalid.channels[1].native.id="unknown"; reject(invalid);
     invalid=valid; invalid.channels[1].native.colors.clear(); reject(invalid);
     invalid=valid; invalid.channels[1].native.brightness=6; reject(invalid);

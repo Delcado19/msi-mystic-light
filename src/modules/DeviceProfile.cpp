@@ -37,12 +37,15 @@ DeviceProfile DeviceProfile::fromJson(const QJsonObject& json)
     if (!json.value("match").isObject()) throw std::invalid_argument("Missing match object");
     profile.match = json.value("match").toObject();
     const QSet<QString> matchKeys{"vendorId", "productId", "usagePage", "usage",
-        "interfaceNumber", "boardManufacturer", "boardModel"};
+        "interfaceNumber", "boardManufacturer", "boardModel", "transport", "endpoint"};
     // A misspelled selector must not silently broaden a hardware match.
     for (auto key = profile.match.begin(); key != profile.match.end(); ++key)
         if (!matchKeys.contains(key.key())) throw std::invalid_argument("Unknown match selector");
+    const auto transport=profile.match.value("transport").toString("hid");
+    if(!QStringList{"hid","nvapi","pawnio"}.contains(transport)) throw std::invalid_argument("Unknown profile transport");
     integer(profile.match, "vendorId", 1, 65535);
     integer(profile.match, "productId", 1, 65535);
+    if(transport!="hid") text(profile.match,"endpoint");
     for (const auto& key : {"usagePage", "usage", "interfaceNumber"}) {
         if (profile.match.contains(key))
             integer(profile.match, key, 0, QString(key) == "interfaceNumber" ? 255 : 65535);
@@ -92,6 +95,8 @@ DeviceProfile DeviceProfile::load(const QString& fileName)
 
 bool DeviceProfile::matches(const DeviceIdentity& device) const
 {
+    if(match.value("transport").toString("hid")!=device.transport ||
+        (match.contains("endpoint") && match.value("endpoint").toString()!=device.path)) return false;
     if (match.value("vendorId").toInt() != device.vendorId ||
         match.value("productId").toInt() != device.productId) return false;
     for (const auto& pair : {qMakePair(QString("usagePage"), int(device.usagePage)),

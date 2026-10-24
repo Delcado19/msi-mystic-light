@@ -52,6 +52,20 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
             throw std::invalid_argument("LED position requires two finite coordinates");
         component.positions.append(QPointF(point[0].toDouble(), point[1].toDouble()));
     }
+    if (json.contains("nonPhysicalSlots")) {
+        if (!json.value("nonPhysicalSlots").isArray()) throw std::invalid_argument("Invalid non-physical slots");
+        QSet<int> reserved;
+        for (const auto& value : json.value("nonPhysicalSlots").toArray()) {
+            const int wire = integer(value, 0, count - 1);
+            if (reserved.contains(wire)) throw std::invalid_argument("Duplicate non-physical slot");
+            reserved.insert(wire); component.nonPhysicalSlots.append(wire);
+        }
+        if (component.nonPhysicalSlots.size() == count) throw std::invalid_argument("Component needs a physical LED");
+    } else if (count == 144 && (component.id == "peripheral.vulcan" ||
+               (component.id.startsWith("instance.") && component.name == "Roccat Vulcan 100/120 Aimo"))) {
+        // Older embedded Vulcan definitions predate explicit reserved slots; Esc wire 0 is physical.
+        component.nonPhysicalSlots = {22, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 58, 64, 71, 77, 81, 90, 91, 92, 93, 94, 95, 97, 98, 112, 118, 123, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143};
+    }
     return component;
 }
 
@@ -60,8 +74,13 @@ QJsonObject ComponentDefinition::toJson() const
     QJsonArray points, wires;
     for (const auto& point : positions) points.append(QJsonArray{point.x(), point.y()});
     for (const auto wire : mapping) wires.append(wire);
-    return {{"schemaVersion", 1}, {"id", id}, {"name", name},
+    QJsonObject result{{"schemaVersion", 1}, {"id", id}, {"name", name},
         {"ledCount", positions.size()}, {"positions", points}, {"mapping", wires}};
+    if (!nonPhysicalSlots.isEmpty()) {
+        QJsonArray reserved; for (int wire : nonPhysicalSlots) reserved.append(wire);
+        result.insert("nonPhysicalSlots", reserved);
+    }
+    return result;
 }
 
 ComponentDefinition loadComponentDefinition(const QString& fileName)
