@@ -47,8 +47,8 @@ and gray supports smooth partial transparency. Pixel brushes and mask strokes re
 independent of procedural source parameters.
 
 Preview starts playing automatically and can be paused. Source gestures temporarily
-pause/reset to base time, then resume previous playback after commit/cancel; mask
-editing stays at base time. Preview time never changes the saved document. It does
+pause/reset to base time, then resume previous playback after commit/cancel.
+Entering the mask inspector preserves playback; mask gestures pause only while drawing. Preview time never changes the saved document. It does
 not change hardware assignments. Configured hardware receives the current composition automatically. The effect, motion and mask inspectors expose the
 current task; numeric transforms and additional motion parameters are disclosures.
 Particle motion patterns share Count, Speed and Radius sliders; seed and spatial
@@ -128,9 +128,9 @@ Masks default to canvas coordinates. Link mask to effect makes geometry edits
 move/rotate/scale the mask, and animation follows drift/spin/zoom/warp. Geometry
 edits resample the linked mask; undo restores the prior pixels. Spatial motion
 is evaluated from original stored pixels during preview. For predictable brush
-coordinates, Mask editing pauses/resets time to zero and edits the base mask with
-the selected layer's warp/link projection suspended in that view. Leaving mask
-editing restores the normal linked projection. No mask data is discarded.
+coordinates, mask strokes edit stored mask pixels while gestures temporarily pause
+at base time. Between gestures the live composition retains normal linked projection
+and animation. No mask data is discarded.
 
 ## Effects and direct tools
 
@@ -687,8 +687,8 @@ selections and key autorepeat do not remove additional objects. The same canvas
 handler works in fullscreen. Component definitions remain in the catalog.
 
 Erasing procedural layers edits their mask, preserving editable geometry. Entering
-the mask tab pauses once for editing, but Canvas Start remains available; property
-refreshes never disable or repeatedly stop it. A drawing gesture pauses playback,
+the mask tab preserves playback and selects Pencil; Canvas Start remains available,
+and property refreshes never disable or repeatedly stop it. A drawing gesture pauses playback,
 then resumes it only if it was running before the gesture, including mask gestures.
 Empty/no-op gestures also finish the playback pause. Undo/redo does not require
 creating a new shape to re-enable playback.
@@ -708,5 +708,109 @@ covers inventory/property scroll areas and scroll-area corners.
 Effects has no fullscreen action. Its canvas and live hardware preview use a
 highlighted 18px divider with a two-headed up/down arrow at the right edge, a
 vertical resize cursor and a tooltip. Drag the line or arrow to redistribute the
-space. Neither pane collapses when dragged to an extreme; tools/layers stay in
-place. Layout keeps its existing fullscreen behavior.
+space. Drag to either extreme to collapse one preview; drag the visible divider
+back to restore it. Tools/layers stay in place. Layout keeps its existing fullscreen behavior.
+
+Save As uses a floppy disk with a pencil, distinct from the plain Save icon. Its
+tooltip names the action and Ctrl+Shift+S shortcut.
+
+### Shared effect and hardware canvas extent
+
+The hardware layout bounds determine the displayed extent and aspect ratio in
+both Effects and Live Hardware. Moving components beyond any edge, returning them
+inside the base area, and undo/redo update both views. Each pane fits independently
+because its available screen area differs. Stored layers, brush coordinates and
+masks retain their canonical 640 x 400 raster; the Effects view applies the same
+world projection used by hardware sampling, including inverse pointer mapping.
+Scrollbars and wheel anchoring use that projection too. This is a display change,
+not a project migration or a change to component definitions or output packets.
+
+### Mask playback, navigation and cosmetic hardware variants
+
+Entering Mask preserves playback and selects Pencil, so the circle cursor paints
+coverage immediately. Black hides, white reveals; Stroke controls brush diameter.
+The composite keeps its animated time while inspecting masks. Drawing gestures
+still pause temporarily for stable editing and resume the previous playback state.
+The minimap reserves both scrollbar gutters to retain its position when a second
+bar appears. It remains hidden when navigation is unnecessary.
+
+Hardware display names omit Black/White housing color. The picker merges entries
+only when the normalized model, LED geometry, mapping and other metadata match.
+Saved component IDs, geometry and mappings are unchanged. The picker reads validated
+geometry from the latest locally installed SignalRGB Components directory; this is
+not a bundled SignalRGB driver or comprehensive device support. On the development
+machine, the filtered picker exposes 197 imported definitions after deduplication.
+
+### Detailed hardware artwork
+
+Hardware selection, Layout, Live Hardware and the individual LED editor share
+embedded technical SVG drawings. Fans use the approved Delapouite rotor with an
+added square housing; other categories have original fine-line technical artwork.
+Layout artwork follows component scale and rotation; reserved/nonphysical slots
+do not enlarge the housing. This presentation does not change LED sampling,
+physical indices, custom positions, component definitions or project schemas.
+The LED editor retains draggable circles and centered wire numbers above the
+non-interactive artwork. Pickers retain each category's intended icon proportions.
+
+Credits are available under Help > Artwork credits and in THIRD_PARTY_NOTICES.md.
+The fan source, pinned revision/hash and adaptation notes are in assets/hardware.
+Qt SVG renders the compiled local resources; no runtime network or icon font is
+required. Portable deployments include Qt6Svg.dll and the artwork license notice.
+
+### Artwork alignment and custom device geometry
+
+Artwork classification is separate from hardware identity. A fan-named custom
+instance whose three or more physical LEDs are collinear is drawn as a straight
+strip, without changing its model, mapping or coordinates. Coincident points are
+not sufficient to infer a strip. Legacy mouse geometry with a baked quarter-turn
+gets the corresponding contour orientation before its placement transform.
+
+Per-key keyboards draw their real LED/key positions instead of a second generic
+key grid. Zone keyboards have a full-height chassis, a physical key-layout drawing
+and separate zone markers. The keyboard vector is based on the shipped Vulcan ISO
+geometry; it is a schematic, not an exact Apex product image. Key markers rotate
+with their component. Artwork, hit areas, selection handles, dashed group outlines
+and navigation include the same housing bounds. Group frames and full selected
+component labels are painted after housings; component labels sit below the body
+so they cannot overwrite the header label.
+
+Single-zone graphics cards retain a recognizable card-sized visual housing; the
+logo address stays at its original sampling point. A saved nonzero placement
+rotation applies equally to chassis and keys. Use the existing Rotation field
+to set 0 degrees when a keyboard should align with the canvas grid.
+
+### Model labels, fullsize keyboards and zero-angle defaults
+
+Fullsize keyboards now share the same registered Vulcan-derived SVG. Per-key
+colored markers follow its key geometry; zone keyboards retain their real zone
+markers rather than pretending to expose individual key control. The same source
+is used regardless of per-key or zonal lighting.
+
+Every Layout component has exactly one model label at the lower left, including
+when unselected. AIMO casing is normalized. Instance numbers appear only when
+multiple placements have the same normalized manufacturer/model name, even if
+custom geometry gives them different definition IDs. Numbers are stable in layout
+placement order and are not chain positions or LED addresses. The list, properties
+and canvas use the same model-name function. Controller header captions remain
+for real component chains; dedicated peripherals do not have a duplicate caption.
+Dedicated detected devices appear directly in the device tree, while their exact
+output endpoint/profile assignments remain intact.
+
+New placements already default to zero rotation. The field is now named Rotation.
+Saved angles are retained unless explicitly edited. An explicitly requested change
+to the user's Basilisk layout was handled separately with a private backup: its
+existing rotation was absorbed into its local LED geometry, leaving world sampling
+positions unchanged and exposing Rotation=0 with the wheel pointing upward. This
+is not an automatic load migration and does not reset later user edits.
+
+### Fixed-device settings versus attachable headers
+
+Profiles whose channel address specifies componentId describe a built-in device
+or lighting zone. Their settings dialog is titled Device settings and offers no
+Append/Remove/Up/Down controls, instance picker or drag-reorder list. Device output
+mode and playback-clock settings remain editable. Accepting preserves the exact
+original component assignment even if hidden widgets have been changed.
+The same rule is enforced by assignment validation: fixed-device channels cannot
+contain more than one component, even when several smaller strips would satisfy
+the total LED count. Empty native-mode assignments retain their existing support.
+Attachable motherboard/controller headers retain full component-chain editing.

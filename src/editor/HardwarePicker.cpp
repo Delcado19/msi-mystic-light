@@ -1,5 +1,6 @@
 #include "HardwarePicker.h"
 #include "HardwareIdentity.h"
+#include "HardwareArtwork.h"
 #include <QComboBox>
 #include <QCryptographicHash>
 #include <QDialogButtonBox>
@@ -14,6 +15,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QSet>
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <QVersionNumber>
@@ -34,13 +36,15 @@ ComponentDefinition generic(const QString& id,const QString& name,int count,bool
 bool isFan(const ComponentDefinition& c) { return hardwareCategory(c)=="Fans"; }
 QIcon productIcon(const ComponentDefinition& c)
 {
-    QPixmap pixmap(96,76); pixmap.fill(Qt::transparent); QPainter p(&pixmap); p.setRenderHint(QPainter::Antialiasing);
-    p.setPen(QPen(QColor("#788498"),2)); p.setBrush(QColor("#252c38"));
-    if(isFan(c)) { p.drawRoundedRect(QRectF(16,6,64,64),8,8); p.drawEllipse(QRectF(22,12,52,52)); p.setBrush(QColor("#52657c")); p.drawEllipse(QPointF(48,38),10,10); }
-    else { p.drawRoundedRect(QRectF(8,25,80,22),5,5); }
-    p.setPen(Qt::NoPen);
-    for(int i=0;i<8;++i) { p.setBrush(QColor::fromHsv(i*40,150,240)); p.drawEllipse(isFan(c) ? QPointF(48+25*std::cos(i*.7854),38+25*std::sin(i*.7854)) : QPointF(14+i*9.5,36),3,3); }
-    return QIcon(pixmap);
+    QPixmap pixmap(112,88);pixmap.fill(Qt::transparent);QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const auto category=hardwareArtworkCategory(c);
+    static const QMap<QString,QSizeF> sizes{{"Fans",{72,72}},{"Pumps",{72,72}},
+        {"Strips",{100,14}},{"RAM",{100,30}},{"Graphics cards",{100,46}},
+        {"Keyboards",{100,43}},{"Mice",{44,72}},{"AiO",{100,57}},{"Motherboards",{58,72}}};
+    const auto size=sizes.value(category,{88,66});
+    const QRectF bounds(QPointF((112-size.width())/2,(88-size.height())/2),size);
+    drawHardwareArtwork(painter,category,bounds);return QIcon(pixmap);
 }
 void installedProducts(ComponentCatalog& products)
 {
@@ -118,7 +122,14 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
     auto productIds=products_.keys();
     const auto priority=[](const QString& id) { return id.startsWith("phanteks.") ? 0 : id.startsWith("generic.") ? 3 : id.startsWith("hardware.") ? 2 : 1; };
     std::stable_sort(productIds.begin(),productIds.end(),[&](const QString& a,const QString& b) { return priority(a)<priority(b); });
-    for(const auto& id:productIds) { const auto& c=products_[id]; auto* item=new QListWidgetItem(productIcon(c),hardwareName(c),productsList_); item->setData(Qt::UserRole,c.id); item->setToolTip(QString("%1 / %2 addressable LEDs").arg(c.name).arg(c.positions.size())); }
+    QSet<QByteArray> models;
+    for(const auto& id:productIds) { const auto& c=products_[id];
+        auto identity=c.toJson();identity.remove("id");identity.insert("name",hardwareName(c).toCaseFolded());
+        const auto key=QJsonDocument(identity).toJson(QJsonDocument::Compact);
+        // Merge cosmetic variants only when LED geometry and wire mapping also match; saved IDs remain valid.
+        if(models.contains(key)) continue;
+        models.insert(key);
+        auto* item=new QListWidgetItem(productIcon(c),hardwareName(c),productsList_); item->setData(Qt::UserRole,c.id); item->setToolTip(QString("%1 / %2 addressable LEDs").arg(c.name).arg(c.positions.size())); }
     auto* details=new QLabel; details->setWordWrap(true); details->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); details->setMinimumHeight(details->fontMetrics().lineSpacing()*2); root->addWidget(details);
     auto* form=new QFormLayout; root->addLayout(form);
     quantity_=new QSpinBox; quantity_->setObjectName("hardwareQuantity"); quantity_->setRange(1,64); form->addRow("Quantity",quantity_);

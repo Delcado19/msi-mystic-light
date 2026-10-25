@@ -60,9 +60,12 @@ protected:
     void hideEvent(QHideEvent*) override;
 private:
     bool selectedPlacement(const QUuid& id) const;
+    bool visibleChain(const ChannelAssignment& assignment) const;
     QRectF groupBounds(const ChannelAssignment& assignment) const;
     QRectF groupLabel(const ChannelAssignment& assignment) const;
     QRectF selectionBounds() const;
+    QRectF componentBounds(const ComponentPlacement& placement) const;
+    QRectF componentLabel(const ComponentPlacement& placement) const;
     ComponentPlacement previewPlacement(ComponentPlacement placement) const;
     void cancelGesture();
     void beginDrawing(QPointF point);
@@ -70,6 +73,7 @@ private:
     QPointF paintPoint(QPointF point) const;
     void updateEffectGesture(QPointF point);
     QPointF offset() const;
+    QSizeF displayScale() const;
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
     LightingDocument& document_;
     Context context_;

@@ -45,3 +45,22 @@ LGPL-2.1-or-later. Its corresponding source archive and license are included
 under third_party/pawnio and third_party/licenses. See third_party/pawnio/README.md.
 The official installed PawnIO binaries have separate upstream distribution terms;
 this app neither redistributes nor silently installs them.
+
+## Hardware artwork
+
+Fan artwork: "Computer fan" by Delapouite (https://delapouite.com),
+https://game-icons.net/1x1/delapouite/computer-fan.html, licensed CC BY 3.0:
+https://creativecommons.org/licenses/by/3.0/ . Original SVG from game-icons/icons
+revision 82d948812bfe3f269ef8f731dcdb07b08160edc4, preserved as
+assets/hardware/fan-source.svg. Changes in fan.svg: remove opaque background,
+add a square housing and use muted colors. No endorsement is implied.
+Source URL and SHA256 are recorded in assets/hardware/sources.json.
+Artwork credits are also available in the application's Help menu.
+Other technical hardware SVGs are original Lighting Studio drawings under
+GPL-2.0-or-later. All runtime SVGs are compiled into the application; no remote
+images are fetched. Qt SVG is dynamically linked under the same LGPL-3.0 terms
+as the other Qt runtime libraries and is replaceable as Qt6Svg.dll.
+
+Keyboard schematic key positions follow the shipped Vulcan ISO component geometry,
+whose OpenRGB-derived mapping provenance is described above. Fullsize models share this registered SVG; per-key colored markers continue to
+use the saved LED positions, while zone devices retain their real zone markers.

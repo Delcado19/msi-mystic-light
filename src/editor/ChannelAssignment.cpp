@@ -15,6 +15,10 @@ const ChannelProfile& assignmentChannel(const DeviceProfile& profile, const QStr
     for (const auto& channel : profile.channels) if (channel.id == id) return channel;
     throw std::invalid_argument("Unknown channel for device profile");
 }
+bool channelHasFixedComponent(const ChannelProfile& channel)
+{
+    return !channel.address.value("componentId").toString().isEmpty();
+}
 void validateChannelAssignments(const LightingState& state, const QVector<DeviceProfile>& profiles)
 {
     if (state.assignments.size() > 256) throw std::invalid_argument("Limit: 256 channel assignments");
@@ -34,8 +38,10 @@ void validateChannelAssignments(const LightingState& state, const QVector<Device
             throw std::invalid_argument("Duplicate endpoint/channel assignment");
         endpointChannels[assignment.endpoint].insert(assignment.channelId);
         const auto& channel = assignmentChannel(assignmentProfile(profiles, assignment.profileId), assignment.channelId);
+        if (channelHasFixedComponent(channel) && assignment.placements.size()>1)
+            throw std::invalid_argument("A standalone device cannot contain a component chain");
         if (assignment.software && (!channel.direct || assignment.placements.isEmpty()))
-            throw std::invalid_argument("Software output requires a direct-capable channel and a component chain");
+            throw std::invalid_argument("Software output requires a direct-capable channel and an assigned component");
         if (!assignment.software && !channel.nativeModes.contains(assignment.native.id))
             throw std::invalid_argument("Unsupported native mode for this channel");
         if (assignment.native.colors.isEmpty() || assignment.native.colors.size() > 4 ||

@@ -86,7 +86,8 @@ Autosave/recovery, last-project/window restoration and a tray menu are implement
 Hardware regression tests do not establish physical color calibration; the user has confirmed RAM Canvas output.
 
 Build from an x64 Visual Studio developer prompt with CMake, Ninja, and a
-shared Qt6 installation available (adjust the Qt path for your machine).
+shared Qt6 installation available, including the Qt SVG module (adjust the Qt path
+for your machine).
 Windows builds require matching Release and Debug WebP image plugins. If Qt
 ImageFormats is installed with the SDK, skip the build-webp command below.
 Otherwise the script downloads the pinned, unmodified Qt ImageFormats 6.8.3
@@ -228,3 +229,11 @@ Canvas navigation uses protected header margins, overflow-only scrollbars/minima
 and edge scrolling while dragging Layout hardware. Hardware selection includes
 manufacturer/category filters. Open/Save/Save as display the active project filename.
 See [editor navigation and identity](docs/LIGHTING_EDITOR.md#workspace-navigation-and-catalog-identity).
+
+Local development builds use a stable portable path,
+`build/dist/LightingStudio/msi_mystic_light.exe`, launched by `Start-Lighting.cmd`.
+The current development archive is `build/dist/MSI-Mystic-Light-current-windows-x64.zip`;
+it is separate from the published versioned release archive. Build logs are grouped
+under `build/logs`; retained diagnostics and archived transient helpers are under
+`build/research`. The active build trees remain `build/next` (Release) and
+`build/multi` (Debug).

@@ -139,6 +139,13 @@ QIcon studioToolIcon(const QString& name)
     }
     else if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }
     else if(name=="save") { painter.drawRect(4,3,16,18); painter.drawRect(7,3,10,6); painter.drawRect(7,14,10,7); }
+    else if(name=="save-as") {
+        painter.drawRect(3,3,14,18); painter.drawRect(6,3,8,6); painter.drawRect(6,14,5,7);
+        // A pencil distinguishes Save As from the adjacent plain floppy disk.
+        painter.setBrush(QColor("#24262d")); QPolygonF pencil;
+        pencil<<QPointF(11,20)<<QPointF(12,16)<<QPointF(20,8)<<QPointF(23,11)<<QPointF(15,19);
+        painter.drawPolygon(pencil); painter.drawLine(18,10,21,13);
+    }
     else if(name=="undo" || name=="redo") { if(name=="redo") { painter.translate(24,0); painter.scale(-1,1); } QPainterPath arrow; arrow.moveTo(4,9); arrow.lineTo(13,9); arrow.cubicTo(23,9,23,20,13,20); painter.drawPath(arrow); painter.drawLine(4,9,9,4); painter.drawLine(4,9,9,14); }
     else if(name=="move") {
         painter.drawLine(12,3,12,21); painter.drawLine(3,12,21,12);

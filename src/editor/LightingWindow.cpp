@@ -87,7 +87,7 @@ protected:
 };
 class PreviewSplitter final : public QSplitter {
 public:
-    PreviewSplitter():QSplitter(Qt::Vertical) {setHandleWidth(18);setChildrenCollapsible(false);}
+    PreviewSplitter():QSplitter(Qt::Vertical) {setHandleWidth(18);setChildrenCollapsible(true);}
 protected:
     QSplitterHandle* createHandle() override {return new PreviewDivider(this);}
 };
@@ -182,6 +182,16 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         const auto previous = fileName_; fileName_.clear();
         if (!saveDocument()) { fileName_ = previous; refreshProjectName(); }
     });
+    auto* help=menuBar()->addMenu("Help");
+    auto* artworkCredits=help->addAction("Artwork credits");artworkCredits->setObjectName("artworkCredits");
+    connect(artworkCredits,&QAction::triggered,this,[this] {
+        QMessageBox::about(this,"Artwork credits",
+            "<p>Fan artwork adapted from <b>Computer fan</b> by Delapouite, "
+            "<a href=\"https://game-icons.net/1x1/delapouite/computer-fan.html\">game-icons.net</a>, "
+            "<a href=\"https://creativecommons.org/licenses/by/3.0/\">CC BY 3.0</a>.</p>"
+            "<p>Changes: square housing, muted colors, transparent background. "
+            "Other technical hardware drawings: Lighting Studio contributors, GPL-2.0-or-later.</p>");
+    });
     auto* editMenu = menuBar()->addMenu("Edit");
     auto* undo = document_.history()->createUndoAction(this, "Undo");
     undo->setShortcut(QKeySequence::Undo);
@@ -194,7 +204,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     open->setIcon(studioToolIcon("open")); save->setIcon(studioToolIcon("save"));
     undo->setIcon(studioToolIcon("undo")); redo->setIcon(studioToolIcon("redo"));
     toolbar->addAction(open); toolbar->addAction(save);
-    saveAs->setText("Save as…"); toolbar->addAction(saveAs);
+    saveAs->setIcon(studioToolIcon("save-as")); saveAs->setToolTip("Save layout under a new name (Ctrl+Shift+S)"); toolbar->addAction(saveAs);
     auto* projectName=new QLabel("Untitled"); projectName->setObjectName("currentProjectName"); projectName->setMinimumWidth(80); projectName->setMaximumWidth(210); toolbar->addWidget(projectName);
     toolbar->addSeparator();
     // Keep dynamic undo descriptions in the menu, not in a toolbar that steals canvas width.
@@ -382,7 +392,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* placementPrecision=new QWidget; auto* placementForm = new QFormLayout(placementPrecision);
     auto* placementSection=disclosure(layoutControls,"Position, size and rotation",placementPrecision); placementSection->setObjectName("placementSection");
     placementSection->findChild<QToolButton*>()->setChecked(true);
-    const QStringList placementLabels{"Position X", "Position Y", "Scale X %", "Scale Y %", "Rotation deg"};
+    const QStringList placementLabels{"Position X", "Position Y", "Scale X %", "Scale Y %", "Rotation"};
     for (int i = 0; i < placementLabels.size(); ++i) {
         auto* control = new QDoubleSpinBox;
         control->setObjectName(QString("placement%1").arg(i));
@@ -513,7 +523,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* maskProperties=new QWidget; auto* maskControls=new QVBoxLayout(maskProperties); maskControls->setContentsMargins(0,12,0,0); maskControls->setSpacing(10);
     inspectorTabs_->addTab(appearance,"Effect"); inspectorTabs_->addTab(motion,"Motion"); inspectorTabs_->addTab(maskProperties,"Mask");
     connect(inspectorTabs_,&QTabWidget::currentChanged,this,[this](int page) {
-        if(page==2) { playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0); }
+        if(page==2) {
+            // Enter with a working brush rather than inheriting Fill/Move from source editing.
+            effectsCanvas_->setTool(LightingCanvas::Tool::Pencil);
+            findChild<QPushButton*>("pencilTool")->setChecked(true);
+        }
         editingMask_=page==2; if(page!=2) { effectsCanvas_->setCropTool(false); findChild<QCheckBox*>("cropTool")->setChecked(false); }
         refreshProperties();
     });
@@ -877,6 +891,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardness = spin("Hardness %", 0, 100, 30);
     auto* brushOpacity = spin("Brush opacity %", 0, 100, 100);
     auto* gray = spin("Mask gray", 0, 255, 0);
+    auto* maskHint=new QLabel("Paint on the canvas: black hides the layer, white reveals it. Increase Stroke for a wider brush.");
+    maskHint->setWordWrap(true); maskControls->addWidget(maskHint);
     gray->setToolTip("0 hides; 255 reveals; intermediate values create partial transparency.");
     const auto syncBrush=[this,size,hardness,brushOpacity,gray] {
         effectsCanvas_->setBrush(size->value()/2.0,hardness->value()/100.0,brushOpacity->value()/100.0,gray->value());
@@ -1008,12 +1024,13 @@ void LightingWindow::refreshHeader()
     const auto assignment=selectedHeaderAssignment();
     const auto& profile=assignmentProfile(document_.profiles(),assignment.profileId);
     const auto& channel=assignmentChannel(profile,assignment.channelId);
-    findChild<QPushButton*>("addHeaderComponents")->setEnabled(profile.driverId!="lighting.peripherals" && profile.driverId!="lighting.auxiliary" && channel.id!="IOShield");
+    findChild<QPushButton*>("headerSettings")->setText(channelHasFixedComponent(channel) ? "Device settings" : "Header settings");
+    findChild<QPushButton*>("addHeaderComponents")->setEnabled(profile.driverId!="lighting.peripherals" && profile.driverId!="lighting.auxiliary" && !channelHasFixedComponent(channel));
     int leds=0;
     for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements)
         if(placement.id==id) leds+=document_.catalog()[placement.componentId].positions.size();
     for(const auto& placement:document_.state().placements) if(placement.id==layoutCanvas_->selection()) {
-        const auto& component=document_.catalog()[placement.componentId]; headerTitle_->setText(hardwareName(component));
+        const auto& component=document_.catalog()[placement.componentId]; headerTitle_->setText(document_.componentName(placement));
         headerSummary_->setText(QString("%1 / %2 LEDs\nDrag this component on the layout canvas.").arg(assignment.channelId).arg(component.positions.size())); return;
     }
     headerTitle_->setText(assignment.channelId);
@@ -1029,7 +1046,7 @@ void LightingWindow::addHeaderComponents()
         const auto& profile=assignmentProfile(document_.profiles(),data.value("profileId").toString());
         if(profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary") continue; // Dedicated devices are detected, never attached to ARGB headers.
         const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
-        if(channel.id=="IOShield") continue; // Integrated shared-color zone, not an attachable fan header.
+        if(channelHasFixedComponent(channel)) continue; // Integrated output, not an attachable fan header.
         int used=0;
         for(const auto& assignment:document_.state().assignments) if(assignment.profileId==profile.id && assignment.endpoint==data.value("path") && assignment.channelId==channel.id)
             for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements) if(placement.id==id) used+=document_.catalog()[placement.componentId].positions.size();
@@ -1106,7 +1123,9 @@ void LightingWindow::refresh()
                     for(int i=0;i<assignment.placements.size();++i)
                         for(const auto& placement:document_.state().placements) if(placement.id==assignment.placements[i]) {
                             assigned.insert(placement.id);
-                            auto* child=new QTreeWidgetItem(group,{hardwareName(document_.catalog()[placement.componentId],i+1)});
+                            const bool standalone=(profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary") && assignment.placements.size()==1;
+                            auto* child=standalone ? group : new QTreeWidgetItem(group);
+                            child->setText(0,document_.componentName(placement));
                             child->setData(0,Qt::UserRole,placement.id);
                             child->setText(1,hardwareManufacturer(document_.catalog()[placement.componentId]));
                             if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);
@@ -1116,7 +1135,7 @@ void LightingWindow::refresh()
         QTreeWidgetItem* unassigned=nullptr;
         for(const auto& placement:document_.state().placements) if(!assigned.contains(placement.id)) {
             if(!unassigned) { unassigned=new QTreeWidgetItem(components_,{"Unassigned components"}); unassigned->setExpanded(true); }
-            auto* child=new QTreeWidgetItem(unassigned,{hardwareName(document_.catalog()[placement.componentId])});
+            auto* child=new QTreeWidgetItem(unassigned,{document_.componentName(placement)});
             child->setData(0,Qt::UserRole,placement.id);
             child->setText(1,hardwareManufacturer(document_.catalog()[placement.componentId]));
             if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);

@@ -2,6 +2,7 @@
 #include "editor/ComponentEditor.h"
 #include "editor/SnapGrid.h"
 #include "editor/HardwareIdentity.h"
+#include "editor/HardwareArtwork.h"
 #include "editor/ChannelEditor.h"
 #include "editor/AppSession.h"
 #include "editor/StudioWidgets.h"
@@ -117,8 +118,19 @@ private slots:
     void eraserPlayback();
     void layerEyesAndStroke();
     void initialMaskBrushSize();
+    void maskPlaybackAndInventory();
+    void stableMinimapAnchor();
+    void detailedHardwareArtwork();
+    void deviceArtworkAlignment();
+    void singleZoneGpuArtwork();
+    void modelLabelsAndFullsizeKeyboard();
+    void dedicatedDeviceIsNotAChain();
+    void fixedDeviceSettings_data();
+    void fixedDeviceSettings();
+    void fixedDeviceRejectsChain();
     void scrollbarAppearance();
     void effectPreviewDivider();
+    void sharedCanvasExtent();
     void deleteSelections();
     void protectedGroupLabels();
     void effectsOverflowNavigation();
@@ -1612,7 +1624,7 @@ void EditorTest::animationPreview()
     QCOMPARE(window.document().history()->count(), count); QVERIFY(window.document().history()->isClean());
     play->setChecked(true);
     window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(2);
-    QVERIFY(!play->isChecked());
+    QVERIFY(play->isChecked()); // Mask inspection preserves playback under the revised interaction contract.
     window.document().edit("Mask", [](auto& state) { state.layers[0].mask.fill(0); });
     QCOMPARE(window.document().render(0.25).pixelColor(320,200).alpha(), 0);
     window.document().history()->undo();
@@ -1732,8 +1744,10 @@ void EditorTest::canvasScrollbars()
     window.document().edit("Move outside canvas",[](auto& state){state.placements[0].origin={1800,-1200};});
     canvas->repaint();QVERIFY(horizontal->isVisible());QVERIFY(vertical->isVisible());
     horizontal->setValue(horizontal->maximum());vertical->setValue(vertical->maximum());canvas->repaint();
-    // Independent world edge: centers 1800..1840 at -1200, plus 12px margin, union the base rectangle.
-    QVERIFY(qAbs(canvas->viewportPoint({1852,400}).x()-(canvas->width()-16-vertical->width()))<=1.0);
+    // Navigation includes the always-visible full model label as well as the LED world edge.
+    // The body starts at 1790; text needs its measured width and 12px label padding.
+    const double rightEdge=std::max(1852.,1790.+canvas->fontMetrics().horizontalAdvance("Generic Test strip")+12.);
+    QVERIFY(qAbs(canvas->viewportPoint({rightEdge,400}).x()-(canvas->width()-16-vertical->width()))<=1.0);
     QVERIFY2(qAbs(canvas->viewportPoint({1852,400}).y()-(canvas->height()-16-horizontal->height()))<=1.0,
         qPrintable(QString("bottom=%1 viewport=%2 hbar=%3 v=%4/%5 units/world=%6")
         .arg(canvas->viewportPoint({1852,400}).y()).arg(canvas->height()).arg(horizontal->height()).arg(vertical->value()).arg(vertical->maximum()).arg(window.document().layoutBounds().height())));
@@ -2383,7 +2397,269 @@ void EditorTest::effectPreviewDivider()
     QTest::mousePress(handle,Qt::LeftButton,Qt::NoModifier,start);QTest::mouseMove(handle,start+QPoint(0,-60));QTest::mouseRelease(handle,Qt::LeftButton,Qt::NoModifier,start+QPoint(0,-60));
     const auto after=splitter->sizes();QVERIFY(after[0]<before[0]);QVERIFY(after[1]>before[1]);
     QVERIFY(window.findChild<QWidget*>("effectTools")->isVisible());QVERIFY(window.findChild<QWidget*>("drawingOptions")->isVisible());
-    // Extreme drags keep both editor and preview usable instead of collapsing either pane.
-    for(int y:{-10000,10000}) {const auto point=handle->rect().center();QTest::mousePress(handle,Qt::LeftButton,Qt::NoModifier,point);QTest::mouseMove(handle,{point.x(),y});QTest::mouseRelease(handle,Qt::LeftButton,Qt::NoModifier,{point.x(),y});const auto sizes=splitter->sizes();QVERIFY(sizes[0]>=effects->minimumHeight());QVERIFY(sizes[1]>=160);}
+    // Both extremes must collapse one pane, with the divider still available to restore it.
+    for(int y:{-10000,10000}) {
+        const auto point=handle->rect().center();
+        QTest::mousePress(handle,Qt::LeftButton,Qt::NoModifier,point);QTest::mouseMove(handle,{point.x(),y});QTest::mouseRelease(handle,Qt::LeftButton,Qt::NoModifier,{point.x(),y});
+        const auto sizes=splitter->sizes();QCOMPARE(sizes[y<0 ? 0 : 1],0);QVERIFY(sizes[y<0 ? 1 : 0]>0);QVERIFY(handle->isVisible());
+        const auto restore=handle->rect().center();const int delta=y<0 ? 350 : -350;
+        QTest::mousePress(handle,Qt::LeftButton,Qt::NoModifier,restore);QTest::mouseMove(handle,restore+QPoint(0,delta));QTest::mouseRelease(handle,Qt::LeftButton,Qt::NoModifier,restore+QPoint(0,delta));
+        QVERIFY(splitter->sizes()[0]>0);QVERIFY(splitter->sizes()[1]>0);
+    }
+    auto* saveAs=window.findChild<QAction*>("saveProjectAs");QVERIFY(saveAs);QVERIFY(!saveAs->icon().isNull());
+    QVERIFY(saveAs->icon().pixmap(24,24).toImage()!=studioToolIcon("save").pixmap(24,24).toImage());
     splitter->setSizes({500,200});QVERIFY(window.grab().save(artifactDirectory()+"/effects-preview-divider.png"));window.document().history()->setClean();
+}
+
+void EditorTest::sharedCanvasExtent()
+{
+    LightingDocument document(catalog());document.addComponent("test.strip");document.addLayer(EffectKind::LinearGradient);
+    LightingCanvas effects(document,LightingCanvas::Context::Effects),hardware(document,LightingCanvas::Context::Layout);
+    hardware.setPreviewOnly();effects.resize(1000,700);hardware.resize(1000,700);effects.show();hardware.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&effects));QVERIFY(QTest::qWaitForWindowExposed(&hardware));
+    QImage frame(640,400,QImage::Format_ARGB32);
+    for(int y=0;y<400;++y)for(int x=0;x<640;++x)frame.setPixelColor(x,y,QColor(x*255/639,y*255/399,80));
+    // Grow to the right/bottom and left/top, then shrink again. Canonical raster and project data stay intact.
+    for(const auto origin:{QPointF(1200,600),QPointF(-500,-300),QPointF(100,100)}) {
+        document.edit("Move hardware",[&](auto& state){state.placements[0].origin=origin;});
+        effects.fitToView();hardware.fitToView();effects.setPreviewFrame(frame,1);hardware.setPreviewFrame(frame,1);
+        QCoreApplication::processEvents();const auto bounds=document.layoutBounds();
+        const auto top=effects.viewportPoint({0,0}),bottom=effects.viewportPoint({640,400});
+        QVERIFY(std::abs((bottom.x()-top.x())/(bottom.y()-top.y())-bounds.width()/bounds.height())<.00001);
+        const auto effectImage=effects.grab().toImage(),hardwareImage=hardware.grab().toImage();
+        for(const auto fraction:{QPointF(.25,.25),QPointF(.7,.65)}) {
+            const QPointF raster(fraction.x()*640,fraction.y()*400);
+            const auto a=effects.viewportPoint(raster);
+            const auto b=hardware.viewportPoint(bounds.topLeft()+QPointF(fraction.x()*bounds.width(),fraction.y()*bounds.height()));
+            QVERIFY(QLineF(effects.canvasPoint(a),raster).length()<.00001);
+            const auto colorA=effectImage.pixelColor((a*effectImage.devicePixelRatio()).toPoint());
+            const auto colorB=hardwareImage.pixelColor((b*hardwareImage.devicePixelRatio()).toPoint());
+            QVERIFY(std::abs(colorA.red()-colorB.red())<=2);QVERIFY(std::abs(colorA.green()-colorB.green())<=2);
+        }
+        effects.zoomBy(4);effects.grab();
+        QVERIFY(effects.findChild<QScrollBar*>("canvasHorizontalScroll")->isVisible());
+        QVERIFY(effects.findChild<QScrollBar*>("canvasVerticalScroll")->isVisible());
+    }
+}
+
+void EditorTest::maskPlaybackAndInventory()
+{
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));addEffect(window,EffectKind::Circle);
+    auto* playing=window.findChild<QPushButton*>("playPreview");playing->setChecked(true);
+    window.findChild<QPushButton*>("fillTool")->click();
+    window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(2);
+    QVERIFY(playing->isChecked());auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    const auto time=window.previewSeconds();QTRY_VERIFY(window.previewSeconds()>time);
+    QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,200}).toPoint());
+    QVERIFY(window.document().state().layers.last().mask.constScanLine(200)[320]<32);QVERIFY(playing->isChecked());
+    window.document().history()->undo();QCOMPARE(window.document().state().layers.last().mask.constScanLine(200)[320],uchar(255));
+    auto c=catalog().first();c.id="test.x700";c.name="X700 Black";c.manufacturer="Example";
+    auto white=c;white.id="test.x700.white";white.name="X700 White";
+    QCOMPARE(hardwareName(c),QString("Example X700"));QCOMPARE(hardwareName(c),hardwareName(white));
+    ComponentCatalog products{{c.id,c},{white.id,white}};
+    HardwarePicker picker(products,{},{});auto* list=picker.findChild<QListWidget*>("hardwareProducts");QVERIFY(list);
+    int variants=0,imported=0;for(int i=0;i<list->count();++i) {auto* item=list->item(i);if(item->text()=="Example X700")++variants;if(item->data(Qt::UserRole).toString().startsWith("hardware."))++imported;}
+    QCOMPARE(variants,1);qInfo("Installed SignalRGB definitions visible after filtering/deduplication: %d",imported);
+    // Same model name with different wiring must remain a separate choice.
+    white.mapping={0,1,2};products[white.id]=white;HardwarePicker different(products,{},{});
+    variants=0;for(auto* item:different.findChild<QListWidget*>("hardwareProducts")->findItems("Example X700",Qt::MatchExactly))++variants;
+    QCOMPARE(variants,2);window.document().history()->setClean();
+}
+
+void EditorTest::stableMinimapAnchor()
+{
+    LightingDocument document(catalog());document.addLayer(EffectKind::StaticColor);
+    LightingCanvas canvas(document,LightingCanvas::Context::Effects);canvas.resize(800,700);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));
+    const int gutter=canvas.style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    const QPoint anchor(canvas.width()-16-gutter-188,canvas.height()-16-gutter-122);
+    for(double zoom:{1.2,2.0,.5}) {
+        canvas.zoomBy(zoom);const auto image=canvas.grab().toImage();
+        QVERIFY(canvas.findChild<QScrollBar*>("canvasHorizontalScroll")->isVisible());
+        const auto pixel=image.pixelColor((QPointF(anchor+QPoint(30,0))*image.devicePixelRatio()).toPoint());
+        QCOMPARE(pixel,QColor("#596981"));
+        QCOMPARE(canvas.findChild<QScrollBar*>("canvasVerticalScroll")->isVisible(),zoom==2.0);
+    }
+}
+
+void EditorTest::detailedHardwareArtwork()
+{
+    auto fan=catalog().first();fan.category="Fans";fan.positions={{0,0},{3,0},{1.5,2.7},{999,999}};fan.mapping={0,1,2,3};fan.nonPhysicalSlots={3};
+    const auto original=fan.toJson();const auto body=hardwareBodyBounds(fan);
+    QCOMPARE(body.width(),body.height());QVERIFY(body.contains({0,0}));QVERIFY(body.contains({3,0}));QVERIFY(body.right()<10);QCOMPARE(fan.toJson(),original);
+    QSet<QByteArray> images;
+    for(const auto& category:QStringList{"Fans","Strips","RAM","Graphics cards","Keyboards","Mice","Pumps","AiO","Motherboards","Other"}) {
+        QImage image(240,180,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);
+        {QPainter painter(&image);drawHardwareArtwork(painter,category,QRectF(10,10,220,160));}
+        int pixels=0;for(int y=0;y<image.height();++y)for(int x=0;x<image.width();++x)if(image.pixelColor(x,y).alpha())++pixels;
+        QVERIFY2(pixels>500,qPrintable(category));images.insert(QByteArray(reinterpret_cast<const char*>(image.constBits()),image.sizeInBytes()));
+        QVERIFY(image.save(artifactDirectory()+"/hardware-"+QString(category).replace(" ","-")+".png"));
+    }
+    QCOMPARE(images.size(),10);
+    // Presentation must never change the LED coordinates, permutation or project serialization.
+    LightingDocument document({{fan.id,fan}});document.addComponent(fan.id);const auto before=document.componentPoints(document.state().placements[0]);
+    LightingCanvas layout(document,LightingCanvas::Context::Layout);layout.resize(900,650);layout.show();QVERIFY(QTest::qWaitForWindowExposed(&layout));layout.grab();
+    QCOMPARE(document.componentPoints(document.state().placements[0]),before);QCOMPARE(document.catalog()[fan.id].toJson(),original);
+    ComponentEditor editor(fan,true);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));QCoreApplication::processEvents();
+    auto* scene=editor.findChild<QGraphicsView*>("componentGeometry")->scene();int leds=0;
+    for(auto* item:scene->items())if(item->type()==QGraphicsEllipseItem::Type) {++leds;QVERIFY(!item->childItems().isEmpty());}
+    QCOMPARE(leds,3);QCOMPARE(editor.component().mapping,fan.mapping);QCOMPARE(editor.component().positions,fan.positions);
+    QVERIFY(editor.grab().save(artifactDirectory()+"/detailed-fan-led-editor.png"));document.history()->setClean();
+}
+
+void EditorTest::deviceArtworkAlignment()
+{
+    auto strip=catalog().first();strip.id="fixture.d30-line";strip.name="Phanteks Phantek D30-120";strip.positions.clear();strip.mapping.clear();
+    for(int i=0;i<15;++i){strip.positions.append({i*4./14,0});strip.mapping.append(i);}
+    QCOMPARE(hardwareCategory(strip),QString("Fans"));QCOMPARE(hardwareArtworkCategory(strip),QString("Strips"));
+    QVERIFY(hardwareBodyBounds(strip).height()<.4);QVERIFY(hardwareBodyBounds(strip).width()>4);
+    QCOMPARE(hardwareName(strip),QString("Phanteks D30-120"));
+    auto diagonal=strip;for(auto& point:diagonal.positions)point={point.x(),point.x()};QCOMPARE(hardwareArtworkCategory(diagonal),QString("Strips"));
+    auto ring=strip;ring.positions[7].ry()+=.01;QCOMPARE(hardwareArtworkCategory(ring),QString("Fans"));
+    auto apex=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-apex3.json");
+    auto vulcan=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-vulcan.json");
+    auto mouse=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-basilisk.json");
+    // Legacy projects bake rotation/anisotropic scaling into positions; never rewrite them to fit an icon.
+    for(auto& point:mouse.positions)point={-point.y()*1.3,point.x()*1.2};
+    for(auto& point:vulcan.positions)point={point.x()*2.4-6.9,point.y()*1.85-1.15};
+    ComponentCatalog components{{strip.id,strip},{apex.id,apex},{vulcan.id,vulcan},{mouse.id,mouse}};
+    auto profile=channelProfile();profile.channels.clear();
+    for(const auto& name:QStringList{"Strip","Vulcan","Basilisk","SteelSeriesApex3"}) {ChannelProfile channel;channel.id=name;channel.maxLeds=200;channel.direct=true;profile.channels.append(channel);}
+    LightingDocument document(components,nullptr,{profile});
+    const auto stripId=document.addComponent(strip.id),vulcanId=document.addComponent(vulcan.id),mouseId=document.addComponent(mouse.id),apexId=document.addComponent(apex.id);
+    document.edit("Reproduce imported artwork",[&](auto& state){
+        state.placements[0].origin={60,70};state.placements[0].scale={4,4};
+        state.placements[1].origin={570,100};state.placements[1].rotation=.85;
+        state.placements[2].origin={850,100};state.placements[2].rotation=90.88;
+        state.placements[3].origin={400,290};state.placements[3].scale={3.5,3.5};
+    });
+    const QVector<QUuid> ids{stripId,vulcanId,mouseId,apexId};
+    for(int i=0;i<ids.size();++i){ChannelAssignment assignment;assignment.profileId=profile.id;assignment.endpoint="fixture";assignment.channelId=profile.channels[i].id;assignment.software=true;assignment.placements={ids[i]};document.assignChannel(assignment);}
+    document.addLayer(EffectKind::StaticColor);
+    const auto before=document.state().components;QVector<QVector<QPointF>> points;for(const auto& placement:document.state().placements)points.append(document.componentPoints(placement));
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);applyStudioStyle(&canvas);canvas.resize(1400,800);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.select(apexId);canvas.fitToView();canvas.repaint();
+    QVERIFY(canvas.grab().save(artifactDirectory()+"/device-artwork-alignment.png"));
+    for(int i=0;i<points.size();++i)QCOMPARE(document.componentPoints(document.state().placements[i]),points[i]);
+    for(auto it=before.begin();it!=before.end();++it)QCOMPARE(document.catalog()[it.key()].toJson(),it->toJson());
+    // The visible housing's bottom-right corner must be covered by the resize handles, not outside them.
+    const auto& placement=document.state().placements[3];QTransform transform;transform.translate(400,290);transform.scale(70,70);
+    const auto housing=transform.mapRect(hardwareBodyBounds(apex));
+    QVERIFY(housing.height()>100);const auto corner=housing.bottomRight()+QPointF(5,5);
+    const auto start=canvas.viewportPoint(corner).toPoint();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,start);QTest::mouseMove(&canvas,start+QPoint(45,25));QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,start+QPoint(45,25));
+    QVERIFY(document.state().placements[3].scale.width()>3.5);document.history()->undo();
+    QCOMPARE(document.state().placements[3].scale,QSizeF(3.5,3.5));document.history()->setClean();
+}
+
+void EditorTest::singleZoneGpuArtwork()
+{
+    const auto gpu=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/gpu.aero5080.json");
+    QCOMPARE(hardwareCategory(gpu),QString("Graphics cards"));const auto bounds=hardwareBodyBounds(gpu);
+    QVERIFY(bounds.width()>=6);QVERIFY(bounds.height()>=2.8);QCOMPARE(bounds.center(),QPointF(0,0));
+    LightingDocument document({{gpu.id,gpu}});document.addComponent(gpu.id);
+    const auto before=document.componentPoints(document.state().placements[0]);
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);applyStudioStyle(&canvas);canvas.resize(900,650);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();
+    const auto image=canvas.grab().toImage();int outlines=0;
+    const auto center=canvas.viewportPoint({80,80});
+    for(int y=qRound(center.y()-30);y<qRound(center.y()+30);++y)for(int x=qRound(center.x()-65);x<qRound(center.x()+65);++x) {
+        const auto color=image.pixelColor((QPointF(x,y)*image.devicePixelRatio()).toPoint());
+        if(std::abs(color.red()-146)+std::abs(color.green()-162)+std::abs(color.blue()-186)<30)++outlines;
+    }
+    QVERIFY(outlines>100);QCOMPARE(document.componentPoints(document.state().placements[0]),before);
+    QVERIFY(canvas.grab().save(artifactDirectory()+"/single-zone-aero.png"));document.history()->setClean();
+}
+
+void EditorTest::modelLabelsAndFullsizeKeyboard()
+{
+    auto vulcan=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-vulcan.json");
+    auto apex=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-apex3.json");
+    auto other=vulcan;other.id="custom.vulcan";other.name="Roccat Vulcan 100/120 AIMO #9";
+    LightingDocument document({{vulcan.id,vulcan},{apex.id,apex},{other.id,other}});
+    const auto first=document.addComponent(vulcan.id);QCOMPARE(document.componentName(document.state().placements[0]),QString("Roccat Vulcan 100/120 AIMO"));
+    document.addComponent(apex.id);QCOMPARE(document.componentName(document.state().placements[1]),QString("SteelSeries Apex 3"));
+    document.addComponent(other.id);QCOMPARE(document.componentName(document.state().placements[0]),QString("Roccat Vulcan 100/120 AIMO #1"));QCOMPARE(document.componentName(document.state().placements[2]),QString("Roccat Vulcan 100/120 AIMO #2"));
+    document.history()->undo();QCOMPARE(document.componentName(document.state().placements[0]),QString("Roccat Vulcan 100/120 AIMO"));
+    for(const auto& placement:document.state().placements)QCOMPARE(placement.rotation,0.);
+    const auto picture=[](const ComponentDefinition& component){
+        QImage image(810,270,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);
+        QPainter painter(&image);const auto bounds=hardwareBodyBounds(component);
+        painter.scale(810/bounds.width(),270/bounds.height());painter.translate(-bounds.topLeft());
+        drawHardwareComponentArtwork(painter,component);return image;
+    };
+    const auto a=picture(vulcan),b=picture(apex);int difference=0;
+    for(int y=0;y<a.height();++y)for(int x=0;x<a.width();++x)if(a.pixel(x,y)!=b.pixel(x,y))++difference;
+    QVERIFY2(difference<100,"Fullsize models must render the same keyboard artwork after normalizing size");
+    document.edit("Separate keyboards",[](auto& state){state.placements[0].origin={80,100};state.placements[0].scale={3,3};state.placements[1].origin={80,270};state.placements[1].scale={3,3};});
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);applyStudioStyle(&canvas);canvas.resize(1200,800);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.select(first);
+    QVERIFY(canvas.grab().save(artifactDirectory()+"/fullsize-model-labels.png"));document.history()->setClean();
+}
+
+void EditorTest::dedicatedDeviceIsNotAChain()
+{
+    const auto apex=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-apex3.json");
+    const auto profile=DeviceProfile::load(QString(TEST_COMPONENT_DIR)+"/../profiles/apex3-161a.json");
+    ProfileCandidate candidate;candidate.profileId=profile.id;candidate.device.path="fixture://apex";
+    LightingWindow window({{apex.id,apex}},[candidate]{return QVector<ProfileCandidate>{candidate};},nullptr,{profile});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents");QTRY_COMPARE(tree->topLevelItemCount(),1);
+    auto* device=tree->topLevelItem(0);QCOMPARE(device->childCount(),0);QCOMPARE(device->text(0),QString("SteelSeries Apex 3"));
+    QCOMPARE(window.document().state().assignments.size(),1);QCOMPARE(window.document().state().placements.size(),1);
+    QCOMPARE(device->data(0,Qt::UserRole).toUuid(),window.document().state().placements[0].id);
+    QCOMPARE(window.document().state().placements[0].rotation,0.);
+    QTest::mouseClick(tree->viewport(),Qt::LeftButton,Qt::NoModifier,tree->visualItemRect(device).center());QTRY_COMPARE(window.findChild<LightingCanvas*>("layoutCanvas")->selection(),window.document().state().placements[0].id);
+    bool rotation=false,oldName=false;for(auto* label:window.findChildren<QLabel*>()){rotation|=label->text()=="Rotation";oldName|=label->text()=="Rotation deg";}
+    QVERIFY(rotation);QVERIFY(!oldName);
+    auto* settings=window.findChild<QPushButton*>("headerSettings");QCOMPARE(settings->text(),QString("Device settings"));
+    bool seen=false,appendVisible=true,removeEnabled=true;QTimer::singleShot(0,[&] {
+        if(auto* dialog=dynamic_cast<ChannelEditor*>(QApplication::activeModalWidget())) {
+            seen=true;appendVisible=dialog->findChild<QPushButton*>("appendInstance")->isVisible();
+            removeEnabled=dialog->findChild<QPushButton*>("removeInstance")->isEnabled();dialog->reject();
+        }
+    });
+    settings->click();QVERIFY(seen);QVERIFY(!appendVisible);QVERIFY(!removeEnabled);window.document().history()->setClean();
+}
+
+void EditorTest::fixedDeviceSettings_data()
+{
+    QTest::addColumn<QString>("profileFile");QTest::addColumn<QString>("channelId");
+    QTest::newRow("keyboard")<<QString("apex3-161a.json")<<QString("SteelSeriesApex3");
+    QTest::newRow("mouse")<<QString("basilisk-0099.json")<<QString("RazerBasiliskV3");
+    QTest::newRow("ram")<<QString("xpg-ram-71.json")<<QString("XpgRam1");
+    QTest::newRow("gpu")<<QString("gigabyte-aero-5080.json")<<QString("GigabyteAero5080");
+    QTest::newRow("integrated-zone")<<QString("msi-mpg-b850-edge-ti-wifi.json")<<QString("IOShield");
+}
+void EditorTest::fixedDeviceSettings()
+{
+    QFETCH(QString,profileFile);QFETCH(QString,channelId);
+    const auto profile=DeviceProfile::load(QString(TEST_COMPONENT_DIR)+"/../profiles/"+profileFile);
+    const auto channel=assignmentChannel(profile,channelId);QVERIFY(channelHasFixedComponent(channel));
+    auto components=loadComponentCatalog(TEST_COMPONENT_DIR);const auto componentId=channel.address["componentId"].toString();
+    LightingDocument document(components,nullptr,{profile});const auto device=document.addComponent(componentId);
+    document.addComponent("generic.strip-8");
+    ChannelAssignment initial;initial.profileId=profile.id;initial.endpoint="fixture://device";initial.channelId=channel.id;initial.software=true;initial.placements={device};document.assignChannel(initial);
+    ChannelEditor editor(document,initial);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));QVERIFY(editor.windowTitle().startsWith("Device settings"));
+    auto* chain=editor.findChild<QListWidget*>("channelChain");QVERIFY(!chain->isVisible());QVERIFY(!chain->isEnabled());QCOMPARE(chain->dragDropMode(),QAbstractItemView::NoDragDrop);
+    QVERIFY(!editor.findChild<QComboBox*>("availableInstances")->isVisible());
+    for(const auto* name:{"appendInstance","removeInstance","instanceUp","instanceDown"}) {
+        auto* button=editor.findChild<QPushButton*>(name);QVERIFY(!button->isVisible());QVERIFY(!button->isEnabled());button->click();
+    }
+    QCOMPARE(editor.assignment().placements,QVector<QUuid>{device});
+    // Hidden-list mutation must not bypass the fixed-device contract when accepting settings.
+    chain->clear();auto* item=new QListWidgetItem("Wrong component",chain);item->setData(Qt::UserRole,document.state().placements.last().id);
+    editor.findChild<QDoubleSpinBox*>("channelRate")->setValue(2);
+    QCOMPARE(editor.assignment().placements,QVector<QUuid>{device});QCOMPARE(editor.assignment().timeScale,2.);
+    auto* mode=editor.findChild<QComboBox*>("channelMode");
+    if(mode->findData(false)>=0) {mode->setCurrentIndex(mode->findData(false));mode->setCurrentIndex(mode->findData(true));QVERIFY(!chain->isVisible());}
+    editor.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();QCOMPARE(editor.result(),int(QDialog::Accepted));
+    document.assignChannel(editor.assignment());QCOMPARE(document.state().assignments.first().placements,QVector<QUuid>{device});document.history()->setClean();
+}
+void EditorTest::fixedDeviceRejectsChain()
+{
+    const auto profile=DeviceProfile::load(QString(TEST_COMPONENT_DIR)+"/../profiles/apex3-161a.json");
+    ComponentDefinition half;half.id="test.five";half.name="Generic five LED strip";
+    for(int i=0;i<5;++i){half.positions.append({double(i),0});half.mapping.append(i);}
+    LightingDocument document({{half.id,half}},nullptr,{profile});
+    const auto first=document.addComponent(half.id),second=document.addComponent(half.id);
+    ChannelAssignment invalid;invalid.profileId=profile.id;invalid.endpoint="fixture://apex";invalid.channelId="SteelSeriesApex3";invalid.software=true;invalid.placements={first,second};
+    // Two five-LED strips fit the ten-slot capacity, but must still be rejected as a keyboard chain.
+    const int history=document.history()->index();QVERIFY_EXCEPTION_THROWN(document.assignChannel(invalid),std::invalid_argument);
+    QCOMPARE(document.history()->index(),history);QVERIFY(document.state().assignments.isEmpty());document.history()->setClean();
 }

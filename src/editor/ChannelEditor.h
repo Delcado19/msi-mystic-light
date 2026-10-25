@@ -9,4 +9,5 @@ public:
     ChannelAssignment assignment() const;
 private:
     ChannelAssignment initial_;
+    bool fixedComponent_=false;
 };

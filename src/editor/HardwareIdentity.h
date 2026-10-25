@@ -18,6 +18,11 @@ inline QString hardwareName(const ComponentDefinition& c,int chainPosition=0)
     name.replace(QRegularExpression("\\bPhantek\\b",QRegularExpression::CaseInsensitiveOption),"Phanteks");
     if(!name.startsWith(brand,Qt::CaseInsensitive)) name=brand+" "+name;
     name.remove(QRegularExpression("\\s*#\\d+\\b"));
+    // Housing color does not identify a lighting model; retain all electrical/model suffixes.
+    name.remove(QRegularExpression("\\b(?:black|white)\\b",QRegularExpression::CaseInsensitiveOption));
+    name.replace(QRegularExpression("\\bAimo\\b",QRegularExpression::CaseInsensitiveOption),"AIMO");
+    name=name.simplified();
+    while(name.startsWith(brand+" "+brand+" ",Qt::CaseInsensitive))name=name.mid(brand.size()+1);
     if(chainPosition>0) name+=" #"+QString::number(chainPosition);
     return name;
 }

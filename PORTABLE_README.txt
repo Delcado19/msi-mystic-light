@@ -91,4 +91,32 @@ Layout/Hardware components/groups, with Undo. Text fields keep normal Delete.
 Preview navigation update:
 Scrollbars use matching light handles and dark tracks in both orientations.
 Drag the highlighted Effects divider or its right-hand up/down arrow to resize
-the editor and live preview. Layout fullscreen remains available.
+the editor and live preview, or drag to either edge to hide one preview.
+Drag the divider back to restore it. Save As uses a distinct floppy/pencil icon.
+Layout fullscreen remains available.
+
+Effects and Live Hardware display the same layout extent and aspect ratio, with
+independent fit zoom. Existing layer/mask data and hardware definitions are preserved.
+
+Mask inspection keeps animation running and selects the painting tool. Black hides
+and white reveals; Stroke adjusts brush size. The minimap stays anchored when
+scrollbars appear. Cosmetic Black/White product variants are merged only when
+LED geometry and wiring match; existing project IDs are retained.
+
+Detailed technical hardware drawings appear in the picker, Layout, Live Hardware
+and LED editor. Fans have square housings; circles and wire numbers remain
+editable. Artwork credits: Help > Artwork credits and THIRD_PARTY_NOTICES.md.
+Qt6Svg.dll is required and included in the portable package.
+
+Artwork follows custom geometry: linear fan instances display as strips, imported
+mouse orientation is respected, and per-key keyboards use actual key positions.
+Selection/group frames include the housing; full component labels appear below it.
+
+Components have one model label at the lower left; instance numbers appear only
+for repeated models. Fullsize keyboards share the Vulcan-derived drawing.
+Dedicated peripherals appear as devices rather than single-component chains.
+New placements start at Rotation=0; saved rotations remain editable.
+
+Device settings for keyboards, mice and other built-in lighting outputs do not
+offer component-chain editing. Append/Remove/reordering remain available only
+for attachable controller headers. Device output/clock settings remain editable.

@@ -1,0 +1,30 @@
+[
+  {
+    "file": "fan-source.svg",
+    "url": "https://raw.githubusercontent.com/game-icons/icons/82d948812bfe3f269ef8f731dcdb07b08160edc4/delapouite/computer-fan.svg",
+    "author": "delapouite",
+    "license": "CC-BY-3.0",
+    "sha256": "1c4a01dbb93c116fd6601993439bdc220b678ce3a76371d97203eee5ecbfee88",
+    "derivative": "fan.svg: transparent background, muted color, added square housing"
+  },
+  {
+    "files": [
+      "ram.svg",
+      "gpu.svg",
+      "mouse.svg",
+      "pump.svg",
+      "aio.svg",
+      "strip.svg",
+      "motherboard.svg",
+      "other.svg"
+    ],
+    "author": "Lighting Studio contributors",
+    "license": "GPL-2.0-or-later",
+    "origin": "Original technical vector drawings"
+  },
+  {
+    "file": "keyboard.svg",
+    "license": "GPL-2.0-or-later",
+    "origin": "Schematic key positions derived from components/peripheral-vulcan.json; OpenRGB mapping provenance in THIRD_PARTY_NOTICES.md"
+  }
+]

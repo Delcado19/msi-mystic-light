@@ -21,12 +21,13 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
 {
     const auto& profile = assignmentProfile(document.profiles(), initial_.profileId);
     const auto& channel = assignmentChannel(profile, initial_.channelId);
-    setWindowTitle("Configure channel - " + channel.id); resize(560, 620);
+    fixedComponent_=channelHasFixedComponent(channel);
+    setWindowTitle(fixedComponent_ ? "Device settings - "+profile.name : "Configure channel - "+channel.id); resize(560, fixedComponent_ ? 400 : 620);
     applyStudioStyle(this);
     auto* layout = new QVBoxLayout(this);
     auto* identity = new QLabel(profile.name + " / " + channel.id + "\n" + initial_.endpoint);
     identity->setWordWrap(true); layout->addWidget(identity);
-    layout->addWidget(new QLabel(QString("Capacity: %1 LEDs; fixed count: %2. No device output.").arg(channel.maxLeds).arg(channel.fixedLeds)));
+    layout->addWidget(new QLabel(fixedComponent_ ? "Standalone device: its component assignment is fixed." : QString("Capacity: %1 LEDs; fixed count: %2. No device output.").arg(channel.maxLeds).arg(channel.fixedLeds)));
     auto* form = new QFormLayout; layout->addLayout(form);
     auto* mode = new QComboBox; mode->setObjectName("channelMode");
     if (!channel.nativeModes.isEmpty()) mode->addItem("Native firmware", false);
@@ -36,7 +37,7 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     auto* offset=new QDoubleSpinBox; offset->setObjectName("channelOffset"); offset->setRange(0,86400); offset->setDecimals(3); offset->setValue(initial_.timeOffset);
     auto* clock=new QWidget; auto* clockForm=new QFormLayout(clock);
     rate->setAccessibleName("Channel clock rate"); clockForm->addRow("Playback speed",sliderField(rate)); clockForm->addRow("Offset (seconds)",offset);
-    auto* clockSection=disclosure(layout,"Channel playback clock",clock);
+    auto* clockSection=disclosure(layout,fixedComponent_ ? "Device playback clock" : "Channel playback clock",clock);
     auto clockEnabled=[mode,rate,offset] { rate->setEnabled(mode->currentData().toBool()); offset->setEnabled(mode->currentData().toBool()); };
     connect(mode,&QComboBox::currentIndexChanged,this,clockEnabled); clockEnabled();
     auto* native = new QWidget; auto* nativeForm = new QFormLayout(native); layout->addWidget(native);
@@ -56,21 +57,23 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     native->setVisible(!mode->currentData().toBool());
     auto* chainCaption=new QLabel("Component chain: first item is nearest the controller."); layout->addWidget(chainCaption);
     auto* chain = new QListWidget; chain->setObjectName("channelChain");
-    chain->setDragDropMode(QAbstractItemView::InternalMove); layout->addWidget(chain);
+    chain->setDragDropMode(fixedComponent_ ? QAbstractItemView::NoDragDrop : QAbstractItemView::InternalMove); chain->setEnabled(!fixedComponent_); layout->addWidget(chain);
     auto label = [&document](const QUuid& id) {
         for (const auto& placement : document.state().placements) if (placement.id == id)
-            return document.catalog()[placement.componentId].name + " [" + id.toString(QUuid::WithoutBraces).left(8) + "]";
+            return document.componentName(placement);
         return QString("Missing instance ") + id.toString();
     };
     for (const auto& id : initial_.placements) {
         auto* item = new QListWidgetItem(label(id), chain); item->setData(Qt::UserRole,id);
     }
     auto* available = new QComboBox; available->setObjectName("availableInstances");
+    available->setEnabled(!fixedComponent_);
     for (const auto& placement : document.state().placements) available->addItem(label(placement.id), placement.id);
     layout->addWidget(available);
     auto* actions = new QHBoxLayout; layout->addLayout(actions);
     auto action = [&](const QString& text, const QString& name, auto callback) {
         auto* button = new QPushButton(text); button->setObjectName(name); actions->addWidget(button);
+        button->setEnabled(!fixedComponent_);
         connect(button, &QPushButton::clicked, this, callback);
     };
     action("Append", "appendInstance", [chain,available] {
@@ -87,11 +90,12 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
         const int row=chain->currentRow(); if(row<0 || row>=chain->count()-1) return;
         auto* item=chain->takeItem(row); chain->insertItem(row+1,item); chain->setCurrentItem(item);
     });
-    auto visibility=[mode,native,chain,available,actions,clock,clockSection,chainCaption] {
+    auto visibility=[this,mode,native,chain,available,actions,clock,clockSection,chainCaption] {
         const bool software=mode->currentData().toBool(); native->setVisible(!software);
-        chain->setVisible(software); available->setVisible(software); clock->setEnabled(software);
-        clockSection->setVisible(software); chainCaption->setVisible(software);
-        for(int i=0;i<actions->count();++i) if(auto* widget=actions->itemAt(i)->widget()) widget->setVisible(software);
+        const bool editableChain=software && !fixedComponent_;
+        chain->setVisible(editableChain); available->setVisible(editableChain); clock->setEnabled(software);
+        clockSection->setVisible(software); chainCaption->setVisible(editableChain);
+        for(int i=0;i<actions->count();++i) if(auto* widget=actions->itemAt(i)->widget()) widget->setVisible(editableChain);
     };
     connect(mode,&QComboBox::currentIndexChanged,this,visibility); visibility(); syncSliderFields(this);
     auto* error = new QLabel; error->setObjectName("channelError"); error->setWordWrap(true); layout->addWidget(error);
@@ -123,7 +127,10 @@ ChannelAssignment ChannelEditor::assignment() const
         if(!color.isValid() || color.alpha()!=255) throw std::invalid_argument("Native colors must be opaque RGB colors");
         result.native.colors.append({quint8(color.red()),quint8(color.green()),quint8(color.blue())});
     }
-    result.placements.clear(); const auto* chain=findChild<QListWidget*>("channelChain");
-    for(int row=0;row<chain->count();++row) result.placements.append(chain->item(row)->data(Qt::UserRole).toUuid());
+    // Preserve the device identity even if a hidden widget is modified programmatically.
+    if(!fixedComponent_) {
+        result.placements.clear(); const auto* chain=findChild<QListWidget*>("channelChain");
+        for(int row=0;row<chain->count();++row) result.placements.append(chain->item(row)->data(Qt::UserRole).toUuid());
+    }
     return result;
 }

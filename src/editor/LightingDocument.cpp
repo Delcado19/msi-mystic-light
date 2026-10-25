@@ -1,4 +1,5 @@
 #include "LightingDocument.h"
+#include "HardwareIdentity.h"
 #include <QPainter>
 #include <QTransform>
 #include <QUndoCommand>
@@ -198,6 +199,16 @@ QUuid LightingDocument::addComponent(const QString& componentId)
     placement.componentId = componentId;
     edit("Add component", [&](LightingState& state) { state.placements.append(placement); });
     return placement.id;
+}
+
+QString LightingDocument::componentName(const ComponentPlacement& placement) const
+{
+    const auto name=hardwareName(catalog()[placement.componentId]);int count=0,ordinal=0;
+    // Instance numbers describe identical models across the layout, never electrical chain addresses.
+    for(const auto& candidate:state_.placements)if(hardwareName(catalog()[candidate.componentId]).compare(name,Qt::CaseInsensitive)==0) {
+        ++count;if(candidate.id==placement.id)ordinal=count;
+    }
+    return count>1 ? name+" #"+QString::number(ordinal) : name;
 }
 
 QVector<QPointF> LightingDocument::componentPoints(const ComponentPlacement& placement) const

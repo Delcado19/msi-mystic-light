@@ -39,6 +39,7 @@ class ReleasePackageTest(unittest.TestCase):
                 self.assertIsNone(output.testzip())
                 self.assertNotIn("LightingStudio/default.lighting.json", output.namelist())
                 self.assertNotIn("LightingStudio/profiles/stale.json", output.namelist())
+                self.assertEqual(output.read("LightingStudio/Qt6Svg.dll"), b"Qt6Svg.dll")
                 self.assertEqual(output.read("LightingStudio/modules/auxiliary_module.dll"),
                                  b"modules/auxiliary_module.dll")
             self.assertEqual(archive.with_suffix(".zip.sha256").read_text(), f"{digest}  release.zip\n")

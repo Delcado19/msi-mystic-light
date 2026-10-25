@@ -77,6 +77,7 @@ public:
     void setComponentGeometry(const QUuid& placement, const QVector<QPointF>& positions);
     void importComponent(const QString& fileName);
     QUuid addComponent(const QString& componentId);
+    QString componentName(const ComponentPlacement& placement) const;
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
     // Layout grows around physical LEDs; the effect raster is mapped over these same bounds for output.
     QRectF layoutBounds(const QVector<ComponentPlacement>* placements = nullptr) const;

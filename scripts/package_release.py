@@ -5,7 +5,7 @@ from pathlib import Path
 import zipfile
 
 RUNTIME = (
-    "msi_mystic_light.exe", "hidapi.dll", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll",
+    "msi_mystic_light.exe", "hidapi.dll", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6Svg.dll",
     "platforms/qwindows.dll", "imageformats/qgif.dll", "imageformats/qjpeg.dll",
     "imageformats/qwebp.dll", "modules/msi_gen1_module.dll",
     "modules/peripherals_module.dll", "modules/auxiliary_module.dll",

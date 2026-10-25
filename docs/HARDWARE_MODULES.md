@@ -296,3 +296,12 @@ SMBus lock. A mismatch faults the endpoint with the exact register instead of
 reporting Running after write acknowledgements alone. RAM identity and first-frame
 RGB bytes are logged per address. Matching readback proves register contents, not
 physical light output; later frames keep the normal write-only path.
+
+## Integrated component assignment contract
+
+A channel address with a nonempty componentId identifies its built-in component.
+The host uses this metadata for integrated-device setup and treats its assignment
+as fixed in the channel editor. At most one placement can belong to that output;
+software output still requires a placement. Channels accepting an attachable chain
+must omit componentId. This host-side invariant is independent of LED capacity
+and also applies when loading or programmatically editing assignments.

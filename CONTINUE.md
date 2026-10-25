@@ -1,5 +1,176 @@
 # Implementation status
 
+## Fixed devices cannot edit component chains (2026-10-25)
+
+The Layout settings dialog still exposed append/remove/reorder despite the prior
+standalone-device display change. A shared channelHasFixedComponent contract
+now treats address.componentId as a built-in output. ChannelEditor hides and
+disables chain controls, uses Device settings terminology, and preserves original
+placements even if hidden widgets are modified. Assignment validation rejects
+multiple components on such channels independently of LED capacity. Genuine
+controller headers retain chain editing. Software output still requires one
+component; native output may retain no geometry as before. Header settings button
+renames itself to Device settings for fixed devices. No transport/output changes.
+
+Validation: Release/Debug CTest each 17/17; Windows editor 109/109. Tests cover
+keyboard, mouse, RAM, GPU and IOShield, hidden-control tampering, switching modes,
+playback clock editing, the exact Layout -> settings modal path, ordinary header
+append/remove/reorder, and rejecting two five-LED strips on a ten-slot keyboard.
+The rejection is atomic and does not change undo history. Docs updated.
+
+Portable ZIP rebuilt and inspected. After the user explicitly confirmed the app
+was closed, verified no running process and updated build/dist/LightingStudio.
+Installed EXE matches the tested Release build; extracted --inspect passed. The
+temporary LightingStudio.next staging folder was removed after installation.
+Published release ZIP and user project unchanged. No push or physical hardware
+writes; app was not restarted automatically.
+
+
+## Single model labels and fullsize keyboard parity (2026-10-25)
+
+Every Layout component has one lower-left model label, including when unselected.
+Dedicated peripherals have no duplicate chain caption and appear directly in the
+device tree. Exact output assignments remain unchanged. Real controller chains
+retain header captions/drag behavior. LightingDocument::componentName is shared
+by canvas/list/properties; it adds instance numbers only for repeated normalized
+models across placements, not electrical chain positions. AIMO casing normalized.
+New placement rotation remains zero; Rotation deg label renamed Rotation.
+
+Fullsize keyboards share one registered Vulcan-derived SVG, including the per-key
+models. Per-key color markers use aligned key-cell dimensions; Apex keeps its ten
+real zones. Regression compares the normalized rendered artwork pixel-for-pixel
+(up to raster rounding), checks unique/repeated model numbering and undo, default
+angles, and clicking a flattened dedicated device with preserved output mapping.
+Scroll navigation regression now includes the full always-visible model label.
+
+Explicit user authorization overrides the prior read-only project boundary for
+the Basilisk correction only: default.lighting.json was backed up privately under
+build/research/user-backups/default-before-basilisk-zero-20261025-200050.lighting.json,
+then its -90-degree placement rotation was absorbed into its instance LED geometry.
+Rotation is now zero with the wheel facing up. Measured world-coordinate error
+was exactly zero. All other definitions, placements, mappings, layers and output
+assignments were verified unchanged. No app process was running. This is a one-off
+user-requested adjustment, not an automatic load migration. Never stage/package
+the user project or its backup.
+
+Release/Debug CTest each 17/17; Windows editor 103/103. Portable CRC and extracted
+--inspect passed. Stable app path remains
+build/dist/LightingStudio/msi_mystic_light.exe. No push or hardware writes.
+
+
+## Aero visibility and build cleanup (2026-10-25)
+
+The single-zone Aero now has a recognizable card-sized visual housing; its logo
+LED/sample position is unchanged. A new regression caught and fixed a separate
+one-point bounds issue: default QSizeF() is invalid (-1,-1), so explicitly use
+QSizeF(0,0) when initializing an LED bounds rectangle. Single-zone housings now
+remain centered on the actual LED. User project read-only diagnosis confirms
+Vulcan placement rotation 0.8447652411840636 degrees: the whole keyboard follows
+that saved angle. Use existing Rotation=0 for horizontal alignment; do not
+silently round saved layout angles or alter the project on load.
+
+Release/Debug CTest each 17/17; Windows editor 101/101. Current portable is now
+build/dist/LightingStudio/msi_mystic_light.exe, also used by Start-Lighting.cmd.
+Development ZIP: build/dist/MSI-Mystic-Light-current-windows-x64.zip. The original
+v0.1.0 ZIP/hash are preserved unchanged. Portable CRC and --inspect passed.
+
+Build cleanup reclaimed 751.4 MiB (1912.7 -> 1161.3 MiB): removed 42 obsolete
+packages/build targets, archived and hash-verified 104 transient helper scripts,
+moved root logs to build/logs, retained research/root artifacts and artwork
+reviews under build/research, and removed generated review-browser profiles.
+Kept current Release (next), Debug (multi), Qt plugin builds/source and their
+verification commands. No running Lighting Studio process was found before
+cleanup. All recursive removal paths were checked inside build; no user projects
+or published artifacts removed. Records: build/logs/cleanup-{plan,result}.json.
+The diagnostic scripts are preserved in build/research/legacy-build-helpers-*.zip;
+historical CONTINUE entries below reference old paths deliberately. No push or
+physical hardware test.
+
+
+## Artwork geometry and frame regression fixes (2026-10-25)
+
+Read the user project only to diagnose: an instance named D30 has 15 collinear
+LEDs; the imported mouse has its quarter-turn already baked into coordinates;
+Apex has ten zone points on one row and a large placement scale. No user project
+was edited. Artwork now treats collinear fan instances as strips without changing
+hardware identity (three distinct points required; small non-collinear offsets
+remain fans). Mouse contour handles baked rotation. Per-key keyboards have no
+second generic key grid; actual keys and housing share placement rotation. Apex
+has full-height schematic key geometry plus separate zone markers.
+
+Housing extents now participate in hit areas, resize handles, group outlines and
+navigation. Dashed group padding is distinct from selection padding. Labels and
+group frames paint after artwork; complete component labels sit below the body.
+Repeated manufacturer prefixes are removed from display names. Nonempty canvases
+hide the initial Add placeholder. No output, sampling, mapping or schema changes.
+
+Validation: Release/Debug CTest each 17/17; Windows editor 100/100. New regression
+reproduces imported mouse/Vulcan geometry, a linear D30, enlarged Apex, resize at
+the housing corner, and unchanged sampling/serialization. Native screenshot
+device-artwork-alignment.png inspected. Existing corner resize and protected-label
+regressions pass. Local portable:
+build/dist/LightingStudio-ArtworkAlignment/msi_mystic_light.exe.
+No push, running-app restart or physical hardware test.
+
+
+## Detailed technical hardware artwork (2026-10-25)
+
+User approved the B-style rotor and authorized direct integration without another
+preview. Added square fan housings plus original fine-line technical SVGs for RAM,
+GPU, keyboard, mouse, strip, pump, AiO, motherboard and fallback. One cached Qt SVG
+renderer path serves HardwarePicker, Layout/Live Hardware and ComponentEditor.
+Layout artwork uses placement rotation/scale; nonphysical slots do not enlarge
+housings. Draggable LED circles and centered wire indices are retained. No LED
+coordinates, mapping, sampling or saved schemas changed. No user project edits.
+
+Fan derivative attribution: Delapouite, CC BY 3.0, game-icons/icons revision
+82d948812bfe3f269ef8f731dcdb07b08160edc4. Original, SHA256 and adaptation notes
+in assets/hardware. Removed unused trial imports before integration. Other SVGs
+are original GPL-2.0-or-later drawings. Help > Artwork credits and portable notices
+include attribution. Qt SVG is dynamically linked; Qt6Svg.dll added to explicit
+portable runtime and packaging regression. No online assets at runtime.
+
+Validation: Release/Debug CTest each 17/17; native Windows editor 99/99. Focused regression
+checks all ten rendered categories, square fan bounds excluding reserved slots,
+unchanged LED coordinates/permutation/serialization and numbered editor circles.
+Native rendered artwork and LED editor screenshot inspected locally. Portable
+CRC, extracted --inspect, SVG runtime/license presence and private-project exclusion
+passed. Published v0.1.0 archive hash unchanged.
+Local package target: build/dist/LightingStudio-HardwareArt/msi_mystic_light.exe.
+No push, running-app restart, output changes or hardware writes.
+
+
+## Mask playback, stationary minimap and cosmetic variants (2026-10-25)
+
+Mask tab now preserves playback and chooses Pencil; its composite uses live time.
+Gestures still temporarily pause/resume. Minimap reserves both bar gutters to avoid
+jumping when the second bar appears. Hardware names omit Black/White; picker merges
+only equal normalized names plus identical geometry/mapping/metadata, keeping saved
+IDs intact. Installed SignalRGB app-2.5.80 contributes 197 visible imported geometry
+definitions after filtering/deduplication; these are not bundled hardware drivers.
+Native tests cover brush write/undo/resumed clock, variant mapping differences, and
+pixel-exact minimap anchor across one/two/one scrollbar transitions.
+Release/Debug CTest each 17/17; native editor 98/98. Portable CRC and
+extracted --inspect passed; published archive unchanged. Local app:
+build/dist/LightingStudio-MaskMinimap/msi_mystic_light.exe. No push or device writes.
+
+
+## Shared canvas extent follow-up (2026-10-25)
+
+Hardware layout bounds now determine the aspect ratio and dimensions displayed
+by Effects and Live Hardware. Effects retains its canonical raster for persisted
+layers/masks; display, inverse pointer mapping, scrollbar extents and wheel
+anchoring use the hardware world projection. Layout labels still reflect live
+in-progress component drags. No component redesign, hardware writes or project
+migration. Save As icon and collapsible preview follow-up are included.
+
+Validation: Release and Debug CTest each 17/17; native Windows editor 96/96.
+New regression checks expanded positive/negative extents, shrink-back, literal
+pixel color agreement, pointer roundtrips and both overflow bars. Portable CRC
+and extracted --inspect passed; published release ZIP unchanged.
+Local app: build/dist/LightingStudio-SharedCanvas/msi_mystic_light.exe.
+Not pushed. Component redesign still requires discussion.
+
 ## Scrollbar contrast and Effects preview divider (2026-10-25)
 
 Styled both scrollbar orientations, handles (normal/hover/pressed), rails, page
@@ -8,7 +179,13 @@ vertical-only style/native horizontal mismatch and patterned page backgrounds.
 Effects fullscreen is hidden across resize and has no workspace signal handler;
 Layout fullscreen remains intact. A custom QSplitterHandle highlights the divider,
 adds a right-side up/down arrow, vertical resize cursor, hover feedback and tooltip.
-The handle is 18px; neither editor nor live preview can collapse on extreme drags.
+The handle is 18px. Follow-up: both panes can collapse on extreme drags and be
+restored by dragging the visible divider. Save As now uses a distinct floppy/pencil
+icon. Native regression covers both extremes, restoration and distinct icons.
+Canvas extent clarification resolved: hardware layout bounds are authoritative
+for both views. Effects display and pointer/scroll transforms now project its
+canonical raster into that same aspect ratio. Component redesign still awaits
+discussion; no component definitions or user projects changed.
 
 Tests sample literal handle/track colors in both orientations (DPR-aware), drag
 the arrow to change both pane sizes, check extreme limits, tool visibility,
@@ -26,7 +203,7 @@ Local portable: build/dist/LightingStudio-PreviewDivider/msi_mystic_light.exe.
 User physically confirms the MSI ordering fix now addresses individual fan LEDs.
 New issue: after erasing a procedural top layer, playback could not restart until
 a new shape was created. Cause: Eraser switches to mask editing, where every
-properties refresh disabled Canvas Start. Mask entry now pauses once; Start stays
+properties refresh disabled Canvas Start. Historical behavior (superseded below): mask entry paused once; Start stays
 enabled. Every Effects gesture, including mask/no-op gestures, balances pause/end;
 previously running playback resumes after release, initially stopped stays stopped.
 

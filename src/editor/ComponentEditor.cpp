@@ -1,5 +1,6 @@
 #include "ComponentEditor.h"
 #include "HardwareIdentity.h"
+#include "HardwareArtwork.h"
 #include "SnapGrid.h"
 #include "StudioWidgets.h"
 #include <QGraphicsView>
@@ -38,6 +39,7 @@ public:
     std::function<void()> commit;
     QPointF pressPosition;
     bool moved=false;
+    ComponentDefinition artwork;
 protected:
     void snapSelected(Qt::KeyboardModifiers modifiers) {
         auto grid=SnapGrid::load();
@@ -65,6 +67,7 @@ protected:
         QGraphicsView::drawBackground(painter,rect);
         auto grid=SnapGrid::load();grid.spacing*=property("coordinateScale").toDouble()/20;
         grid.paint(*painter,rect,transform().m11());
+        painter->save();painter->scale(24,24);drawHardwareComponentArtwork(*painter,artwork);painter->restore();
     }
     void wheelEvent(QWheelEvent* event) override {
         const double factor=std::pow(1.15,event->angleDelta().y()/120.0);
@@ -123,17 +126,19 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
     geometry->setMinimumHeight(260); tabs->addTab(geometry,"Visual layout"); tabs->addTab(table,"Coordinates & wire mapping");
     connect(snapAction,&QAction::toggled,geometry->viewport(),qOverload<>(&QWidget::update));
     connect(step,&QSpinBox::valueChanged,geometry->viewport(),qOverload<>(&QWidget::update));
-    auto rebuild=[table,scene,geometry,reserved=nonPhysicalSlots_] {
+    auto rebuild=[table,scene,geometry,reserved=nonPhysicalSlots_,category=hardwareCategory(initial)] {
         scene->clear();
         // Keep LED markers readable at any geometry scale; positions still use component units.
         const double coordinateScale=24;
         geometry->setProperty("coordinateScale",coordinateScale);
+        ComponentDefinition visible;visible.category=category;
         for(int row=0;row<table->rowCount();++row) {
             if(!table->item(row,0) || !table->item(row,1) || !table->item(row,2)) continue;
             if (reserved.contains(table->item(row,2)->text().toInt())) continue;
             bool validX=false,validY=false;
             const double x=table->item(row,0)->text().toDouble(&validX),y=table->item(row,1)->text().toDouble(&validY);
             if(!validX || !validY || !std::isfinite(x) || !std::isfinite(y) || std::abs(x)>100000 || std::abs(y)>100000) continue;
+            visible.positions.append({x,y});visible.mapping.append(row);
             auto* dot=scene->addEllipse(-16,-16,32,32,QPen(QColor("#93bfff"),1.5),QBrush(QColor("#243b53")));
             dot->setData(0,row); dot->setPos(x*coordinateScale,y*coordinateScale);
             dot->setFlags(QGraphicsItem::ItemIsMovable|QGraphicsItem::ItemIsSelectable|QGraphicsItem::ItemIgnoresTransformations);
@@ -142,7 +147,10 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
             const auto size=text->boundingRect().size()*text->scale(); text->setPos(-size.width()/2,-size.height()/2);
             text->setAcceptedMouseButtons(Qt::NoButton);
         }
-        scene->setSceneRect(scene->itemsBoundingRect().adjusted(-8,-8,8,8));
+        geometry->artwork=visible;
+        const auto housing=hardwareBodyBounds(visible);
+        const QRectF sceneHousing(housing.topLeft()*coordinateScale,housing.size()*coordinateScale);
+        scene->setSceneRect(scene->itemsBoundingRect().united(sceneHousing).adjusted(-8,-8,8,8));
         geometry->fitInView(scene->sceneRect(),Qt::KeepAspectRatio);
         // Do not magnify a single LED until it fills the dialog.
         if(table->rowCount()==1 && geometry->transform().m11()>2) { geometry->resetTransform(); geometry->scale(2,2); }
