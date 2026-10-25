@@ -7,7 +7,7 @@ left tree. Hardware is a separate workspace containing attachment, component def
 the actual output controls. Its product picker has categories, quantities and header selection. It restores the original studio's product-oriented workflow,
 including the M25 models, generic fans/strips and validated installed component
 metadata. Browsing works offline; adding requires an available or saved header.
-Hardware also shows the same header/component tree and selection as Layout.
+Hardware also shows the same header/component tree and selection as Layout, plus a manufacturer column.
 Select a header or component, then Add or Remove; both views update together.
 Configured, detected hardware receives the canvas automatically.
 
@@ -593,3 +593,54 @@ contain it. Grid changes cancel an in-progress canvas gesture. Project files and
 saved geometry are never resnapped merely by opening them or enabling the grid.
 Each completed canvas gesture remains one undo step. Layer-list ordering, window
 splitters and other non-spatial controls do not use a coordinate grid.
+
+## Workspace navigation and catalog identity
+
+The protected canvas viewport starts 48 logical pixels below the top and has
+16-pixel side/bottom gutters. Painting, both scrollbar ranges and all camera
+endpoints use that same area. Group labels participate in navigation bounds.
+Scrollbars and the lower-right minimap appear only when content exceeds this area,
+including after zooming. Effects keeps its fixed raster; Layout grows from item
+bounds. Fullscreen retains playback controls and reserves the monitor's taskbar
+insets, even on Windows systems where the taskbar stays above a fullscreen dialog.
+
+Dragging Layout hardware near any viewport edge scrolls continuously, including
+with a stationary pointer. Speed ramps across a 48-pixel edge zone, up to 720 screen
+pixels/second. `LightingCanvas::setAutoScrollSpeed` accepts 0..4000 (0 disables it);
+invalid/non-finite values leave the previous speed intact. Escape, hiding the
+canvas and releasing the drag stop scrolling. Resizing a Layout selection keeps
+the opposite corner fixed; scaling remains uniform. Undo restores the whole gesture.
+
+Hardware product cards support manufacturer and category filters. Optional
+`manufacturer` and `category` component fields survive saving and LED edits;
+older catalogs infer identity, with Generic as the fallback. Custom definitions
+start as Generic. Existing M25/Glacier names display the Phanteks prefix. Instance
+numbers describe current chain order, not a suffix baked into a product definition.
+Reverse fan variants are omitted from new selection without deleting saved devices.
+New strip geometry is straight. D30 selection uses a circular fan footprint with
+its existing address count/permutation; only the exact old narrow D30 template
+is migrated on load. Custom geometry remains intact. This is a visual arrangement,
+not a newly measured physical LED map.
+
+Open, Save and Save as are available next to the current filename. Save writes
+the current file; Save as adopts the chosen path only after an atomic successful
+write. Cancelling or failing a save does not redirect subsequent saves.
+
+Animation preview uses a precise 16 ms UI timer and elapsed wall time. Hardware
+workers retain their existing 33 ms minimum wait plus transport time; physical
+smoothness is not proven by the faster UI refresh or simulated output tests.
+
+### Addressable LEDs and NV5 MKII evidence
+
+The LED editor maps logical sample positions to physical wire addresses. Serial
+ARGB chains require correct component order/count; parallel splitters repeat the
+same addresses. Multiple physical LED chips can share one address. The user's
+observed gradients confirm separate addresses within fans, but do not establish
+whether different fans share or extend address ranges. No wiring remap is made.
+
+The official NV5 MKII product page does not specify a count for the built-in strip:
+https://phanteks.com/product/nv5-mk2-black/
+The suggested 18 LEDs remains unverified; no default count is asserted or changed.
+Phanteks lists 30 physical LEDs for D30-120, whereas the installed component
+metadata uses 15 addresses. These quantities must not be treated as interchangeable:
+https://phanteks.com/product/d30-120-black/

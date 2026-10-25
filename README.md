@@ -223,3 +223,8 @@ to a new folder; do not merge it into an older installation.
 
 See [release notes](docs/RELEASE_NOTES_0.1.0.md) for supported hardware and limitations.
 The application is currently unsigned; no SignPath acceptance or signing is claimed.
+
+Canvas navigation uses protected header margins, overflow-only scrollbars/minimap,
+and edge scrolling while dragging Layout hardware. Hardware selection includes
+manufacturer/category filters. Open/Save/Save as display the active project filename.
+See [editor navigation and identity](docs/LIGHTING_EDITOR.md#workspace-navigation-and-catalog-identity).

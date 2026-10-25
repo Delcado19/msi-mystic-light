@@ -1,5 +1,8 @@
 #include "LightingWindow.h"
 #include "SnapGrid.h"
+#include "HardwareIdentity.h"
+#include <QFileInfo>
+#include <QScreen>
 #include "HardwarePicker.h"
 #include "LegacyHardware.h"
 #include <QStandardPaths>
@@ -125,12 +128,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         try { loadProject(file); }
         catch (const std::exception& error) { QMessageBox::warning(this, "Open failed", QString::fromUtf8(error.what())); }
     });
-    auto* save = fileMenu->addAction("Save…"); save->setShortcut(QKeySequence::Save);
+    auto* save = fileMenu->addAction("Save"); save->setObjectName("saveProject"); save->setShortcut(QKeySequence::Save);
     connect(save, &QAction::triggered, this, [this] { saveDocument(); });
-    auto* saveAs = fileMenu->addAction("Save as…"); saveAs->setShortcut(QKeySequence::SaveAs);
+    auto* saveAs = fileMenu->addAction("Save as…"); saveAs->setObjectName("saveProjectAs"); saveAs->setShortcut(QKeySequence::SaveAs);
     connect(saveAs, &QAction::triggered, this, [this] {
         const auto previous = fileName_; fileName_.clear();
-        if (!saveDocument()) fileName_ = previous;
+        if (!saveDocument()) { fileName_ = previous; refreshProjectName(); }
     });
     auto* editMenu = menuBar()->addMenu("Edit");
     auto* undo = document_.history()->createUndoAction(this, "Undo");
@@ -143,7 +146,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     toolbar->setMovable(false); toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
     open->setIcon(studioToolIcon("open")); save->setIcon(studioToolIcon("save"));
     undo->setIcon(studioToolIcon("undo")); redo->setIcon(studioToolIcon("redo"));
-    toolbar->addAction(open); toolbar->addAction(save); toolbar->addSeparator();
+    toolbar->addAction(open); toolbar->addAction(save);
+    saveAs->setText("Save as…"); toolbar->addAction(saveAs);
+    auto* projectName=new QLabel("Untitled"); projectName->setObjectName("currentProjectName"); projectName->setMinimumWidth(80); projectName->setMaximumWidth(210); toolbar->addWidget(projectName);
+    toolbar->addSeparator();
     // Keep dynamic undo descriptions in the menu, not in a toolbar that steals canvas width.
     auto* undoButton=new QToolButton; undoButton->setDefaultAction(undo); undoButton->setText("Undo"); toolbar->addWidget(undoButton);
     auto* redoButton=new QToolButton; redoButton->setDefaultAction(redo); redoButton->setText("Redo"); toolbar->addWidget(redoButton);
@@ -163,7 +169,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         connect(canvas,&LightingCanvas::fullscreenRequested,this,[this,canvas,layout] {
             if(auto* host=qobject_cast<QDialog*>(canvas->window());host && host->objectName()=="canvasFullscreen") {host->reject();return;}
             auto* host=new QDialog(this);host->setObjectName("canvasFullscreen");host->setAttribute(Qt::WA_DeleteOnClose);
-            auto* full=new QVBoxLayout(host);full->setContentsMargins(0,0,0,0);
+            auto* full=new QVBoxLayout(host);
+            const auto screenBounds=screen()->geometry(), available=screen()->availableGeometry();
+            // Some Windows taskbars remain above fullscreen dialogs; keep controls inside the usable monitor area.
+            full->setContentsMargins(std::max(0,available.left()-screenBounds.left()),std::max(8,available.top()-screenBounds.top()),
+                std::max(0,screenBounds.right()-available.right()),std::max(8,screenBounds.bottom()-available.bottom()));
             auto* playback=new QPushButton(playing_->text(),host);playback->setObjectName("fullscreenCanvasPlayback");
             playback->setCheckable(true);playback->setChecked(playing_->isChecked());playback->setStyleSheet(playing_->styleSheet());
             full->addWidget(playback,0,Qt::AlignLeft);full->addWidget(canvas);
@@ -213,7 +223,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     layoutControls->addWidget(new QLabel("Components"));
     catalog_ = new QComboBox;
     catalog_->setObjectName("componentCatalog");
-    for (const auto& component : document_.catalog()) catalog_->addItem(component.name, component.id);
+    for (const auto& component : document_.catalog()) catalog_->addItem(hardwareName(component), component.id);
     layoutControls->addWidget(catalog_);
     button(layoutControls, "Add component", [this] {
         if (document_.state().placements.size() >= 256) { statusBar()->showMessage("Document limit: 256 components."); return; }
@@ -317,9 +327,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardwareScroll=new QScrollArea; hardwareScroll->setWidgetResizable(true); hardwareScroll->setWidget(hardwarePage);
     tabs_->addTab(hardwareScroll,"Hardware");
     components_=new QTreeWidget; components_->setObjectName("layoutComponents");
-    auto* hardwareTree=new QTreeView; hardwareTree->setObjectName("hardwareComponents"); hardwareTree->setHeaderHidden(true); hardwareTree->setMinimumHeight(220);
+    components_->setHeaderLabels({"Header / component","Manufacturer"});
+    auto* hardwareTree=new QTreeView; hardwareTree->setObjectName("hardwareComponents"); hardwareTree->setMinimumHeight(220);
     // Both workspaces share the same inventory model and selection; editing never maintains a second hardware list.
     hardwareTree->setModel(components_->model()); hardwareTree->setSelectionModel(components_->selectionModel()); hardwareControls->insertWidget(2,hardwareTree,1);
+    hardwareTree->header()->setSectionResizeMode(0,QHeaderView::Stretch); hardwareTree->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
+    components_->setColumnHidden(1,true); // Keep the narrow Layout sidebar focused on names; Hardware exposes the manufacturer column.
     components_->setHeaderHidden(true); components_->setRootIsDecorated(true); componentStack->insertWidget(0,components_,1);
     connect(components_,&QTreeWidget::currentItemChanged,this,[this](QTreeWidgetItem* item) {
         if(item) {
@@ -446,7 +459,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     outputStatus->setParent(this); outputStatus->hide();
     connect(previewChannel_,&QComboBox::currentIndexChanged,this,&LightingWindow::updatePreview);
     connect(layoutCanvas_,&LightingCanvas::layoutPreviewChanged,this,[this] { emit previewFrameChanged(previewFrame_); });
-    auto* timer = new QTimer(this); timer->setInterval(33);
+    auto* timer = new QTimer(this); timer->setTimerType(Qt::PreciseTimer); timer->setInterval(16);
     connect(playing_, &QPushButton::toggled, this, [this, timer](bool play) {
         playing_->setText(play ? "Canvas Stop" : "Canvas Start"); playing_->setIcon(style()->standardIcon(play ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
         if (play) { playbackStart_ = previewTime_->value(); previewClock_.restart(); timer->start(); }
@@ -964,7 +977,7 @@ void LightingWindow::refreshHeader()
     for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements)
         if(placement.id==id) leds+=document_.catalog()[placement.componentId].positions.size();
     for(const auto& placement:document_.state().placements) if(placement.id==layoutCanvas_->selection()) {
-        const auto& component=document_.catalog()[placement.componentId]; headerTitle_->setText(component.name);
+        const auto& component=document_.catalog()[placement.componentId]; headerTitle_->setText(hardwareName(component));
         headerSummary_->setText(QString("%1 / %2 LEDs\nDrag this component on the layout canvas.").arg(assignment.channelId).arg(component.positions.size())); return;
     }
     headerTitle_->setText(assignment.channelId);
@@ -1057,8 +1070,9 @@ void LightingWindow::refresh()
                     for(int i=0;i<assignment.placements.size();++i)
                         for(const auto& placement:document_.state().placements) if(placement.id==assignment.placements[i]) {
                             assigned.insert(placement.id);
-                            auto* child=new QTreeWidgetItem(group,{QString::number(i+1)+". "+document_.catalog()[placement.componentId].name});
+                            auto* child=new QTreeWidgetItem(group,{hardwareName(document_.catalog()[placement.componentId],i+1)});
                             child->setData(0,Qt::UserRole,placement.id);
+                            child->setText(1,hardwareManufacturer(document_.catalog()[placement.componentId]));
                             if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);
                         }
                 }
@@ -1066,8 +1080,9 @@ void LightingWindow::refresh()
         QTreeWidgetItem* unassigned=nullptr;
         for(const auto& placement:document_.state().placements) if(!assigned.contains(placement.id)) {
             if(!unassigned) { unassigned=new QTreeWidgetItem(components_,{"Unassigned components"}); unassigned->setExpanded(true); }
-            auto* child=new QTreeWidgetItem(unassigned,{document_.catalog()[placement.componentId].name});
+            auto* child=new QTreeWidgetItem(unassigned,{hardwareName(document_.catalog()[placement.componentId])});
             child->setData(0,Qt::UserRole,placement.id);
+            child->setText(1,hardwareManufacturer(document_.catalog()[placement.componentId]));
             if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);
         }
         if(selectedHeader_.isEmpty() && !headers.isEmpty()) { selectedHeader_=headers.first(); components_->setCurrentItem(components_->topLevelItem(0)); }
@@ -1084,7 +1099,7 @@ void LightingWindow::refresh()
     const auto currentComponent = catalog_->currentData();
     {
         const QSignalBlocker block(catalog_); catalog_->clear();
-        for (const auto& component : document_.catalog()) catalog_->addItem(component.name, component.id);
+        for (const auto& component : document_.catalog()) catalog_->addItem(hardwareName(component), component.id);
         const int previous = catalog_->findData(currentComponent);
         if (previous >= 0) catalog_->setCurrentIndex(previous);
     }
@@ -1278,6 +1293,7 @@ void LightingWindow::loadProject(const QString& path, bool recovered, const QStr
 {
     emit projectLoading();
     document_.load(path); fileName_ = recovered ? original : path;
+    refreshProjectName();
     if (recovered) document_.history()->resetClean();
     findChild<QAction*>("workspaceEffects")->trigger();
 }
@@ -1287,8 +1303,15 @@ bool LightingWindow::saveDocument()
     const auto path = fileName_.isEmpty() ? QFileDialog::getSaveFileName(this,
         "Save lighting document", "Untitled.lighting.json", "Lighting documents (*.lighting.json)") : fileName_;
     if (path.isEmpty()) return false;
-    try { document_.save(path); fileName_ = path; statusBar()->showMessage("Saved " + path); return true; }
+    try { saveProject(path); return true; }
     catch (const std::exception& error) { QMessageBox::warning(this, "Save failed", QString::fromUtf8(error.what())); return false; }
+}
+
+void LightingWindow::saveProject(const QString& path)
+{
+    if(path.trimmed().isEmpty()) throw std::invalid_argument("A project filename is required");
+    // Adopt the new name only after the atomic QSaveFile commit succeeds.
+    document_.save(path); fileName_=path; refreshProjectName(); statusBar()->showMessage("Saved "+path);
 }
 
 bool LightingWindow::confirmDiscard()
@@ -1298,4 +1321,11 @@ bool LightingWindow::confirmDiscard()
         "Save your layout, layers and masks before continuing?",
         QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
     return answer == QMessageBox::Discard || (answer == QMessageBox::Save && saveDocument());
+}
+
+void LightingWindow::refreshProjectName()
+{
+    const auto name=fileName_.isEmpty() ? QString("Untitled") : QFileInfo(fileName_).fileName();
+    auto* label=findChild<QLabel*>("currentProjectName"); label->setText(label->fontMetrics().elidedText(name,Qt::ElideMiddle,200)); label->setToolTip(fileName_);
+    setWindowTitle(name+"[*] — Lighting Studio");
 }

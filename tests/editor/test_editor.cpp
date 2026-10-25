@@ -1,6 +1,7 @@
 #include "editor/LightingWindow.h"
 #include "editor/ComponentEditor.h"
 #include "editor/SnapGrid.h"
+#include "editor/HardwareIdentity.h"
 #include "editor/ChannelEditor.h"
 #include "editor/AppSession.h"
 #include "editor/StudioWidgets.h"
@@ -108,6 +109,14 @@ private slots:
         QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,settingsDirectory_.path());
     }
     void init() { SnapGrid{false,10}.save(); } // Legacy gesture tests exercise free placement; grid tests enable it explicitly.
+    void protectedGroupLabels();
+    void effectsOverflowNavigation();
+    void anchoredResize_data();
+    void anchoredResize();
+    void edgeScrolling_data();
+    void edgeScrolling();
+    void workspaceNavigation();
+    void hardwareIdentityAndSave();
     void snapGridBoundaries();
     void snapLayoutGroup();
     void snapLayoutPositions_data();
@@ -204,7 +213,11 @@ void EditorTest::hardwareLibrary()
     const QJsonObject source{{"ProductName","Fixture fan"},{"Brand","Test brand"},{"Type","Fan"},{"LedCount",3},
         {"LedCoordinates",QJsonArray{QJsonArray{100,200},QJsonArray{300,200},QJsonArray{200,400}}},{"LedMapping",QJsonArray{2,0,1}}};
     auto write=[&](const QString& name,const QJsonObject& data) { QFile file(folder+"/"+name+".json"); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(data).toJson()); };
-    write("valid",source); auto invalid=source; invalid.insert("ProductName","Malformed mapping"); invalid.insert("LedMapping",QJsonArray{2,2,0}); write("invalid",invalid);
+    write("valid",source);
+    auto strip=source;strip["ProductName"]="Bent fixture strip";strip["Type"]="Strip";write("strip",strip);
+    auto d30=source;d30["ProductName"]="Phantek D30-120";d30["Brand"]="Phanteks";write("d30",d30);
+    auto reverse=source;reverse["ProductName"]="Fixture fan Reverse";write("reverse",reverse);
+    auto invalid=source; invalid.insert("ProductName","Malformed mapping"); invalid.insert("LedMapping",QJsonArray{2,2,0}); write("invalid",invalid);
     auto dedicated=source; dedicated.insert("ProductName","Dedicated RAM"); dedicated.insert("Type","RAM"); write("dedicated",dedicated);
     HardwarePicker picker(catalog(),{{"Header",{{"channelId","Direct"}},12}},{{"channelId","Direct"}});
     auto* list=picker.findChild<QListWidget*>("hardwareProducts");
@@ -215,6 +228,17 @@ void EditorTest::hardwareLibrary()
     picker.findChild<QSpinBox*>("hardwareQuantity")->setValue(5); QVERIFY(!picker.findChild<QPushButton*>("confirmAddHardware")->isEnabled());
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Malformed mapping"); QVERIFY(!list->currentItem());
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Dedicated RAM"); QVERIFY(!list->currentItem());
+    auto* brand=picker.findChild<QComboBox*>("hardwareManufacturer");brand->setCurrentText("Test brand");
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("Bent fixture strip");QVERIFY(list->currentItem());
+    const auto straight=picker.component();QCOMPARE(straight.mapping,QVector<int>({2,0,1}));
+    QCOMPARE(straight.positions,QVector<QPointF>({{0,0},{1.5,0},{3,0}}));QCOMPARE(straight.manufacturer,QString("Test brand"));
+    auto* category=picker.findChild<QComboBox*>("hardwareCategory");category->setCurrentText("Fans");QVERIFY(!list->currentItem());
+    category->setCurrentText("All hardware");brand->setCurrentText("Phanteks");
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("D30-120");QVERIFY(list->currentItem());
+    QVERIFY(!list->currentItem()->text().contains("Phanteks Phanteks"));
+    const auto round=picker.component();QCOMPARE(round.mapping,QVector<int>({2,0,1}));
+    for(const auto& point:round.positions) QVERIFY(qAbs(QLineF(point,QPointF(1.3,1.3)).length()-1.3)<.0001);
+    brand->setCurrentText("All manufacturers");picker.findChild<QLineEdit*>("hardwareSearch")->setText("Reverse");QVERIFY(!list->currentItem());
 }
 
 void EditorTest::drawingAndAnimationRegressions()
@@ -1675,7 +1699,9 @@ void EditorTest::expandingLayoutAndFullscreen()
     QCOMPARE(canvas->window(),host);QVERIFY(canvas->isVisible());
     QVERIFY(host->grab().save(artifactDirectory()+"/layout-fullscreen.png"));
     auto* fullPlay=host->findChild<QPushButton*>("fullscreenCanvasPlayback");QVERIFY(fullPlay);QTest::mouseClick(fullPlay,Qt::LeftButton);QVERIFY(play->isChecked());play->setChecked(false);
+    canvas->zoomBy(4);canvas->repaint();QVERIFY(host->grab().save(artifactDirectory()+"/layout-fullscreen-overflow.png"));
     QTest::keyClick(canvas,Qt::Key_Escape);QTRY_COMPARE(canvas->parentWidget(),originalParent);QVERIFY(canvas->isVisible());
+    canvas->zoomBy(4);canvas->repaint(); // Navigation is available only when the fitted content overflows.
     const auto before=canvas->canvasPoint(QPointF(canvas->width()/2.,canvas->height()/2.));
     QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,QPoint(canvas->width()-176,canvas->height()-110));
     QVERIFY(QLineF(before,canvas->canvasPoint(QPointF(canvas->width()/2.,canvas->height()/2.))).length()>10);
@@ -1695,23 +1721,24 @@ void EditorTest::canvasScrollbars()
     canvas->repaint();QVERIFY(horizontal->isVisible());QVERIFY(vertical->isVisible());
     horizontal->setValue(horizontal->maximum());vertical->setValue(vertical->maximum());canvas->repaint();
     // Independent world edge: centers 1800..1840 at -1200, plus 12px margin, union the base rectangle.
-    QVERIFY(qAbs(canvas->viewportPoint({1852,400}).x()-(canvas->width()-vertical->width()))<=1.0);
-    QVERIFY2(qAbs(canvas->viewportPoint({1852,400}).y()-(canvas->height()-horizontal->height()))<=1.0,
+    QVERIFY(qAbs(canvas->viewportPoint({1852,400}).x()-(canvas->width()-16-vertical->width()))<=1.0);
+    QVERIFY2(qAbs(canvas->viewportPoint({1852,400}).y()-(canvas->height()-16-horizontal->height()))<=1.0,
         qPrintable(QString("bottom=%1 viewport=%2 hbar=%3 v=%4/%5 units/world=%6")
         .arg(canvas->viewportPoint({1852,400}).y()).arg(canvas->height()).arg(horizontal->height()).arg(vertical->value()).arg(vertical->maximum()).arg(window.document().layoutBounds().height())));
     horizontal->setValue(horizontal->minimum());vertical->setValue(vertical->minimum());canvas->repaint();
-    QVERIFY(qAbs(canvas->viewportPoint({0,-1212}).x())<=1.0);QVERIFY(qAbs(canvas->viewportPoint({0,-1212}).y())<=1.0);
+    QVERIFY(qAbs(canvas->viewportPoint({0,-1212}).x()-16)<=1.0);QVERIFY(qAbs(canvas->viewportPoint({0,-1212}).y()-48)<=1.0);
     vertical->setValue(vertical->maximum()/2);canvas->repaint();
     const auto old=canvas->canvasPoint(QPointF(100,100));
     horizontal->setValue(horizontal->maximum());vertical->setValue(vertical->minimum());canvas->repaint();
     const auto moved=canvas->canvasPoint(QPointF(100,100));QVERIFY(moved.x()>old.x());QVERIFY(moved.y()<old.y());
     const auto bounds=window.document().layoutBounds();
-    QVERIFY(qAbs(canvas->canvasPoint(QPointF(0,0)).y()-bounds.top())<3);
+    QVERIFY(qAbs(canvas->canvasPoint(QPointF(16,48)).y()-bounds.top())<3);
     // Minimap lives above/left of the scrollbar intersection, in the lower-right corner.
     const QPoint mapPoint(canvas->width()-176-vertical->width(),canvas->height()-110-horizontal->height());
     const auto before=canvas->canvasPoint(QPointF(100,100));QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,mapPoint);canvas->repaint();
     QVERIFY(QLineF(before,canvas->canvasPoint(QPointF(100,100))).length()>10);
     const int value=horizontal->value();QVERIFY(value<horizontal->maximum());
+    QVERIFY(window.grab().save(artifactDirectory()+"/layout-navigation-overflow.png"));
     window.document().edit("Move back",[](auto& state){state.placements[0].origin={80,80};});
     canvas->fitToView();canvas->repaint();QVERIFY(!horizontal->isVisible());QVERIFY(!vertical->isVisible());
     QVERIFY(window.grab().save(artifactDirectory()+"/layout-scrollbars.png"));
@@ -1790,10 +1817,10 @@ void EditorTest::scrollbarMouseInteraction()
 void EditorTest::scrollbarExactFit_data()
 {
     QTest::addColumn<QSize>("size");QTest::addColumn<bool>("horizontal");QTest::addColumn<bool>("vertical");
-    QTest::newRow("exact")<<QSize(640,400)<<false<<false;
-    QTest::newRow("one-pixel-spare")<<QSize(641,401)<<false<<false;
-    QTest::newRow("horizontal-overflow-causes-vertical")<<QSize(639,400)<<true<<true;
-    QTest::newRow("vertical-overflow-causes-horizontal")<<QSize(640,399)<<true<<true;
+    QTest::newRow("exact")<<QSize(672,464)<<false<<false;
+    QTest::newRow("one-pixel-spare")<<QSize(673,465)<<false<<false;
+    QTest::newRow("horizontal-overflow-causes-vertical")<<QSize(671,464)<<true<<true;
+    QTest::newRow("vertical-overflow-causes-horizontal")<<QSize(672,463)<<true<<true;
     QTest::newRow("horizontal-only")<<QSize(639,1000)<<true<<false;
     QTest::newRow("vertical-only")<<QSize(1000,399)<<false<<true;
 }
@@ -2016,7 +2043,9 @@ void EditorTest::snapLayoutPositions()
     SnapGrid{true,10}.save();LightingDocument document(catalog());const auto id=document.addComponent("test.strip");
     document.edit("Fixture",[](auto& state){state.placements[0].origin={100,100};});
     LightingCanvas canvas(document,LightingCanvas::Context::Layout);canvas.resize(900,600);canvas.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.zoomBy(zoom);canvas.select(id);
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.zoomBy(zoom);canvas.select(id);canvas.repaint();
+    canvas.findChild<QScrollBar*>("canvasHorizontalScroll")->setValue(0);
+    canvas.findChild<QScrollBar*>("canvasVerticalScroll")->setValue(0);canvas.repaint();
     const auto from=canvas.viewportPoint({100,100}),to=canvas.viewportPoint(target);
     const auto modifiers=bypass ? Qt::AltModifier : Qt::NoModifier;
     // Deliver exact world-derived coordinates, including off-viewport positions, without OS cursor rounding.
@@ -2079,3 +2108,148 @@ void EditorTest::snapControls()
 
 QTEST_MAIN(EditorTest)
 #include "test_editor.moc"
+
+void EditorTest::hardwareIdentityAndSave()
+{
+    auto c=catalog().first(); c.name="M25 Gen2 120 #1";
+    QCOMPARE(hardwareName(c,4),QString("Phanteks M25 Gen2 120 #4"));
+    c.name="Glacier One M25 Gen2 / pump"; QCOMPARE(hardwareManufacturer(c),QString("Phanteks"));
+    c.name="Handmade strip";c.id="custom.strip";QCOMPARE(hardwareManufacturer(c),QString("Generic"));
+    c.manufacturer="Fixture brand";c.category="Strips";
+    const auto restored=ComponentDefinition::fromJson(c.toJson()); QCOMPARE(restored.manufacturer,c.manufacturer);QCOMPARE(restored.category,c.category);QCOMPARE(restored.mapping,c.mapping);
+    for(const auto& value:{QJsonValue(17),QJsonValue(""),QJsonValue(QString(161,'x'))}) {
+        auto invalid=c.toJson();invalid["manufacturer"]=value;QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(invalid),std::invalid_argument);
+    }
+    ComponentDefinition d30;d30.id="hardware.old-d30";d30.name="Phanteks D30-120";
+    const QVector<int> oldX{2,1,1,0,0,0,0,0,0,0,0,0,1,1,2};
+    for(int i=0;i<15;++i) {d30.positions.append({oldX[i]*3.0/14,i*3.0/14});d30.mapping.append(14-i);}
+    const auto ring=ComponentDefinition::fromJson(d30.toJson());QCOMPARE(ring.mapping,d30.mapping);
+    for(const auto& point:ring.positions) QVERIFY(qAbs(QLineF(point,QPointF(1.3,1.3)).length()-1.3)<.0001);
+    d30.positions[0]+={.01,0};QCOMPARE(ComponentDefinition::fromJson(d30.toJson()).positions,d30.positions);
+    HardwarePicker picker(catalog(),{},{});
+    auto* category=picker.findChild<QComboBox*>("hardwareCategory");
+    for(const auto* text:{"Fans","Strips","Mice","Keyboards","AiO","Pumps","RAM","Graphics cards"}) QVERIFY(category->findText(text)>=0);
+    QVERIFY(picker.findChild<QComboBox*>("hardwareManufacturer")->findText("Phanteks")>=0);
+    auto* products=picker.findChild<QListWidget*>("hardwareProducts");
+    for(int i=0;i<products->count();++i) QVERIFY(!products->item(i)->text().contains("Reverse",Qt::CaseInsensitive));
+    QTemporaryDir directory;LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});
+    window.document().addComponent("test.strip");
+    const auto first=directory.filePath("first.lighting.json"), second=directory.filePath("second.lighting.json");
+    window.saveProject(first);QCOMPARE(window.projectFile(),first);
+    QFile file(first);QVERIFY(file.open(QIODevice::ReadOnly));const auto original=file.readAll();file.close();
+    window.document().addPaintLayer();window.saveProject(second);QCOMPARE(window.projectFile(),second);
+    QCOMPARE(window.findChild<QLabel*>("currentProjectName")->toolTip(),second);
+    window.document().addPaintLayer();window.findChild<QAction*>("saveProject")->trigger();
+    LightingDocument loaded(catalog());loaded.load(second);QCOMPARE(loaded.state().layers.size(),2);
+    QVERIFY(file.open(QIODevice::ReadOnly));QCOMPARE(file.readAll(),original);
+    QVERIFY_EXCEPTION_THROWN(window.saveProject(directory.filePath("missing/fail.json")),std::runtime_error);
+    QCOMPARE(window.projectFile(),second);QVERIFY_EXCEPTION_THROWN(window.saveProject(""),std::invalid_argument);
+    window.document().history()->setClean();
+}
+void EditorTest::workspaceNavigation()
+{
+    LightingDocument document(catalog());const auto id=document.addComponent("test.strip");
+    document.edit("Fixture",[](auto& state){state.placements[0].origin={200,180};});
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);canvas.resize(900,640);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.select(id);canvas.fitToView();canvas.repaint();
+    auto* horizontal=canvas.findChild<QScrollBar*>("canvasHorizontalScroll");auto* vertical=canvas.findChild<QScrollBar*>("canvasVerticalScroll");
+    QVERIFY(!horizontal->isVisible());QVERIFY(!vertical->isVisible());
+    const auto fitted=canvas.canvasPoint({450,300});
+    QTest::mouseClick(&canvas,Qt::LeftButton,Qt::NoModifier,{canvas.width()-176,canvas.height()-110});
+    QCOMPARE(canvas.canvasPoint({450,300}),fitted);canvas.select(id);
+    // Bottom-right resize keeps the opposite corner fixed rather than expanding symmetrically.
+    const auto anchor=canvas.viewportPoint({185,165});
+    const auto from=canvas.viewportPoint({255.01,195.01}).toPoint();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);QTest::mouseMove(&canvas,from+QPoint(70,30));QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,from+QPoint(70,30));
+    const auto placed=document.state().placements[0];QVERIFY(placed.scale.width()>1);
+    const auto fixed=placed.origin+(QPointF(185,165)-QPointF(200,180))*placed.scale.width();
+    QVERIFY(QLineF(canvas.viewportPoint(fixed),anchor).length()<2);
+    document.history()->undo();QCOMPARE(document.state().placements[0].origin,QPointF(200,180));
+    canvas.zoomBy(3);canvas.repaint();QVERIFY(horizontal->isVisible());QVERIFY(vertical->isVisible());
+    horizontal->setValue(0);vertical->setValue(0);canvas.repaint();
+    QCOMPARE(qRound(canvas.viewportPoint({0,0}).x()),16);QCOMPARE(qRound(canvas.viewportPoint({0,0}).y()),48);
+    horizontal->setValue(horizontal->maximum());vertical->setValue(vertical->maximum());canvas.repaint();
+    QVERIFY(qAbs(canvas.viewportPoint({640,400}).x()-(canvas.width()-16-vertical->width()))<=1);
+    QVERIFY(qAbs(canvas.viewportPoint({640,400}).y()-(canvas.height()-16-horizontal->height()))<=1);
+    canvas.fitToView();canvas.repaint();canvas.setAutoScrollSpeed(0);
+    auto start=canvas.viewportPoint({200,180}).toPoint(), edge=QPoint(canvas.width()-18,canvas.height()/2);
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,start);QTest::mouseMove(&canvas,edge);
+    const auto stopped=canvas.canvasPoint({450,300});QTest::qWait(70);QCOMPARE(canvas.canvasPoint({450,300}),stopped);
+    canvas.setAutoScrollSpeed(720);QTest::qWait(100);QVERIFY(canvas.canvasPoint({450,300}).x()>stopped.x()+5);
+    QTest::keyClick(&canvas,Qt::Key_Escape);const auto cancelled=canvas.canvasPoint({450,300});QTest::qWait(60);QCOMPARE(canvas.canvasPoint({450,300}),cancelled);
+    for(double invalid:{-1.,4001.,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()}) canvas.setAutoScrollSpeed(invalid);
+}
+
+void EditorTest::edgeScrolling_data()
+{
+    QTest::addColumn<QPoint>("direction");
+    QTest::newRow("left")<<QPoint(-1,0);QTest::newRow("right")<<QPoint(1,0);
+    QTest::newRow("top")<<QPoint(0,-1);QTest::newRow("bottom")<<QPoint(0,1);
+}
+void EditorTest::edgeScrolling()
+{
+    QFETCH(QPoint,direction);
+    LightingDocument document(catalog());const auto id=document.addComponent("test.strip");
+    document.edit("Center fixture",[](auto& state){state.placements[0].origin={300,200};});
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);canvas.resize(900,640);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.select(id);canvas.repaint();
+    const QPoint edge(direction.x()<0 ? 17 : direction.x()>0 ? 883 : 450,direction.y()<0 ? 49 : direction.y()>0 ? 623 : 320);
+    const auto from=canvas.viewportPoint({300,200}).toPoint();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);QTest::mouseMove(&canvas,edge);
+    const auto before=canvas.canvasPoint({450,320});QTest::qWait(120);
+    const auto delta=canvas.canvasPoint({450,320})-before;
+    QVERIFY(QPointF::dotProduct(delta,QPointF(direction))>10);
+    // Invalid speeds retain the previous working speed, rather than reversing or poisoning the camera.
+    for(double invalid:{-1.,4001.,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()}) canvas.setAutoScrollSpeed(invalid);
+    const auto valid=canvas.canvasPoint({450,320});QTest::qWait(80);
+    QVERIFY(QPointF::dotProduct(canvas.canvasPoint({450,320})-valid,QPointF(direction))>5);
+    QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,edge);canvas.repaint();
+    auto* bar=canvas.findChild<QScrollBar*>(direction.x() ? "canvasHorizontalScroll" : "canvasVerticalScroll");QVERIFY(bar->isVisible());
+    QVERIFY(document.history()->canUndo());document.history()->undo();QCOMPARE(document.state().placements[0].origin,QPointF(300,200));
+}
+
+void EditorTest::anchoredResize_data()
+{
+    QTest::addColumn<int>("corner");QTest::addColumn<double>("factor");
+    for(int i=0;i<4;++i) { QTest::newRow(qPrintable(QString("grow-%1").arg(i)))<<i<<1.5; QTest::newRow(qPrintable(QString("shrink-%1").arg(i)))<<i<<.6; }
+}
+void EditorTest::anchoredResize()
+{
+    QFETCH(int,corner);QFETCH(double,factor);
+    LightingDocument document(catalog());const auto id=document.addComponent("test.strip");
+    document.edit("Resize fixture",[](auto& state){state.placements[0].origin={200,180};});
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);canvas.resize(900,640);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.select(id);canvas.repaint();
+    const QVector<QPointF> corners{{185,165},{255.01,165},{255.01,195.01},{185,195.01}};
+    const auto fixed=corners[(corner+2)%4],from=corners[corner],to=fixed+(from-fixed)*factor;
+    const auto a=canvas.viewportPoint(from),b=canvas.viewportPoint(to);
+    QMouseEvent press(QEvent::MouseButtonPress,a,canvas.mapToGlobal(a.toPoint()),Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(&canvas,&press);
+    QMouseEvent release(QEvent::MouseButtonRelease,b,canvas.mapToGlobal(b.toPoint()),Qt::LeftButton,Qt::NoButton,Qt::NoModifier);QApplication::sendEvent(&canvas,&release);
+    const auto placed=document.state().placements[0];QVERIFY(qAbs(placed.scale.width()-factor)<.0001);
+    QVERIFY(QLineF(placed.origin+(fixed-QPointF(200,180))*factor,fixed).length()<.0001);
+    document.history()->undo();QCOMPARE(document.state().placements[0].origin,QPointF(200,180));
+}
+
+void EditorTest::effectsOverflowNavigation()
+{
+    LightingDocument document(catalog());document.addLayer(EffectKind::Circle);
+    document.edit("Oversized animated source",[](auto& state){auto& effect=state.layers[0];effect.extent={1800,1400};effect.spin=20;});
+    LightingCanvas canvas(document,LightingCanvas::Context::Effects);canvas.resize(900,640);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.repaint();
+    auto* horizontal=canvas.findChild<QScrollBar*>("canvasHorizontalScroll");auto* vertical=canvas.findChild<QScrollBar*>("canvasVerticalScroll");
+    QVERIFY(!horizontal->isVisible());QVERIFY(!vertical->isVisible());
+    const auto camera=canvas.canvasPoint({450,320});QTest::mouseClick(&canvas,Qt::LeftButton,Qt::NoModifier,{canvas.width()-176,canvas.height()-110});QCOMPARE(canvas.canvasPoint({450,320}),camera);
+    canvas.zoomBy(3);canvas.repaint();QVERIFY(horizontal->isVisible());QVERIFY(vertical->isVisible());
+    canvas.fitToView();canvas.repaint();QVERIFY(!horizontal->isVisible());QVERIFY(!vertical->isVisible());
+}
+
+void EditorTest::protectedGroupLabels()
+{
+    LightingDocument document(catalog(),nullptr,{channelProfile()});const auto id=document.addComponent("test.strip");
+    document.edit("At origin",[](auto& state){state.placements[0].origin={0,0};});
+    ChannelAssignment assignment;assignment.profileId="test.device";assignment.endpoint="test";assignment.channelId="Direct";assignment.software=true;assignment.placements={id};document.assignChannel(assignment);
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);canvas.resize(900,640);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.repaint();
+    const QPointF labelInterior(-16,-25-canvas.fontMetrics().height()-4);
+    const auto screen=canvas.viewportPoint(labelInterior).toPoint();
+    const auto image=canvas.grab().toImage();
+    // QPixmap::grab uses physical pixels on high-DPI Windows monitors; widget coordinates stay logical.
+    const auto pixel=[&](QPoint point){return image.pixelColor((QPointF(point)*image.devicePixelRatio()).toPoint());};
+    QVERIFY(screen.y()>=48);QCOMPARE(pixel(screen),QColor("#202735"));
+    QCOMPARE(pixel({150,45}),QColor("#17191f"));
+}

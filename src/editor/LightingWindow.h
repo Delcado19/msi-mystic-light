@@ -37,6 +37,7 @@ public:
     void restoreLegacyHardware(const QString& path);
     QString projectFile() const { return fileName_; }
     void loadProject(const QString& path, bool recovered = false, const QString& original = {});
+    void saveProject(const QString& path);
     const QImage& previewFrame() const { return previewFrame_; }
 signals:
     void previewFrameChanged(const QImage& frame);
@@ -63,6 +64,7 @@ private:
     void updateMotion(const QString& label,const std::function<void(EffectLayer&)>& operation);
     void updateLayer(const QString& label, const std::function<void(EffectLayer&)>& operation);
     bool saveDocument();
+    void refreshProjectName();
     bool confirmDiscard();
     LightingDocument document_;
     QImage previewFrame_;

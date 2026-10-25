@@ -1,4 +1,5 @@
 #include "ComponentEditor.h"
+#include "HardwareIdentity.h"
 #include "SnapGrid.h"
 #include "StudioWidgets.h"
 #include <QGraphicsView>
@@ -73,7 +74,7 @@ protected:
 };
 }
 ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existing, QWidget* parent, bool instance)
-    : QDialog(parent), nonPhysicalSlots_(initial.nonPhysicalSlots)
+    : QDialog(parent), manufacturer_(hardwareManufacturer(initial)), category_(hardwareCategory(initial)), nonPhysicalSlots_(initial.nonPhysicalSlots)
 {
     setWindowTitle(instance ? "Arrange device LEDs" : existing ? "Edit component geometry" : "Create component");
     resize(1180, 760);
@@ -255,6 +256,7 @@ ComponentDefinition ComponentEditor::component() const
     }
     QJsonArray reserved; for (int wire : nonPhysicalSlots_) reserved.append(wire);
     return ComponentDefinition::fromJson({{"schemaVersion", 1}, {"nonPhysicalSlots", reserved},
+        {"manufacturer",manufacturer_},{"category",category_},
         {"id", findChild<QLineEdit*>("componentId")->text()},
         {"name", findChild<QLineEdit*>("componentName")->text()},
         {"ledCount", table->rowCount()}, {"positions", positions}, {"mapping", mapping}});

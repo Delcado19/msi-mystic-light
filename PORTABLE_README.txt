@@ -66,3 +66,12 @@ individual LEDs snap in world coordinates; rotation uses 15-degree increments.
 Gradient palette stops use percentage increments (10 = 10%). Freehand brushes,
 camera navigation and exact numeric entries stay continuous. Existing projects
 are never resnapped simply by opening them. The grid is not sent to hardware.
+
+Workspace navigation update:
+Canvas headers and fullscreen playback controls have a protected margin. Scrollbars
+and the lower-right minimap appear when content overflows, including after zoom.
+Layout drag scrolling accelerates near all four edges. Corner resize anchors the
+opposite corner. Hardware has manufacturer/category filters and manufacturer names;
+strips are straight and D30 fans have a circular visual layout. Save as and the
+current filename are visible beside Open/Save. Save adopts a new path only after
+successful writing. The NV5 MKII built-in strip count is not yet verified.

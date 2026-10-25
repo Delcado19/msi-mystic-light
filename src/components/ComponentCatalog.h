@@ -6,6 +6,8 @@
 
 struct ComponentDefinition {
     QString id, name;
+    // Optional catalog identity; older documents use presentation fallbacks.
+    QString manufacturer, category;
     QVector<QPointF> positions;
     // Logical LED index -> wire index; a permutation, never extra LEDs.
     QVector<int> mapping;

@@ -1,4 +1,5 @@
 #include "HardwarePicker.h"
+#include "HardwareIdentity.h"
 #include <QComboBox>
 #include <QCryptographicHash>
 #include <QDialogButtonBox>
@@ -30,7 +31,7 @@ ComponentDefinition generic(const QString& id,const QString& name,int count,bool
     }
     return c;
 }
-bool isFan(const ComponentDefinition& c) { return (c.id+" "+c.name).contains("fan",Qt::CaseInsensitive) || c.name.contains("M25"); }
+bool isFan(const ComponentDefinition& c) { return hardwareCategory(c)=="Fans"; }
 QIcon productIcon(const ComponentDefinition& c)
 {
     QPixmap pixmap(96,76); pixmap.fill(Qt::transparent); QPainter p(&pixmap); p.setRenderHint(QPainter::Antialiasing);
@@ -54,7 +55,8 @@ void installedProducts(ComponentCatalog& products)
             const auto bytes=file.read(128*1024+1); if(bytes.size()>128*1024 || file.error()!=QFileDevice::NoError) continue; const auto json=QJsonDocument::fromJson(bytes).object();
             const auto product=json.value("ProductName").toString().trimmed(), brand=json.value("Brand").toString().trimmed();
             if(product.isEmpty()) continue;
-            const auto displayName=(product.startsWith(brand,Qt::CaseInsensitive) ? product : brand+" "+product).trimmed().left(160);
+            if(product.contains("Reverse",Qt::CaseInsensitive)) continue;
+            const auto displayName=(product.startsWith(brand,Qt::CaseInsensitive) || (brand=="Phanteks" && product.startsWith("Phantek ",Qt::CaseInsensitive)) ? product : brand+" "+product).trimmed().left(160);
             const auto count=json.value("LedCount"); const double number=count.toDouble(-1);
             if(number<1 || number>120 || std::floor(number)!=number) continue;
             const auto type=json.value("Type").toString().toLower();
@@ -73,7 +75,16 @@ void installedProducts(ComponentCatalog& products)
                 }
                 const double scale=3.0/std::max(1.0,std::max(right-left,bottom-top));
                 for(auto& point:c.positions) point=(point-QPointF(left,top))*scale;
-                products.insert(c.id,c);
+                c.manufacturer=brand.isEmpty() ? "Generic" : brand;
+                c.category=type.contains("fan") ? "Fans" : type.contains("strip") ? "Strips" : type.contains("keyboard") ? "Keyboards" : type.contains("mouse") ? "Mice" : type.contains("aio") ? "AiO" : type.contains("pump") ? "Pumps" : hardwareCategory(c);
+                // The local D30 metadata is a narrow strip diagram; use a fan footprint, preserving addresses and permutation.
+                if(product.contains("D30-120",Qt::CaseInsensitive)) {
+                    const auto ring=generic(c.id,c.name,int(c.positions.size()),true); c.positions=ring.positions;
+                }
+                if(c.category=="Strips") {
+                    for(int i=0;i<c.positions.size();++i) c.positions[i]={3.0*i/std::max(1,int(c.positions.size())-1),0};
+                }
+                products.insert(c.id,ComponentDefinition::fromJson(c.toJson()));
             } catch(const std::exception&) { /* Malformed local metadata is not a usable hardware definition. */ }
         }
         break;
@@ -87,23 +98,27 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
     for(int count:{6,8,12,16}) { auto c=generic(QString("generic.fan.%1").arg(count),QString("Generic fan / %1 addresses").arg(count),count,true); if(!products_.contains(c.id)) products_.insert(c.id,c); }
     for(int count:{8,30,60}) { auto c=generic(QString("generic.strip.%1").arg(count),QString("Generic strip / %1 LEDs").arg(count),count,false); if(!products_.contains(c.id)) products_.insert(c.id,c); }
     // Restore the original user's installed M25 models: six addresses for paired physical LEDs.
-    for(const auto& model:{"Phanteks M25 Gen2 120 White","Phanteks M25 Gen2 120 Reverse White"}) {
-        auto c=generic(QString(model).contains("Reverse") ? "phanteks.m25.reverse" : "phanteks.m25",model,6,true); products_.insert(c.id,c);
-    }
+    { auto c=generic("phanteks.m25","Phanteks M25 Gen2 120 White",6,true); products_.insert(c.id,c); }
     installedProducts(products_);
+    for(auto it=products_.begin();it!=products_.end();) {
+        if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products_.erase(it); else ++it;
+    }
     auto* root=new QVBoxLayout(this); root->setContentsMargins(20,20,20,20); root->setSpacing(12);
     auto* heading=new QLabel("Choose your hardware"); heading->setProperty("heading",true); root->addWidget(heading);
     header_=new QComboBox; header_->setObjectName("hardwareHeader"); header_->setPlaceholderText("No supported header detected - connect your controller and refresh headers"); root->addWidget(header_);
     for(const auto& choice:headers_) { header_->addItem(choice.name,choice.identity); if(choice.identity==selected) header_->setCurrentIndex(header_->count()-1); }
     auto* search=new QLineEdit; search->setObjectName("hardwareSearch"); search->setPlaceholderText("Search fans, strips, brands or custom hardware"); search->setClearButtonEnabled(true); root->addWidget(search);
-    auto* category=new QComboBox; category->setObjectName("hardwareCategory"); category->addItems({"All hardware","Fans","Strips / other"}); root->addWidget(category);
+    auto* category=new QComboBox; category->setObjectName("hardwareCategory"); category->addItems({"All hardware","Fans","Strips","Mice","Keyboards","AiO","Pumps","RAM","Graphics cards","Motherboards","Other"}); root->addWidget(category);
+    auto* manufacturer=new QComboBox; manufacturer->setObjectName("hardwareManufacturer"); manufacturer->addItem("All manufacturers");
+    QStringList brands; for(const auto& c:products_) if(!brands.contains(hardwareManufacturer(c))) brands.append(hardwareManufacturer(c));
+    brands.sort(Qt::CaseInsensitive); manufacturer->addItems(brands); root->addWidget(manufacturer);
     productsList_=new QListWidget; productsList_->setObjectName("hardwareProducts"); productsList_->setViewMode(QListView::IconMode);
     productsList_->setResizeMode(QListView::Adjust); productsList_->setMovement(QListView::Static); productsList_->setWordWrap(true);
     productsList_->setGridSize({210,134}); productsList_->setIconSize({96,76}); root->addWidget(productsList_,1);
     auto productIds=products_.keys();
     const auto priority=[](const QString& id) { return id.startsWith("phanteks.") ? 0 : id.startsWith("generic.") ? 3 : id.startsWith("hardware.") ? 2 : 1; };
     std::stable_sort(productIds.begin(),productIds.end(),[&](const QString& a,const QString& b) { return priority(a)<priority(b); });
-    for(const auto& id:productIds) { const auto& c=products_[id]; auto* item=new QListWidgetItem(productIcon(c),c.name,productsList_); item->setData(Qt::UserRole,c.id); item->setToolTip(QString("%1 / %2 addressable LEDs").arg(c.name).arg(c.positions.size())); }
+    for(const auto& id:productIds) { const auto& c=products_[id]; auto* item=new QListWidgetItem(productIcon(c),hardwareName(c),productsList_); item->setData(Qt::UserRole,c.id); item->setToolTip(QString("%1 / %2 addressable LEDs").arg(c.name).arg(c.positions.size())); }
     auto* details=new QLabel; details->setWordWrap(true); details->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); details->setMinimumHeight(details->fontMetrics().lineSpacing()*2); root->addWidget(details);
     auto* form=new QFormLayout; root->addLayout(form);
     quantity_=new QSpinBox; quantity_->setObjectName("hardwareQuantity"); quantity_->setRange(1,64); form->addRow("Quantity",quantity_);
@@ -124,15 +139,15 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
     });
     connect(header_,&QComboBox::currentIndexChanged,this,[update] { update(); });
     connect(quantity_,&QSpinBox::valueChanged,this,[update] { update(); }); connect(leds_,&QSpinBox::valueChanged,this,[update] { update(); });
-    const auto filter=[this,search,category,update] {
+    const auto filter=[this,search,category,manufacturer,update] {
         QListWidgetItem* first=nullptr;
         for(int i=0;i<productsList_->count();++i) { auto* item=productsList_->item(i); const auto c=products_[item->data(Qt::UserRole).toString()];
-            const bool visible=c.name.contains(search->text(),Qt::CaseInsensitive) && (category->currentIndex()==0 || (category->currentIndex()==1)==isFan(c));
+            const bool visible=hardwareName(c).contains(search->text(),Qt::CaseInsensitive) && (category->currentIndex()==0 || category->currentText()==hardwareCategory(c)) && (manufacturer->currentIndex()==0 || manufacturer->currentText()==hardwareManufacturer(c));
             item->setHidden(!visible); if(visible && !first) first=item;
         }
         if(!productsList_->currentItem() || productsList_->currentItem()->isHidden()) productsList_->setCurrentItem(first); update();
     };
-    connect(search,&QLineEdit::textChanged,this,[filter] { filter(); }); connect(category,&QComboBox::currentIndexChanged,this,[filter] { filter(); });
+    connect(search,&QLineEdit::textChanged,this,[filter] { filter(); }); connect(category,&QComboBox::currentIndexChanged,this,[filter] { filter(); }); connect(manufacturer,&QComboBox::currentIndexChanged,this,[filter] { filter(); });
     connect(buttons,&QDialogButtonBox::accepted,this,&QDialog::accept); connect(buttons,&QDialogButtonBox::rejected,this,&QDialog::reject);
     if(productsList_->count()) productsList_->setCurrentRow(0); update();
 }

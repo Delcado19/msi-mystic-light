@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSet>
+#include <QLineF>
 #include <cmath>
 #include <stdexcept>
 
@@ -32,6 +33,11 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
     ComponentDefinition component;
     component.id = requiredText(json, "id");
     component.name = requiredText(json, "name");
+    for(const auto* key:{"manufacturer","category"}) if(json.contains(key) &&
+        (!json.value(key).isString() || json.value(key).toString().trimmed().isEmpty() || json.value(key).toString().size()>160))
+        throw std::invalid_argument("Invalid component identity");
+    component.manufacturer=json.value("manufacturer").toString().trimmed();
+    component.category=json.value("category").toString().trimmed();
     const int count = integer(json.value("ledCount"), 1, 65535);
     if (!json.value("mapping").isArray() || !json.value("positions").isArray())
         throw std::invalid_argument("Missing component LED arrays");
@@ -66,6 +72,16 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
         // Older embedded Vulcan definitions predate explicit reserved slots; Esc wire 0 is physical.
         component.nonPhysicalSlots = {22, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 58, 64, 71, 77, 81, 90, 91, 92, 93, 94, 95, 97, 98, 112, 118, 123, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143};
     }
+    if(count==15 && component.name.contains("D30-120",Qt::CaseInsensitive)) {
+        const QVector<int> oldX{2,1,1,0,0,0,0,0,0,0,0,0,1,1,2};
+        bool legacy=true;
+        for(int i=0;i<count;++i) if(QLineF(component.positions[i],QPointF(oldX[i]*3.0/14,i*3.0/14)).length()>1e-7) legacy=false;
+        // Migrate only the exact imported strip-shaped D30 template; retain edited layouts and wire order.
+        if(legacy) for(int i=0;i<count;++i) {
+            const double angle=6.283185307179586*i/count;
+            component.positions[i]={1.3+1.3*std::cos(angle),1.3+1.3*std::sin(angle)};
+        }
+    }
     return component;
 }
 
@@ -76,6 +92,8 @@ QJsonObject ComponentDefinition::toJson() const
     for (const auto wire : mapping) wires.append(wire);
     QJsonObject result{{"schemaVersion", 1}, {"id", id}, {"name", name},
         {"ledCount", positions.size()}, {"positions", points}, {"mapping", wires}};
+    if(!manufacturer.isEmpty()) result.insert("manufacturer",manufacturer);
+    if(!category.isEmpty()) result.insert("category",category);
     if (!nonPhysicalSlots.isEmpty()) {
         QJsonArray reserved; for (int wire : nonPhysicalSlots) reserved.append(wire);
         result.insert("nonPhysicalSlots", reserved);

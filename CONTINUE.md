@@ -1,5 +1,44 @@
 # Implementation status
 
+## Hardware identity and workspace navigation (2026-10-25)
+
+Added optional manufacturer/category component metadata (validated, persisted and
+preserved by LED edits), manufacturer filtering/Hardware inventory column, full
+category filtering and branded presentation for legacy M25/Glacier entries.
+Chain suffixes now follow current assignment order instead of embedded #1 names.
+Reverse variants are hidden from new attachment; saved devices remain usable.
+Imported strips are straight. D30 selection is circular, with only the exact old
+narrow 15-address template migrated; custom edits and permutations are retained.
+No address/count/wiring remap was performed. User observed independent LED gradients
+within fans; that does not identify serial versus mirrored wiring across fans.
+NV5 MKII built-in strip count remains unverified (18 is not a confirmed default).
+
+Canvas has a protected 48px header and 16px gutters. Scrollbars and minimap only
+appear on overflow; minimap stays 12px inside the usable lower-right corner.
+Effects navigation stays fixed to the raster even for oversized animated sources.
+Layout includes group labels in navigation bounds and preserves their painting
+outside the raster while clipping them below the header. Fullscreen accounts for
+Windows taskbar insets. Edge scrolling ramps over 48px, default 720 screen px/s;
+setAutoScrollSpeed accepts 0..4000, rejects invalid/non-finite input. Opposite-corner
+anchored uniform resize replaces symmetric scaling. Gestures remain single undo.
+
+Save as and active filename are beside Open/Save. The new filename is adopted
+only after successful atomic writing; cancellation/failure keeps the old target.
+Preview now uses a precise 16ms timer. Hardware pacing remains 33ms plus driver
+latency; smoother physical output has not been qualified or claimed.
+
+Release/Debug CTest each 17/17; native Windows editor 85/85. Boundary tests cover
+all four scroll directions, every resize corner for grow/shrink, exact/one-pixel
+viewport overflow, negative world positions, invalid speeds/metadata, label/header
+painting, save failure and original-file preservation. Native pixel tests account
+for screen DPR without changing expected colors. Native fitted/fullscreen/overflow
+screenshots inspected; no physical RGB writes or process termination performed.
+
+Local portable: build/dist/LightingStudio-Workspace/msi_mystic_light.exe.
+ZIP: build/dist/MSI-Mystic-Light-0.1.0-workspace-windows-x64.zip (+ SHA-256).
+Package CRC/extracted --inspect passed; published 0.1.0 ZIP verified unchanged.
+User default.lighting.json untouched. No push/tag/release authorized for this work.
+
 ## Snap-to-grid editing (2026-10-24, after published 0.1.0)
 
 Added a shared, persistent UI-only grid preference, default enabled, spacing 1-100

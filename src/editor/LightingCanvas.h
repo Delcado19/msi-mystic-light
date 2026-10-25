@@ -3,10 +3,12 @@
 #include "LightingDocument.h"
 #include <QWidget>
 #include <optional>
+#include <QElapsedTimer>
 
 class QPushButton;
 class QPainter;
 class QScrollBar;
+class QTimer;
 class LightingCanvas : public QWidget {
     Q_OBJECT
 public:
@@ -33,6 +35,9 @@ public:
     // Non-finite/non-positive factors leave the view unchanged; valid zoom clamps to .001..4.
     void zoomBy(double factor);
     void gridChanged() { cancelGesture(); update(); }
+    // Pixels per second at the outer edge; bounded to keep malformed settings harmless.
+    void setAutoScrollSpeed(double pixelsPerSecond);
+    QRectF contentRect() const;
     QPointF viewportPoint(QPointF canvas) const;
     QPointF canvasPoint(QPointF viewport) const;
 signals:
@@ -74,6 +79,12 @@ private:
     QScrollBar *horizontalScroll_, *verticalScroll_;
     void syncScrollbars();
     QSizeF scrollUnits_{1,1};
+    QTimer* autoScroll_;
+    QElapsedTimer autoScrollClock_;
+    QPointF pointer_, layoutAnchor_;
+    Qt::KeyboardModifiers pointerModifiers_{};
+    double autoScrollSpeed_=720;
+    void scrollAtEdge();
     void paintMinimap(QPainter& painter);
     QRectF navigationBounds() const;
     QRectF minimapRect() const;
