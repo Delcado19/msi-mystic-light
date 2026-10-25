@@ -2,6 +2,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSet>
+#include <algorithm>
 #include <stdexcept>
 
 namespace {
@@ -113,6 +114,13 @@ bool OutputSession::flush(const std::function<bool()>& cancelled)
     if (!pending_) return true;
     auto frame = std::move(*pending_); pending_.reset();
     try {
+        if(profile_.driverId=="msi.gen1") {
+            // MSI 0x50 updates the whole board: shared IOShield/native updates must precede 0x51 pixels.
+            // Restore the original studio's IOShield-before-JARGB ordering, regardless of saved inventory order.
+            std::stable_partition(frame.channels.begin(),frame.channels.end(),[&](const ChannelOutput& output) {
+                return !output.software || !assignmentChannel(profile_,output.channelId).address.contains("area");
+            });
+        }
         for (const auto& output : frame.channels) {
             if (cancelled && cancelled()) return true;
             if (output.software) {

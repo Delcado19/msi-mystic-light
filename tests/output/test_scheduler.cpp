@@ -129,7 +129,7 @@ void SchedulerTest::latestWhileStarting()
     {
         const std::lock_guard<std::mutex> lock(record->mutex);
         const auto expected = BuildReport0x51(MsiGen1AdvArea::JARGB1,{{100,2,3}});
-        QVERIFY(record->reports[1] == std::vector<std::uint8_t>(expected.begin(),expected.end()));
+        QVERIFY(record->reports[2] == std::vector<std::uint8_t>(expected.begin(),expected.end())); // Board configuration precedes pixel data.
     }
     QTest::qWait(80); QCOMPARE(record->writes(),3); // No backlog and no implicit repeat of an idle frame.
     scheduler.stop(); QTRY_COMPARE(scheduler.status().state,OutputScheduler::State::Stopped);
@@ -166,8 +166,8 @@ void SchedulerTest::stopDuringWrite()
     scheduler.stop(); QCOMPARE(scheduler.status().state,OutputScheduler::State::Stopping);
     QVERIFY(!scheduler.submit(generation,frame())); QVERIFY(!scheduler.start(factory(record)));
     record->release(); QTRY_COMPARE(scheduler.status().state,OutputScheduler::State::Stopped);
-    // Arming+color belong to the in-flight driver call; the next native channel is cancelled.
-    QCOMPARE(record->writes(),2); assertClosedOnWorker(record);
+    // Configuration is now first: finish that in-flight call, then cancel before any pixel writes.
+    QCOMPARE(record->writes(),1); assertClosedOnWorker(record);
 }
 
 void SchedulerTest::cancelFactoryAndRestart()

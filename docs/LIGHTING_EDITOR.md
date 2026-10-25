@@ -644,3 +644,27 @@ The suggested 18 LEDs remains unverified; no default count is asserted or change
 Phanteks lists 30 physical LEDs for D30-120, whereas the installed component
 metadata uses 15 addresses. These quantities must not be treated as interchangeable:
 https://phanteks.com/product/d30-120-black/
+
+### MSI board configuration versus spatial pixel frames
+
+User hardware report (2026-10-25): spatial gradients are visible within fan LEDs
+in Layout, and work on keyboards/mouse, while physical ARGB fans change as whole
+color groups. A read-only audit of the saved layout produces distinct per-LED RGB
+values. Do not explain this observation as lack of addressable fan LEDs.
+
+The restored IOShield Canvas fallback uses whole-board 0x50 Steady configuration;
+ARGB uses 0x51 per-address colors. Saved assignment order previously sent ARGB
+first and the IOShield configuration last. The original studio iterated its sorted
+channel map with IOShield before JARGB. OutputSession now stably places MSI native
+and shared-zone configuration before MSI per-address pixel channels, independent
+of saved inventory order. This prevents a late whole-board update from being the
+last operation after the spatial frame. Other driver modules keep their ordering.
+
+This is a packet-order correction, not a physically verified firmware-reset claim.
+Initial Advanced arming still happens in the driver on its first channel write.
+A running-frame regression fails on the old late-0x50 order and asserts six distinct
+RGB triplets on JARGB1/2/3, count, area and volatile Store flag after correction.
+A separate full-pipeline fixture checks two shifted gradients against literal RGB
+bytes through renderer, sampling, mapping and the actual MSI module serializer.
+No physical device is opened by these tests. Real fan behavior needs confirmation
+with the corrected build; user geometry, counts, mapping and project are untouched.

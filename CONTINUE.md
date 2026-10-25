@@ -1,5 +1,29 @@
 # Implementation status
 
+## MSI spatial fan output report ordering (2026-10-25)
+
+User confirms Layout fan LEDs show a spatial gradient, but physical ARGB fans
+change together; keyboards/mouse work. Read-only current-project audit confirms
+distinct RGB for individual fan addresses. Saved project was not modified.
+Found a real ordering difference: restoring the IOShield Canvas 0x50 fallback in
+1b3e779 caused whole-board configuration after JARGB 0x51 pixels in inventory
+order; the original studio sorted IOShield before JARGB. OutputSession now stably
+places MSI native/shared-zone control before per-address software channels.
+Other modules, geometry, counts and mappings are unchanged. This removes the late
+configuration write; actual firmware effects remain physically unconfirmed.
+
+New output regression is red before the fix (0x51 where 0x50 must precede pixels),
+then checks distinct six-address payloads on all three headers over repeated
+shared-zone changes. Renderer-to-real-module test checks shifted spatial ramps
+against literal RGB bytes. Scheduler tests retain exact latest-payload/cancellation
+checks with configuration-first indices; Stop now prevents pixels after a blocked
+configuration call. No physical writes, driver changes or running-app restart.
+Local build: build/dist/LightingStudio-FanGradients/msi_mystic_light.exe.
+Release/Debug CTest each 17/17; output-session cases 10/10. Package CRC and
+extracted --inspect passed; published 0.1.0 archive hash unchanged. Evidence:
+build/fan-order-*.log and build/fan-output-detail.log.
+No push or publication authorized. Physical fan confirmation remains outstanding.
+
 ## Hardware identity and workspace navigation (2026-10-25)
 
 Added optional manufacturer/category component metadata (validated, persisted and

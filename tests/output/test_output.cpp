@@ -50,6 +50,8 @@ private slots:
     void lifecycle();
     void documentPreparation();
     void animatedFanHeaders();
+    void spatialFanFramesAfterSharedZone();
+    void spatialGradientToFanWire();
 };
 
 void OutputTest::latestFrameAndNativeCache()
@@ -62,10 +64,10 @@ void OutputTest::latestFrameAndNativeCache()
     auto first=frame(profile), latest=first; latest.channels[0].colors={{200,100,50},{9,8,7}};
     QVERIFY(session.stage(first)); QVERIFY(session.stage(latest)); QVERIFY(record->reports.empty());
     QVERIFY(session.flush()); QVERIFY(!session.hasPendingFrame()); QCOMPARE(record->reports.size(),size_t(3));
-    QCOMPARE(record->reports[0][0],std::uint8_t(0x50)); QCOMPARE(record->reports[1][0],std::uint8_t(0x51));
+    QCOMPARE(record->reports[0][0],std::uint8_t(0x50)); QCOMPARE(record->reports[1][0],std::uint8_t(0x50));
     const auto expected=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{200,100,50},{9,8,7}});
-    QVERIFY(record->reports[1]==std::vector<std::uint8_t>(expected.begin(),expected.end()));
-    QCOMPARE(record->reports[2][0],std::uint8_t(0x50));
+    QVERIFY(record->reports[2]==std::vector<std::uint8_t>(expected.begin(),expected.end()));
+    QCOMPARE(record->reports[2][0],std::uint8_t(0x51)); // Pixels follow both native configuration and Advanced arming.
     QVERIFY(session.flush()); QCOMPARE(record->reports.size(),size_t(3));
     QVERIFY(session.stage(latest)); QVERIFY(session.flush()); QCOMPARE(record->reports.size(),size_t(4));
     QCOMPARE(record->reports.back()[0],std::uint8_t(0x51)); // Unchanged native effect is not resent.
@@ -217,7 +219,7 @@ void OutputTest::documentPreparation()
     QVERIFY(session.connect(modules,identity(),profile,std::make_unique<Transport>(record)));
     QVERIFY(session.stage(fullPipeline[0])); QVERIFY(session.flush());
     const auto expected=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{50,25,13},{50,25,13}});
-    QVERIFY(record->reports[1]==std::vector<std::uint8_t>(expected.begin(),expected.end()));
+    QVERIFY(record->reports[2]==std::vector<std::uint8_t>(expected.begin(),expected.end()));
 }
 
 // Exercise the real serializer with a recording transport; never open a physical device.
@@ -252,6 +254,59 @@ void OutputTest::animatedFanHeaders()
         QCOMPARE(colors.size(),seconds==0 ? size_t(2) : size_t(4));
         QVERIFY(colors[colors.size()-2]==std::vector<std::uint8_t>(first.begin(),first.end()));
         QVERIFY(colors.back()==std::vector<std::uint8_t>(second.begin(),second.end()));
+    }
+}
+
+void OutputTest::spatialFanFramesAfterSharedZone()
+{
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    ModuleRegistry modules;QString error;QVERIFY2(modules.load(TEST_MODULE_PATH,&error),qPrintable(error));
+    auto record=std::make_shared<Recording>();OutputSession session;
+    QVERIFY(session.connect(modules,identity(),profile,std::make_unique<Transport>(record)));
+    OutputFrame frame;frame.endpoint=identity().path;frame.profileId=profile.id;
+    for(const auto* id:{"JARGB1","JARGB2","JARGB3"}) {
+        ChannelOutput channel;channel.channelId=id;channel.software=true;
+        channel.colors={{255,0,0},{0,255,0},{0,0,255},{255,128,0},{0,128,255},{128,0,255}};
+        frame.channels.append(channel);
+    }
+    ChannelOutput shield;shield.channelId="IOShield";shield.software=true;shield.colors={{10,20,30}};frame.channels.append(shield);
+    QVERIFY(session.stage(frame));QVERIFY(session.flush()); // Warm all Advanced zones, as on a running canvas.
+    for(int step=0;step<3;++step) {
+        record->reports.clear();frame.channels[3].colors[0].r=quint8(40+step);
+        QVERIFY(session.stage(frame));QVERIFY(session.flush());
+        QCOMPARE(record->reports.size(),size_t(4));
+        QCOMPARE(record->reports[0][0],std::uint8_t(0x50));
+        QCOMPARE(record->reports[0][289],std::uint8_t(0)); // Volatile only; never persist animation to flash.
+        for(int header=0;header<3;++header) {
+            const auto& report=record->reports[size_t(header+1)];
+            QCOMPARE(report.size(),size_t(727));QCOMPARE(report[0],std::uint8_t(0x51));
+            QCOMPARE(report[2],std::uint8_t(4));QCOMPARE(report[3],std::uint8_t(header));QCOMPARE(report[6],std::uint8_t(6));
+            const std::vector<std::uint8_t> rgb{255,0,0,0,255,0,0,0,255,255,128,0,0,128,255,128,0,255};
+            QVERIFY(std::equal(rgb.begin(),rgb.end(),report.begin()+7));
+        }
+    }
+}
+
+void OutputTest::spatialGradientToFanWire()
+{
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    ComponentDefinition fan;fan.id="fan";fan.name="Six-address fan";
+    fan.positions={{1,0},{2,1},{2,2},{1,3},{0,2},{0,1}};fan.mapping={5,4,3,2,1,0};
+    LightingDocument document({{fan.id,fan}},nullptr,{profile});const auto id=document.addComponent(fan.id);
+    ChannelAssignment assignment;assignment.endpoint=identity().path;assignment.profileId=profile.id;assignment.channelId="JARGB1";assignment.software=true;assignment.placements={id};document.assignChannel(assignment);
+    document.addLayer(EffectKind::LinearGradient);
+    document.edit("Known spatial ramp",[](auto& state){state.placements[0].origin={100,80};auto& ramp=state.layers[0];ramp.color=Qt::red;ramp.secondaryColor=Qt::blue;ramp.center={127,200};ramp.extent={255,400};});
+    ModuleRegistry modules;QString error;QVERIFY(modules.load(TEST_MODULE_PATH,&error));
+    auto record=std::make_shared<Recording>();OutputSession session;QVERIFY(session.connect(modules,identity(),profile,std::make_unique<Transport>(record)));
+    const std::vector<std::vector<std::uint8_t>> expected{
+        {154,0,101,154,0,101,134,0,121,114,0,141,114,0,141,134,0,121},
+        {174,0,81,174,0,81,154,0,101,134,0,121,134,0,121,154,0,101}};
+    for(int step=0;step<2;++step) {
+        if(step) document.edit("Move ramp",[](auto& state){state.layers[0].center.setX(147);});
+        const auto frames=prepareOutput(document,document.render());QCOMPARE(frames.size(),1);
+        QVERIFY(session.stage(frames[0]));QVERIFY(session.flush());
+        const auto& report=record->reports.back();QCOMPARE(report[0],std::uint8_t(0x51));QCOMPARE(report[6],std::uint8_t(6));
+        QVERIFY(std::equal(expected[step].begin(),expected[step].end(),report.begin()+7));
     }
 }
 

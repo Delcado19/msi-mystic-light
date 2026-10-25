@@ -75,3 +75,8 @@ opposite corner. Hardware has manufacturer/category filters and manufacturer nam
 strips are straight and D30 fans have a circular visual layout. Save as and the
 current filename are visible beside Open/Save. Save adopts a new path only after
 successful writing. The NV5 MKII built-in strip count is not yet verified.
+
+MSI fan gradient correction:
+Shared IOShield/native board configuration is sent before addressable fan colors.
+Tests preserve distinct LED RGB values through the actual module serializer.
+Physical fan behavior with this build still needs confirmation.
