@@ -1,5 +1,26 @@
 # Implementation status
 
+## Scrollbar contrast and Effects preview divider (2026-10-25)
+
+Styled both scrollbar orientations, handles (normal/hover/pressed), rails, page
+regions, zero-sized line controls and scroll-area corners. This removes the old
+vertical-only style/native horizontal mismatch and patterned page backgrounds.
+Effects fullscreen is hidden across resize and has no workspace signal handler;
+Layout fullscreen remains intact. A custom QSplitterHandle highlights the divider,
+adds a right-side up/down arrow, vertical resize cursor, hover feedback and tooltip.
+The handle is 18px; neither editor nor live preview can collapse on extreme drags.
+
+Tests sample literal handle/track colors in both orientations (DPR-aware), drag
+the arrow to change both pane sizes, check extreme limits, tool visibility,
+fullscreen absence after resize and unchanged Layout fullscreen availability.
+Release/Debug CTest each 17/17; native Windows editor 95/95. Package CRC and
+extracted --inspect passed; published release archive hash unchanged. Evidence:
+build/preview-divider-*.log and
+build/next/preview-divider-native.log. Native screenshots visually inspected:
+scrollbar-contrast.png and effects-preview-divider.png. No device writes, running
+app restart or user-project changes. No push/publication authorized.
+Local portable: build/dist/LightingStudio-PreviewDivider/msi_mystic_light.exe.
+
 ## Eraser playback and standard editing controls (2026-10-25)
 
 User physically confirms the MSI ordering fix now addresses individual fan LEDs.

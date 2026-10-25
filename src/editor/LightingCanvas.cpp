@@ -37,6 +37,7 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
     fullscreen_=new QPushButton(this);fullscreen_->setIcon(studioToolIcon("fullscreen"));fullscreen_->setObjectName("canvasFullscreenButton");
     fullscreen_->setFixedSize(36,32);fullscreen_->setToolTip("Toggle canvas fullscreen (Escape to return)");
     fullscreen_->setAccessibleName("Canvas fullscreen");
+    fullscreen_->setVisible(context==Context::Layout);
     connect(fullscreen_,&QPushButton::clicked,this,&LightingCanvas::fullscreenRequested);
     horizontalScroll_=new QScrollBar(Qt::Horizontal,this);horizontalScroll_->setObjectName("canvasHorizontalScroll");
     verticalScroll_=new QScrollBar(Qt::Vertical,this);verticalScroll_->setObjectName("canvasVerticalScroll");
@@ -84,7 +85,7 @@ void LightingCanvas::fitToView()
 }
 void LightingCanvas::resizeEvent(QResizeEvent*)
 {
-    fullscreen_->move(width()-48,10);fullscreen_->setVisible(!previewOnly_);
+    fullscreen_->move(width()-48,10);fullscreen_->setVisible(!previewOnly_ && context_==Context::Layout);
     if(autoFit_) fitToView();
     if(previewOnly_) emptyAction_->hide();
     emptyAction_->move((width()-emptyAction_->width())/2,height()/2+32);

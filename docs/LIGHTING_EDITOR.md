@@ -544,7 +544,8 @@ The main toolbar has one Canvas Start/Stop button: green when stopped, red while
 running. Stop freezes the shared preview/output time; it does not turn off LEDs.
 The numeric seconds field and duplicate toolbar output status are hidden.
 
-The top-right canvas button opens that same live canvas in a fullscreen window.
+The top-right Layout canvas button opens that same live canvas in a fullscreen window.
+Effects stays in the workspace so its tools, layers and properties remain available.
 The fullscreen view has the same Start/Stop control. Escape or the canvas button
 returns it to its original workspace without losing document edits.
 
@@ -696,3 +697,16 @@ Physical confirmation (2026-10-25): the user reports the MSI configuration-first
 build is much better and now addresses individual fan LEDs. This supersedes the
 previous outstanding confirmation for that output-order fix; it does not qualify
 unrelated hardware/color behavior.
+
+### Scrollbar contrast and Effects preview divider
+
+Horizontal and vertical scrollbars share the same dark rail and light handle,
+including explicit page-region styling (no native dithered fallback). Hover and
+pressed handles brighten consistently in both orientations. The shared style also
+covers inventory/property scroll areas and scroll-area corners.
+
+Effects has no fullscreen action. Its canvas and live hardware preview use a
+highlighted 18px divider with a two-headed up/down arrow at the right edge, a
+vertical resize cursor and a tooltip. Drag the line or arrow to redistribute the
+space. Neither pane collapses when dragged to an extreme; tools/layers stay in
+place. Layout keeps its existing fullscreen behavior.

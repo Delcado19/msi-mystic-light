@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792919039.4614756,
-    "seen": 1792919042.6633546,
-    "ast_hash": "30a1831b6cbbe6021179fde5eda8a288",
+    "mtime": 1792921005.5560856,
+    "seen": 1792921008.6281922,
+    "ast_hash": "c09a53bd30db070ef8d5802220e22ef8",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1792918868.508741,
-    "seen": 1792919042.6633074,
-    "ast_hash": "ea12ad5946af10ea0b0f40ce12831985",
+    "mtime": 1792920778.1637616,
+    "seen": 1792921008.6281512,
+    "ast_hash": "2e97e6ea8c184601c30ad56b89140adb",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1792918867.8898647,
-    "seen": 1792919042.6633105,
-    "ast_hash": "4e1656db8784c8bef580971f1ffdeabb",
+    "mtime": 1792920778.7617729,
+    "seen": 1792921008.628155,
+    "ast_hash": "d12b27c28c7d1d902bebaad79b80dd13",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
@@ -354,15 +354,15 @@
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1792918961.3579292,
-    "seen": 1792919042.6633403,
-    "ast_hash": "7986a4bcc05555f31176e3f44fc3f629",
+    "mtime": 1792920845.3215792,
+    "seen": 1792921008.6281798,
+    "ast_hash": "9caa36edc74e7f4aec2c1d70e5bc9611",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1792918671.060468,
-    "seen": 1792918692.346393,
-    "ast_hash": "550edc9cef260c66f74d1b4abaa08613",
+    "mtime": 1792921005.5550852,
+    "seen": 1792921008.6281967,
+    "ast_hash": "5be598fbde9992e3a8f9df5854499f64",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -540,15 +540,15 @@
     "semantic_hash": ""
   },
   "PORTABLE_README.txt": {
-    "mtime": 1792918794.7175765,
-    "seen": 1792919042.663355,
-    "ast_hash": "029ae2e51ebc5ad5673db14cb1e2dbef",
+    "mtime": 1792921005.5560856,
+    "seen": 1792921008.6281927,
+    "ast_hash": "3fee81712223bff7f1faa6b913227c25",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.cpp": {
-    "mtime": 1792918159.7423134,
-    "seen": 1792918692.3463058,
-    "ast_hash": "0716da52bfd2575f0f87a47bc09223a4",
+    "mtime": 1792920777.6557431,
+    "seen": 1792921008.6281571,
+    "ast_hash": "5d40888cafb3eca398ebaff734d86b6b",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.h": {

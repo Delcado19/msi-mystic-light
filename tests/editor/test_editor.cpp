@@ -39,6 +39,9 @@
 #include <QLineF>
 #include <QGraphicsView>
 #include <QScrollBar>
+#include <QSplitter>
+#include <QSplitterHandle>
+#include <QStyleOptionSlider>
 #include <QStyleOptionSlider>
 #include <limits>
 #include <QGraphicsEllipseItem>
@@ -114,6 +117,8 @@ private slots:
     void eraserPlayback();
     void layerEyesAndStroke();
     void initialMaskBrushSize();
+    void scrollbarAppearance();
+    void effectPreviewDivider();
     void deleteSelections();
     void protectedGroupLabels();
     void effectsOverflowNavigation();
@@ -2347,4 +2352,38 @@ void EditorTest::initialMaskBrushSize()
     auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,200}).toPoint());
     const auto mask=window.document().state().layers.last().mask;QVERIFY(mask.constScanLine(200)[320]<32);QCOMPARE(mask.constScanLine(200)[330],uchar(255));
     window.document().history()->setClean();
+}
+
+void EditorTest::scrollbarAppearance()
+{
+    QWidget window;applyStudioStyle(&window);window.resize(240,260);
+    QScrollBar horizontal(Qt::Horizontal,&window),vertical(Qt::Vertical,&window);
+    horizontal.setGeometry(20,20,180,14);vertical.setGeometry(20,60,14,180);
+    for(auto* bar:{&horizontal,&vertical}) {bar->setRange(0,100);bar->setPageStep(20);bar->setValue(50);}
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTest::mouseMove(&window,{230,10});QCoreApplication::processEvents();
+    for(auto* bar:{&horizontal,&vertical}) {
+        QStyleOptionSlider option;option.initFrom(bar);option.orientation=bar->orientation();option.rect=bar->rect();option.minimum=0;option.maximum=100;option.sliderPosition=50;option.sliderValue=50;option.pageStep=20;
+        const auto handle=bar->style()->subControlRect(QStyle::CC_ScrollBar,&option,QStyle::SC_ScrollBarSlider,bar);
+        const auto image=bar->grab().toImage();const auto pixel=[&](QPoint point){return image.pixelColor((QPointF(point)*image.devicePixelRatio()).toPoint());};
+        QVERIFY(!handle.isEmpty());QCOMPARE(pixel(handle.center()),QColor("#9aa8c2"));
+        // Check both track regions: native page rendering must not leave a patterned or differently colored rail.
+        QCOMPARE(pixel(bar->orientation()==Qt::Horizontal ? QPoint(5,7) : QPoint(7,5)),QColor("#20242c"));
+        QCOMPARE(pixel(bar->orientation()==Qt::Horizontal ? QPoint(174,7) : QPoint(7,174)),QColor("#20242c"));
+    }
+    QVERIFY(window.grab().save(artifactDirectory()+"/scrollbar-contrast.png"));
+}
+void EditorTest::effectPreviewDivider()
+{
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.document().addComponent("test.strip");window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));addEffect(window,EffectKind::LinearGradient);
+    auto* effects=window.findChild<LightingCanvas*>("effectsCanvas");auto* layout=window.findChild<LightingCanvas*>("layoutCanvas");
+    auto* fullscreen=effects->findChild<QPushButton*>("canvasFullscreenButton");QVERIFY(!fullscreen->isVisible());fullscreen->click();QVERIFY(!window.findChild<QDialog*>("canvasFullscreen"));
+    window.resize(1500,940);QCoreApplication::processEvents();QVERIFY(!fullscreen->isVisible());QVERIFY(!layout->findChild<QPushButton*>("canvasFullscreenButton")->isHidden());
+    auto* splitter=window.findChild<QSplitter*>("effectWorkspace");auto* handle=splitter->handle(1);QVERIFY(handle->isVisible());QVERIFY(handle->height()>=14);QCOMPARE(handle->cursor().shape(),Qt::SplitVCursor);QVERIFY(!handle->toolTip().isEmpty());
+    const auto before=splitter->sizes();const QPoint start(handle->width()-22,handle->height()/2);
+    QTest::mousePress(handle,Qt::LeftButton,Qt::NoModifier,start);QTest::mouseMove(handle,start+QPoint(0,-60));QTest::mouseRelease(handle,Qt::LeftButton,Qt::NoModifier,start+QPoint(0,-60));
+    const auto after=splitter->sizes();QVERIFY(after[0]<before[0]);QVERIFY(after[1]>before[1]);
+    QVERIFY(window.findChild<QWidget*>("effectTools")->isVisible());QVERIFY(window.findChild<QWidget*>("drawingOptions")->isVisible());
+    // Extreme drags keep both editor and preview usable instead of collapsing either pane.
+    for(int y:{-10000,10000}) {const auto point=handle->rect().center();QTest::mousePress(handle,Qt::LeftButton,Qt::NoModifier,point);QTest::mouseMove(handle,{point.x(),y});QTest::mouseRelease(handle,Qt::LeftButton,Qt::NoModifier,{point.x(),y});const auto sizes=splitter->sizes();QVERIFY(sizes[0]>=effects->minimumHeight());QVERIFY(sizes[1]>=160);}
+    splitter->setSizes({500,200});QVERIFY(window.grab().save(artifactDirectory()+"/effects-preview-divider.png"));window.document().history()->setClean();
 }

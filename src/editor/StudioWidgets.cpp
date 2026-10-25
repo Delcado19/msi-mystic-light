@@ -74,9 +74,18 @@ void applyStudioStyle(QWidget* window)
         QLabel[muted="true"] { color: #b6bdcd; }
         QLabel[heading="true"] { font-size: 16px; font-weight: 600; padding: 6px 0; }
         QToolButton[disclosure="true"] { text-align: left; background: transparent; border: 0; border-top: 1px solid #3a3e49; border-radius: 0; padding: 12px 0; }
-        QScrollBar:vertical { width: 10px; background: #202229; }
-        QScrollBar::handle:vertical { background: #596174; min-height: 24px; border-radius: 4px; }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+        /* Style both orientations and page regions: native fallbacks otherwise draw mismatched/dithered tracks. */
+        QScrollBar { background: #20242c; border: 0; margin: 0; }
+        QScrollBar:vertical { width: 14px; }
+        QScrollBar:horizontal { height: 14px; }
+        QScrollBar::handle { background: #9aa8c2; border: 1px solid #b1bbcf; border-radius: 5px; }
+        QScrollBar::handle:vertical { min-height: 28px; }
+        QScrollBar::handle:horizontal { min-width: 28px; }
+        QScrollBar::handle:hover { background: #b9c9e7; }
+        QScrollBar::handle:pressed { background: #d2def4; }
+        QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: 0; background: #20242c; }
+        QScrollBar::add-page, QScrollBar::sub-page { background: #20242c; border: 0; }
+        QAbstractScrollArea::corner { background: #20242c; border: 0; }
         QWidget:focus { border-color: #b7c9ff; }
         QToolTip { color: #edf1ff; background: #343d50; border: 1px solid #7788ad; padding: 6px; }
     )");

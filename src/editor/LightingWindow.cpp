@@ -11,6 +11,8 @@
 #include <QDir>
 #include <QDialog>
 #include <QSplitter>
+#include <QSplitterHandle>
+#include <QEnterEvent>
 #include <QButtonGroup>
 #include "ComponentEditor.h"
 #include "ChannelEditor.h"
@@ -59,6 +61,36 @@
 #include <QVBoxLayout>
 
 namespace {
+class PreviewDivider final : public QSplitterHandle {
+public:
+    explicit PreviewDivider(QSplitter* parent):QSplitterHandle(Qt::Vertical,parent) {
+        setObjectName("effectPreviewDivider");setCursor(Qt::SplitVCursor);
+        setAccessibleName("Resize effect canvas and live hardware preview");
+        setToolTip("Drag up or down to resize the effect canvas and live hardware preview");
+    }
+    QSize sizeHint() const override {return {80,18};}
+protected:
+    void enterEvent(QEnterEvent* event) override {QSplitterHandle::enterEvent(event);update();}
+    void leaveEvent(QEvent* event) override {QSplitterHandle::leaveEvent(event);update();}
+    void paintEvent(QPaintEvent*) override {
+        QPainter painter(this);painter.setRenderHint(QPainter::Antialiasing);
+        painter.fillRect(rect(),QColor("#252e3d"));
+        painter.setPen(QPen(QColor(underMouse() ? "#bfd3f3" : "#7f9ac2"),2));
+        painter.drawLine(10,height()/2,width()-42,height()/2);
+        painter.setPen(Qt::NoPen);painter.setBrush(QColor("#38465b"));painter.drawRoundedRect(QRectF(width()-37,1,30,height()-2),3,3);
+        painter.setPen(QPen(QColor("#e0eaff"),1.6,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
+        const int x=width()-22;
+        painter.drawLine(x,3,x,height()-3);
+        painter.drawLine(x,3,x-4,7);painter.drawLine(x,3,x+4,7);
+        painter.drawLine(x,height()-3,x-4,height()-7);painter.drawLine(x,height()-3,x+4,height()-7);
+    }
+};
+class PreviewSplitter final : public QSplitter {
+public:
+    PreviewSplitter():QSplitter(Qt::Vertical) {setHandleWidth(18);setChildrenCollapsible(false);}
+protected:
+    QSplitterHandle* createHandle() override {return new PreviewDivider(this);}
+};
 class LayerDelegate : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
@@ -181,7 +213,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     effectsCanvas_->setObjectName("effectsCanvas");
     auto wrapCanvas=[this](LightingCanvas* canvas) {
         auto* wrapper=new QWidget; auto* layout=new QVBoxLayout(wrapper);layout->setContentsMargins(0,0,0,0);layout->addWidget(canvas);
-        connect(canvas,&LightingCanvas::fullscreenRequested,this,[this,canvas,layout] {
+        // Effects must keep its tools and layers visible; only Layout offers canvas fullscreen.
+        if(canvas->context()==LightingCanvas::Context::Layout) connect(canvas,&LightingCanvas::fullscreenRequested,this,[this,canvas,layout] {
             if(auto* host=qobject_cast<QDialog*>(canvas->window());host && host->objectName()=="canvasFullscreen") {host->reject();return;}
             auto* host=new QDialog(this);host->setObjectName("canvasFullscreen");host->setAttribute(Qt::WA_DeleteOnClose);
             auto* full=new QVBoxLayout(host);
@@ -200,7 +233,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         return wrapper;
     };
     tabs_->addTab(wrapCanvas(layoutCanvas_), "Layout");
-    auto* effectWorkspace=new QSplitter(Qt::Vertical); effectWorkspace->setObjectName("effectWorkspace");
+    auto* effectWorkspace=new PreviewSplitter; effectWorkspace->setObjectName("effectWorkspace");
     hardwarePreview_=new LightingCanvas(document_,LightingCanvas::Context::Layout); hardwarePreview_->setObjectName("hardwareLivePreview"); hardwarePreview_->setPreviewOnly();
     effectWorkspace->addWidget(wrapCanvas(effectsCanvas_)); effectWorkspace->addWidget(hardwarePreview_); effectWorkspace->setStretchFactor(0,4); effectWorkspace->setStretchFactor(1,1); effectWorkspace->setSizes({560,180});
     tabs_->addTab(effectWorkspace, "Effects");

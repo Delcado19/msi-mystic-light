@@ -55,7 +55,8 @@ ENE AUDA0-E6K5-0101, eight LEDs at 0x71/0x73. No OpenRGB/helper process is neede
 The user confirmed physical RAM Canvas output with the diagnostic build.
 
 Canvas controls: Canvas Start/Stop is green when stopped and red while running.
-Use the canvas top-right fullscreen button; Escape returns to the workspace.
+Use the Layout canvas top-right fullscreen button; Escape returns to the workspace.
+Effects stays in its workspace with its tools and layers.
 Layout expands with its components. Use scrollbars or the bottom-right minimap to navigate.
 The Effects workspace keeps its separate 640x400 effect raster.
 
@@ -86,3 +87,8 @@ Eraser/mask edits keep Canvas Start available; playback resumes after a gesture
 if it was running. Eyes toggle layer visibility (Space in the layer list).
 Stroke size has a slider and numeric field. Delete removes selected layers or
 Layout/Hardware components/groups, with Undo. Text fields keep normal Delete.
+
+Preview navigation update:
+Scrollbars use matching light handles and dark tracks in both orientations.
+Drag the highlighted Effects divider or its right-hand up/down arrow to resize
+the editor and live preview. Layout fullscreen remains available.
