@@ -117,7 +117,12 @@ QIcon studioToolIcon(const QString& name)
 {
     QPixmap pixmap(24,24); pixmap.fill(Qt::transparent); QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing); painter.setPen(QPen(QColor("#e0e8fc"),1.7,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
-    if(name=="fullscreen") {
+    if(name=="eye" || name=="eye-off") {
+        QPainterPath eye;eye.moveTo(2,12);eye.cubicTo(7,4,17,4,22,12);eye.cubicTo(17,20,7,20,2,12);
+        painter.drawPath(eye);painter.drawEllipse(QPointF(12,12),3,3);
+        if(name=="eye-off") {painter.setPen(QPen(QColor("#17191f"),4.5,Qt::SolidLine,Qt::RoundCap));painter.drawLine(3,3,21,21);painter.setPen(QPen(QColor("#b5c0d6"),1.7,Qt::SolidLine,Qt::RoundCap));painter.drawLine(3,3,21,21);}
+    }
+    else if(name=="fullscreen") {
         for(const auto corner : {QPointF(4,4),QPointF(20,4),QPointF(4,20),QPointF(20,20)}) {
             painter.drawLine(corner,corner+QPointF(corner.x()<12 ? 5 : -5,0));
             painter.drawLine(corner,corner+QPointF(0,corner.y()<12 ? 5 : -5));

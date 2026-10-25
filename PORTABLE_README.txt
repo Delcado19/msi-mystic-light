@@ -79,4 +79,10 @@ successful writing. The NV5 MKII built-in strip count is not yet verified.
 MSI fan gradient correction:
 Shared IOShield/native board configuration is sent before addressable fan colors.
 Tests preserve distinct LED RGB values through the actual module serializer.
-Physical fan behavior with this build still needs confirmation.
+User confirmed individual fan LED control with the configuration-first fix.
+
+Layer editing update:
+Eraser/mask edits keep Canvas Start available; playback resumes after a gesture
+if it was running. Eyes toggle layer visibility (Space in the layer list).
+Stroke size has a slider and numeric field. Delete removes selected layers or
+Layout/Hardware components/groups, with Undo. Text fields keep normal Delete.

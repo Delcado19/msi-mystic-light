@@ -562,8 +562,8 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
     start_ = last_ = canvasPoint(event->position());
     snapGesture_=SnapGrid::load().enabled && !(event->modifiers() & Qt::AltModifier);
     if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) return;
+    if(context_==Context::Effects) emit effectGestureStarted();
     if(context_==Context::Effects && drawingTool_!=Tool::Move) {
-        emit effectGestureStarted();
         if(drawingTool_==Tool::Gradient && !maskTarget_) for(const auto& layer:document_.state().layers) if(layer.id==selected_ && (isGradient(layer.effect) || layer.gradientFill)) {
             const auto endpoints=gradientEndpoints(layer); const auto a=endpoints.first,b=endpoints.second;
             if(QLineF(start_,a).length()<12/zoom_ || QLineF(start_,b).length()<12/zoom_) {
@@ -609,7 +609,6 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
         select(hit);
         dragging_ = !hit.isNull();
     } else if (!maskTarget_) {
-        emit effectGestureStarted();
         for (const auto& layer : document_.state().layers) if (layer.id==selected_ && layer.effect!=EffectKind::StaticColor) {
             const auto transform=effectTransform(layer,seconds_);
             const QRectF bounds(-0.5,-0.5,1,1);
@@ -739,7 +738,9 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
     if(previewOnly_) return;
     if(navigating_ && event->button()==Qt::LeftButton){navigating_=false;update();return;}
     if (event->button() == Qt::MiddleButton) { panning_ = false; update(); return; }
-    if (event->button() != Qt::LeftButton || !dragging_) return;
+    if (event->button() != Qt::LeftButton) return;
+    // Empty/unsupported drawing gestures still need to release the playback pause started on press.
+    if(!dragging_) {if(context_==Context::Effects) emit gestureEnded();return;}
     if(canvasPoint(event->position())!=start_) mouseMoveEvent(event); // Include the final pointer position even without a preceding move event.
     const auto id = selected_;
     try {

@@ -2,6 +2,8 @@
 #include "SnapGrid.h"
 #include "HardwareIdentity.h"
 #include <QFileInfo>
+#include <QKeyEvent>
+#include <QAbstractSpinBox>
 #include <QScreen>
 #include "HardwarePicker.h"
 #include "LegacyHardware.h"
@@ -74,7 +76,12 @@ public:
         }
         const auto textRect=style->subElementRect(QStyle::SE_ItemViewItemText,&item,widget).adjusted(2,0,-4,0);
         // Paint the effect subtitle without putting it into the editable layer name.
-        const auto name=item.text; item.text.clear(); style->drawControl(QStyle::CE_ItemViewItem,&item,painter,widget);
+        const auto name=item.text; item.text.clear();
+        const auto eye=style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator,&item,widget).adjusted(-2,-2,2,2);
+        item.features &= ~QStyleOptionViewItem::HasCheckIndicator;
+        style->drawControl(QStyle::CE_ItemViewItem,&item,painter,widget);
+        static const auto visible=studioToolIcon("eye"), hidden=studioToolIcon("eye-off");
+        (index.data(Qt::CheckStateRole).toInt()==Qt::Checked ? visible : hidden).paint(painter,eye);
         painter->save(); auto font=item.font; font.setBold(true); painter->setFont(font);
         painter->setPen(QColor("#e8eaf0"));
         painter->drawText(QRect(textRect.x(),textRect.center().y()-19,textRect.width(),22),Qt::AlignVCenter,
@@ -92,6 +99,14 @@ public:
     using QTreeWidget::QTreeWidget;
     std::function<void()> reordered;
 protected:
+    void keyPressEvent(QKeyEvent* event) override {
+        // Source/mask thumbnails have no check state; Space still toggles the selected layer's eye.
+        if(event->key()==Qt::Key_Space && event->modifiers()==Qt::NoModifier && currentItem()) {
+            if(!event->isAutoRepeat()) currentItem()->setCheckState(0,currentItem()->checkState(0)==Qt::Checked ? Qt::Unchecked : Qt::Checked);
+            event->accept();return;
+        }
+        QTreeWidget::keyPressEvent(event);
+    }
     void dropEvent(QDropEvent* event) override {
         QTreeWidget::dropEvent(event);
         if (event->isAccepted() && reordered) reordered();
@@ -255,24 +270,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             statusBar()->showMessage("Imported component definition. Select it and add an instance to Layout.", 6000);
         } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
     });
-    auto* removeComponent=button(layoutControls, "Remove selected component", [this] {
-        const auto id = layoutCanvas_->selection();
-        if (id.isNull()) return;
-        try {
-            document_.edit("Remove component", [&](LightingState& state) {
-                for(auto& assignment:state.assignments) assignment.placements.removeAll(id);
-                // An empty direct chain has no samples; remove its output scope and layer references atomically.
-                QSet<QUuid> empty;
-                for(const auto& assignment:state.assignments) if(assignment.software && assignment.placements.isEmpty()) empty.insert(assignment.id);
-                state.assignments.removeIf([&](const auto& assignment) { return empty.contains(assignment.id); });
-                for(auto& layer:state.layers) for(const auto& removed:empty) layer.channelTargets.removeAll(removed);
-                state.placements.removeIf([&](const auto& placement) { return placement.id == id; });
-            });
-            layoutCanvas_->select({});
-        } catch (const std::exception& error) {
-            statusBar()->showMessage("Cannot remove component: " + QString::fromUtf8(error.what()), 6000);
-        }
-    });
+    auto* removeComponent=button(layoutControls, "Remove selected component", [this] {removeSelectedComponents();});
     removeComponent->setObjectName("removeComponent");
     auto* library=new QWidget; auto* libraryControls=new QVBoxLayout(library); libraryControls->setContentsMargins(0,0,0,0);
     while(auto* item=layoutControls->takeAt(0)) { if(item->widget()) libraryControls->addWidget(item->widget()); delete item; }
@@ -482,6 +480,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* maskProperties=new QWidget; auto* maskControls=new QVBoxLayout(maskProperties); maskControls->setContentsMargins(0,12,0,0); maskControls->setSpacing(10);
     inspectorTabs_->addTab(appearance,"Effect"); inspectorTabs_->addTab(motion,"Motion"); inspectorTabs_->addTab(maskProperties,"Mask");
     connect(inspectorTabs_,&QTabWidget::currentChanged,this,[this](int page) {
+        if(page==2) { playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0); }
         editingMask_=page==2; if(page!=2) { effectsCanvas_->setCropTool(false); findChild<QCheckBox*>("cropTool")->setChecked(false); }
         refreshProperties();
     });
@@ -567,7 +566,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         document_.edit("Delete layer", [&](LightingState& state) {
             state.layers.removeIf([&](const auto& layer) { return layer.id == id; });
         });
-    });
+    })->setObjectName("deleteLayer");
     auto* createActions=new QHBoxLayout; auto* manageActions=new QHBoxLayout;
     for(auto* control:layersPanel->findChildren<QPushButton*>(QString{},Qt::FindDirectChildrenOnly)) {
 
@@ -805,13 +804,13 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(cropButton,&QToolButton::toggled,cropTool,&QCheckBox::setChecked); connect(cropTool,&QCheckBox::toggled,cropButton,&QToolButton::setChecked);
     connect(cropTool,&QCheckBox::toggled,this,[this](bool crop) { if(crop) { editingMask_=false; effectsCanvas_->setTool(LightingCanvas::Tool::Move); } effectsCanvas_->setCropTool(crop); });
     connect(effectsCanvas_,&LightingCanvas::effectGestureStarted,this,[this] {
-        resumePreview_=playing_->isChecked() && !editingMask_; playing_->setChecked(false); previewChannel_->setCurrentIndex(0);
+        resumePreview_=playing_->isChecked(); playing_->setChecked(false); previewChannel_->setCurrentIndex(0);
         // Transform the frame under the pointer; resetting animated geometry makes visible shapes unclickable.
         if(effectsCanvas_->tool()!=LightingCanvas::Tool::Move || editingMask_) previewTime_->setValue(0);
     });
     connect(effectsCanvas_,&LightingCanvas::maskEditingRequested,this,[this] { inspectorTabs_->setCurrentIndex(2); });
     connect(effectsCanvas_,&LightingCanvas::editingError,this,[this](const QString& message) { statusBar()->showMessage(message,8000); });
-    connect(effectsCanvas_,&LightingCanvas::gestureEnded,this,[this] { if(resumePreview_ && !editingMask_) playing_->setChecked(true); resumePreview_=false; });
+    connect(effectsCanvas_,&LightingCanvas::gestureEnded,this,[this] { if(resumePreview_) playing_->setChecked(true); resumePreview_=false; });
     connect(effectsCanvas_,&LightingCanvas::selectionChanged,this,[this] {
         if(selectedLayer_!=effectsCanvas_->selection()) { selectedLayer_=effectsCanvas_->selection(); refresh(); }
     });
@@ -835,7 +834,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         brushForm->addRow(name, sliderField(control)); return control;
     };
     auto* size=new QDoubleSpinBox; size->setAccessibleName("Brush diameter"); size->setObjectName("brushDiameter"); size->setRange(1,320); size->setValue(6); size->setSuffix(" px"); size->setFixedWidth(90);
-    toolOptions->addWidget(new QLabel("  Stroke "))->setObjectName("strokeLabelAction"); toolOptions->addWidget(size)->setObjectName("strokeSizeAction");
+    auto* stroke=sliderField(size); stroke->setMinimumWidth(180); stroke->setMaximumWidth(250);
+    stroke->findChild<QSlider*>()->setObjectName("brushSizeSlider");
+    toolOptions->addWidget(new QLabel("  Stroke "))->setObjectName("strokeLabelAction"); toolOptions->addWidget(stroke)->setObjectName("strokeSizeAction");
     const auto syncDrawing=[this,size,shapeFill] { effectsCanvas_->setDrawing(color_->color(),size->value(),shapeFill->isChecked()); };
     connect(color_,&ColorEditor::colorChanged,this,[syncDrawing] { syncDrawing(); }); connect(size,&QDoubleSpinBox::valueChanged,this,[syncDrawing] { syncDrawing(); }); connect(shapeFill,&QCheckBox::toggled,this,[syncDrawing] { syncDrawing(); });
     syncDrawing();
@@ -844,10 +845,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* brushOpacity = spin("Brush opacity %", 0, 100, 100);
     auto* gray = spin("Mask gray", 0, 255, 0);
     gray->setToolTip("0 hides; 255 reveals; intermediate values create partial transparency.");
-    for (auto* control : {size, hardness, brushOpacity, gray})
-        connect(control, &QDoubleSpinBox::valueChanged, this, [this, size, hardness, brushOpacity, gray] {
-            effectsCanvas_->setBrush(size->value() / 2.0, hardness->value() / 100.0, brushOpacity->value() / 100.0, gray->value());
-        });
+    const auto syncBrush=[this,size,hardness,brushOpacity,gray] {
+        effectsCanvas_->setBrush(size->value()/2.0,hardness->value()/100.0,brushOpacity->value()/100.0,gray->value());
+    };
+    for (auto* control : {size, hardness, brushOpacity, gray}) connect(control,&QDoubleSpinBox::valueChanged,this,syncBrush);
+    syncBrush(); // The initial mask brush must match the displayed diameter before the first size edit.
     button(maskControls, "Fill mask white", [this] { updateLayer("Reveal layer", [](auto& layer) { layer.mask.fill(255); }); });
     button(maskControls, "Fill mask black", [this] { updateLayer("Hide layer with mask", [](auto& layer) { layer.mask.fill(0); }); });
     button(maskControls, "Invert mask", [this] { updateLayer("Invert mask", [](auto& layer) { layer.mask.invertPixels(); }); });
@@ -888,6 +890,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     resizeDocks({sidebarDock,dock},{260,390},Qt::Horizontal);
     installParameterTooltips(this);
     refresh();
+    for(QWidget* target : {static_cast<QWidget*>(layoutCanvas_),static_cast<QWidget*>(effectsCanvas_),static_cast<QWidget*>(layers_),static_cast<QWidget*>(components_),static_cast<QWidget*>(hardwareTree)}) target->installEventFilter(this);
     playing_->setChecked(true);
 }
 
@@ -1112,7 +1115,7 @@ void LightingWindow::refresh()
         auto* item = new QTreeWidgetItem(layers_);
         item->setText(0, it->name);
         item->setData(0,Qt::UserRole+1,effectDefinition(it->effect).label);
-        item->setToolTip(0,it->name+" - Effect: "+effectDefinition(it->effect).label);
+        item->setToolTip(0,it->name+" - Effect: "+effectDefinition(it->effect).label+"\nClick the eye or press Space to show/hide this layer.");
         item->setData(0,Qt::AccessibleDescriptionRole,"Effect: "+effectDefinition(it->effect).label);
         item->setFlags((item->flags() | Qt::ItemIsEditable | Qt::ItemIsUserCheckable | Qt::ItemIsDragEnabled) & ~Qt::ItemIsDropEnabled);
         item->setCheckState(0, it->visible ? Qt::Checked : Qt::Unchecked);
@@ -1167,7 +1170,7 @@ void LightingWindow::refreshToolOptions()
     const auto tool=effectsCanvas_->tool();
     const bool drawing=tool!=LightingCanvas::Tool::Move && tool!=LightingCanvas::Tool::Eraser && (tool!=LightingCanvas::Tool::Gradient || !selected || !isGradient(selected->effect));
     const bool color=!editingMask_ && (drawing || (selected && selected->effect!=EffectKind::Image && !isGradient(selected->effect)));
-    const bool stroke=tool!=LightingCanvas::Tool::Move && tool!=LightingCanvas::Tool::Gradient && tool!=LightingCanvas::Tool::Fill;
+    const bool stroke=(editingMask_ || tool!=LightingCanvas::Tool::Move) && tool!=LightingCanvas::Tool::Gradient && tool!=LightingCanvas::Tool::Fill;
     const bool shape=tool==LightingCanvas::Tool::Rectangle || tool==LightingCanvas::Tool::Ellipse;
     findChild<QAction*>("foregroundColorAction")->setVisible(color); color_->setVisible(color);
     findChild<QAction*>("shapeFillAction")->setVisible(shape);
@@ -1201,8 +1204,8 @@ void LightingWindow::refreshProperties()
 
     for (QWidget* widget : std::initializer_list<QWidget*>{transparency_, blend_, color_, gradientColors_, maskEnabled_})
         widget->setEnabled(selected != nullptr);
-    if (editingMask_) { playing_->setChecked(false); previewChannel_->setCurrentIndex(0); previewTime_->setValue(0); }
-    playing_->setEnabled(!editingMask_);
+    // Editing a procedural source with Eraser selects its mask; that must never lock Canvas Start.
+    playing_->setEnabled(true);
     inspectorTabs_->setEnabled(selected!=nullptr);
     inspectorTitle_->setText(selected ? effectDefinition(selected->effect).label : "Select a layer");
     animationControls_->setVisible(selected && !editingMask_);
@@ -1328,4 +1331,42 @@ void LightingWindow::refreshProjectName()
     const auto name=fileName_.isEmpty() ? QString("Untitled") : QFileInfo(fileName_).fileName();
     auto* label=findChild<QLabel*>("currentProjectName"); label->setText(label->fontMetrics().elidedText(name,Qt::ElideMiddle,200)); label->setToolTip(fileName_);
     setWindowTitle(name+"[*] — Lighting Studio");
+}
+
+void LightingWindow::removeSelectedComponents()
+{
+    const auto selected=layoutCanvas_->selection();QSet<QUuid> ids;
+    for(const auto& placement:document_.state().placements) if(placement.id==selected) ids.insert(selected);
+    for(const auto& assignment:document_.state().assignments) if(assignment.id==selected)
+        for(const auto& id:assignment.placements) ids.insert(id);
+    if(ids.isEmpty()) return;
+    try {
+        document_.edit("Remove components",[&](LightingState& state) {
+            for(auto& assignment:state.assignments) assignment.placements.removeIf([&](const auto& id){return ids.contains(id);});
+            // Removing a chain's last component must also remove its output and effect-target references.
+            QSet<QUuid> empty;
+            for(const auto& assignment:state.assignments) if(assignment.software && assignment.placements.isEmpty()) empty.insert(assignment.id);
+            state.assignments.removeIf([&](const auto& assignment){return empty.contains(assignment.id);});
+            for(auto& layer:state.layers) for(const auto& id:empty) layer.channelTargets.removeAll(id);
+            state.placements.removeIf([&](const auto& placement){return ids.contains(placement.id);});
+        });
+        layoutCanvas_->select({});
+    } catch(const std::exception& error) {statusBar()->showMessage("Cannot remove component: "+QString::fromUtf8(error.what()),6000);}
+}
+bool LightingWindow::eventFilter(QObject* watched,QEvent* event)
+{
+    if(event->type()==QEvent::KeyPress) {
+        const auto* key=static_cast<QKeyEvent*>(event);
+        if(key->key()==Qt::Key_Delete && !(key->modifiers() & ~Qt::KeypadModifier)) {
+            // Text/spin editors own Delete while typing; never turn a field edit into object deletion.
+            const auto* focus=QApplication::focusWidget();
+            if(qobject_cast<const QLineEdit*>(focus) || qobject_cast<const QAbstractSpinBox*>(focus)) return QMainWindow::eventFilter(watched,event);
+            if(!key->isAutoRepeat()) {
+                if(watched==effectsCanvas_ || watched==layers_) findChild<QPushButton*>("deleteLayer")->click();
+                else removeSelectedComponents();
+            }
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(watched,event);
 }

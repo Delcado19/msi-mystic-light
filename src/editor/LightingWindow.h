@@ -47,6 +47,7 @@ signals:
     void outputRequested();
 protected:
     void closeEvent(QCloseEvent*) override;
+    bool eventFilter(QObject*,QEvent*) override;
 private:
     void refresh();
     void scanHeaders();
@@ -61,6 +62,7 @@ private:
     void refreshToolOptions();
     void updatePreview();
     void refreshPlacement();
+    void removeSelectedComponents();
     void updateMotion(const QString& label,const std::function<void(EffectLayer&)>& operation);
     void updateLayer(const QString& label, const std::function<void(EffectLayer&)>& operation);
     bool saveDocument();

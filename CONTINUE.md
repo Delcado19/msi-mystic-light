@@ -1,5 +1,32 @@
 # Implementation status
 
+## Eraser playback and standard editing controls (2026-10-25)
+
+User physically confirms the MSI ordering fix now addresses individual fan LEDs.
+New issue: after erasing a procedural top layer, playback could not restart until
+a new shape was created. Cause: Eraser switches to mask editing, where every
+properties refresh disabled Canvas Start. Mask entry now pauses once; Start stays
+enabled. Every Effects gesture, including mask/no-op gestures, balances pause/end;
+previously running playback resumes after release, initially stopped stays stopped.
+
+Visibility uses painted eye/eye-off icons, retaining Qt check semantics and undo.
+Space toggles the selected layer even with Source/Mask thumbnail current. Stroke
+size reuses sliderField beside its numeric value, 1..320px, including the mask
+brush. Initial brush radius now matches the displayed 6px diameter. Delete filters only
+canvas/inventory/layer-list key events, preserving text/spin editors. Effects
+removes the selected layer; Layout/Hardware remove components or the group with
+assignment/effect-target cleanup in one undo step. Empty selections/autorepeat
+are ignored. Fullscreen reuses the filtered canvas.
+
+Regression cases cover Paint, Shape, Gradient and explicit masks, stopped/running
+playback, actual drag/undo/redo/restart, eye click/Space, slider limits/sync,
+Delete from both canvases/lists/Hardware/fullscreen, group cleanup, no selection
+and text/numeric editing. No user project changes or physical writes by the agent.
+Local portable: build/dist/LightingStudio-LayerControls/msi_mystic_light.exe.
+Release/Debug CTest each 17/17; native Windows editor 93/93. Native eye/slider
+screenshot visually checked. Validation logs: build/layer-controls-*.log and
+build/next/layer-controls-native.log. No push or publication authorized.
+
 ## MSI spatial fan output report ordering (2026-10-25)
 
 User confirms Layout fan LEDs show a spatial gradient, but physical ARGB fans

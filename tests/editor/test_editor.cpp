@@ -9,6 +9,7 @@
 #include "editor/LegacyHardware.h"
 #include <QStackedWidget>
 #include <QToolButton>
+#include <QToolBar>
 #include <QListWidget>
 #include <QTimer>
 #include <QTableWidget>
@@ -109,6 +110,11 @@ private slots:
         QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,settingsDirectory_.path());
     }
     void init() { SnapGrid{false,10}.save(); } // Legacy gesture tests exercise free placement; grid tests enable it explicitly.
+    void eraserPlayback_data();
+    void eraserPlayback();
+    void layerEyesAndStroke();
+    void initialMaskBrushSize();
+    void deleteSelections();
     void protectedGroupLabels();
     void effectsOverflowNavigation();
     void anchoredResize_data();
@@ -1160,7 +1166,8 @@ void EditorTest::separateEditingContexts()
     QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier,
         QPoint(tree->header()->sectionPosition(2) + 15, row.center().y()));
     QCOMPARE(effects->selection(), effect);
-    const auto center = effects->rect().center();
+    // Target the asserted raster pixel, rather than assuming a large brush covers the widget midpoint.
+    const auto center = effects->viewportPoint({320.5,200.5}).toPoint();
     QTest::mousePress(effects, Qt::LeftButton, Qt::NoModifier, center);
     QTest::mouseRelease(effects, Qt::LeftButton, Qt::NoModifier, center);
     QVERIFY(window.document().state().layers[0].mask.constScanLine(200)[320] < 20);
@@ -2252,4 +2259,92 @@ void EditorTest::protectedGroupLabels()
     const auto pixel=[&](QPoint point){return image.pixelColor((QPointF(point)*image.devicePixelRatio()).toPoint());};
     QVERIFY(screen.y()>=48);QCOMPARE(pixel(screen),QColor("#202735"));
     QCOMPARE(pixel({150,45}),QColor("#17191f"));
+}
+
+void EditorTest::eraserPlayback_data()
+{
+    QTest::addColumn<int>("kind");QTest::addColumn<bool>("running");QTest::addColumn<bool>("mask");
+    QTest::newRow("paint-stopped")<<int(EffectKind::Paint)<<false<<false;
+    QTest::newRow("shape-stopped")<<int(EffectKind::Circle)<<false<<false;
+    QTest::newRow("gradient-running")<<int(EffectKind::LinearGradient)<<true<<false;
+    QTest::newRow("shape-running")<<int(EffectKind::Circle)<<true<<false;
+    QTest::newRow("explicit-mask-running")<<int(EffectKind::Circle)<<true<<true;
+}
+void EditorTest::eraserPlayback()
+{
+    QFETCH(int,kind);QFETCH(bool,running);QFETCH(bool,mask);
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    addEffect(window,EffectKind::LinearGradient);addEffect(window,EffectKind(kind));
+    window.document().edit("Opaque source",[](auto& state){auto& top=state.layers.last();if(top.effect==EffectKind::Paint){top.image=QImage(640,400,QImage::Format_ARGB32_Premultiplied);top.image.fill(Qt::white);}});
+    const auto before=window.document().state().layers.last();
+    window.findChild<QPushButton*>("eraserTool")->click();window.findChild<QDoubleSpinBox*>("brushDiameter")->setValue(40);
+    if(mask) window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(2);
+    auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(running);
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");const auto point=canvas->viewportPoint({320,200}).toPoint();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,point);QVERIFY(!play->isChecked());QTest::mouseMove(canvas,point+QPoint(20,0));QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,point+QPoint(20,0));
+    QCOMPARE(window.document().state().layers.size(),2);QVERIFY(play->isEnabled());QCOMPARE(play->isChecked(),running);
+    const auto after=window.document().state().layers.last();
+    if(kind==int(EffectKind::Paint) && !mask) QCOMPARE(after.image.pixelColor(320,200).alpha(),0);
+    else QVERIFY(after.mask.constScanLine(200)[320]<32);
+    window.document().history()->undo();const auto restored=window.document().state().layers.last();QCOMPARE(restored.mask,before.mask);QCOMPARE(restored.image,before.image);
+    window.document().history()->redo();QVERIFY(play->isEnabled());
+    play->setChecked(false);QTest::mouseClick(play,Qt::LeftButton);QVERIFY(play->isChecked());
+    const auto seconds=window.previewSeconds();QTRY_VERIFY(window.previewSeconds()>seconds);
+    window.document().history()->setClean();
+}
+void EditorTest::layerEyesAndStroke()
+{
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));addEffect(window,EffectKind::Circle);
+    auto* tree=window.findChild<QTreeWidget*>("effectLayers");const auto row=tree->visualItemRect(tree->topLevelItem(0));
+    QTest::mouseClick(tree->viewport(),Qt::LeftButton,Qt::NoModifier,{row.left()+10,row.center().y()});
+    QTRY_VERIFY(!window.document().state().layers[0].visible);
+    tree->setFocus();QTest::keyClick(tree,Qt::Key_Space);QTRY_VERIFY(window.document().state().layers[0].visible);
+    window.document().history()->undo();QVERIFY(!window.document().state().layers[0].visible);window.document().history()->redo();
+    QVERIFY(studioToolIcon("eye").pixmap(24,24).toImage()!=studioToolIcon("eye-off").pixmap(24,24).toImage());
+    window.findChild<QPushButton*>("pencilTool")->click();auto* size=window.findChild<QDoubleSpinBox*>("brushDiameter");auto* slider=window.findChild<QSlider*>("brushSizeSlider");
+    QTRY_VERIFY2(slider->isVisible(),qPrintable(QString("tool=%1 toolbar=%2 rowHidden=%3 width=%4 action=%5").arg(int(window.findChild<LightingCanvas*>("effectsCanvas")->tool())).arg(window.findChild<QToolBar*>("drawingOptions")->isVisible()).arg(slider->parentWidget()->isHidden()).arg(window.width()).arg(window.findChild<QAction*>("strokeSizeAction")->isVisible())));QCOMPARE(slider->property("numericField").value<QObject*>(),size);
+    slider->setValue(slider->minimum());QCOMPARE(size->value(),1.);slider->setValue(slider->maximum());QCOMPARE(size->value(),320.);
+    size->setValue(40);QVERIFY(qAbs(slider->value()-122)<=1);
+    window.findChild<QPushButton*>("eraserTool")->click();QTRY_VERIFY(slider->isVisible());QCOMPARE(size->value(),40.);
+    size->setValue(-1);QCOMPARE(size->value(),1.);size->setValue(1000);QCOMPARE(size->value(),320.);
+    QVERIFY(window.grab().save(artifactDirectory()+"/layer-eyes-stroke.png"));
+    // Empty eraser gestures do not create a layer or leave a running canvas paused.
+    window.findChild<QPushButton*>("deleteLayer")->click();auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(true);
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,200}).toPoint());QVERIFY(play->isChecked());QVERIFY(window.document().state().layers.isEmpty());
+    window.document().history()->setClean();
+}
+void EditorTest::deleteSelections()
+{
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};},nullptr,{channelProfile()});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    addEffect(window,EffectKind::Circle);addEffect(window,EffectKind::Star);
+    auto* effects=window.findChild<LightingCanvas*>("effectsCanvas");auto* layers=window.findChild<QTreeWidget*>("effectLayers");
+    effects->setFocus();QTest::keyClick(effects,Qt::Key_Delete);QCOMPARE(window.document().state().layers.size(),1);QCOMPARE(window.document().state().layers[0].effect,EffectKind::Circle);
+    window.document().history()->undo();QCOMPARE(window.document().state().layers.size(),2);
+    layers->setCurrentItem(layers->topLevelItem(0));layers->setFocus();QTest::keyClick(layers,Qt::Key_Delete);QCOMPARE(window.document().state().layers.size(),1);window.document().history()->undo();
+    auto* size=window.findChild<QDoubleSpinBox*>("brushDiameter");window.findChild<QPushButton*>("pencilTool")->click();size->setFocus();QTest::keyClick(size,Qt::Key_Delete);QCOMPARE(window.document().state().layers.size(),2);
+    auto* item=layers->topLevelItem(0);layers->editItem(item,0);auto* edit=layers->findChild<QLineEdit*>();QVERIFY(edit);edit->setText("ABC");edit->setCursorPosition(1);edit->setFocus();QTest::keyClick(edit,Qt::Key_Delete);QCOMPARE(edit->text(),QString("AC"));QCOMPARE(window.document().state().layers.size(),2);QTest::keyClick(edit,Qt::Key_Escape);
+    const auto first=window.document().addComponent("test.strip"),second=window.document().addComponent("test.strip");
+    ChannelAssignment assignment;assignment.endpoint="test";assignment.profileId="test.device";assignment.channelId="Direct";assignment.software=true;assignment.placements={first,second};window.document().assignChannel(assignment);
+    window.document().edit("Target group",[&](auto& state){state.layers[0].allChannels=false;state.layers[0].channelTargets={assignment.id};});
+    window.findChild<QAction*>("workspaceLayout")->trigger();auto* layout=window.findChild<LightingCanvas*>("layoutCanvas");layout->select(first);layout->setFocus();
+    QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);QCOMPARE(window.document().state().assignments[0].placements,QVector<QUuid>({second}));window.document().history()->undo();
+    layout->select(assignment.id);const int index=window.document().history()->index();QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().history()->index(),index+1);QVERIFY(window.document().state().placements.isEmpty());QVERIFY(window.document().state().assignments.isEmpty());QVERIFY(window.document().state().layers[0].channelTargets.isEmpty());
+    window.document().history()->undo();QCOMPARE(window.document().state().placements.size(),2);QCOMPARE(window.document().state().layers[0].channelTargets,QVector<QUuid>({assignment.id}));
+    window.findChild<QAction*>("workspaceHardware")->trigger();auto* hardware=window.findChild<QTreeView*>("hardwareComponents");
+    const auto componentIndex=hardware->model()->index(0,0,hardware->model()->index(0,0));QVERIFY(componentIndex.isValid());hardware->setCurrentIndex(componentIndex);hardware->setFocus();QTest::keyClick(hardware,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);window.document().history()->undo();
+    window.findChild<QAction*>("workspaceLayout")->trigger();layout->setFocus();
+    layout->select({});const auto noSelection=window.document().history()->index();QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().history()->index(),noSelection);
+    layout->select(second);QTest::mouseClick(layout->findChild<QPushButton*>("canvasFullscreenButton"),Qt::LeftButton);QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);QTest::keyClick(layout,Qt::Key_Escape);
+    window.document().history()->undo();window.document().history()->setClean();
+}
+
+void EditorTest::initialMaskBrushSize()
+{
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));addEffect(window,EffectKind::Circle);
+    window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(2);
+    auto* slider=window.findChild<QSlider*>("brushSizeSlider");QTRY_VERIFY(slider->isVisible());
+    QCOMPARE(window.findChild<QDoubleSpinBox*>("brushDiameter")->value(),6.);
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,200}).toPoint());
+    const auto mask=window.document().state().layers.last().mask;QVERIFY(mask.constScanLine(200)[320]<32);QCOMPARE(mask.constScanLine(200)[330],uchar(255));
+    window.document().history()->setClean();
 }

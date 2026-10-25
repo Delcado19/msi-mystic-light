@@ -668,3 +668,31 @@ A separate full-pipeline fixture checks two shifted gradients against literal RG
 bytes through renderer, sampling, mapping and the actual MSI module serializer.
 No physical device is opened by these tests. Real fan behavior needs confirmation
 with the corrected build; user geometry, counts, mapping and project are untouched.
+
+## Layer visibility, brush size and Delete
+
+Layer visibility uses an eye / crossed-out eye. Click the eye or press Space with
+the layer list focused to toggle it; visibility remains undoable. Source/mask
+thumbnails do not prevent Space from reaching the layer's visibility state.
+Stroke size in the tool-options row has a linked slider and numeric field, shared
+by Pencil, Eraser, Line and outlined shapes (1..320 pixels).
+
+Delete removes the selected effect layer (including its shape, paint or image)
+from the Effects canvas/list, or selected components/group from Layout or the
+Hardware inventory. A group is removed in one undo step. Removing the last
+component also clears its software output assignment and layer target references.
+Delete inside a text/numeric editor keeps normal text-editing behavior; empty
+selections and key autorepeat do not remove additional objects. The same canvas
+handler works in fullscreen. Component definitions remain in the catalog.
+
+Erasing procedural layers edits their mask, preserving editable geometry. Entering
+the mask tab pauses once for editing, but Canvas Start remains available; property
+refreshes never disable or repeatedly stop it. A drawing gesture pauses playback,
+then resumes it only if it was running before the gesture, including mask gestures.
+Empty/no-op gestures also finish the playback pause. Undo/redo does not require
+creating a new shape to re-enable playback.
+
+Physical confirmation (2026-10-25): the user reports the MSI configuration-first
+build is much better and now addresses individual fan LEDs. This supersedes the
+previous outstanding confirmation for that output-order fix; it does not qualify
+unrelated hardware/color behavior.

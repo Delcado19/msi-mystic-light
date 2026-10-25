@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1792916774.014263,
-    "seen": 1792916776.770019,
-    "ast_hash": "ded756218cab75fa981259d999f4d968",
+    "mtime": 1792919039.4614756,
+    "seen": 1792919042.6633546,
+    "ast_hash": "30a1831b6cbbe6021179fde5eda8a288",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1792915312.483366,
-    "seen": 1792915451.7305684,
-    "ast_hash": "0a61f07b197eb3d0f59c693cb2cd3c1e",
+    "mtime": 1792918868.508741,
+    "seen": 1792919042.6633074,
+    "ast_hash": "ea12ad5946af10ea0b0f40ce12831985",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
@@ -342,27 +342,27 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1792914676.4186106,
-    "seen": 1792915203.02799,
-    "ast_hash": "2778a9131d19b8de66d615550dfe7ee6",
+    "mtime": 1792918867.8898647,
+    "seen": 1792919042.6633105,
+    "ast_hash": "4e1656db8784c8bef580971f1ffdeabb",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1792914616.7685194,
-    "seen": 1792915203.0279906,
-    "ast_hash": "6228ff701ce6ccf79e465dac50baca4e",
+    "mtime": 1792918159.7423134,
+    "seen": 1792918692.3462715,
+    "ast_hash": "7b56e143f7cca7db45c94471bee558cc",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1792915395.0386648,
-    "seen": 1792915451.7305994,
-    "ast_hash": "941f132510d8cccd521c89631b9892a8",
+    "mtime": 1792918961.3579292,
+    "seen": 1792919042.6633403,
+    "ast_hash": "7986a4bcc05555f31176e3f44fc3f629",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1792916774.0132627,
-    "seen": 1792916776.7700236,
-    "ast_hash": "1e1ecc43ae69af24ab6292e9ae68974d",
+    "mtime": 1792918671.060468,
+    "seen": 1792918692.346393,
+    "ast_hash": "550edc9cef260c66f74d1b4abaa08613",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -540,15 +540,15 @@
     "semantic_hash": ""
   },
   "PORTABLE_README.txt": {
-    "mtime": 1792916774.014263,
-    "seen": 1792916776.7700195,
-    "ast_hash": "17f75f72c2d74e102573b625729c3a76",
+    "mtime": 1792918794.7175765,
+    "seen": 1792919042.663355,
+    "ast_hash": "029ae2e51ebc5ad5673db14cb1e2dbef",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.cpp": {
-    "mtime": 1792855487.183873,
-    "seen": 1792855824.760443,
-    "ast_hash": "2aa68e5ba51936af2924d852323a0448",
+    "mtime": 1792918159.7423134,
+    "seen": 1792918692.3463058,
+    "ast_hash": "0716da52bfd2575f0f87a47bc09223a4",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.h": {
