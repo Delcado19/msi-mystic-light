@@ -58,7 +58,8 @@ The application toolbar uses the transparent LS header asset derived from the
 selected banner. Hardware has no banner. About retains the original full artwork.
 Zoom uses magnifier-minus/plus icons and Fit uses a fit-view icon with tooltips.
 
-Screen eyedropper directly captures the desktop into a temporary selection overlay.
+Screen eyedropper captures each screen into a separate temporary selection window.
+No window spans the virtual desktop or resizes the main window/Inspector.
 Click samples a color; Escape or right-click cancels. Captures are not saved.
 Per-screen geometry maps logical coordinates to captured pixel dimensions, including
 different DPI scales. Capture failure is shown explicitly in the picker.

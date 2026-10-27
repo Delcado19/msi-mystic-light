@@ -64,6 +64,7 @@ private:
     void refreshToolOptions();
     void updatePreview();
     void refreshPlacement();
+    void syncSelectionTrees();
     void updateWorkspacePanels();
     void moveSelectedLayer(int direction);
     void setLabelsHeld(bool held);
@@ -79,8 +80,8 @@ private:
     QTabWidget* tabs_;
     QStackedWidget* applicationPages_;
     QVBoxLayout* deviceOutput_;
-    QTreeWidget* layers_;
-    QTreeWidget* components_;
+    QTreeWidget* layers_=nullptr;
+    QTreeWidget* components_=nullptr;
     QTabWidget* inspectorTabs_;
     QLabel* inspectorTitle_;
     QComboBox *catalog_, *blend_;
@@ -111,7 +112,8 @@ private:
     QElapsedTimer previewClock_;
     double playbackStart_ = 0;
     QUuid selectedLayer_, activeLayer_;
-    bool editingMask_ = false, resumePreview_=false;
+    bool editingMask_ = false;
+    std::optional<bool> resumePreview_;
     bool labelsHeld_=false;
     bool compactWorkspace_=false, navigatorShown_=true, inspectorShown_=true, inspectorBeforeCompact_=true, adjustingPanels_=false;
     QString fileName_;

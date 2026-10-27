@@ -11,8 +11,9 @@ class ConflictDialog final : public QDialog {
 public:
     explicit ConflictDialog(IConflictProcesses& processes, QWidget* parent = nullptr);
 private:
-    void refresh();
+    bool refresh();
     void terminate(bool all);
+    void verifyStopped(const QVector<ConflictProcess>& targets, QStringList errors, int checksLeft);
     void updateButtons();
     IConflictProcesses& processes_;
     QVector<ConflictProcess> conflicts_;

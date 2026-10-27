@@ -40,6 +40,7 @@ struct EffectLayer {
     bool allChannels = true;
     QVector<QUuid> channelTargets; // Empty with allChannels=false means no hardware target, not all.
     bool visible = true;
+    bool locked = false; // Editing lock; rendering and hardware output remain active.
     int transparency = 0;
     LayerBlend blend = LayerBlend::Normal;
     // Unlinked masks stay in canvas coordinates; linked masks follow geometry/motion.
@@ -52,6 +53,7 @@ struct ComponentPlacement {
     QPointF origin{80, 80};
     QSizeF scale{1, 1};
     double rotation = 0; // Degrees around the component origin, after scaling catalog coordinates.
+    bool locked = false;
 };
 struct LightingState {
     QVector<ChannelAssignment> assignments;

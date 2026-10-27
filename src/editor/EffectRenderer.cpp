@@ -300,7 +300,8 @@ QTransform effectTransform(const EffectLayer& layer, double seconds)
 {
     const double scale = 1 + layer.zoom/100 * std::sin(2*pi*seconds);
     QTransform transform;
-    transform.translate(periodic(layer.center.x() + layer.driftX*seconds,640),periodic(layer.center.y() + layer.driftY*seconds,400));
+    // Gradient drift moves the texture, not its geometry; handles and linked masks must agree with rendering.
+    transform.translate(periodic(layer.center.x() + (isGradient(layer.effect) ? 0 : layer.driftX*seconds),640),periodic(layer.center.y() + (isGradient(layer.effect) ? 0 : layer.driftY*seconds),400));
     transform.rotate(std::remainder(layer.rotation + layer.spin*seconds, 360.0));
     transform.scale(layer.extent.width()*scale, layer.extent.height()*scale);
     return transform;

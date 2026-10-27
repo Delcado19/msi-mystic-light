@@ -20,11 +20,12 @@
 #include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStyle>
+#include <QMenu>
 
 namespace {
 bool centeredGradient(EffectKind kind) { return kind==EffectKind::RadialGradient || kind==EffectKind::ConicalGradient; }
-QPair<QPointF,QPointF> gradientEndpoints(const EffectLayer& layer) {
-    const auto transform=effectTransform(layer);
+QPair<QPointF,QPointF> gradientEndpoints(const EffectLayer& layer, double seconds) {
+    const auto transform=effectTransform(layer,seconds);
     if(layer.gradientFill) return {transform.map(layer.gradientStart-QPointF(.5,.5)),transform.map(layer.gradientEnd-QPointF(.5,.5))};
     return {transform.map(QPointF(centeredGradient(layer.effect) ? 0 : -.5,0)),transform.map(QPointF(.5,0))};
 }
@@ -33,6 +34,7 @@ QPair<QPointF,QPointF> gradientEndpoints(const EffectLayer& layer) {
 LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWidget* parent)
     : QWidget(parent), document_(document), context_(context)
 {
+    showComponents_=context==Context::Layout;
     setMinimumSize(360, 280);
     autoScroll_=new QTimer(this); autoScroll_->setInterval(16); autoScroll_->setTimerType(Qt::PreciseTimer);
     connect(autoScroll_,&QTimer::timeout,this,&LightingCanvas::scrollAtEdge);
@@ -69,6 +71,20 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
         update();
     });
     rendered_ = previewChannel_.isNull() ? document_.render(seconds_) : LightingDocument::render(document_.state(),seconds_,previewChannel_);
+}
+
+void LightingCanvas::setEditorView(bool effects,bool components)
+{
+    cancelGesture();showEffects_=effects;showComponents_=components;update();
+}
+void LightingCanvas::copyCamera(const LightingCanvas& source)
+{
+    if(&source==this)return;
+    cancelGesture();autoFit_=false;zoom_=source.zoom_;
+    const auto bounds=document_.layoutBounds();
+    const auto anchor=context_==Context::Layout ? bounds.topLeft() : QPointF();
+    const auto sourceAnchor=source.context_==Context::Layout ? bounds.topLeft() : QPointF();
+    pan_+=source.viewportPoint(sourceAnchor)-viewportPoint(anchor);update();
 }
 
 void LightingCanvas::setPreviewOnly() {previewOnly_=true;fullscreen_->hide();setMinimumHeight(160);setFocusPolicy(Qt::NoFocus);}
@@ -115,19 +131,21 @@ QPointF LightingCanvas::canvasPoint(QPointF viewport) const { const auto p=(view
 QPointF LightingCanvas::viewportPoint(QPointF canvas) const { const auto scale=displayScale();return offset()+QPointF(canvas.x()*scale.width(),canvas.y()*scale.height())*zoom_; }
 void LightingCanvas::select(const QUuid& id)
 {
-    cancelGesture();
+    if(selected_==id)return;
+    cancelGesture();selectedIds_.clear();if(!id.isNull())selectedIds_.insert(id);
     selected_ = id;
     emit selectionChanged();
     update();
 }
-void LightingCanvas::setMaskTarget(bool enabled) { cancelGesture(); maskTarget_ = enabled; setCursor(enabled ? Qt::CrossCursor : Qt::ArrowCursor); update(); }
+void LightingCanvas::setMaskTarget(bool enabled) { if(maskTarget_==enabled)return;cancelGesture(); maskTarget_ = enabled; setCursor(enabled ? Qt::CrossCursor : Qt::ArrowCursor); update(); }
 void LightingCanvas::setBrush(double radius, double hardness, double opacity, int gray)
 {
     radius_ = radius; hardness_ = hardness; opacity_ = opacity; gray_ = gray; update();
 }
 void LightingCanvas::cancelGesture()
 {
-    pendingDrawing_=false;createdObject_=false;
+    const bool ending=context_==Context::Effects && dragging_;
+    pendingDrawing_=false;createdObject_=false;marquee_=false;deferredHit_=false;guides_.clear();
     autoScroll_->stop();
     const bool restore=context_==Context::Layout && dragging_;
     drawing_=false; drawingBase_={}; fillReference_={};
@@ -135,6 +153,7 @@ void LightingCanvas::cancelGesture()
     panning_ = false; navigating_=false;
     workingMask_ = {}; originalEffect_.reset(); workingEffect_.reset(); handle_ = 0; layoutScale_=1; layoutRotation_=0;
     if(restore) emit layoutPreviewChanged();
+    if(ending) emit gestureEnded();
     update();
 }
 
@@ -185,7 +204,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         if (workingEffect_) {
             auto state=document_.state();
             if(createdObject_)state.layers.append(*workingEffect_);
-            else for (auto& layer : state.layers) if (layer.id==selected_) layer=*workingEffect_;
+            else for (auto& layer : state.layers) if (selections().contains(layer.id)) layer=transformedSelection(layer);
             frame=LightingDocument::render(state,seconds_,previewChannel_);
         }
         if (maskTarget_) {
@@ -207,7 +226,12 @@ void LightingCanvas::paintEvent(QPaintEvent*)
                     frame=preview.mask;
                 }
         }
-        painter.drawImage(0, 0, frame);
+        if(showEffects_) painter.drawImage(0, 0, frame);
+        if(showComponents_) {
+            painter.save();const auto bounds=document_.layoutBounds();
+            painter.scale(640/bounds.width(),400/bounds.height());painter.translate(-bounds.topLeft());
+            paintComponents(painter,frame,bounds);painter.restore();
+        }
         SnapGrid::load().paint(painter,QRectF(0,0,640,400).intersected(QRectF(canvasPoint({0,0}),canvasPoint({double(width()),double(height())}))),zoom_);
         if(maskTarget_ && tool_==MaskTool::Brush && underMouse()) {
             const auto cursor=canvasPoint(mapFromGlobal(QCursor::pos()));
@@ -218,9 +242,9 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             painter.setPen(QPen(QColor("#a9c2ff"), 1 / zoom_));
             painter.drawLine(start_, last_);
         }
-        if(!maskTarget_ && drawingTool_==Tool::Gradient) for(const auto& stored:document_.state().layers) if(stored.id==selected_ && (isGradient(stored.effect) || stored.gradientFill)) {
+        if(!maskTarget_ && selections().size()<=1 && (drawingTool_==Tool::Gradient || drawingTool_==Tool::Move)) for(const auto& stored:document_.state().layers) if(stored.id==selected_ && (isGradient(stored.effect) || stored.gradientFill)) {
             const auto& layer=workingEffect_ ? *workingEffect_ : stored;
-            const auto endpoints=gradientEndpoints(layer); const auto a=endpoints.first,b=endpoints.second;
+            const auto endpoints=gradientEndpoints(layer,seconds_); const auto a=endpoints.first,b=endpoints.second;
             painter.setPen(QPen(QColor("#101722"),4/zoom_)); painter.drawLine(a,b);
             painter.setPen(QPen(QColor("#e8f0ff"),2/zoom_)); painter.drawLine(a,b);
             const auto direction=(b-a)/std::max(1.0,QLineF(a,b).length()); const QPointF side(-direction.y(),direction.x());
@@ -228,7 +252,13 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             painter.setBrush(layer.color); painter.drawEllipse(a,6/zoom_,6/zoom_);
             painter.setBrush(layer.secondaryColor); painter.drawEllipse(b,6/zoom_,6/zoom_);
         }
-        if (!maskTarget_ && drawingTool_==Tool::Move) for (const auto& stored : document_.state().layers) if (stored.id==selected_ && stored.effect!=EffectKind::StaticColor) {
+        if(!maskTarget_ && drawingTool_==Tool::Move && selections().size()>1) {
+            QRectF bounds;for(const auto& layer:document_.state().layers)if(selections().contains(layer.id))bounds=bounds.united(effectBounds(transformedSelection(layer)));
+            painter.setPen(QPen(QColor("#55deff"),1/zoom_));painter.setBrush(Qt::NoBrush);painter.drawRect(bounds);
+            for(const auto point:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight()})painter.drawRect(QRectF(point-QPointF(4/zoom_,4/zoom_),QSizeF(8/zoom_,8/zoom_)));
+            const auto top=QPointF(bounds.center().x(),bounds.top());painter.drawLine(top,top-QPointF(0,24/zoom_));painter.drawEllipse(top-QPointF(0,24/zoom_),5/zoom_,5/zoom_);
+        }
+        if (!maskTarget_ && drawingTool_==Tool::Move && selections().size()<=1) for (const auto& stored : document_.state().layers) if (stored.id==selected_ && stored.effect!=EffectKind::StaticColor) {
             const auto& layer=workingEffect_ ? *workingEffect_ : stored;
             const auto transform=effectTransform(layer,seconds_);
             const QRectF bounds(-0.5,-0.5,1,1);
@@ -247,12 +277,25 @@ void LightingCanvas::paintEvent(QPaintEvent*)
                 painter.drawLine(top,rotation); painter.drawEllipse(rotation,5/zoom_,5/zoom_);
             }
         }
+        for(const auto& layer:document_.state().layers)if(layer.id!=selected_ && selections().contains(layer.id)) {
+            painter.setPen(QPen(QColor("#55deff"),1/zoom_));painter.setBrush(Qt::NoBrush);painter.drawRect(effectBounds(transformedSelection(layer)));
+        }
+        if(marquee_){painter.setPen(QPen(QColor("#55deff"),1/zoom_,Qt::DashLine));painter.setBrush(QColor(85,222,255,30));painter.drawRect(QRectF(start_,last_).normalized());}
+        for(const auto& line:guides_){painter.setPen(QPen(QColor("#55deff"),1/zoom_,Qt::DashLine));painter.drawLine(line);}
         paintMinimap(painter);return;
     }
     // The same live raster explains sampling positions; Layout edits placements only.
-    painter.drawImage(world,frame);
+    if(showEffects_) painter.drawImage(world,frame);
     if(!previewOnly_) SnapGrid::load().paint(painter,world.intersected(QRectF(canvasPoint({0,0}),canvasPoint({double(width()),double(height())}))),zoom_);
     if(!previewOnly_) painter.setClipRect(QRectF(canvasPoint(contentRect().topLeft()),canvasPoint(contentRect().bottomRight())));
+    if(showComponents_) paintComponents(painter,frame,world);
+    if(marquee_){painter.setPen(QPen(QColor("#55deff"),1/zoom_,Qt::DashLine));painter.setBrush(QColor(85,222,255,30));painter.drawRect(QRectF(start_,last_).normalized());}
+    for(const auto& line:guides_){painter.setPen(QPen(QColor("#55deff"),1/zoom_,Qt::DashLine));painter.drawLine(line);}
+    paintMinimap(painter);
+}
+
+void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const QRectF& world)
+{
     painter.setRenderHint(QPainter::Antialiasing);
     const auto placements=previewPlacements();
     auto sampled=document_.sampleComponents(frame,&placements);
@@ -312,7 +355,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         }
     }
     // Paint labels and dashed groups after artwork, so filled housings cannot cover them.
-    if(!previewOnly_) for(const auto& assignment:document_.state().assignments) {
+    if(!previewOnly_ && context_==Context::Layout) for(const auto& assignment:document_.state().assignments) {
         if(!visibleChain(assignment))continue;
         const auto bounds=groupBounds(assignment);
         if(bounds.isEmpty()) continue;
@@ -321,7 +364,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         const auto title=groupLabel(assignment);
         painter.fillRect(title,QColor("#202735")); painter.setPen(QColor("#dce7ff")); painter.drawText(title,Qt::AlignCenter,assignment.channelId);
     }
-    if(!previewOnly_) for(const auto& placement:placements) {
+    if(!previewOnly_ && context_==Context::Layout) for(const auto& placement:placements) {
         bool chained=false;for(const auto& assignment:document_.state().assignments)
             if(visibleChain(assignment) && assignment.placements.contains(placement.id))chained=true;
         if(!chained) {
@@ -335,7 +378,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             painter.drawText(label,Qt::AlignLeft|Qt::AlignVCenter,componentLabelText(placement));painter.restore();
         }
     }
-    if(!previewOnly_ && !selected_.isNull()) {
+    if(!previewOnly_ && context_==Context::Layout && !selected_.isNull()) {
         auto bounds=selectionBounds();
 
         painter.setPen(QPen(QColor("#a9c2ff"),1.5/zoom_)); painter.setBrush(Qt::NoBrush);
@@ -346,7 +389,6 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         const auto [top,rotation]=rotationHandle();
         painter.drawLine(top,rotation); painter.drawEllipse(rotation,6/zoom_,6/zoom_);
     }
-    paintMinimap(painter);
 }
 
 QRectF LightingCanvas::navigationBounds() const
@@ -481,6 +523,7 @@ QPair<QPointF,QPointF> LightingCanvas::rotationHandle() const
 QRectF LightingCanvas::selectionBounds() const
 {
     QRectF bounds,housings;
+    if(context_==Context::Effects){for(const auto& layer:document_.state().layers)if(selections().contains(layer.id))bounds=bounds.united(effectBounds(layer));return bounds;}
     for(const auto& placement:document_.state().placements)if(selectedPlacement(placement.id)) {
         const auto preview=previewPlacement(placement);
         for(const auto& point:componentPoints(preview))bounds=bounds.united(QRectF(point,QSizeF(.01,.01)));
@@ -521,6 +564,7 @@ void LightingCanvas::beginDrawing(QPointF point)
 {
     EffectLayer layer; bool found=false;
     for(const auto& candidate:document_.state().layers) if(candidate.id==selected_) { layer=candidate; found=true; }
+    if(found && !editable(layer.id)){emit editingError("Selection is locked. Unlock it before editing.");return;}
     if(!found && drawingTool_==Tool::Eraser) return;
     if(found && !maskTarget_ && drawingTool_==Tool::Eraser && layer.effect!=EffectKind::Paint) {
         // Procedural sources stay editable: erasing edits their existing mask instead of flattening pixels.
@@ -535,10 +579,10 @@ void LightingCanvas::beginDrawing(QPointF point)
     }
     // Bucket fills use the selected procedural source as their boundary, while keeping that source editable below the paint result.
     const auto reference=!maskTarget_ && found && drawingTool_==Tool::Fill && layer.effect!=EffectKind::Paint ? renderEffect(layer) : QImage{};
-    if(!maskTarget_ && (!found || layer.container || (!layer.parentId.isNull() && (drawingTool_==Tool::Rectangle || drawingTool_==Tool::Ellipse || drawingTool_==Tool::Line)) || (gradient ? !isGradient(layer.effect) && layer.effect!=EffectKind::Paint && !solid : layer.effect!=EffectKind::Paint))) {
+    if(!maskTarget_ && (gradient || !found || layer.container || (!layer.parentId.isNull() && (drawingTool_==Tool::Rectangle || drawingTool_==Tool::Ellipse || drawingTool_==Tool::Line)) || (gradient ? !isGradient(layer.effect) && layer.effect!=EffectKind::Paint && !solid : layer.effect!=EffectKind::Paint))) {
         if(document_.state().layers.size()>=64) { emit editingError("Layer limit reached. Select an existing paint layer or remove a layer first."); return; }
         layer=EffectLayer{};layer.parentId=selected_.isNull() ? activeLayer_ : document_.layerRoot(selected_);layer.effect=gradient ? EffectKind::LinearGradient : EffectKind::Paint;
-        layer.name=gradient ? "Gradient" : "Paint";layer.mask=LightingDocument::whiteMask();layer.extent=LightingDocument::canvasSize();createdObject_=true;
+        layer.name=gradient ? "Gradient" : "Paint";if(gradient){layer.gradientColors=gradientColors_;layer.gradientPositions=gradientPositions_;layer.color=drawColor_;layer.secondaryColor=Qt::black;}layer.mask=LightingDocument::whiteMask();layer.extent=LightingDocument::canvasSize();createdObject_=true;
     }
     if(createdObject_ && filled_ && (drawingTool_==Tool::Rectangle || drawingTool_==Tool::Ellipse)) {
         layer.effect=drawingTool_==Tool::Rectangle ? EffectKind::Rectangle : EffectKind::Circle;layer.name=effectDefinition(layer.effect).label;layer.color=drawColor_;
@@ -660,17 +704,28 @@ QRectF LightingCanvas::groupLabel(const ChannelAssignment& assignment) const
 
 bool LightingCanvas::selectedPlacement(const QUuid& id) const
 {
-    if(id==selected_) return true;
+    if(!editable(id))return false;
+    if(id==selected_ || selectedIds_.contains(id)) return true;
     for(const auto& assignment:document_.state().assignments)
-        if(assignment.id==selected_) return assignment.placements.contains(id);
+        if(assignment.id==selected_ || selectedIds_.contains(assignment.id)) return editable(assignment.id) && assignment.placements.contains(id);
     return false;
 }
 
 void LightingCanvas::mousePressEvent(QMouseEvent* event)
 {
-    if(previewOnly_) return;
+    if(previewOnly_ || (context_==Context::Layout ? !showComponents_ : !showEffects_)) return;
     setFocus();
     if (event->button() == Qt::MiddleButton || (event->button()==Qt::LeftButton && spaceHeld_)) { cancelGesture(); autoFit_=false; panning_ = true; last_ = event->position(); return; }
+    if(event->button()==Qt::RightButton) {
+        const auto hits=hitsAt(canvasPoint(event->position()));QMenu menu(this);
+        for(const auto& id:hits) {
+            QString name;
+            for(const auto& layer:document_.state().layers)if(layer.id==id)name=layer.name;
+            for(const auto& item:document_.state().placements)if(item.id==id)name=document_.componentName(item);
+            auto* action=menu.addAction(name);connect(action,&QAction::triggered,this,[this,id]{selectMany({id},id);});
+        }
+        if(!hits.isEmpty())menu.exec(event->globalPosition().toPoint());return;
+    }
     if (event->button() != Qt::LeftButton) return;
     if(minimapRect().contains(event->position())){cancelGesture();navigating_=true;navigateMinimap(event->position());return;}
     if(!contentRect().contains(event->position())) return;
@@ -678,20 +733,64 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
     start_ = last_ = canvasPoint(event->position());
     snapGesture_=SnapGrid::load().enabled && !(event->modifiers() & Qt::AltModifier);
     if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) return;
+    if((event->modifiers() & Qt::ShiftModifier) && (context_==Context::Layout || (!maskTarget_ && drawingTool_==Tool::Move))) {
+        const auto hits=hitsAt(start_);auto ids=selectedIds_;
+        if(!hits.isEmpty()){const auto id=hits.first();if(ids.contains(id))ids.remove(id);else ids.insert(id);selectMany(ids,ids.contains(id) ? id : QUuid{});return;}
+    }
+    if((context_==Context::Layout || (!maskTarget_ && drawingTool_==Tool::Move)) && hitsAt(start_).isEmpty()) {
+        // An existing selection's grips remain reachable outside painted pixels.
+        bool onGrip=false;
+        if(context_==Context::Effects && selections().size()>1){QRectF bounds;for(const auto& layer:document_.state().layers)if(selections().contains(layer.id))bounds=bounds.united(effectBounds(layer));for(const auto point:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight(),QPointF(bounds.center().x(),bounds.top()-24/zoom_)})onGrip|=QLineF(start_,point).length()<12/zoom_;}
+        if(context_==Context::Layout && !selectionBounds().isEmpty()) {
+            const auto bounds=selectionBounds();for(const auto point:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight(),rotationHandle().second})onGrip|=QLineF(start_,point).length()<12/zoom_;
+        } else for(const auto& layer:document_.state().layers)if(layer.id==selected_ && editable(layer.id)) {
+            const auto transform=effectTransform(layer,seconds_);for(const auto point:{QPointF(-.5,-.5),QPointF(.5,-.5),QPointF(-.5,.5),QPointF(.5,.5),QPointF(0,-.5-24/(zoom_*layer.extent.height()))})onGrip|=QLineF(start_,transform.map(point)).length()<12/zoom_;
+            if(isGradient(layer.effect) || layer.gradientFill){const auto ends=gradientEndpoints(layer,seconds_);onGrip|=QLineF(start_,ends.first).length()<12/zoom_ || QLineF(start_,ends.second).length()<12/zoom_;}
+        }
+        bool groupLabelHit=false;for(const auto& assignment:document_.state().assignments)if(context_==Context::Layout && visibleChain(assignment) && groupLabel(assignment).contains(start_))groupLabelHit=true;
+        if(context_==Context::Layout && !selected_.isNull() && selectionBounds().contains(start_))onGrip=true;
+        if(!onGrip && !groupLabelHit){marquee_=true;marqueeBefore_=selectedIds_;additiveMarquee_=event->modifiers() & Qt::ShiftModifier;return;}
+    }
     if(context_==Context::Effects && !maskTarget_ && drawingTool_!=Tool::Pencil && drawingTool_!=Tool::Fill && drawingTool_!=Tool::Eraser) {
+        if(drawingTool_==Tool::Gradient || drawingTool_==Tool::Move) for(const auto& layer:document_.state().layers)
+            if(layer.id==selected_ && editable(layer.id) && (isGradient(layer.effect) || layer.gradientFill)) {
+                const auto ends=gradientEndpoints(layer,seconds_);
+                if(QLineF(start_,ends.first).length()<12/zoom_ || QLineF(start_,ends.second).length()<12/zoom_) {
+                    emit effectGestureStarted();handle_=QLineF(start_,ends.first).length()<12/zoom_ ? 7 : 8;
+                    originalEffect_=workingEffect_=layer;dragging_=true;return;
+                }
+            }
         if(drawingTool_!=Tool::Move){pendingDrawing_=true;return;}
         bool onHandle=false;
-        for(const auto& layer:document_.state().layers)if(layer.id==selected_ && !layer.container) {
+        if(selections().size()>1){const auto bounds=selectionBounds();for(const auto point:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight(),QPointF(bounds.center().x(),bounds.top()-24/zoom_)})onHandle|=QLineF(start_,point).length()<12/zoom_;}
+        for(const auto& layer:document_.state().layers)if(layer.id==selected_ && editable(layer.id) && !layer.container) {
             const auto transform=effectTransform(layer,seconds_);
             for(const auto corner:{QPointF(-.5,-.5),QPointF(.5,-.5),QPointF(.5,.5),QPointF(-.5,.5),QPointF(0,-.5-24/(zoom_*layer.extent.height()))})
                 onHandle|=QLineF(start_,transform.map(corner)).length()<12/zoom_;
         }
-        if(!onHandle)selectAt(start_);
+        if(!onHandle) {
+            const auto hits=hitsAt(start_);
+            // Drag a selection chosen in the tree without allowing a covering source to steal it.
+            bool inside=false;for(const auto& layer:document_.state().layers)if(selectedIds_.contains(layer.id) && editable(layer.id) && effectBounds(layer).contains(start_))inside=true;
+            deferredHit_=inside && !hits.isEmpty() && hits.first()!=selected_;
+            if(!inside)selectAt(start_);
+        }
     }
+    if(context_==Context::Effects && !editable(selected_) && !selected_.isNull()){emit editingError("Selection is locked.");return;}
     if(context_==Context::Effects) emit effectGestureStarted();
+    if(context_==Context::Effects && !maskTarget_ && drawingTool_==Tool::Move && (selections().size()>1 || !selections().contains(selected_))) {
+        QRectF bounds;for(const auto& layer:document_.state().layers)if(selections().contains(layer.id))bounds=bounds.united(effectBounds(layer));
+        if(!bounds.isEmpty()) {
+            int handle=0;const QVector<QPointF> corners{bounds.topLeft(),bounds.topRight(),bounds.bottomRight(),bounds.bottomLeft()};
+            for(int i=0;i<corners.size();++i)if(QLineF(start_,corners[i]).length()<12/zoom_)handle=i+1;
+            if(QLineF(start_,QPointF(bounds.center().x(),bounds.top()-24/zoom_)).length()<12/zoom_)handle=5;
+            if(!handle && bounds.contains(start_))handle=6;
+            if(handle){EffectLayer group;group.center=bounds.center();group.extent=bounds.size();group.effect=EffectKind::Rectangle;originalEffect_=workingEffect_=group;handle_=handle;dragging_=true;return;}
+        }
+    }
     if(context_==Context::Effects && drawingTool_!=Tool::Move) {
-        if(drawingTool_==Tool::Gradient && !maskTarget_) for(const auto& layer:document_.state().layers) if(layer.id==selected_ && (isGradient(layer.effect) || layer.gradientFill)) {
-            const auto endpoints=gradientEndpoints(layer); const auto a=endpoints.first,b=endpoints.second;
+        if(drawingTool_==Tool::Gradient && !maskTarget_) for(const auto& layer:document_.state().layers) if(layer.id==selected_ && editable(layer.id) && (isGradient(layer.effect) || layer.gradientFill)) {
+            const auto endpoints=gradientEndpoints(layer,seconds_); const auto a=endpoints.first,b=endpoints.second;
             if(QLineF(start_,a).length()<12/zoom_ || QLineF(start_,b).length()<12/zoom_) {
                 handle_=QLineF(start_,a).length()<12/zoom_ ? 7 : 8;
                 originalEffect_=workingEffect_=layer; dragging_=true; return;
@@ -704,11 +803,11 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
     if (context_ == Context::Layout) {
         // Hit the exact painted label before member bodies or handles; it always moves the complete chain.
         for(auto it=document_.state().assignments.crbegin();it!=document_.state().assignments.crend();++it)
-            if(visibleChain(*it) && groupLabel(*it).contains(start_)) { select(it->id); layoutBounds_=selectionBounds(); handle_=0; dragging_=true; return; }
+            if(editable(it->id) && visibleChain(*it) && groupLabel(*it).contains(start_)) { select(it->id); layoutBounds_=selectionBounds(); handle_=0; dragging_=true; return; }
         bool groupSelected=false;
         for(const auto& assignment:document_.state().assignments) if(assignment.id==selected_) groupSelected=true;
         if(groupSelected) for(auto it=document_.state().placements.crbegin();it!=document_.state().placements.crend();++it) {
-            if(componentBounds(*it).contains(start_) || (showLabels_ && componentLabel(*it).contains(start_))) {
+            if(editable(it->id) && (componentBounds(*it).contains(start_) || (showLabels_ && componentLabel(*it).contains(start_)))) {
                 select(it->id); layoutBounds_=selectionBounds(); handle_=0; dragging_=true; return;
             }
         }
@@ -721,17 +820,18 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
         }
         QUuid hit;
         for (auto it = document_.state().placements.crbegin(); it != document_.state().placements.crend(); ++it) {
-            if(componentBounds(*it).contains(start_) || (showLabels_ && componentLabel(*it).contains(start_))) { hit=it->id; origin_=it->origin; break; }
+            if(editable(it->id) && (componentBounds(*it).contains(start_) || (showLabels_ && componentLabel(*it).contains(start_)))) { hit=it->id; origin_=it->origin; break; }
+            if(!editable(it->id))continue;
             for (auto point : componentPoints(*it))
                 if (QLineF(point, start_).length() < 12 / zoom_) { hit = it->id; origin_ = it->origin; break; }
             if (!hit.isNull()) break;
         }
         if(hit.isNull() && !selected_.isNull() && layoutBounds_.contains(start_)) { dragging_=true; return; }
         // The group label moves the chain; a member body always selects that component.
-        select(hit);
+        if(!selectedIds_.contains(hit))select(hit);
         dragging_ = !hit.isNull();
     } else if (!maskTarget_) {
-        for (const auto& layer : document_.state().layers) if (layer.id==selected_ && layer.effect!=EffectKind::StaticColor) {
+        for (const auto& layer : document_.state().layers) if (layer.id==selected_ && editable(layer.id) && layer.effect!=EffectKind::StaticColor) {
             const auto transform=effectTransform(layer,seconds_);
             const QRectF bounds(-0.5,-0.5,1,1);
             if (cropTool_ && (layer.effect!=EffectKind::Image || layer.image.isNull())) return;
@@ -759,13 +859,18 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
 
 void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
 {
+    if(deferredHit_) {
+        if(QLineF(viewportPoint(start_),event->position()).length()<QApplication::startDragDistance())return;
+        deferredHit_=false;
+    }
+    if(marquee_){last_=canvasPoint(event->position());update();return;}
     if(navigating_){navigateMinimap(event->position());return;}
     if (panning_) { pan_ += event->position() - last_; last_ = event->position(); update(); return; }
     if(pendingDrawing_) {
         if(QLineF(viewportPoint(start_),event->position()).length()<QApplication::startDragDistance())return;
         pendingDrawing_=false;emit effectGestureStarted();
-        if(drawingTool_==Tool::Gradient)for(const auto& layer:document_.state().layers)if(layer.id==selected_ && (isGradient(layer.effect) || layer.gradientFill)) {
-            const auto endpoints=gradientEndpoints(layer);
+        if(drawingTool_==Tool::Gradient)for(const auto& layer:document_.state().layers)if(layer.id==selected_ && editable(layer.id) && (isGradient(layer.effect) || layer.gradientFill)) {
+            const auto endpoints=gradientEndpoints(layer,seconds_);
             if(QLineF(start_,endpoints.first).length()<12/zoom_ || QLineF(start_,endpoints.second).length()<12/zoom_) {
                 handle_=QLineF(start_,endpoints.first).length()<12/zoom_ ? 7 : 8;originalEffect_=workingEffect_=layer;dragging_=true;
                 mouseMoveEvent(event);return;
@@ -799,6 +904,24 @@ void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
                   (context_==Context::Layout && handle_!=5) ||
                   (workingEffect_ && handle_!=6 && handle_!=5 && handle_!=9) ||
                   (maskTarget_ && tool_==MaskTool::Gradient)) point=grid.snap(point);
+    }
+    guides_.clear();
+    if(smartGuides_ && !(event->modifiers() & Qt::AltModifier) && !drawing_ &&
+        ((context_==Context::Layout && handle_==0) || (context_==Context::Effects && handle_==6))) {
+        const auto ids=selections();QRectF moving;QVector<QRectF> others;
+        if(context_==Context::Layout){for(const auto& item:document_.state().placements){const auto bounds=componentBounds(item);if(ids.contains(item.id))moving=moving.united(bounds);else others.append(bounds);}}
+        else for(const auto& layer:document_.state().layers)if(!layer.container && layer.visible){const auto bounds=effectBounds(layer);if(ids.contains(layer.id))moving=moving.united(bounds);else others.append(bounds);}
+        const auto shifted=moving.translated(point-start_);QPointF correction;
+        for(int axis=0;axis<2;++axis) {
+            const auto scale=displayScale();double best=6/(zoom_*(axis==0 ? scale.width() : scale.height()));std::optional<QLineF> guide;
+            const auto values=[axis](const QRectF& bounds){return axis==0 ? QVector<double>{bounds.left(),bounds.center().x(),bounds.right()} : QVector<double>{bounds.top(),bounds.center().y(),bounds.bottom()};};
+            for(const auto& bounds:others)for(const auto target:values(bounds))for(const auto value:values(shifted))if(std::abs(target-value)<best){
+                const double delta=target-value;best=std::abs(delta);if(axis==0)correction.setX(delta);else correction.setY(delta);
+                guide=axis==0 ? QLineF(target,std::min(bounds.top(),shifted.top())-20,target,std::max(bounds.bottom(),shifted.bottom())+20) : QLineF(std::min(bounds.left(),shifted.left())-20,target,std::max(bounds.right(),shifted.right())+20,target);
+            }
+            if(guide)guides_.append(*guide);
+        }
+        point+=correction;if(!guides_.isEmpty())snapGesture_=false;
     }
     if(drawing_) { updateDrawing(point); last_=point; update(); return; }
     if (context_ == Context::Effects && maskTarget_ && tool_ == MaskTool::Brush)
@@ -838,12 +961,14 @@ void LightingCanvas::updateEffectGesture(QPointF point)
         const auto local=transform.inverted().map(point)+QPointF(.5,.5);
         if(handle_==7) changed.gradientStart=local; else changed.gradientEnd=local;
     } else if(handle_==7 || handle_==8) {
-        const auto endpoints=gradientEndpoints(original); auto a=endpoints.first,b=endpoints.second;
+        const auto endpoints=gradientEndpoints(original,seconds_); auto a=endpoints.first,b=endpoints.second;
         if(handle_==7) a=point; else b=point;
         const bool centered=centeredGradient(original.effect);
         changed.center=centered ? a : (a+b)/2; changed.extent.setWidth(std::clamp(QLineF(a,b).length()*(centered ? 2 : 1),1.0,10000.0));
         if(centered) changed.extent.setHeight(changed.extent.width());
-        changed.rotation=std::atan2(b.y()-a.y(),b.x()-a.x())*180/3.141592653589793;
+        changed.rotation=std::remainder(std::atan2(b.y()-a.y(),b.x()-a.x())*180/3.141592653589793-original.spin*seconds_,360.0);
+        const double zoom=1+original.zoom/100*std::sin(2*3.141592653589793*seconds_);
+        if(std::abs(zoom)>.001){changed.extent.setWidth(changed.extent.width()/zoom);if(centered)changed.extent.setHeight(changed.extent.width());}
     } else if (cropTool_) {
         workingEffect_=original;
         const QSizeF source(original.image.width()*original.crop.width(),original.image.height()*original.crop.height());
@@ -880,6 +1005,20 @@ void LightingCanvas::updateEffectGesture(QPointF point)
 void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
 {
     if(previewOnly_) return;
+    if(deferredHit_ && event->button()==Qt::LeftButton && QLineF(viewportPoint(start_),event->position()).length()<QApplication::startDragDistance()) {
+        const auto point=canvasPoint(event->position());cancelGesture();selectAt(point);return;
+    }
+    if(marquee_ && event->button()==Qt::LeftButton) {
+        last_=canvasPoint(event->position());const QRectF area=QRectF(start_,last_).normalized();auto ids=additiveMarquee_ ? marqueeBefore_ : QSet<QUuid>{};
+        if(QLineF(viewportPoint(start_),event->position()).length()>=QApplication::startDragDistance()) {
+            if(context_==Context::Layout){for(const auto& item:document_.state().placements)if(editable(item.id) && area.contains(componentBounds(item)))ids.insert(item.id);}
+            else for(const auto& layer:document_.state().layers)if(!layer.container && layer.visible && editable(layer.id) && area.contains(effectBounds(layer))) {
+                bool visible=true;for(const auto& parent:document_.state().layers)if(parent.id==layer.parentId)visible=parent.visible && parent.transparency<100;
+                if(visible && layer.transparency<100)ids.insert(layer.id);
+            }
+        }
+        marquee_=false;selectMany(ids);return;
+    }
     if(navigating_ && event->button()==Qt::LeftButton){navigating_=false;update();return;}
     if (event->button() == Qt::MiddleButton || (panning_ && event->button()==Qt::LeftButton)) { panning_ = false; update(); return; }
     if(pendingDrawing_ && event->button()==Qt::LeftButton){pendingDrawing_=false;selectAt(canvasPoint(event->position()));return;}
@@ -908,11 +1047,10 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
         const auto color=workingEffect_->color;
         document_.edit("Fill source color",[&](auto& state) { for(auto& layer:state.layers) if(layer.id==id) { layer.color=color; layer.gradientFill=false; } });
     } else if (workingEffect_ && last_!=start_) {
-        const auto effect=*workingEffect_;
-        document_.edit(cropTool_ ? "Crop image" : "Transform effect",[&](auto& state) {
-            for (auto& layer : state.layers) if (layer.id==id) {
-                layer.center=effect.center; layer.extent=effect.extent; layer.rotation=effect.rotation; layer.crop=effect.crop; layer.gradientStart=effect.gradientStart; layer.gradientEnd=effect.gradientEnd;
-            }
+        const auto ids=selections();QMap<QUuid,EffectLayer> changes;
+        for(const auto& layer:document_.state().layers)if(ids.contains(layer.id))changes[layer.id]=transformedSelection(layer);
+        document_.edit(cropTool_ ? "Crop image" : "Transform effects",[&](auto& state) {
+            for(auto& layer:state.layers)if(changes.contains(layer.id))layer=changes.value(layer.id);
         });
     } else if (maskTarget_) {
         const auto mask = workingMask_;
@@ -952,7 +1090,7 @@ void LightingCanvas::keyPressEvent(QKeyEvent* event)
         if(!dragging_ && !panning_ && !navigating_ && window()->objectName()=="canvasFullscreen") {emit fullscreenRequested();return;}
         cancelGesture(); emit gestureEnded(); return;
     }
-    if (context_ == Context::Layout && !selected_.isNull()) {
+    if (!selected_.isNull()) {
         QPointF delta;
         if (event->key() == Qt::Key_Left) delta.setX(-1);
         if (event->key() == Qt::Key_Right) delta.setX(1);
@@ -967,8 +1105,10 @@ void LightingCanvas::keyPressEvent(QKeyEvent* event)
                     delta=grid.snap(placement.origin+delta)-placement.origin;break;
                 }
             }
-            document_.edit("Nudge component", [&](LightingState& state) {
-                for (auto& placement : state.placements) if (selectedPlacement(placement.id)) placement.origin += delta;
+            const auto ids=selections();
+            document_.edit("Nudge selection", [&](LightingState& state) {
+                if(context_==Context::Layout){for(auto& placement:state.placements)if(ids.contains(placement.id))placement.origin+=delta;}
+                else for(auto& layer:state.layers)if(ids.contains(layer.id))layer.center+=delta;
             });
             return;
         }
@@ -1012,8 +1152,10 @@ void LightingCanvas::keyReleaseEvent(QKeyEvent* event)
     QWidget::keyReleaseEvent(event);
 }
 
-void LightingCanvas::selectAt(QPointF point)
+QVector<QUuid> LightingCanvas::hitsAt(QPointF point) const
 {
+    QVector<QUuid> hits;
+    if(context_==Context::Layout){for(auto it=document_.state().placements.crbegin();it!=document_.state().placements.crend();++it)if(editable(it->id) && (componentBounds(*it).contains(point) || (showLabels_ && componentLabel(*it).contains(point))))hits.append(it->id);return hits;}
     const auto pixel=point.toPoint();
     QVector<const EffectLayer*> order;
     for(const auto& root:document_.state().layers)if(root.parentId.isNull()) {
@@ -1021,12 +1163,158 @@ void LightingCanvas::selectAt(QPointF point)
     }
     for(auto position=order.crbegin();position!=order.crend();++position) {
         const auto* it=*position;
-        if(it->container || !it->visible || it->transparency==100)continue;
+        if(!editable(it->id) || it->container || !it->visible || it->transparency==100)continue;
         const EffectLayer* root=nullptr;for(const auto& parent:document_.state().layers)if(parent.id==it->parentId)root=&parent;
         if(root && (!root->visible || root->transparency==100))continue;
         if(!previewChannel_.isNull()) {const auto& target=root ? *root : *it;if(!target.allChannels && !target.channelTargets.contains(previewChannel_))continue;}
         const auto source=renderEffect(*it,seconds_);
-        if(source.rect().contains(pixel) && (!root || !root->maskEnabled || renderMask(*root,seconds_).pixelColor(pixel).red()>0) && source.pixelColor(pixel).alpha()>0 && (!it->maskEnabled || renderMask(*it,seconds_).pixelColor(pixel).red()>0)){select(it->id);return;}
+        if(source.rect().contains(pixel) && (!root || !root->maskEnabled || renderMask(*root,seconds_).pixelColor(pixel).red()>0) && source.pixelColor(pixel).alpha()>0 && (!it->maskEnabled || renderMask(*it,seconds_).pixelColor(pixel).red()>0))hits.append(it->id);
     }
-    select({});
+    return hits;
+}
+void LightingCanvas::selectAt(QPointF point) {const auto hits=hitsAt(point);selectMany(hits.isEmpty() ? QSet<QUuid>{} : QSet<QUuid>{hits.first()},hits.value(0));}
+
+bool LightingCanvas::editable(const QUuid& id) const
+{
+    for(const auto& layer:document_.state().layers)if(layer.id==id) {
+        if(layer.locked)return false;
+        if(layer.parentId.isNull())for(const auto& child:document_.state().layers)if(child.parentId==layer.id && child.locked)return false;
+        for(const auto& parent:document_.state().layers)if(parent.id==layer.parentId && parent.locked)return false;
+        return true;
+    }
+    for(const auto& placement:document_.state().placements)if(placement.id==id)return !placement.locked;
+    for(const auto& assignment:document_.state().assignments)if(assignment.id==id)
+        return !assignment.placements.isEmpty() && std::none_of(document_.state().placements.cbegin(),document_.state().placements.cend(),[&](const auto& item){return assignment.placements.contains(item.id) && item.locked;});
+    return false;
+}
+void LightingCanvas::selectMany(const QSet<QUuid>& ids,const QUuid& primary)
+{
+    cancelGesture();selectedIds_=ids;
+    selected_=ids.contains(primary) ? primary : ids.isEmpty() ? QUuid{} : *ids.begin();
+    emit selectionChanged();update();
+}
+QSet<QUuid> LightingCanvas::selections() const
+{
+    QSet<QUuid> ids;
+    if(context_==Context::Layout) {
+        for(const auto& item:document_.state().placements)if(selectedPlacement(item.id))ids.insert(item.id);
+    } else {
+        for(const auto& item:document_.state().layers)if(editable(item.id) &&
+            (selectedIds_.contains(item.id) || (selectedIds_.contains(item.parentId) && editable(item.parentId))) && !item.container)ids.insert(item.id);
+    }
+    return ids;
+}
+QRectF LightingCanvas::effectBounds(const EffectLayer& layer) const
+{
+    return layer.effect==EffectKind::StaticColor ? QRectF(0,0,640,400) : effectTransform(layer,seconds_).mapRect(QRectF(-.5,-.5,1,1));
+}
+EffectLayer LightingCanvas::transformedSelection(const EffectLayer& layer) const
+{
+    if(!workingEffect_ || !originalEffect_ || !selections().contains(layer.id))return layer;
+    if(layer.id==originalEffect_->id)return *workingEffect_;
+    if(cropTool_ || handle_==7 || handle_==8 || drawing_)return layer;
+    auto changed=layer;const auto& from=*originalEffect_;const auto& to=*workingEffect_;
+    QTransform transform;transform.translate(to.center.x(),to.center.y());transform.rotate(to.rotation-from.rotation);
+    transform.scale(to.extent.width()/from.extent.width(),to.extent.height()/from.extent.height());transform.translate(-from.center.x(),-from.center.y());
+    const auto center=effectTransform(layer,seconds_).map(QPointF());changed.center+=transform.map(center)-center;changed.rotation=std::remainder(layer.rotation+to.rotation-from.rotation,360.0);
+    changed.extent={layer.extent.width()*to.extent.width()/from.extent.width(),layer.extent.height()*to.extent.height()/from.extent.height()};
+    if(layer.maskLinked)changed.mask=transformedMask(layer,effectTransform(layer).inverted()*effectTransform(changed));
+    return changed;
+}
+void LightingCanvas::alignSelection(const QString& alignment)
+{
+    try {
+    cancelGesture();const auto ids=selections();QVector<QPair<QUuid,QRectF>> items;QMap<QUuid,QSet<QUuid>> members;
+    const auto append=[&](const QUuid& id,const QSet<QUuid>& group){
+        QRectF bounds;
+        if(context_==Context::Layout){for(const auto& item:document_.state().placements)if(group.contains(item.id))bounds=bounds.united(componentBounds(item));}
+        else for(const auto& item:document_.state().layers)if(group.contains(item.id))bounds=bounds.united(effectBounds(item));
+        if(!bounds.isEmpty()){items.append({id,bounds});members[id]=group;}
+    };
+    QSet<QUuid> grouped;
+    if(context_==Context::Layout) {
+        for(const auto& assignment:document_.state().assignments)if(selectedIds_.contains(assignment.id)) {
+            QSet<QUuid> group;for(const auto& id:assignment.placements)if(ids.contains(id))group.insert(id);
+            append(assignment.id,group);grouped.unite(group);
+        }
+        for(const auto& item:document_.state().placements)if(ids.contains(item.id) && !grouped.contains(item.id))append(item.id,{item.id});
+    } else {
+        for(const auto& root:document_.state().layers)if(root.parentId.isNull() && selectedIds_.contains(root.id)) {
+            QSet<QUuid> group;for(const auto& item:document_.state().layers)if(ids.contains(item.id) && (item.id==root.id || item.parentId==root.id))group.insert(item.id);
+            append(root.id,group);grouped.unite(group);
+        }
+        for(const auto& item:document_.state().layers)if(ids.contains(item.id) && !grouped.contains(item.id))append(item.id,{item.id});
+    }
+    const bool distribute=alignment.startsWith("distribute");
+    if(items.size()<(distribute ? 3 : 2)){emit editingError(distribute ? "Select at least three objects to distribute." : "Select at least two objects to align.");return;}
+    const bool horizontal=alignment=="left" || alignment=="center" || alignment=="right" || alignment=="distribute-horizontal";
+    QRectF bounds;for(const auto& item:items)bounds=bounds.united(item.second);
+    QMap<QUuid,QPointF> deltas;
+    if(distribute) {
+        std::stable_sort(items.begin(),items.end(),[horizontal](const auto& a,const auto& b){return horizontal ? a.second.center().x()<b.second.center().x() : a.second.center().y()<b.second.center().y();});
+        const double first=horizontal ? items.first().second.center().x() : items.first().second.center().y();
+        const double last=horizontal ? items.last().second.center().x() : items.last().second.center().y();
+        for(int i=0;i<items.size();++i){const auto& item=items[i];const double delta=first+(last-first)*i/(items.size()-1)-(horizontal ? item.second.center().x() : item.second.center().y());deltas[item.first]=horizontal ? QPointF(delta,0) : QPointF(0,delta);}
+    } else for(const auto& item:items) {
+        const auto rect=item.second;
+        deltas[item.first]=alignment=="left" ? QPointF(bounds.left()-rect.left(),0) : alignment=="right" ? QPointF(bounds.right()-rect.right(),0) : alignment=="center" ? QPointF(bounds.center().x()-rect.center().x(),0) : alignment=="top" ? QPointF(0,bounds.top()-rect.top()) : alignment=="bottom" ? QPointF(0,bounds.bottom()-rect.bottom()) : QPointF(0,bounds.center().y()-rect.center().y());
+    }
+    QMap<QUuid,QPointF> memberDeltas;for(auto it=deltas.cbegin();it!=deltas.cend();++it)for(const auto& id:members[it.key()])memberDeltas[id]=it.value();deltas=memberDeltas;
+    document_.edit("Align selection",[&](auto& state){
+        if(context_==Context::Layout){for(auto& item:state.placements)if(deltas.contains(item.id))item.origin+=deltas[item.id];}
+        else for(auto& item:state.layers)if(deltas.contains(item.id)){auto before=item;item.center+=deltas[item.id];if(item.maskLinked)item.mask=transformedMask(before,effectTransform(before).inverted()*effectTransform(item));}
+    });
+
+    } catch(const std::exception& error) {emit editingError(QString::fromUtf8(error.what()));}
+}
+void LightingCanvas::lockSelection(bool locked)
+{
+    try {
+    auto ids=selectedIds_;
+    if(context_==Context::Layout)for(const auto& assignment:document_.state().assignments)if(selectedIds_.contains(assignment.id))for(const auto& id:assignment.placements)ids.insert(id);
+    document_.edit(locked ? "Lock selection" : "Unlock selection",[&](auto& state){
+        if(context_==Context::Layout){for(auto& item:state.placements)if(ids.contains(item.id))item.locked=locked;}
+        else for(auto& item:state.layers)if(ids.contains(item.id))item.locked=locked;
+    });
+
+    } catch(const std::exception& error) {emit editingError(QString::fromUtf8(error.what()));}
+}
+void LightingCanvas::deleteSelection()
+{
+    try {
+    const auto ids=selections();
+    if(ids.isEmpty() && !selectedIds_.isEmpty() && std::none_of(document_.state().layers.cbegin(),document_.state().layers.cend(),[&](const auto& item){return selectedIds_.contains(item.id) && item.container && !item.locked;})){emit editingError("Selection is locked or unavailable.");return;}
+    for(const auto& layer:document_.state().layers)if(selectedIds_.contains(layer.parentId) && layer.locked){emit editingError("Unlock the layer's objects before deleting their parent.");return;}
+    if(ids.isEmpty() && selectedIds_.isEmpty())return;
+    // Remove routing references atomically with placements; never leave dangling LED ownership.
+    document_.edit("Delete selection",[&](auto& state){
+        if(context_==Context::Layout){
+            state.placements.removeIf([&](const auto& item){return ids.contains(item.id);});
+            for(auto& assignment:state.assignments)assignment.placements.removeIf([&](const auto& id){return ids.contains(id);});
+            QSet<QUuid> removed;for(const auto& assignment:state.assignments)if(assignment.software && assignment.placements.isEmpty())removed.insert(assignment.id);
+            state.assignments.removeIf([&](const auto& item){return removed.contains(item.id);});for(auto& layer:state.layers)layer.channelTargets.removeIf([&](const auto& id){return removed.contains(id);});
+        } else state.layers.removeIf([&](const auto& item){return ids.contains(item.id) || (selectedIds_.contains(item.id) && item.container && !item.locked);});
+    });selectMany({});
+
+    } catch(const std::exception& error) {emit editingError(QString::fromUtf8(error.what()));}
+}
+void LightingCanvas::duplicateSelection()
+{
+    try {
+    auto ids=selections();QSet<QUuid> copies;
+    if(context_==Context::Layout) {
+        if(document_.state().placements.size()+ids.size()>256){emit editingError("Duplicate exceeds the 256 component limit.");return;}
+        document_.edit("Duplicate components",[&](auto& state){const auto before=state.placements;for(auto item:before)if(ids.contains(item.id)){item.id=QUuid::createUuid();item.origin+=QPointF(10,10);copies.insert(item.id);state.placements.append(item);}});
+    } else {
+        for(const auto& item:document_.state().layers)if(selectedIds_.contains(item.id) && item.container && !item.locked)ids.insert(item.id);
+        // Copying a whole layer includes locked children; reading their content does not edit the originals.
+        for(const auto& item:document_.state().layers)if(selectedIds_.contains(item.parentId) && ids.contains(item.parentId))ids.insert(item.id);
+        if(ids.isEmpty()){emit editingError("Select an unlocked object or layer to duplicate.");return;}
+        if(document_.state().layers.size()+ids.size()>64){emit editingError("Duplicate exceeds the 64 layer/object limit.");return;}
+        QMap<QUuid,QUuid> mapping;for(const auto& id:ids)mapping[id]=QUuid::createUuid();
+        document_.edit("Duplicate objects",[&](auto& state){const auto before=state.layers;for(auto item:before)if(ids.contains(item.id)){item.id=mapping[item.id];if(mapping.contains(item.parentId))item.parentId=mapping[item.parentId];item.name+=" copy";const auto beforeMove=item;item.center+=QPointF(10,10);if(item.maskLinked)item.mask=transformedMask(beforeMove,effectTransform(beforeMove).inverted()*effectTransform(item));copies.insert(item.id);state.layers.append(item);}});
+    }
+    selectMany(copies);
+
+    } catch(const std::exception& error) {emit editingError(QString::fromUtf8(error.what()));}
 }

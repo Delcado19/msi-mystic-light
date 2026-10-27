@@ -59,7 +59,7 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     refresh();
 }
 
-void ConflictDialog::refresh()
+bool ConflictDialog::refresh()
 {
     try {
         conflicts_ = processes_.scan();
@@ -75,15 +75,19 @@ void ConflictDialog::refresh()
         }
         if (conflicts_.isEmpty()) {
             QTimer::singleShot(0, this, &QDialog::accept);
-            return;
+            updateButtons();
+            return true;
         }
         status_->setText("Select one or more rows. Remaining or restarted processes stay listed after a rescan.");
     } catch (const std::exception& error) {
         conflicts_.clear();
         table_->setRowCount(0);
         status_->setText(QString("Conflict scan failed: %1. Retry, Ignore explicitly, or Cancel.").arg(error.what()));
+        updateButtons();
+        return false;
     }
     updateButtons();
+    return true;
 }
 
 void ConflictDialog::updateButtons()
@@ -116,8 +120,36 @@ void ConflictDialog::terminate(bool all)
             const auto error = processes_.stop(process, true);
             if (!error.isEmpty()) errors.append(process.executable + ": " + error);
         }
-        busy_ = false;
-        refresh();
-        if (!errors.isEmpty()) status_->setText(errors.join('\n'));
+        verifyStopped(closable, errors, 20);
     });
+}
+
+void ConflictDialog::verifyStopped(const QVector<ConflictProcess>& targets, QStringList errors, int checksLeft)
+{
+    if (result() == QDialog::Rejected && !isVisible()) { busy_ = false; return; }
+    if (!refresh()) {
+        busy_ = false;
+        updateButtons();
+        if (!errors.isEmpty()) status_->setText(status_->text() + "\n" + errors.join('\n'));
+        return;
+    }
+    QStringList remaining;
+    for (const auto& current : conflicts_) for (const auto& target : targets)
+        if (current.pid == target.pid && current.started == target.started &&
+            current.path.compare(target.path, Qt::CaseInsensitive) == 0)
+            remaining.append(current.executable);
+    // TerminateProcess is asynchronous. Recheck the original identities without
+    // another click or automatically terminating newly started replacements.
+    if (!remaining.isEmpty() && checksLeft > 0) {
+        status_->setText("Waiting for selected programs to exit..." +
+            (errors.isEmpty() ? QString{} : "\n" + errors.join('\n')));
+        QTimer::singleShot(100, this, [this, targets, errors, checksLeft] {
+            verifyStopped(targets, errors, checksLeft - 1);
+        });
+        return;
+    }
+    busy_ = false;
+    updateButtons();
+    if (!remaining.isEmpty()) errors.append("Still running after termination: " + remaining.join(", ") + ". Retry or stop manually.");
+    if (!errors.isEmpty()) status_->setText(errors.join('\n'));
 }

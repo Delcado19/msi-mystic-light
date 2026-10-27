@@ -172,8 +172,13 @@ private slots:
     void globalColorControls();
     void integerDisplayRoundTrip();
     void liveColorPicker();
+    void screenEyedropperGeometry();
     void auditWorkspace();
     void objectLayersAndGestures();
+    void unifiedEditorWorkflow();
+    void selectionActionsAndLocks();
+    void gradientMotionGeometry();
+    void overlapAndSmartGuides();
     void routedCompositionCache();
     void drawingTools();
     void hardwareLibrary();
@@ -304,15 +309,11 @@ void EditorTest::drawingAndAnimationRegressions()
         if(qAlpha(before.pixel(x,y))>0) QCOMPARE(qRed(filled.pixel(x,y)),0);
     }
     canvas.setGradientStops({Qt::red,Qt::blue},{0,1}); drag(LightingCanvas::Tool::Gradient,{120,180},{280,180});
-    QCOMPARE(document.state().layers.size(),1); QCOMPARE(document.state().layers[0].effect,EffectKind::Paint);
-    const auto graded=document.state().layers[0].image;
-    for(int y=0;y<400;++y) for(int x=0;x<640;++x) QCOMPARE(qAlpha(graded.pixel(x,y)),qAlpha(before.pixel(x,y)));
-    QVERIFY(graded.pixelColor(150,180).red()>graded.pixelColor(250,180).red());
-    const auto shape=document.addLayer(EffectKind::Heart); canvas.select(shape);
-    const auto geometry=document.state().layers.last();
-    drag(LightingCanvas::Tool::Gradient,{260,200},{380,200});
-    const auto& shapeFill=document.state().layers.last(); QVERIFY(shapeFill.gradientFill);
-    QCOMPARE(shapeFill.effect,EffectKind::Heart); QCOMPARE(shapeFill.center,geometry.center); QCOMPARE(shapeFill.extent,geometry.extent);
+    QCOMPARE(document.state().layers.size(),2);QCOMPARE(document.state().layers[0].image,filled);
+    QCOMPARE(document.state().layers.last().effect,EffectKind::LinearGradient);
+    const auto shape=document.addLayer(EffectKind::Heart);canvas.select(shape);const auto geometry=document.state().layers.last();
+    document.edit("Shape fill",[&](auto& state){auto& shapeFill=state.layers.last();shapeFill.gradientFill=true;shapeFill.gradientColors={Qt::red,Qt::blue};shapeFill.gradientStart={0,.5};shapeFill.gradientEnd={1,.5};});
+    const auto& shapeFill=document.state().layers.last();QVERIFY(shapeFill.gradientFill);QCOMPARE(shapeFill.center,geometry.center);QCOMPARE(shapeFill.extent,geometry.extent);
     QTemporaryDir saved; const auto path=saved.filePath("shape-gradient.json"); document.save(path);
     LightingDocument restored(catalog()); restored.load(path); QCOMPARE(restored.render(),document.render());
     QVERIFY(restored.state().layers.last().gradientFill);
@@ -442,7 +443,7 @@ void EditorTest::drawingTools()
     QVERIFY(document.state().layers[0].mask.constScanLine(140)[120]<20); document.history()->undo();
     canvas.setMaskTarget(false);
     const auto blank=document.addPaintLayer(); canvas.select(blank); drag(LightingCanvas::Tool::Gradient,{20,200},{620,200});
-    QCOMPARE(document.state().layers.size(),2); QCOMPARE(document.state().layers.last().effect,EffectKind::LinearGradient);
+    QCOMPARE(document.state().layers.size(),3); QCOMPARE(document.state().layers.last().effect,EffectKind::LinearGradient);
     document.edit("Move gradient stops",[](auto& state) { auto& layer=state.layers.last(); layer.gradientColors={Qt::red,Qt::green,Qt::blue}; layer.gradientPositions={0,.25,1}; });
     const auto expected=document.render(); QTemporaryDir dir; const auto path=dir.filePath("paint.json"); document.save(path);
     LightingDocument loaded(catalog()); loaded.load(path); QCOMPARE(loaded.render(),expected);
@@ -460,10 +461,10 @@ void EditorTest::drawingTools()
     document.history()->undo(); document.history()->undo();
     const auto radial=document.addLayer(EffectKind::RadialGradient); canvas.select(radial); canvas.setMaskTarget(false);
     drag(LightingCanvas::Tool::Gradient,{200,180},{400,200});
-    QCOMPARE(document.state().layers.last().effect,EffectKind::RadialGradient);
-    QVERIFY(QLineF(document.state().layers.last().center,QPointF(200,180)).length()<2);
+    QCOMPARE(document.state().layers.last().effect,EffectKind::LinearGradient);
+    QVERIFY(QLineF(document.state().layers.last().center,QPointF(300,190)).length()<2);
     drag(LightingCanvas::Tool::Gradient,{400,200},{350,380});
-    QVERIFY(QLineF(document.state().layers.last().center,QPointF(200,180)).length()<2);
+    QVERIFY(QLineF(document.state().layers.last().center,QPointF(275,280)).length()<2);
     QVERIFY(document.state().layers.last().rotation>45);
     document.history()->undo(); document.history()->undo(); document.history()->undo();
     canvas.select(document.state().layers.last().id); canvas.setMaskTarget(false);
@@ -490,7 +491,7 @@ void EditorTest::globalColorControls()
     for(auto* button:stops->findChildren<QPushButton*>()) if(button->text()=="Add") button->click();
     QCOMPARE(window.document().state().layers[0].gradientColors.size(),3);
     window.document().history()->undo(); QVERIFY(window.document().state().layers[0].gradientColors.isEmpty());
-    window.findChild<QPushButton*>("pencilTool")->click();
+    window.findChild<QAction*>("workspaceEffects")->trigger();window.findChild<QPushButton*>("pencilTool")->click();
     const auto revision=window.document().revision(); const auto oldFrame=window.document().render();
     auto* foreground=window.findChild<ColorEditor*>("effectColor")->findChild<QLineEdit*>("rgbHex"); foreground->setText("#22AA66"); QMetaObject::invokeMethod(foreground,"editingFinished",Qt::DirectConnection);
     QCOMPARE(window.document().revision(),revision); QCOMPARE(window.document().render(),oldFrame);
@@ -578,9 +579,10 @@ void EditorTest::channelScopesAndClocks()
     QCOMPARE(loaded.state().assignments[1].timeScale,0.0);
     QFile input(file); QVERIFY(input.open(QIODevice::ReadOnly)); auto root=QJsonDocument::fromJson(input.readAll()).object(); input.close();
     root.insert("schemaVersion",8); auto layers=root.value("layers").toArray(); auto assignments=root.value("assignments").toArray();
-    for(int i=0;i<layers.size();++i) { auto json=layers[i].toObject(); json.remove("targets");json.remove("parentId");json.remove("container"); json.remove("gradientColors"); json.remove("gradientPositions"); layers[i]=json; }
+    for(int i=0;i<layers.size();++i) { auto json=layers[i].toObject(); json.remove("targets");json.remove("locked");json.remove("parentId");json.remove("container"); json.remove("gradientColors"); json.remove("gradientPositions"); layers[i]=json; }
     for(int i=0;i<assignments.size();++i) { auto json=assignments[i].toObject(); json.remove("timeScale"); json.remove("timeOffset"); assignments[i]=json; }
     root.insert("layers",layers); root.insert("assignments",assignments);
+    auto oldPlacements=root["placements"].toArray();for(int i=0;i<oldPlacements.size();++i){auto item=oldPlacements[i].toObject();item.remove("locked");oldPlacements[i]=item;}root["placements"]=oldPlacements;
     QVERIFY(input.open(QIODevice::WriteOnly)); input.write(QJsonDocument(root).toJson()); input.close(); loaded.load(file);
     QVERIFY(loaded.state().layers[0].allChannels); QCOMPARE(loaded.state().assignments[1].timeScale,1.0);
     auto native=a; native.software=false; document.assignChannel(native);
@@ -708,7 +710,7 @@ void EditorTest::channelAssignments()
     QVERIFY_EXCEPTION_THROWN(loaded.load(path),std::invalid_argument); QCOMPARE(loaded.history()->index(),history);
     root=original; root.insert("schemaVersion",7); write(root);
     QVERIFY_EXCEPTION_THROWN(loaded.load(path),std::invalid_argument);
-    root.remove("assignments"); write(root); loaded.load(path); QVERIFY(loaded.state().assignments.isEmpty());
+    root.remove("assignments");auto legacyPlacements=root["placements"].toArray();for(int i=0;i<legacyPlacements.size();++i){auto item=legacyPlacements[i].toObject();item.remove("locked");legacyPlacements[i]=item;}root["placements"]=legacyPlacements; write(root); loaded.load(path); QVERIFY(loaded.state().assignments.isEmpty());
 
     LightingDocument fixed(catalog(),nullptr,{profile}); const auto one=fixed.addComponent("test.strip");
     auto configured=direct; configured.channelId="Fixed"; configured.placements={one};
@@ -1018,7 +1020,7 @@ void EditorTest::placementTransforms()
         QVERIFY(input.open(QIODevice::WriteOnly)); input.write(QJsonDocument(root).toJson()); input.close();
         QVERIFY_EXCEPTION_THROWN(loaded.load(file), std::invalid_argument);
     }
-    placement.remove("scaleX"); placement.remove("scaleY"); placement.remove("rotation");
+    placement.remove("locked");placement.remove("scaleX"); placement.remove("scaleY"); placement.remove("rotation");
     placements[0] = placement; root.insert("placements", placements);
     // Empty layers keep this geometry-only fixture valid for every legacy schema.
     for (int version = 1; version <= 5; ++version) {
@@ -1310,7 +1312,7 @@ void EditorTest::explicitDiscovery()
     window.document().history()->undo(); QVERIFY(std::abs(window.document().state().layers[0].gradientPositions[1]-.35)<.001);
     auto* play=window.findChild<QPushButton*>("playPreview"); play->setChecked(true);
     QTRY_VERIFY(window.previewSeconds()>0); QCoreApplication::processEvents();
-    QVERIFY(window.findChild<LightingCanvas*>("hardwareLivePreview")->isVisible());
+    QVERIFY(!window.findChild<LightingCanvas*>("hardwareLivePreview")->isVisible());window.findChild<QAction*>("splitHardwarePreview")->setChecked(true);QVERIFY(window.findChild<LightingCanvas*>("hardwareLivePreview")->isVisible());
     QVERIFY(window.grab().save(artifactDirectory()+"/studio-workspace.png"));
     play->setChecked(false);
     connected=false;
@@ -1380,14 +1382,14 @@ void EditorTest::layerPanelOperations()
     QTRY_COMPARE(window.document().state().layers[0].name, QString("Red wash"));
     tree->topLevelItem(0)->setCheckState(0, Qt::Unchecked);
     QTRY_VERIFY(!window.document().state().layers[0].visible);
-    click("Duplicate layer");
+    click("Duplicate selection");
     QCOMPARE(window.document().state().layers.size(), 2);
     QCOMPARE(window.document().state().layers[1].name, QString("Red wash copy"));
     QVERIFY(window.document().state().layers[1].id != window.document().state().layers[0].id);
     click("Fill mask black");
     QCOMPARE(window.document().state().layers[0].mask.constScanLine(0)[0], uchar(255));
     QCOMPARE(window.document().state().layers[1].mask.constScanLine(0)[0], uchar(0));
-    click("Delete layer");
+    click("Delete selection");
     QCOMPARE(window.document().state().layers.size(), 1);
     window.document().history()->undo();
     QCOMPARE(window.document().state().layers.size(), 2);
@@ -1482,14 +1484,14 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 13);
+    QCOMPARE(root.value("schemaVersion").toInt(), 14);
     // Published schema 2 has explicit effects but no image fields or Image type.
     auto version2 = root; version2.remove("components"); version2.remove("assignments"); QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject();
         if (value.value("effect").toObject().value("type").toString() == "image" || isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
         if(value.value("effect").toObject().value("type").toString()=="rectangle")continue;
-        value.remove("targets");value.remove("parentId");value.remove("container"); value.remove("gradientColors"); value.remove("gradientPositions"); value.remove("advanced"); value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
+        value.remove("targets");value.remove("locked");value.remove("parentId");value.remove("container"); value.remove("gradientColors"); value.remove("gradientPositions"); value.remove("advanced"); value.remove("animation"); value.remove("imagePng"); value.remove("imageFill"); version2Layers.append(value);
     }
     version2.insert("schemaVersion", 2); version2.insert("layers", version2Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -1499,7 +1501,7 @@ void EditorTest::effectPersistenceAndLegacy()
     for (const auto& item : root.value("layers").toArray()) {
         auto value = item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
         if(value.value("effect").toObject().value("type").toString()=="rectangle")continue;
-        value.remove("targets");value.remove("parentId");value.remove("container"); value.remove("gradientColors"); value.remove("gradientPositions"); value.remove("advanced"); value.remove("animation"); version3Layers.append(value);
+        value.remove("targets");value.remove("locked");value.remove("parentId");value.remove("container"); value.remove("gradientColors"); value.remove("gradientPositions"); value.remove("advanced"); value.remove("animation"); version3Layers.append(value);
     }
     version3.insert("schemaVersion", 3); version3.insert("layers", version3Layers);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -1509,7 +1511,7 @@ void EditorTest::effectPersistenceAndLegacy()
     for (const auto& item : root.value("layers").toArray()) {
         auto value=item.toObject(); if (isParticle(effectDefinition(value.value("effect").toObject().value("type").toString()).kind)) continue;
         if(value.value("effect").toObject().value("type").toString()=="rectangle")continue;
-        value.remove("targets");value.remove("parentId");value.remove("container"); value.remove("gradientColors"); value.remove("gradientPositions"); value.remove("advanced"); version4Layers.append(value);
+        value.remove("targets");value.remove("locked");value.remove("parentId");value.remove("container"); value.remove("gradientColors"); value.remove("gradientPositions"); value.remove("advanced"); version4Layers.append(value);
     }
     version4.insert("schemaVersion",4); version4.insert("layers",version4Layers);
     QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));
@@ -1534,7 +1536,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QCOMPARE(loaded.render(), before);
 
     // The previous published editor wrote schema 1 with implicit Static Color.
-    auto legacy = layers[0].toObject(); legacy.remove("targets");legacy.remove("parentId");legacy.remove("container"); legacy.remove("gradientColors"); legacy.remove("gradientPositions"); legacy.remove("advanced"); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
+    auto legacy = layers[0].toObject(); legacy.remove("targets");legacy.remove("locked");legacy.remove("parentId");legacy.remove("container"); legacy.remove("gradientColors"); legacy.remove("gradientPositions"); legacy.remove("advanced"); legacy.remove("animation"); legacy.remove("effect"); legacy.remove("imagePng"); legacy.remove("imageFill");
     root.remove("components"); root.remove("assignments");
     root.insert("schemaVersion", 1); root.insert("layers", QJsonArray{legacy}); write();
     loaded.load(path);
@@ -2090,9 +2092,10 @@ void EditorTest::snapEffectAndGradient()
     from=canvas.viewportPoint({253,154}).toPoint();to=canvas.viewportPoint({347,247}).toPoint();
     QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);
     QTest::mouseMove(&canvas,to);QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,to);
-    const auto& effect=document.state().layers[0];QVERIFY(effect.gradientFill);
-    QVERIFY(QLineF(effectTransform(effect).map(effect.gradientStart-QPointF(.5,.5)),QPointF(250,150)).length()<.001);
-    QVERIFY(QLineF(effectTransform(effect).map(effect.gradientEnd-QPointF(.5,.5)),QPointF(350,250)).length()<.001);
+    QCOMPARE(document.state().layers.size(),2);QVERIFY(!document.state().layers[0].gradientFill);
+    const auto& effect=document.state().layers.last();QCOMPARE(effect.effect,EffectKind::LinearGradient);
+    QVERIFY(QLineF(effectTransform(effect).map(QPointF(-.5,0)),QPointF(250,150)).length()<.001);
+    QVERIFY(QLineF(effectTransform(effect).map(QPointF(.5,0)),QPointF(350,250)).length()<.001);
 }
 
 void EditorTest::snapLayoutPositions_data()
@@ -2436,6 +2439,7 @@ void EditorTest::effectPreviewDivider()
     auto* effects=window.findChild<LightingCanvas*>("effectsCanvas");auto* layout=window.findChild<LightingCanvas*>("layoutCanvas");
     auto* fullscreen=effects->findChild<QPushButton*>("canvasFullscreenButton");QVERIFY(!fullscreen->isVisible());fullscreen->click();QVERIFY(!window.findChild<QDialog*>("canvasFullscreen"));
     window.resize(1500,940);QCoreApplication::processEvents();QVERIFY(!fullscreen->isVisible());QVERIFY(!layout->findChild<QPushButton*>("canvasFullscreenButton")->isHidden());
+    window.findChild<QAction*>("splitHardwarePreview")->setChecked(true);QCoreApplication::processEvents();
     auto* splitter=window.findChild<QSplitter*>("effectWorkspace");auto* handle=splitter->handle(1);QVERIFY(handle->isVisible());QVERIFY(handle->height()>=14);QCOMPARE(handle->cursor().shape(),Qt::SplitVCursor);QVERIFY(!handle->toolTip().isEmpty());
     const auto before=splitter->sizes();const QPoint start(handle->width()-22,handle->height()/2);
     QTest::mousePress(handle,Qt::LeftButton,Qt::NoModifier,start);QTest::mouseMove(handle,start+QPoint(0,-60));QTest::mouseRelease(handle,Qt::LeftButton,Qt::NoModifier,start+QPoint(0,-60));
@@ -2742,28 +2746,28 @@ void EditorTest::labelRevealControls()
     auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");auto* eye=window.findChild<QAction*>("showComponentLabels");
     QVERIFY(eye);QVERIFY(!eye->icon().isNull());QVERIFY(!eye->isChecked());QVERIFY(!canvas->showLabels());
     const auto revision=window.document().revision();const auto camera=canvas->viewportPoint({80,80});
-    canvas->setFocus();QTest::keyPress(canvas,Qt::Key_H);QVERIFY(canvas->showLabels());QVERIFY(!eye->isChecked());
+    canvas->setFocus();QTest::keyPress(canvas,Qt::Key_L);QVERIFY(canvas->showLabels());QVERIFY(!eye->isChecked());
     QVERIFY(!QSettings().value("editor/showComponentLabels").toBool());canvas->grab();QCOMPARE(canvas->viewportPoint({80,80}),camera);
-    QKeyEvent repeat(QEvent::KeyRelease,Qt::Key_H,Qt::NoModifier,QString{},true);QApplication::sendEvent(canvas,&repeat);QVERIFY(canvas->showLabels());
+    QKeyEvent repeat(QEvent::KeyRelease,Qt::Key_L,Qt::NoModifier,QString{},true);QApplication::sendEvent(canvas,&repeat);QVERIFY(canvas->showLabels());
     auto* inventory=window.findChild<QTreeWidget*>("layoutComponents");inventory->setFocus();QCoreApplication::processEvents();QVERIFY(canvas->showLabels());
-    QTest::keyRelease(inventory,Qt::Key_H);QVERIFY(!canvas->showLabels());
+    QTest::keyRelease(inventory,Qt::Key_L);QVERIFY(!canvas->showLabels());
     eye->setChecked(true);QVERIFY(canvas->showLabels());QVERIFY(QSettings().value("editor/showComponentLabels").toBool());
     { LightingWindow restored(catalog(),[] {return QVector<ProfileCandidate>{};});QVERIFY(restored.findChild<LightingCanvas*>("layoutCanvas")->showLabels()); }
-    QTest::keyPress(canvas,Qt::Key_H);QTest::keyRelease(canvas,Qt::Key_H);QVERIFY(canvas->showLabels());eye->setChecked(false);
-    QLineEdit editor(&window);canvas->setFocus();QTest::keyPress(canvas,Qt::Key_H);QVERIFY(canvas->showLabels());
-    editor.show();editor.setFocus();QCoreApplication::processEvents();QVERIFY(!canvas->showLabels());QTest::keyRelease(&editor,Qt::Key_H);QTest::keyClick(&editor,Qt::Key_H);
-    QCOMPARE(editor.text().toLower(),QString("h"));QVERIFY(!canvas->showLabels());editor.hide();
-    canvas->setFocus();QTest::keyPress(canvas,Qt::Key_H);QVERIFY(canvas->showLabels());
-    QEvent deactivate(QEvent::WindowDeactivate);QApplication::sendEvent(&window,&deactivate);QVERIFY(!canvas->showLabels());QTest::keyRelease(canvas,Qt::Key_H);
-    canvas->setFocus();QTest::keyPress(canvas,Qt::Key_H);window.hide();QVERIFY(!canvas->showLabels());window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
-    canvas->setFocus();QTest::keyPress(canvas,Qt::Key_H);window.findChild<QAction*>("workspaceEffects")->trigger();QVERIFY(!canvas->showLabels());QVERIFY(!eye->isEnabled());
-    window.document().addLayer();auto* effects=window.findChild<LightingCanvas*>("effectsCanvas");QTest::keyRelease(effects,Qt::Key_H);
-    window.activateWindow();effects->setFocus();QCoreApplication::processEvents();QTest::keyClick(effects,Qt::Key_L);
+    QTest::keyPress(canvas,Qt::Key_L);QTest::keyRelease(canvas,Qt::Key_L);QVERIFY(canvas->showLabels());eye->setChecked(false);
+    QLineEdit editor(&window);canvas->setFocus();QTest::keyPress(canvas,Qt::Key_L);QVERIFY(canvas->showLabels());
+    editor.show();editor.setFocus();QCoreApplication::processEvents();QVERIFY(!canvas->showLabels());QTest::keyRelease(&editor,Qt::Key_L);QTest::keyClick(&editor,Qt::Key_L);
+    QCOMPARE(editor.text().toLower(),QString("l"));QVERIFY(!canvas->showLabels());editor.hide();
+    canvas->setFocus();QTest::keyPress(canvas,Qt::Key_L);QVERIFY(canvas->showLabels());
+    QEvent deactivate(QEvent::WindowDeactivate);QApplication::sendEvent(&window,&deactivate);QVERIFY(!canvas->showLabels());QTest::keyRelease(canvas,Qt::Key_L);
+    canvas->setFocus();QTest::keyPress(canvas,Qt::Key_L);window.hide();QVERIFY(!canvas->showLabels());window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    canvas->setFocus();QTest::keyPress(canvas,Qt::Key_L);window.findChild<QAction*>("workspaceEffects")->trigger();QVERIFY(!canvas->showLabels());QVERIFY(eye->isEnabled());
+    window.document().addLayer();auto* effects=window.findChild<LightingCanvas*>("effectsCanvas");QTest::keyRelease(effects,Qt::Key_L);
+    window.activateWindow();effects->setFocus();QCoreApplication::processEvents();QTest::keyClick(effects,Qt::Key_I);
     QTRY_COMPARE(effects->tool(),LightingCanvas::Tool::Line);
     window.findChild<QAction*>("workspaceLayout")->trigger();QVERIFY(eye->isEnabled());
     canvas->findChild<QPushButton*>("canvasFullscreenButton")->click();auto* host=window.findChild<QDialog*>("canvasFullscreen");QVERIFY(host);QTRY_VERIFY(host->isVisible());
-    host->activateWindow();QCoreApplication::processEvents();canvas->setFocus();QTest::keyPress(canvas,Qt::Key_H);QVERIFY(canvas->showLabels());
-    QTest::keyRelease(host,Qt::Key_H);QVERIFY(!canvas->showLabels());host->reject();
+    host->activateWindow();QCoreApplication::processEvents();canvas->setFocus();QTest::keyPress(canvas,Qt::Key_L);QVERIFY(canvas->showLabels());
+    QTest::keyRelease(host,Qt::Key_L);QVERIFY(!canvas->showLabels());host->reject();
     QCOMPARE(window.document().revision(),revision+1); // Only adding the effect changed the document.
     window.document().history()->setClean();
 }
@@ -2978,7 +2982,8 @@ void EditorTest::liveColorPicker()
     popup->findChild<QSpinBox*>("pickerSaturation")->setValue(100);popup->findChild<QSpinBox*>("pickerHue")->setValue(210);
     QVERIFY(window.document().state().layers[0].color!=original);
     for(auto* button:popup->findChildren<QPushButton*>())if(button->text()=="Screen eyedropper..."){button->click();break;}
-    auto* screenDialog=window.findChild<QDialog*>("screenColorDialog");QVERIFY(screenDialog);screenDialog->reject();
+    auto* screenDialog=window.findChild<QDialog*>("screenColorDialog");
+    if(screenDialog)screenDialog->reject();else {bool unavailable=false;for(auto* button:popup->findChildren<QPushButton*>())unavailable|=button->text()=="Screen capture unavailable";QVERIFY(unavailable);}
     QVERIFY(popup->isVisible());QTest::keyClick(popup,Qt::Key_Escape);QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
     QCOMPARE(window.document().state().layers[0].color,original);QCOMPARE(history->count(),before);QVERIFY(history->isClean());
     color->findChild<QPushButton*>()->click();popup=color->findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
@@ -3001,7 +3006,7 @@ void EditorTest::auditWorkspace()
     QVERIFY(window.findChild<QLabel*>("studioBrand"));QVERIFY(window.findChild<QAction*>("aboutLightingStudio"));QVERIFY(window.findChild<QMenu*>("addLayerMenu"));
     addEffect(window,EffectKind::Rain);window.findChild<QAction*>("workspaceEffects")->trigger();QCoreApplication::processEvents();
     auto* inspector=window.findChild<QTabWidget*>("layerInspectorTabs");inspector->setCurrentIndex(0);QVERIFY(window.findChild<QWidget*>("particleParameters")->isVisible());
-    QVERIFY(!window.findChild<QAction*>("showComponentLabels")->isVisible());QVERIFY(!window.findChild<QCheckBox*>("allLayerMotion"));
+    QVERIFY(window.findChild<QAction*>("showComponentLabels")->isVisible());QVERIFY(!window.findChild<QCheckBox*>("allLayerMotion"));
     QVERIFY(window.findChild<QPushButton*>("randomizeParticleSeed"));QVERIFY(window.findChild<QDoubleSpinBox*>("particleSeed")->isVisible());
     inspector->setCurrentIndex(1);QCoreApplication::processEvents();QSettings().setValue("editor/reduceMotion",false);
     auto* disclosure=window.findChild<QWidget*>("advancedMotion")->findChild<QToolButton*>();auto* turn=disclosure->findChild<QVariantAnimation*>();QVERIFY(turn);QSignalSpy motion(turn,&QVariantAnimation::stateChanged);
@@ -3031,10 +3036,11 @@ void EditorTest::objectLayersAndGestures()
     drag({340,120},{460,260});QCOMPARE(document.state().layers.size(),3);QCOMPARE(document.state().layers.last().parentId,root);
     auto* tree=window.findChild<QTreeWidget*>("effectLayers");QCOMPARE(tree->topLevelItemCount(),1);QCOMPARE(tree->topLevelItem(0)->childCount(),2);
     QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({220,180}).toPoint());QCOMPARE(canvas->selection(),first);QCOMPARE(tree->currentItem()->data(0,Qt::UserRole).toUuid(),first);
-    window.findChild<QPushButton*>("gradientTool")->click();canvas->setGradientStops({Qt::red,Qt::blue},{0,1});drag({170,180},{280,180});
+    window.findChild<QComboBox*>("shapeFillMode")->setCurrentIndex(1);
+    document.edit("Fill colors",[](auto& state){state.layers[1].gradientColors={Qt::red,Qt::blue};state.layers[1].gradientPositions={0,1};});
     QCOMPARE(document.state().layers.size(),3);QVERIFY(document.state().layers[1].gradientFill);QCOMPARE(document.state().layers[1].effect,EffectKind::Circle);
     const auto before=document.render();QCOMPARE(before.pixelColor(20,20).alpha(),0);QVERIFY(before.pixelColor(200,180).red()>before.pixelColor(270,180).red());
-    document.history()->undo();QVERIFY(!document.state().layers[1].gradientFill);document.history()->redo();QCOMPARE(document.render(),before);
+    document.history()->undo();document.history()->undo();QVERIFY(!document.state().layers[1].gradientFill);document.history()->redo();document.history()->redo();QCOMPARE(document.render(),before);
     window.findChild<QPushButton*>("rectangleTool")->click();const int count=document.history()->count();
     QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({50,40}).toPoint());QTest::mouseMove(canvas,canvas->viewportPoint({100,90}).toPoint());QTest::keyClick(canvas,Qt::Key_Escape);QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({100,90}).toPoint());
     QCOMPARE(document.history()->count(),count);QCOMPARE(document.state().layers.size(),3);QCOMPARE(document.render(),before);
@@ -3042,9 +3048,99 @@ void EditorTest::objectLayersAndGestures()
     QTemporaryDir directory;const auto path=directory.filePath("objects.json");document.save(path);LightingDocument loaded(catalog());loaded.load(path);QCOMPARE(loaded.render(),before);QCOMPARE(loaded.state().layers[1].parentId,root);
     QVERIFY_EXCEPTION_THROWN(document.edit("Invalid parent",[](auto& state){state.layers[1].parentId=QUuid::createUuid();}),std::invalid_argument);QCOMPARE(document.render(),before);
     QVERIFY(!window.findChild<QCheckBox*>("focusLiveHardware"));QVERIFY(!window.findChild<QAction*>("fitCanvas")->icon().isNull());QVERIFY(!window.findChild<QAction*>("zoomIn")->icon().isNull());QVERIFY(!window.findChild<QAction*>("zoomOut")->icon().isNull());
-    window.findChild<QAction*>("workspaceLayout")->trigger();QVERIFY(!window.findChild<QComboBox*>("previewChannel")->isVisible());
+    window.findChild<QAction*>("workspaceLayout")->trigger();QVERIFY(window.findChild<QComboBox*>("previewChannel")->isVisible());
     window.findChild<QAction*>("workspaceEffects")->trigger();QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/object-layers.png"));
     document.history()->setClean();
+}
+
+void EditorTest::unifiedEditorWorkflow()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{channelProfile()});window.resize(1440,900);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto& document=window.document();const auto first=document.addComponent("test.strip"),second=document.addComponent("test.strip");
+    ChannelAssignment a;a.endpoint="first";a.profileId="test.device";a.channelId="Direct";a.software=true;a.placements={first};document.assignChannel(a);
+    auto b=a;b.id=QUuid::createUuid();b.endpoint="second";b.placements={second};document.assignChannel(b);
+    window.findChild<QAction*>("workspaceEffects")->trigger();window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    window.findChild<QToolButton*>("addLayer")->click();const auto root=document.state().layers.first().id;
+    document.edit("Route layer",[&](auto& state){state.layers[0].allChannels=false;state.layers[0].channelTargets={a.id};});
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");auto* layout=window.findChild<LightingCanvas*>("layoutCanvas");
+    auto* scope=window.findChild<QComboBox*>("previewChannel");scope->setCurrentIndex(scope->findData(a.id));
+    auto* play=window.findChild<QPushButton*>("playPreview");auto* time=window.findChild<QDoubleSpinBox*>("previewTime");time->setValue(2);play->setChecked(true);
+    window.findChild<QPushButton*>("gradientTool")->click();
+    auto drag=[&](QPointF from,QPointF to){QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint(from).toPoint());QTest::mouseMove(canvas,canvas->viewportPoint(to).toPoint());QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint(to).toPoint());};
+    drag({80,110},{300,170});drag({100,280},{500,300});
+    QCOMPARE(document.state().layers.size(),3);QCOMPARE(document.state().layers[1].parentId,root);QCOMPARE(document.state().layers[2].parentId,root);
+    QVERIFY(play->isChecked());QVERIFY(time->value()>=2);QCOMPARE(scope->currentData().toUuid(),a.id);
+    QCOMPARE(document.renderForChannel(b.id,2).pixelColor(320,200).alpha(),0);
+    const auto primary=canvas->selection();canvas->selectMany({document.state().layers[1].id,document.state().layers[2].id},primary);
+    QCOMPARE(window.findChild<QTreeWidget*>("effectLayers")->selectedItems().size(),2);canvas->selectMany({primary},primary);
+    const auto selected=canvas->selection();canvas->zoomBy(1.2);const auto bounds=document.layoutBounds();const auto anchor=canvas->mapToGlobal(canvas->viewportPoint({0,0}).toPoint());
+    auto* target=window.findChild<QTabBar*>("editorTarget");target->setCurrentIndex(0);QCoreApplication::processEvents();
+    QVERIFY(layout->isVisible());QVERIFY(!canvas->isVisible());QVERIFY(QLineF(layout->mapToGlobal(layout->viewportPoint(bounds.topLeft()).toPoint()),anchor).length()<2);
+    layout->select(first);
+    for(int i=0;i<5;++i){auto* field=window.findChild<QDoubleSpinBox*>(QString("placement%1").arg(i));QVERIFY(field);QTRY_VERIFY(field->height()>=field->minimumSizeHint().height());if(i>0){auto* above=window.findChild<QDoubleSpinBox*>(QString("placement%1").arg(i-1));QVERIFY(field->geometry().top()>above->geometry().bottom());}}
+    QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/unified-components.png"));const auto origin=document.state().placements[0].origin;QTest::keyClick(layout,Qt::Key_Right,Qt::AltModifier);QCOMPARE(document.state().placements[0].origin,origin+QPointF(1,0));
+    target->setCurrentIndex(1);QCoreApplication::processEvents();QVERIFY(canvas->isVisible());QCOMPARE(canvas->selection(),selected);QVERIFY(play->isChecked());QCOMPARE(scope->currentData().toUuid(),a.id);
+    auto* view=window.findChild<QComboBox*>("editorView");window.findChild<QAction*>("canvasView2")->trigger();QCOMPARE(view->currentIndex(),2);QCOMPARE(target->currentIndex(),0);QVERIFY(!target->isTabEnabled(1));view->setCurrentIndex(0);QVERIFY(target->isTabEnabled(1));
+    window.findChild<QAction*>("workspaceEffects")->trigger();play->setChecked(false);
+    QVERIFY(!window.findChild<QWidget*>("hardwarePreviewPanel")->isVisible());
+    auto* navigation=window.findChild<QToolBar*>("workspaceNavigation");QCOMPARE(qobject_cast<QLabel*>(navigation->widgetForAction(navigation->actions().first()))->objectName(),QString("studioBrand"));
+    QVERIFY(window.grab().save(artifactDirectory()+"/unified-editor.png"));document.history()->setClean();
+}
+
+void EditorTest::selectionActionsAndLocks()
+{
+    LightingDocument document(catalog());const auto root=document.addEmptyLayer();
+    const auto first=document.addLayer(EffectKind::Rectangle,root),second=document.addLayer(EffectKind::Circle,root),third=document.addLayer(EffectKind::Circle,root);
+    document.edit("Fixture",[](auto& state){state.layers[1].center={100,100};state.layers[2].center={300,200};state.layers[3].center={500,300};for(auto& layer:state.layers)if(!layer.container)layer.extent={50,50};});
+    LightingCanvas canvas(document,LightingCanvas::Context::Effects);canvas.resize(1000,700);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();canvas.selectMany({first,second,third},first);
+    const auto before=document.history()->index();canvas.alignSelection("top");QCOMPARE(document.state().layers[2].center.y(),100.);QCOMPARE(document.state().layers[3].center.y(),100.);QCOMPARE(document.history()->index(),before+1);
+    canvas.alignSelection("distribute-horizontal");QCOMPARE(document.state().layers[2].center.x(),300.);
+    document.history()->undo();document.history()->undo();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint({100,100}).toPoint());QTest::mouseMove(&canvas,canvas.viewportPoint({120,130}).toPoint());QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint({120,130}).toPoint());
+    QVERIFY(QLineF(document.state().layers[1].center,QPointF(120,130)).length()<1);QVERIFY(QLineF(document.state().layers[2].center,QPointF(320,230)).length()<1);
+    document.history()->undo();canvas.selectMany({first},first);canvas.lockSelection(true);const auto frozen=document.state().layers[1].center;
+    QTest::keyClick(&canvas,Qt::Key_Right);QCOMPARE(document.state().layers[1].center,frozen);
+    QTemporaryDir dir;const auto file=dir.filePath("locked.json");document.save(file);LightingDocument loaded(catalog());loaded.load(file);QVERIFY(loaded.state().layers[1].locked);QCOMPARE(loaded.render(),document.render());
+    canvas.lockSelection(false);canvas.selectMany({first,second},first);const auto count=document.state().layers.size();canvas.duplicateSelection();QCOMPARE(document.state().layers.size(),count+2);QCOMPARE(canvas.selections().size(),2);
+    canvas.deleteSelection();QCOMPARE(document.state().layers.size(),count);document.history()->undo();QCOMPARE(document.state().layers.size(),count+2);
+    document.history()->undo();canvas.selectMany({first},first);
+    QTest::mouseClick(&canvas,Qt::LeftButton,Qt::ShiftModifier,canvas.viewportPoint({300,200}).toPoint());QCOMPARE(canvas.selections().size(),2);
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint({40,40}).toPoint());QTest::mouseMove(&canvas,canvas.viewportPoint({550,350}).toPoint());QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint({550,350}).toPoint());QCOMPARE(canvas.selections().size(),3);
+    const auto otherRoot=document.addEmptyLayer(),other=document.addLayer(EffectKind::Rectangle,otherRoot);
+    document.edit("Group fixture",[&](auto& state){for(auto& layer:state.layers)if(layer.id==other){layer.center={600,50};layer.extent={50,50};}});
+    const auto relative=document.state().layers[2].center-document.state().layers[1].center;
+    canvas.selectMany({root,otherRoot},root);canvas.alignSelection("middle");QCOMPARE(document.state().layers[2].center-document.state().layers[1].center,relative);
+    document.save(file);QFile json(file);QVERIFY(json.open(QIODevice::ReadOnly));auto malformed=QJsonDocument::fromJson(json.readAll()).object();json.close();auto layers=malformed["layers"].toArray();auto invalid=layers[0].toObject();invalid["locked"]="false";layers[0]=invalid;malformed["layers"]=layers;
+    QVERIFY(json.open(QIODevice::WriteOnly));json.write(QJsonDocument(malformed).toJson());json.close();const auto unchanged=loaded.render();QVERIFY_EXCEPTION_THROWN(loaded.load(file),std::invalid_argument);QCOMPARE(loaded.render(),unchanged);
+    LightingDocument devices(catalog());const auto a=devices.addComponent("test.strip"),b=devices.addComponent("test.strip"),c=devices.addComponent("test.strip");devices.edit("Fixture",[](auto& state){state.placements[1].origin={200,150};state.placements[2].origin={400,250};});
+    LightingCanvas hardware(devices,LightingCanvas::Context::Layout);hardware.selectMany({a,b,c},a);hardware.alignSelection("middle");QCOMPARE(devices.state().placements[0].origin.y(),devices.state().placements[1].origin.y());QCOMPARE(devices.state().placements[1].origin.y(),devices.state().placements[2].origin.y());
+    hardware.selectMany({a},a);hardware.lockSelection(true);devices.save(dir.filePath("device.json"));LightingDocument persisted(catalog());persisted.load(dir.filePath("device.json"));QVERIFY(persisted.state().placements[0].locked);
+}
+
+void EditorTest::overlapAndSmartGuides()
+{
+    LightingDocument document(catalog());const auto a=document.addLayer(EffectKind::Rectangle),b=document.addLayer(EffectKind::Rectangle);
+    document.edit("Fixture",[](auto& state){state.layers[0].center={100,100};state.layers[0].extent={50,50};state.layers[1].center={100,100};state.layers[1].extent={150,150};});
+    LightingCanvas canvas(document,LightingCanvas::Context::Effects);canvas.resize(1000,700);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.select(a);canvas.fitToView();
+    auto drag=[&](QPointF from,QPointF to,Qt::KeyboardModifiers modifiers=Qt::NoModifier){QTest::mousePress(&canvas,Qt::LeftButton,modifiers,canvas.viewportPoint(from).toPoint());QTest::mouseMove(&canvas,canvas.viewportPoint(to).toPoint());QTest::mouseRelease(&canvas,Qt::LeftButton,modifiers,canvas.viewportPoint(to).toPoint());};
+    drag({100,100},{130,120});QCOMPARE(canvas.selection(),a);QVERIFY(QLineF(document.state().layers[0].center,QPointF(130,120)).length()<1);QCOMPARE(document.state().layers[1].center,QPointF(100,100));document.history()->undo();
+    QTest::mouseClick(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint({100,100}).toPoint());QCOMPARE(canvas.selection(),b);
+    bool menuChecked=false;QTimer::singleShot(0,&canvas,[&]{auto* menu=qobject_cast<QMenu*>(QApplication::activePopupWidget());if(menu){menuChecked=menu->actions().size()==2;menu->actions().last()->trigger();menu->close();}});
+    QTest::mouseClick(&canvas,Qt::RightButton,Qt::NoModifier,canvas.viewportPoint({100,100}).toPoint());QVERIFY(menuChecked);QCOMPARE(canvas.selection(),a);
+    document.edit("Guide fixture",[](auto& state){state.layers[1].center={300,200};state.layers[1].extent={50,50};});canvas.setSmartGuides(true);canvas.select(a);
+    drag({100,100},{170,198});QCOMPARE(document.state().layers[0].center.y(),200.);document.history()->undo();canvas.select(a);
+    drag({100,100},{170,198},Qt::AltModifier);QVERIFY(std::abs(document.state().layers[0].center.y()-198)<1);
+}
+
+void EditorTest::gradientMotionGeometry()
+{
+    EffectLayer gradient=layer(Qt::red);gradient.effect=EffectKind::LinearGradient;gradient.secondaryColor=Qt::blue;gradient.center={300,200};gradient.extent={200,100};gradient.driftX=100;gradient.driftY=40;
+    QCOMPARE(effectTransform(gradient,0),effectTransform(gradient,2));QVERIFY(renderEffect(gradient,0)!=renderEffect(gradient,1));
+    LightingDocument document(catalog());const auto id=document.addLayer(EffectKind::LinearGradient);document.edit("Fixture",[&](auto& state){gradient.id=id;state.layers[0]=gradient;});
+    LightingCanvas canvas(document,LightingCanvas::Context::Effects);canvas.resize(1000,700);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.select(id);canvas.setPreviewFrame(document.render(2),2);canvas.fitToView();
+    const auto from=effectTransform(gradient,2).map(QPointF(.5,0));const auto to=from+QPointF(40,0);
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint(from).toPoint());QTest::mouseMove(&canvas,canvas.viewportPoint(to).toPoint());QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint(to).toPoint());
+    QCOMPARE(document.state().layers.size(),1);QVERIFY(QLineF(effectTransform(document.state().layers[0],2).map(QPointF(.5,0)),to).length()<2);QCOMPARE(document.state().layers[0].driftX,100.);
 }
 
 void EditorTest::routedCompositionCache()
@@ -3064,4 +3160,38 @@ void EditorTest::routedCompositionCache()
     document.edit("Common clock",[&](auto& state){state.layers[0].allChannels=true;state.layers[0].channelTargets.clear();});
     QCOMPARE(document.renderForChannel(a.id,1).cacheKey(),document.renderForChannel(b.id,1).cacheKey());
     QElapsedTimer timer;timer.start();for(int i=0;i<30;++i){const auto frame=document.render(i/60.0);document.sampleChannels(frame,i/60.0);}qInfo()<<"Scoped/shared 30 frames:"<<timer.elapsed()<<"ms";
+}
+
+void EditorTest::screenEyedropperGeometry()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});addEffect(window,EffectKind::Circle);
+    window.resize(1280,800);window.setWindowFlag(Qt::WindowStaysOnTopHint);window.show();window.raise();window.activateWindow();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* inspector=window.findChild<QDockWidget*>("propertiesDock");
+    QLabel sample(&window);sample.setStyleSheet("background:#123456;");sample.setGeometry(150,220,80,60);sample.show();sample.raise();
+    QTest::qWait(150);const auto windowBounds=window.geometry(),inspectorBounds=inspector->geometry();
+    auto* color=window.findChild<ColorEditor*>("sourceColor");const auto original=color->color();
+    color->findChild<QPushButton*>()->click();auto* popup=color->findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
+    QPushButton* eyedropper=nullptr;for(auto* button:popup->findChildren<QPushButton*>())if(button->text()=="Screen eyedropper...")eyedropper=button;
+    QVERIFY(eyedropper);auto* details=popup->findChild<QCheckBox*>("pickerRgbDetails");QVERIFY(details);details->setChecked(true);QCoreApplication::processEvents();
+    QVERIFY(color->screen()->availableGeometry().contains(popup->geometry()));
+    eyedropper->click();QCoreApplication::processEvents();
+    const auto overlays=window.findChildren<QDialog*>("screenColorDialog");
+    QCOMPARE(window.geometry(),windowBounds);QCOMPARE(inspector->geometry(),inspectorBounds);
+    if(overlays.isEmpty())QCOMPARE(eyedropper->text(),QString("Screen capture unavailable"));
+    else {
+        qInfo()<<"Screen sampler windows:"<<overlays.size();
+        QDialog* target=nullptr;const auto global=sample.mapToGlobal(sample.rect().center());
+        for(auto* overlay:overlays) {
+            QVERIFY(overlay->isWindow());QCOMPARE(overlay->geometry(),overlay->screen()->geometry());
+            if(overlay->geometry().contains(global))target=overlay;
+        }
+        QVERIFY(target);QTest::mouseClick(target,Qt::LeftButton,Qt::NoModifier,target->mapFromGlobal(global));
+        if(qEnvironmentVariableIsSet("STUDIO_TEST_DESKTOP_CAPTURE"))QCOMPARE(color->color(),QColor("#123456"));
+        else qInfo()<<"Exact desktop color requires STUDIO_TEST_DESKTOP_CAPTURE=1 on an interactive desktop; geometry and accept/cancel are checked here.";
+        for(auto* overlay:overlays)QVERIFY(!overlay->isVisible());QVERIFY(popup->isVisible());QVERIFY(color->screen()->availableGeometry().contains(popup->geometry()));
+    }
+    QCOMPARE(window.geometry(),windowBounds);QCOMPARE(inspector->geometry(),inspectorBounds);
+    popup->reject();QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+    QCOMPARE(color->color(),original);QCOMPARE(window.geometry(),windowBounds);QCOMPARE(inspector->geometry(),inspectorBounds);
+    window.document().history()->setClean();
 }

@@ -2,20 +2,9 @@
 
 ## Visual workspace
 
-The app opens on Layout. Read-only discovery lists all supported headers in the
-left tree. Hardware is a separate workspace containing attachment, component definitions and
-the actual output controls. Its product picker has categories, quantities and header selection. It restores the original studio's product-oriented workflow,
-including the M25 models, generic fans/strips and validated installed component
-metadata. Browsing works offline; adding requires an available or saved header.
-Hardware also shows the same header/component tree and selection as Layout, plus a manufacturer column.
-Select a header or component, then Add or Remove; both views update together.
-Configured, detected hardware receives the canvas automatically.
+The app opens in Editor with Components selected. Components and Layers choose the editing target inside one workspace; Hardware remains separate for discovery, attachment, channel configuration and output diagnostics. Composite shows effects with component artwork and sampled LEDs. Effect only and Components only hide the other content and disable its selection target. Camera, selection, preview channel and animation time survive target changes. View can enable the optional split hardware preview. The preview is software rendering, not physical device readback.
 
-Layout edits physical component placement. Effects is a separate authoring canvas
-with a live hardware preview below it sampling the same canonical 640 by 400 raster. The splitter
-resizes these two views. The hardware pane shows sampled component colors, including
-layer channel targets and channel clocks; it is a software preview, not device readback.
-Native firmware preview uses the configured first color, not a firmware simulation.
+The navigator and inspector follow the active target. Shift-click and marquee select multiple items; right-click offers overlapping objects. Align uses selection bounds, and distribution spaces centers. Smart guides are separate from grid snapping; Alt bypasses both. View provides Lock/Unlock selection. See [the unified editor contract](design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md).
 
 New layer creates an empty transparent layer that can contain multiple editable objects. There is
 no effect-selection dialog. Shapes and Particles have direct toolbar flyout menus;
@@ -25,18 +14,15 @@ handles image files. Existing procedural effect layers still load and render.
 Particle motion patterns remain editable in the contextual inspector. Layers show source and mask thumbnails, effect
 type, visibility and name. Drag to reorder; double-click to rename.
 
-The left toolbar contains Move (V), Pencil (B), Line (L), Rectangle (U), Ellipse (O),
-Gradient (G), Fill (F), Eraser (E), and Crop (C). Shapes support filled/outlined drawing.
+The left toolbar contains Move (V), Pencil (B), Line (I), Rectangle (U), Ellipse (O),
+Gradient (G, create a new object; existing grips edit), Fill (F), Eraser (E), and Crop (C). Shapes support filled/outlined drawing.
 Tool options show only applicable color, stroke and shape controls. A stroke or shape
 commits one pixel edit on release; Escape discards the draft. Fill floods connected
 pixels of the same color while preserving antialiased coverage, and erasing removes source alpha. On a procedural/image source, Eraser selects
 the existing mask and hides coverage instead of flattening the source. Drawing on a procedural
 source creates a separate paint layer instead of flattening the source.
 
-Gradient draws a linear gradient along a drag. On an empty paint layer it turns that
-layer into an editable gradient. On painted coverage it recolors existing pixels
-while preserving alpha. On a procedural shape it changes the fill without changing
-the shape geometry; its arrow endpoints remain independently editable. Its inspector offers draggable color points, Add/Remove for the selected stop,
+G creates a new gradient object along the drag, preserving the selected source. Existing endpoints edit that gradient with G or V. Choose Solid fill or Gradient fill in Source to change a shape's fill without changing its geometry. Its inspector offers draggable color points, Add/Remove for the selected stop,
 RGB sliders, a color picker and an optional exact hex value. Stop drags are one undo
 step, and Add samples the existing gradient at the insertion position.
 
@@ -65,8 +51,7 @@ a paused preview so devices receive moving frames. Static output does not force
 playback. See [output](OUTPUT_SESSION.md).
 
 Launch `build/ninja/Release/msi_mystic_light.exe --editor` to skip the startup process-conflict dialog.
-Normal startup runs the existing process-conflict dialog first. The application connects configured hardware automatically after startup. Layout and Effects are mutually
-exclusive tabs in one Lighting category, with independent selection/zoom/pan.
+Normal startup runs the existing process-conflict dialog first. The application connects configured hardware automatically after startup. Components and Layers are selection targets in one Editor workspace. They preserve their selections and share camera position and zoom.
 
 ## Layout
 
@@ -95,7 +80,7 @@ Dashed frames follow component/group geometry; model descriptions sit below the
 frame and remain reachable when scrolling. Component model labels use a smaller
 font at a fixed lower-left anchor; no collision relocation or leader lines.
 Show labels (eye icon, also in View) controls their persistent visibility and
-defaults off. Hold H in Layout, including fullscreen, to reveal labels only until
+defaults off. Hold L in Layout, including fullscreen, to reveal labels only until
 release. H never overrides text/numeric input. Text-field focus, tab changes and
 window deactivation clear the temporary reveal. L remains the line tool. Selection never expands the label.
 Full model names remain available in tooltips and the inspector. Hidden labels
@@ -242,12 +227,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 13, including layer containers, object ownership, placements, ordered layer
+Save/Open uses `.lighting.json` schema 14, including editing locks, layer containers, object ownership, placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..12 remain readable with their original
+and advanced persistence. Schemas 1..13 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 13; older versions reject it instead of silently losing effects.
+schema 14; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -895,7 +880,7 @@ HSV, Hex, optional RGB and original/project/recent swatches. Edits preview live.
 Apply commits one undoable color session; Cancel, Escape or dismissal restores
 the previous state without touching the undo/redo branch. Autosave records the
 pre-preview state until the color session is accepted. The optional screen
-eyedropper retains Qt platform behavior. Only accepted colors enter recent history.
+eyedropper uses one temporary capture window per screen, preserving each screen's DPI and the editor geometry. Only accepted colors enter recent history.
 
 Reduce UI motion disables optional mouse-triggered picker fade/chevron rotation.
 Keyboard navigation, sliders, painting and transform handles stay immediate.
@@ -907,7 +892,7 @@ Lighting playback is independent of this preference.
 New layer creates an empty transparent container. Objects within it remain
 individually selectable and editable. Layer targets, visibility, opacity, blend
 and mask govern the composed output. Shape gradients edit fills, preserving shape
-geometry. Click selects; deliberate shape/gradient drags edit or create objects.
+geometry. Click selects; shape drags create objects; G drags create gradients and existing grips edit them.
 Raster brush dots and bucket fills retain their painting behavior. Escape cancels
 transient creations without adding history. Space-drag temporarily pans.
 
@@ -916,7 +901,8 @@ shares equivalent channel rasters across preview and output sampling. Output bad
 count active, paused, failed and stopped channels; clicking opens Hardware, whose
 selected-device details name affected channels. Focus devices has been removed.
 Zoom/Fit use icons; compact LS branding belongs to the main toolbar, not Hardware.
-The screen eyedropper samples directly from a temporary desktop capture overlay.
+The screen eyedropper samples directly from temporary per-screen capture overlays;
+no window spans the virtual desktop or changes the Inspector layout.
 
 See [implementation details](design/EDITOR_INTERACTION_IMPLEMENTATION_2026-10-27.md)
-for schema 13 compatibility, raster/vector distinctions and current limits.
+for schema 14 compatibility, raster/vector distinctions and current limits.

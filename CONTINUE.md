@@ -1,3 +1,111 @@
+## Unified Editor UI audit implementation (2026-10-27)
+
+Owner authorized implementing the design audit; Windows service work is explicitly
+next, not included. Owner subsequently authorized committing and pushing this tested
+implementation and the retained termination/eyedropper fixes.
+See docs/design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md for the current contract.
+This entry supersedes earlier separate Layout/Effects navigation and G-fill behavior.
+
+Header: approved compact branding first, then Editor / Hardware. Components and
+Layers select the editing target within Editor. Composite / Effect only / Components
+only control visibility independently. Target changes preserve camera screen position,
+selection, channel preview and animation time. Tool gutters/options keep stable space;
+only relevant tools show. Split hardware preview is optional. View menus preserve
+access to canvas views, alignment and snap when toolbar controls overflow.
+
+G creates new objects, including two gradients in one layer. Existing endpoint grips
+edit with G or V. Source offers Solid/Gradient shape fill. Gradient texture drift no
+longer translates geometry/masks; grip edits remove animated rotation/zoom. Gestures
+capture preview playback once and restore it after commit/cancel without resetting
+time. Color popup clamps after resize/show/sampling; invalid hex input is visible.
+Inspector QLayout::SetMinAndMaxSize prevents field compression at 200% DPI, confirmed
+against Qt 6.8 QScrollArea documentation and native screenshots/field bounds.
+
+Shift/marquee selection, synchronized trees, overlap menu, covered-selection dragging,
+multi-object transforms, alignment/distribution and smart guides are implemented.
+Align treats selected layers/chains as groups and preserves internal spacing. Alt
+bypasses grid/guides. L reveals labels; Line uses I. View locks persist in schema 14;
+schemas 1..13 remain readable, malformed locks reject atomically, older apps reject
+new saves. Component coordinate display preserves exact underlying values.
+
+Final source gates: Release CTest 17/17 (13.46 s), Debug CTest 17/17 with -j2
+(47.23 s), native Windows editor 126/126 (14.94 s). Final targeted native workflows,
+selection/locks, gradient motion, overlap/guides, picker geometry and compact UI:
+9/9 each at 125%, 150%, 200%. Logs: build/next/unified-native-final.log and
+unified-dpi{125,150,200}.log. Tests cover field non-overlap/minimum size and global
+camera anchors. Earlier red intermediate checks were corrected; none were bypassed.
+The libpng Read Error in the full suite belongs to the deliberate corrupt-image test.
+Exact desktop-color assertion remains opt-in via STUDIO_TEST_DESKTOP_CAPTURE=1;
+this turn checked geometry, accept/cancel and two-screen overlays, not exact desktop
+pixel color. No physical RGB writes or real process termination occurred.
+
+Portable: build/dist/LightingStudio-Unified/msi_mystic_light.exe.
+Start-Lighting.cmd prefers this build and retains older fallbacks. No live app was
+started or stopped. ZIP: build/dist/LightingStudio-Unified-windows-x64.zip.
+ZIP SHA256: eeb86d0bb12d44226247843e827136a8a3300adcd3ca49cc3cf59c778a86bdb6
+EXE SHA256: b6cb6cc95d21ed602d5a242c1844d838d37d203add10b3bd139092c8c535a50f
+CRC, safe extraction paths, personal-project exclusion and all extracted bytes
+verified; EXE equals tested Release. Explicit subprocess --inspect returned 0
+without Qt SDK PATH/plugin environment. Personal default.lighting.json SHA256 stays
+9cc3be379525f95e26d75b9bc27977cac9b3bdb3a6c126ce55fe836473a812a5.
+Native screenshots visually checked; docs/images updated, including unified editor
+and components. Graphify AST refresh completed with its existing 11 partial-parser
+limitations and 9 unsupported file types; semantic labels were not regenerated.
+The graph is supplemental to the successful compiler/test gates. Git diff --check
+passed; git status reported a sandbox permission warning for the global ignore file
+and still listed the repository changes. No global Git settings were changed. Physical hardware behavior and real-project performance are not
+established by these software tests. Existing termination/eyedropper hotfixes remain.
+
+## Termination verification and per-screen eyedropper hotfix (2026-10-27)
+
+Owner reported Terminate all requiring a second click and screen eyedropper making
+the right side of the application appear far outside the display. Changes are
+local; this follow-up did not authorize another commit/push.
+
+ConflictDialog previously rescanned immediately after asynchronous TerminateProcess.
+It now polls original PID/creation-time/path identities every 100 ms for up to two
+additional seconds, after the existing graceful-close/force stage. It does not
+force-kill again or broaden targets to restarted replacements. Cancel still stops
+pending stages; timeouts and failed scans remain visible. Tests inject asynchronous
+exits, permanent pending exits and verification-scan failures, without terminating
+any real RGB process. SystemConflictProcesses identity/service guards are unchanged.
+
+Screen sampling no longer creates one virtual-desktop-sized tool window. It captures
+all screens before showing independent fixed-size overlays on their own screens.
+Local pointer coordinates map to each capture's pixel dimensions. Acceptance or
+cancellation closes every overlay once and restores the picker. Main-window and
+Inspector geometry are asserted unchanged. Capture failures name unavailable screens.
+Qt reference: https://doc.qt.io/qt-6.8/highdpi.html and qscreen.html.
+
+Final gates: Release CTest 17/17 (12.67 s), Debug CTest 17/17 with -j2 (38.17 s),
+standard native Windows editor 122/122 (12.70 s). Explicit interactive-desktop
+screenEyedropperGeometry/liveColorPicker runs passed 4/4 at both 125% and 200%,
+with two captured monitors and exact #123456 test-field sampling. Enable
+STUDIO_TEST_DESKTOP_CAPTURE=1 for that exact desktop-color assertion; restricted
+harness desktops can return black screen pixels. Without that opt-in, geometry,
+selection, sibling closure and cancellation still run; the log states the narrower
+coverage. Offscreen capture-unavailable behavior is asserted separately.
+
+Additional diagnostic results are not hidden: an interactive-desktop full-suite
+run had four failures in unchanged edgeScrolling/workspaceNavigation cases. Those
+cases pass in the standard Windows harness; no Canvas code was changed here.
+A parallel Debug output_ui automaticOutput fixture also observed 3 writes instead
+of 2 once; it passed standalone and in the final -j2 suite without source changes.
+These environment/timing findings remain outside this narrowly scoped hotfix.
+
+Portable: build/dist/LightingStudio-Hotfix/msi_mystic_light.exe.
+Start-Lighting.cmd prefers Hotfix, retaining Editor/Audit/older fallbacks. The old
+LightingStudio-Editor process was running and was neither stopped nor overwritten;
+close it manually before starting the hotfix to avoid competing hardware writers.
+ZIP: build/dist/LightingStudio-Hotfix-windows-x64.zip
+ZIP SHA256: 019316664631182420deb41c6f8012c834f0f2a53ca8334b878ed0ed8d643509
+EXE SHA256: ef89e580846c637b6b9932c675029629974b477d122a6424ec951c5503f2eccd
+ZIP CRC, safe paths, personal-project exclusion and all extracted files checked;
+EXE equals tested Release. --inspect returned 0 without SDK Qt paths.
+default.lighting.json retains SHA256
+9cc3be379525f95e26d75b9bc27977cac9b3bdb3a6c126ce55fe836473a812a5.
+No hardware output or actual RGB process termination was performed by the tests.
+
 ## Editor interaction and channel preview follow-up (2026-10-27)
 
 Owner authorized removing Focus devices, implementing the agreed editor/status

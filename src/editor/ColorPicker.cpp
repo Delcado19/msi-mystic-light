@@ -60,36 +60,28 @@ public:
         update();changed(saturation,brightness);
     }
 };
-// Capture before showing the overlay: sampling never includes its own cursor/help text.
+// Each overlay belongs to one screen. A virtual-desktop-sized window stretches
+// captured UI on Windows when monitors have different DPI scales or coordinate gaps.
 class ScreenSampler : public QDialog {
-    QVector<QPair<QRect,QImage>> images_;
+    QImage image_;
 public:
     std::function<void(QColor)> picked;
-    ScreenSampler(QWidget* parent):QDialog(parent,Qt::Tool|Qt::FramelessWindowHint) {
+    ScreenSampler(QWidget* owner,QScreen* screen,QImage image):QDialog(owner,Qt::Tool|Qt::FramelessWindowHint),image_(std::move(image)) {
         setObjectName("screenColorDialog");setAttribute(Qt::WA_DeleteOnClose);setCursor(Qt::CrossCursor);setMouseTracking(true);
-        QRect bounds;
-        for(auto* screen:QGuiApplication::screens()) {
-            const auto image=screen->grabWindow(0).toImage();
-            if(!image.isNull()){images_.append({screen->geometry(),image});bounds=bounds.united(screen->geometry());}
-        }
-        setGeometry(bounds);setAccessibleName("Pick a screen color. Click to accept, Escape to cancel.");
+        setScreen(screen);setGeometry(screen->geometry());setFixedSize(screen->geometry().size());
+        setAccessibleName("Pick a screen color. Click to accept, Escape to cancel.");
     }
-    bool available() const {return !images_.isEmpty();}
     bool event(QEvent* event) override {if(event->type()==QEvent::ShortcutOverride){event->accept();return true;}return QDialog::event(event);}
     void paintEvent(QPaintEvent*) override {
-        QPainter painter(this);
-        for(const auto& item:images_)painter.drawImage(item.first.translated(-geometry().topLeft()),item.second);
+        QPainter painter(this);painter.drawImage(rect(),image_);
         painter.fillRect(QRect(20,20,330,32),QColor("#17191f"));painter.setPen(Qt::white);painter.drawText(QRect(28,20,314,32),Qt::AlignVCenter,"Click a color - Escape cancels");
     }
     void mousePressEvent(QMouseEvent* event) override {
         if(event->button()==Qt::RightButton){reject();return;}
-        if(event->button()!=Qt::LeftButton)return;
-        const auto point=event->globalPosition().toPoint();
-        for(const auto& item:images_)if(item.first.contains(point)) {
-            const auto local=point-item.first.topLeft();
-            const QPoint pixel(qBound(0,int(double(local.x())*item.second.width()/item.first.width()),item.second.width()-1),qBound(0,int(double(local.y())*item.second.height()/item.first.height()),item.second.height()-1));
-            if(picked)picked(item.second.pixelColor(pixel).toRgb());accept();return;
-        }
+        if(event->button()!=Qt::LeftButton || !rect().contains(event->position().toPoint()))return;
+        const auto local=event->position();
+        const QPoint pixel(qBound(0,int(local.x()*image_.width()/width()),image_.width()-1),qBound(0,int(local.y()*image_.height()/height()),image_.height()-1));
+        if(picked)picked(image_.pixelColor(pixel).toRgb());accept();
     }
 };
 
@@ -97,10 +89,20 @@ class ColorPopup : public QDialog {
 public:
     using QDialog::QDialog;
     bool finished=false,sampling=false,gestureBegun=false;
+    void clampToOwner() {
+        if(!parentWidget())return;
+        const auto available=parentWidget()->screen()->availableGeometry();
+        const auto anchor=parentWidget()->mapToGlobal(QPoint(0,parentWidget()->height()));
+        move(qBound(available.left(),anchor.x(),std::max(available.left(),available.right()-width()+1)),
+             qBound(available.top(),anchor.y(),std::max(available.top(),available.bottom()-height()+1)));
+    }
     bool event(QEvent* event) override {
         // Global project/tool shortcuts must not retarget a live color session.
         if(event->type()==QEvent::ShortcutOverride){event->accept();return true;}
-        return QDialog::event(event);
+        const bool result=QDialog::event(event);
+        // Restoring sampling and expanding RGB details can change the popup's screen bounds.
+        if(event->type()==QEvent::Show || event->type()==QEvent::Resize)clampToOwner();
+        return result;
     }
     void done(int result) override {if(sampling){hide();return;}finished=true;QDialog::done(result);}
     void hideEvent(QHideEvent* event) override {
@@ -153,9 +155,11 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
         });
         QObject::connect(rgb[i],&QSpinBox::valueChanged,popup,[=](int) {(*update)(QColor(rgb[0]->value(),rgb[1]->value(),rgb[2]->value()));});
     }
+    auto* colorError=new QLabel; colorError->setObjectName("pickerColorError");colorError->setStyleSheet("color:#ff9b9b;");colorError->setWordWrap(true);stack->addWidget(colorError);colorError->hide();
     QObject::connect(hex,&QLineEdit::editingFinished,popup,[=] {
         const QString text=hex->text();const QColor color(text.startsWith('#') ? text : "#"+text);
-        if(color.isValid() && color.alpha()==255)(*update)(color);else hex->setText(editor->color().name().toUpper());
+        if(color.isValid() && color.alpha()==255){colorError->hide();(*update)(color);}
+        else {colorError->setText("Enter a valid RGB hex color, for example #55DEFF.");colorError->show();hex->setText(editor->color().name().toUpper());popup->adjustSize();}
     });
     auto* palette=new QHBoxLayout;stack->addLayout(palette);
     QStringList colors{original.name()};
@@ -167,19 +171,38 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
         QObject::connect(swatch,&QPushButton::clicked,popup,[=]{(*update)(QColor(color));});
     }
     auto* screen=new QPushButton("Screen eyedropper...");stack->addWidget(screen);
+    screen->setToolTip("Pick a color anywhere on your screens. Click to accept; Escape or right-click cancels.");
     QObject::connect(screen,&QPushButton::clicked,popup,[=] {
         // The native eyedropper is a sibling window, never a stack child of a popup
         // that Qt can dismiss while the dialog changes focus.
         const QColor before=editor->color();popup->sampling=true;
         popup->setAttribute(Qt::WA_DeleteOnClose,false);popup->hide();
-        auto* dialog=new ScreenSampler(editor->window());
-        dialog->picked=[=](QColor color){(*update)(color);};
-        QObject::connect(dialog,&QDialog::finished,popup,[=](int result){
-            if(result!=QDialog::Accepted)(*update)(before);
+        auto samplers=std::make_shared<QVector<QPointer<ScreenSampler>>>();
+        auto finished=std::make_shared<bool>(false);
+        QStringList unavailable;
+        // Capture every screen before showing any overlay, so screenshots cannot
+        // include another sampler. No overlay enters the main window's layout.
+        for(auto* display:QGuiApplication::screens()) {
+            const auto image=display->grabWindow(0).toImage();
+            if(image.isNull()){unavailable.append(display->name());continue;}
+            auto* dialog=new ScreenSampler(editor->window(),display,image);samplers->append(dialog);
+            dialog->picked=[=](QColor color){(*update)(color);};
+            QObject::connect(dialog,&QDialog::finished,popup,[=](int result){
+                if(*finished)return;*finished=true;
+                for(const auto& other:*samplers)if(other && other!=dialog)other->reject();
+                if(result!=QDialog::Accepted)(*update)(before);
+                popup->sampling=false;popup->setAttribute(Qt::WA_DeleteOnClose);popup->show();
+            });
+        }
+        if(samplers->isEmpty()) {
             popup->sampling=false;popup->setAttribute(Qt::WA_DeleteOnClose);popup->show();
-        });
-        if(!dialog->available()) {dialog->reject();screen->setText("Screen capture unavailable");screen->setEnabled(false);}
-        else {dialog->show();dialog->raise();dialog->activateWindow();}
+            screen->setText("Screen capture unavailable");screen->setEnabled(false);
+        } else {
+            if(!unavailable.isEmpty()){screen->setText("Some screens unavailable");screen->setToolTip("Cannot capture: "+unavailable.join(", "));}
+            ScreenSampler* active=nullptr;
+            for(const auto& dialog:*samplers){dialog->show();dialog->raise();if(dialog->screen()==editor->screen())active=dialog;}
+            if(active)active->activateWindow();
+        }
     });
     auto* buttons=new QDialogButtonBox(QDialogButtonBox::Apply|QDialogButtonBox::Cancel);stack->addWidget(buttons);
     QObject::connect(buttons->button(QDialogButtonBox::Apply),&QPushButton::clicked,popup,&QDialog::accept);

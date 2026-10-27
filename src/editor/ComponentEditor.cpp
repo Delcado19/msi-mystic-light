@@ -31,8 +31,19 @@
 #include <QHBoxLayout>
 #include <QToolButton>
 #include <QMenu>
+#include <QStyledItemDelegate>
 
 namespace {
+// Display rounded coordinates without changing the exact text used for editing and serialization.
+class CoordinateDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    QString displayText(const QVariant& value,const QLocale& locale) const override {
+        bool ok=false;const double number=value.toString().toDouble(&ok);
+        if(!ok || !std::isfinite(number) || std::abs(number)>100000)return value.toString();
+        return (std::abs(number-std::round(number))>1e-7 ? QString::fromUtf8("\xE2\x89\x88 ") : QString{})+locale.toString(qRound64(number));
+    }
+};
 class GeometryView : public QGraphicsView {
 public:
     using QGraphicsView::QGraphicsView;
@@ -97,7 +108,8 @@ ComponentEditor::ComponentEditor(const ComponentDefinition& initial, bool existi
     auto* note = new QLabel(instance ? "Arrange LEDs using a shape, then drag individual LEDs to refine. Numbers show physical wire order. Only this device changes." : "Drag LEDs to arrange the component; wheel zooms. Numbers show the physical wire order. "
         "Use Coordinates for exact positions or wire mapping. Editing a definition changes all its instances.");
     note->setWordWrap(true); layout->addWidget(note);
-    auto* table = new QTableWidget(0, 3); table->setObjectName("componentLeds");
+    auto* table = new QTableWidget(0, 3);
+    table->setItemDelegateForColumn(0,new CoordinateDelegate(table));table->setItemDelegateForColumn(1,new CoordinateDelegate(table)); table->setObjectName("componentLeds");
     table->setHorizontalHeaderLabels({"X", "Y", "Wire index"});
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);

@@ -395,7 +395,7 @@ void LightingDocument::save(const QString& fileName, bool markClean)
         QJsonArray targets; for (const auto& id : layer.channelTargets) targets.append(id.toString());
         layers.append(QJsonObject{{"id", layer.id.toString()}, {"parentId",layer.parentId.isNull() ? QJsonValue(QJsonValue::Null) : QJsonValue(layer.parentId.toString())}, {"container",layer.container},
             {"gradientPositions",positions}, {"gradientColors", gradient}, {"targets", layer.allChannels ? QJsonValue(QJsonValue::Null) : QJsonValue(targets)}, {"name", layer.name},
-            {"color", layer.color.name(QColor::HexArgb)}, {"visible", layer.visible},
+            {"color", layer.color.name(QColor::HexArgb)}, {"visible", layer.visible}, {"locked",layer.locked},
             {"transparency", layer.transparency}, {"blend", static_cast<int>(layer.blend)},
             {"effect", QJsonObject{{"type", effectDefinition(layer.effect).id},
                 {"secondaryColor", layer.secondaryColor.name(QColor::HexArgb)},
@@ -409,11 +409,11 @@ void LightingDocument::save(const QString& fileName, bool markClean)
         if(layer.gradientFill) { auto json=layers.last().toObject(); json["gradientFill"]=QJsonArray{layer.gradientStart.x(),layer.gradientStart.y(),layer.gradientEnd.x(),layer.gradientEnd.y()}; layers[layers.size()-1]=json; }
     }
     for (const auto& placement : saved.placements)
-        placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
+        placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId}, {"locked",placement.locked},
             {"x", placement.origin.x()}, {"y", placement.origin.y()},
             {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
-    // Version 13 adds layer containers and object ownership; older readers must reject rather than flatten them.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 13}, {"width", 640}, {"height", 400},
+    // Version 14 persists editing locks; older readers must reject rather than silently unlock content.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 14}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -433,7 +433,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -501,6 +501,8 @@ void LightingDocument::load(const QString& fileName)
             } else throw std::invalid_argument("Invalid layer targets");
         } else if (json.contains("targets")) throw std::invalid_argument("Layer targets require schema 9");
         layer.id = QUuid(json.value("id").toString()); layer.name = json.value("name").toString();
+        if(schema>=14){if(!json.value("locked").isBool())throw std::invalid_argument("Invalid object lock");layer.locked=json.value("locked").toBool();}
+        else if(json.contains("locked"))throw std::invalid_argument("Object locks require schema 14");
         layer.color = QColor(json.value("color").toString()); layer.visible = json.value("visible").toBool();
         layer.transparency = static_cast<int>(transparency); layer.blend = static_cast<LayerBlend>(static_cast<int>(blend));
         layer.maskEnabled = json.value("maskEnabled").toBool();
@@ -615,6 +617,8 @@ void LightingDocument::load(const QString& fileName)
             // Older readers must not silently discard geometry written under the wrong schema.
             throw std::invalid_argument("Placement transforms require schema 6");
         }
+        if(schema>=14){if(!json.value("locked").isBool())throw std::invalid_argument("Invalid component lock");placement.locked=json.value("locked").toBool();}
+        else if(json.contains("locked"))throw std::invalid_argument("Component locks require schema 14");
         if (!candidate.components.contains(placement.componentId)) throw std::invalid_argument("Document requires an unavailable component");
         candidate.placements.append(placement);
     }

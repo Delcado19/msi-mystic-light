@@ -4,25 +4,24 @@ Run msi_mystic_light.exe from this complete folder. Keep hidapi.dll, Qt DLLs,
 platforms, imageformats, modules, profiles, components and third_party together.
 Do not copy only the EXE. Microsoft Visual C++ x64 runtime must be installed.
 
-Canvas output starts automatically for configured, detected hardware. Layout opens with automatic header discovery. Attach fans/strips to a
+Canvas output starts automatically for configured, detected hardware. Editor opens with Components selected and automatic header discovery. Attach fans/strips to a
 header using Hardware, then arrange its group or individual components.
 New layer creates an empty transparent layer for editable objects. Standard drawing tools are on the left;
 Shapes and Particles have toolbar menus; gradients use the gradient tool. Gradients use draggable stops and RGB sliders.
 Gradient arrows have draggable endpoints. Layout has a live effect background,
-group frames and resize/rotation handles. Effects includes a live hardware preview.
+group frames and resize/rotation handles. View offers an optional split hardware preview.
 Roccat Vulcan/Kone, Razer Basilisk V3 and Apex 3 are detected by the peripheral
 module. Previous hardware layouts can be imported; old custom-effect recipes
-are preserved in their original settings file and are not converted. Layout and Effects are
-separate workspaces in the same window. Stop leaves the last hardware state. Device behavior/calibration has
+are preserved in their original settings file and are not converted. Components and Layers are
+selection targets in one Editor workspace. Stop leaves the last hardware state. Device behavior/calibration has
 not been physically qualified. Automatic output/reconnect is enabled until Stop output is used.
 
 Source and build instructions: https://github.com/Delcado19/msi-mystic-light
 See LICENSE and THIRD_PARTY_NOTICES.md for licenses and replacement instructions.
 
 Drawing and hardware update:
-Shapes and Particles are toolbar menus. Gradient fills preserve painted coverage
-and procedural shape geometry. Enable color animation starts playback; the motion
-scope can apply edits to all visible layers. Hardware shares Layout's selectable
+Shapes and Particles are toolbar menus. Gradient shape fills preserve geometry; G creates new gradient objects.
+Enable color animation starts playback; Apply motion to all visible layers is an explicit action. Hardware shares Layout's selectable
 header/component overview with Add/Remove. The live preview shows software sampling;
 Configured, present headers receive those colors automatically.
 
@@ -133,9 +132,9 @@ Move up/down or Ctrl+PageUp/PageDown reorders layers with undo support.
 
 
 Show labels (eye icon in Layout, also under View) defaults off and remembers your
-choice. Hold H to reveal component labels temporarily, including Layout fullscreen.
-Releasing H or switching windows/workspaces or entering a text field clears the temporary reveal. Text/numeric
-input keeps H, and L remains the line tool. Labels never relocate or grow on
+choice. Hold L to reveal component labels temporarily, including Layout fullscreen.
+Releasing L or switching windows/workspaces or entering a text field clears the temporary reveal. Text/numeric
+input keeps L, and I selects the line tool. Labels never relocate or grow on
 selection. Hover tooltips and the inspector retain full model names. Group captions
 remain visible for chain dragging. Label visibility does not change your project.
 
@@ -150,3 +149,10 @@ One color session is one undo action. RGB details and screen eyedropper remain a
 Palette Stop snap uses percent independently from the spatial pixel grid.
 View > Reduce UI motion controls optional popover/chevron feedback independently
 from lighting playback. The toolbar uses the compact LS identity; About retains the conceptual banner.
+
+Startup termination waits for asynchronous process exit after force-stop; the first
+click covers both stopping and exit verification. Restarted processes require an
+explicit new action. Timeouts and scan failures stay visible. The screen eyedropper
+uses one capture window per monitor to preserve DPI and editor/Inspector geometry.
+
+Editor combines component arrangement and layered effects. Choose Components or Layers as the editing target; Composite / Effect only / Components only control visibility. G creates a new gradient; grips edit existing gradients. Shift-click/marquee select, Align arranges, Ctrl+D duplicates. Hold L reveals labels; Line uses I. View offers Lock/Unlock and optional split preview. Schema 14 preserves editing locks; older application versions cannot read newly saved projects. Windows service work is deferred.

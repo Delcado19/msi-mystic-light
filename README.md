@@ -1,7 +1,6 @@
 # MSI Mystic Light - Lighting Studio
 
-A standalone Windows lighting application with Layout and Effects in
-one window. Configure supported controllers/channels, arrange physical component
+A standalone Windows lighting application with a unified component and effect editor. Configure supported controllers/channels, arrange physical component
 geometry and create layered software effects with masks and live output.
 The current native module is msi.gen1 with an explicit B850 Edge TI board profile;
 physical-device qualification remains separate from software regression tests.
@@ -18,7 +17,7 @@ research documents describe behavior and byte layouts in our own words.
 The gaming-oriented workspace uses graphite surfaces with cyan accents.
 Panels can collapse for more canvas space; playback and device-output status remain separate.
 
-![Lighting Studio workspace](docs/images/studio-workspace.png)
+![Lighting Studio unified editor](docs/images/unified-editor.png)
 
 ## Standalone app implementation
 
@@ -29,17 +28,16 @@ module is `msi.gen1`, with an explicit B850 Edge TI board profile.
 Data-only component definitions and validated channel-chain mappings are also
 implemented. The bundled generic 8-LED strip demonstrates adding a product
 without changing a driver. Use `--component-dir` for another local catalog;
-repository downloads remain separate work. Layout and Effects have separate views,
+repository downloads remain separate work. Components and Layers share one Editor workspace,
 with component authoring, layered effects, soft masks, transparency and blend modes,
 undo/redo, portable projects, per-layer channel targets and independent channel clocks.
-The app opens on Layout and automatically lists supported controllers and their headers.
+The app opens in Editor with Components selected and lists supported controllers and their headers.
 Hardware has its own workspace for attachment, component definitions and output,
 with the same selectable header/component overview as Layout and Add/Remove actions.
 Its searchable picker supplies product categories, quantities and physical LED mappings. Header groups and individual components can be arranged independently.
 Effects has standard drawing tools: pencil, line, rectangle, ellipse, gradient,
 fill, eraser and move/crop. New layer creates an empty layer; toolbar flyouts add shapes, generators and images;
-Shapes and Particles are direct toolbar menus. The gradient tool draws editable gradients. A persistent live hardware
-preview shows the lighting while authoring. Particle motion patterns share one
+Shapes and Particles are direct toolbar menus. The gradient tool draws editable gradients. Composite shows sampled component lighting while authoring; an optional split preview is available in View. Particle motion patterns share one
 Source inspector. Gradients have movable color stops, optional RGB details and Add/Remove.
 A shared live HSV color picker supports Hex, recent colors, eyedropper, cancellation and undo.
 Integer display units preserve exact existing project values; Motion changes only the selected
@@ -50,7 +48,7 @@ boundaries, corner resize and rotation handles. Zoom in/out and Fit are explicit
 Gradient arrows remain editable after drawing; the fill tool handles connected
 paint areas while preserving antialiased edges. Gradient fills recolor painted coverage
 or procedural shapes without replacing their geometry. Palette animation supports paint;
-an explicit scope can apply motion edits to all visible layers. Travelling gradients
+Apply motion to all visible layers is an explicit action. Travelling gradients
 use a closed color cycle in the arrow direction, avoiding canvas-edge seams.
 Starting animated hardware output resumes paused playback.
 
@@ -70,7 +68,7 @@ See the [complete workspace](docs/images/studio-workspace.png),
 [hardware picker](docs/images/hardware-picker.png), [Hardware workspace](docs/images/hardware-workspace.png), and [header layout](docs/images/header-layout.png),
 [editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
 
-Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio-Editor/`
+Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio-Hotfix/`
 application folder and falls back to `build/ninja/Release/` for development builds.
 Close an already running instance after saving before starting an updated build.
 The old `build/ninja/msi_mystic_light.exe` is not the supported entry point.
@@ -159,6 +157,10 @@ Additional references: [SignalRGB GitHub topic triage](docs/SIGNALRGB_TOPIC_RESE
 
 Normal startup now checks known competing RGB processes and offers Terminate all,
 selected Terminate, Ignore and Cancel. No process is stopped automatically.
+After force-stop, the dialog waits asynchronously for the original process identities
+to disappear (up to two additional seconds). A second click is not needed to confirm
+normal delayed exit. Restarted replacements stay listed and require another explicit
+action; a timeout or scan failure remains visible.
 Service-owned helpers require manual shutdown. Use `--inspect` for catalog-only
 validation; `--scan` remains read-only and bypasses this pre-connection gate.
 Windows builds include the required Qt DLLs and Windows platform plugin beside
@@ -237,18 +239,19 @@ manufacturer/category filters. Open/Save/Save as display the active project file
 See [editor navigation and identity](docs/LIGHTING_EDITOR.md#workspace-navigation-and-catalog-identity).
 
 Local development builds use a stable portable path,
-`build/dist/LightingStudio-Editor/msi_mystic_light.exe`, launched by `Start-Lighting.cmd`.
-The current development archive is `build/dist/MSI-Mystic-Light-current-windows-x64.zip`;
+`build/dist/LightingStudio-Unified/msi_mystic_light.exe`, launched by `Start-Lighting.cmd`.
+The current development archive is `build/dist/LightingStudio-Unified-windows-x64.zip`;
 it is separate from the published versioned release archive. Build logs are grouped
 under `build/logs`; retained diagnostics and archived transient helpers are under
 `build/research`. The active build trees remain `build/next` (Release) and
 `build/multi` (Debug).
 
 
-The Effects editor supports multiple editable objects per layer. New layer creates
-an empty container; toolbar flyouts add content. Shape gradients edit fills without
-replacing geometry. Channel preview selection stays stable while editing, and
+The unified Editor combines component arrangement and effect authoring. Components and Layers choose the editing target; Composite, Effect only and Components only choose the view. Multiple editable objects share each layer. New layer creates
+an empty container; toolbar flyouts add content. G creates new gradient objects; visible endpoint grips edit existing gradients. Shapes choose Solid or Gradient fill without replacing geometry. Channel preview selection stays stable while editing, and
 per-frame caching shares equivalent output compositions. Output status separates
-active, paused and failed channels, with details in Hardware. Project schema 13
+active, paused and failed channels, with details in Hardware. Project schema 14
 preserves older source IDs and values when loading; older editor versions cannot
-read newly saved files. See [interaction details](docs/design/EDITOR_INTERACTION_IMPLEMENTATION_2026-10-27.md).
+read newly saved files. See [unified editor controls and compatibility](docs/design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md).
+
+Shift-click and marquee select multiple objects. Align supports selection bounds and distribution; smart guides and grid snapping respect Alt bypass. View offers editing locks, saved in schema 14. Hold L to reveal component labels; Line uses I. Split hardware preview is optional.

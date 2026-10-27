@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <optional>
 #include <QElapsedTimer>
+#include <QSet>
 
 class QPushButton;
 class QPainter;
@@ -24,8 +25,17 @@ public:
     enum class MaskTool { Brush, Gradient };
     LightingCanvas(LightingDocument& document, Context context, QWidget* parent = nullptr);
     Context context() const { return context_; }
+    void setEditorView(bool effects, bool components);
+    void copyCamera(const LightingCanvas& source);
     QUuid selection() const { return selected_; }
     void select(const QUuid& id);
+    void selectMany(const QSet<QUuid>& ids, const QUuid& primary = {});
+    QSet<QUuid> selections() const;
+    void alignSelection(const QString& alignment);
+    void duplicateSelection();
+    void deleteSelection();
+    void lockSelection(bool locked);
+    void setSmartGuides(bool enabled) { smartGuides_=enabled;guides_.clear();update(); }
     void setActiveLayer(const QUuid& id) { activeLayer_=id; }
     QVector<ComponentPlacement> previewPlacements() const;
     void setMaskTarget(bool enabled);
@@ -77,6 +87,10 @@ private:
     void cancelGesture();
     void beginDrawing(QPointF point);
     void selectAt(QPointF point);
+    QVector<QUuid> hitsAt(QPointF point) const;
+    bool editable(const QUuid& id) const;
+    QRectF effectBounds(const EffectLayer& layer) const;
+    EffectLayer transformedSelection(const EffectLayer& layer) const;
     void updateDrawing(QPointF point);
     QPointF paintPoint(QPointF point) const;
     void updateEffectGesture(QPointF point);
@@ -98,13 +112,20 @@ private:
     double autoScrollSpeed_=720;
     void scrollAtEdge();
     void paintMinimap(QPainter& painter);
+    void paintComponents(QPainter& painter, const QImage& frame, const QRectF& world);
     QRectF navigationBounds() const;
     QRectF minimapRect() const;
     void navigateMinimap(QPointF position);
     bool navigating_=false;
     bool pendingDrawing_=false, createdObject_=false, spaceHeld_=false;
+    bool marquee_=false, additiveMarquee_=false;
+    bool deferredHit_=false;
+    QSet<QUuid> selectedIds_, marqueeBefore_;
+    QVector<QLineF> guides_;
     bool autoFit_ = true, previewOnly_=false, drawing_=false, filled_=true;
     bool showLabels_=false;
+    bool showEffects_=true, showComponents_=true;
+    bool smartGuides_=false;
     Tool drawingTool_=Tool::Move;
     QVector<QColor> gradientColors_; QVector<double> gradientPositions_;
     QColor drawColor_=Qt::white;

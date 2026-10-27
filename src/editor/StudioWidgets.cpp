@@ -222,6 +222,7 @@ QIcon studioToolIcon(const QString& name)
     else if(name=="ellipse") painter.drawEllipse(QRectF(4,4,16,16));
     else if(name=="shapes") { QPolygonF star; for(int i=0;i<10;++i) { const double angle=i*3.141592653589793/5-3.141592653589793/2, radius=i%2 ? 4 : 10; star<<QPointF(12+radius*std::cos(angle),12+radius*std::sin(angle)); } painter.drawPolygon(star); }
     else if(name=="particles") { painter.setBrush(QColor("#e0e8fc")); for(const auto point:{QPointF(5,5),QPointF(15,4),QPointF(21,12),QPointF(12,12),QPointF(5,19),QPointF(16,20)}) painter.drawEllipse(point,1.7,1.7); }
+    else if(name=="sources") { painter.drawRect(QRectF(3,6,12,14));painter.drawLine(6,3,18,3);painter.drawLine(18,3,18,11);painter.drawLine(15,15,23,15);painter.drawLine(19,11,19,19); }
     else if(name=="gradient") { QLinearGradient gradient(4,12,20,12); gradient.setColorAt(0,Qt::white); gradient.setColorAt(1,QColor("#414957")); painter.setBrush(gradient); painter.drawRect(QRectF(3,5,18,14)); }
     else if(name=="fill") { QPolygonF bucket; bucket<<QPointF(5,10)<<QPointF(12,3)<<QPointF(20,11)<<QPointF(12,19); painter.drawPolygon(bucket); painter.drawLine(4,10,14,10); painter.drawLine(19,15,21,20); }
     else if(name=="eraser") { QPolygonF eraser; eraser<<QPointF(3,15)<<QPointF(13,4)<<QPointF(21,11)<<QPointF(12,21)<<QPointF(9,21); painter.drawPolygon(eraser); painter.drawLine(9,10,17,17); }

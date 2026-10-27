@@ -13,14 +13,21 @@ public:
         {22, "OpenRGB.exe", "C:/rgb/OpenRGB.exe", "Potential writer", 200, false}};
     QVector<quint32> graceful, forced;
     bool denied = false, failScan = false, restart = false;
+    int exitScanDelay = 0;
+    QMap<quint32,int> pendingExits;
     QVector<ConflictProcess> scan() override {
         if (failScan) throw std::runtime_error("Access denied");
+        for(auto it=pendingExits.begin();it!=pendingExits.end();) {
+            if(it.value()-- > 0){++it;continue;}
+            const auto pid=it.key();running.removeIf([=](const auto& process){return process.pid==pid;});it=pendingExits.erase(it);
+        }
         return running;
     }
     QString stop(const ConflictProcess& process, bool force) override {
         if (denied) return "Access denied";
         if (!force) { graceful.append(process.pid); return {}; }
         forced.append(process.pid);
+        if(exitScanDelay){pendingExits[process.pid]=exitScanDelay;return {};}
         for (int i = 0; i < running.size(); ++i) {
             if (running[i].pid == process.pid) {
                 running.removeAt(i);
@@ -113,6 +120,31 @@ private slots:
         button(dialog, "terminateAll")->click();
         QTRY_COMPARE_WITH_TIMEOUT(processes.forced.size(), 2, 2500);
         QTRY_COMPARE(dialog.result(), int(QDialog::Accepted));
+    }
+    void asynchronousExitNeedsOneClick() {
+        FakeProcesses processes;processes.exitScanDelay=3;
+        ConflictDialog dialog(processes);dialog.show();
+        QTest::mouseClick(button(dialog,"terminateAll"),Qt::LeftButton);
+        QCOMPARE(processes.graceful.size(),2);
+        QVERIFY(!button(dialog,"terminateAll")->isEnabled());
+        QTRY_COMPARE_WITH_TIMEOUT(dialog.result(),int(QDialog::Accepted),2500);
+        QCOMPARE(processes.forced,(QVector<quint32>{11,22}));QVERIFY(processes.running.isEmpty());
+    }
+    void terminationDeadlineIsVisible() {
+        FakeProcesses processes;processes.exitScanDelay=10000;
+        ConflictDialog dialog(processes);dialog.show();button(dialog,"terminateAll")->click();
+        QTRY_VERIFY_WITH_TIMEOUT(button(dialog,"terminateAll")->isEnabled(),4000);
+        QCOMPARE(processes.forced.size(),2);QCOMPARE(processes.running.size(),2);
+        QVERIFY(dialog.findChild<QLabel*>("conflictStatus")->text().contains("Still running after termination"));
+        button(dialog,"cancel")->click();
+    }
+    void verificationScanFailureStaysVisible() {
+        FakeProcesses processes;processes.exitScanDelay=3;
+        ConflictDialog dialog(processes);dialog.show();button(dialog,"terminateAll")->click();
+        QTRY_COMPARE_WITH_TIMEOUT(processes.forced.size(),2,2500);processes.failScan=true;
+        QTRY_VERIFY(dialog.findChild<QLabel*>("conflictStatus")->text().contains("scan failed"));
+        QVERIFY(dialog.isVisible());QVERIFY(button(dialog,"ignore")->isEnabled());
+        QVERIFY(!button(dialog,"terminateAll")->isEnabled());button(dialog,"cancel")->click();
     }
     void deniedAndRestarted() {
         FakeProcesses processes;
