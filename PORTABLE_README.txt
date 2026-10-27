@@ -6,7 +6,7 @@ Do not copy only the EXE. Microsoft Visual C++ x64 runtime must be installed.
 
 Canvas output starts automatically for configured, detected hardware. Layout opens with automatic header discovery. Attach fans/strips to a
 header using Hardware, then arrange its group or individual components.
-New layer is a blank paint layer. Standard drawing tools are on the left;
+New layer creates an empty transparent layer for editable objects. Standard drawing tools are on the left;
 Shapes and Particles have toolbar menus; gradients use the gradient tool. Gradients use draggable stops and RGB sliders.
 Gradient arrows have draggable endpoints. Layout has a live effect background,
 group frames and resize/rotation handles. Effects includes a live hardware preview.
@@ -44,7 +44,7 @@ device changes; physical LED count and wire order remain intact. Undo is support
 
 Layout sends live colors while components are dragged. Click a component to select
 it individually, or drag a group label to move its chain. Hardware has a flat
-Endpoint / Profile / State list, alongside the header/component inventory; Canvas Start/Stop controls animation playback.
+Endpoint / Profile / State list, alongside the header/component inventory; Play preview / Pause preview controls animation playback.
 
 Restored output paths: IOShield Canvas as a shared color zone and RTX 5080 AERO OC
 through NVAPI. RAM uses the separately installed official PawnIO 2.x runtime
@@ -54,7 +54,7 @@ ENE AUDA0-E6K5-0101, eight LEDs at 0x71/0x73. No OpenRGB/helper process is neede
 --scan skips active RAM probing; GUI discovery reads ENE identity registers.
 The user confirmed physical RAM Canvas output with the diagnostic build.
 
-Canvas controls: Canvas Start/Stop is green when stopped and red while running.
+Canvas controls: Play preview / Pause preview controls animation time, separate from Devices output status.
 Use the Layout canvas top-right fullscreen button; Escape returns to the workspace.
 Effects stays in its workspace with its tools and layers.
 Layout expands with its components. Use scrollbars or the bottom-right minimap to navigate.
@@ -83,7 +83,7 @@ Tests preserve distinct LED RGB values through the actual module serializer.
 User confirmed individual fan LED control with the configuration-first fix.
 
 Layer editing update:
-Eraser/mask edits keep Canvas Start available; playback resumes after a gesture
+Eraser/mask edits keep Play preview available; playback resumes after a gesture
 if it was running. Eyes toggle layer visibility (Space in the layer list).
 Stroke size has a slider and numeric field. Delete removes selected layers or
 Layout/Hardware components/groups, with Undo. Text fields keep normal Delete.
@@ -95,7 +95,8 @@ the editor and live preview, or drag to either edge to hide one preview.
 Drag the divider back to restore it. Save As uses a distinct floppy/pencil icon.
 Layout fullscreen remains available.
 
-Effects and Live Hardware display the same layout extent and aspect ratio, with
+Effects and Live Hardware use the shared complete-layout projection;
+turn it off to display the complete layout extent and aspect ratio, with
 independent fit zoom. Existing layer/mask data and hardware definitions are preserved.
 
 Mask inspection keeps animation running and selects the painting tool. Black hides
@@ -110,9 +111,9 @@ Qt6Svg.dll is required and included in the portable package.
 
 Artwork follows custom geometry: linear fan instances display as strips, imported
 mouse orientation is respected, and per-key keyboards use actual key positions.
-Selection/group frames include the housing; full component labels appear below it.
+Selection/group frames include the housing; optional small component labels appear below it.
 
-Components have one model label at the lower left; instance numbers appear only
+Components have an optional small model label at a fixed lower-left anchor; instance numbers appear only
 for repeated models. Fullsize keyboards share the Vulcan-derived drawing.
 Dedicated peripherals appear as devices rather than single-component chains.
 New placements start at Rotation=0; saved rotations remain editable.
@@ -120,3 +121,32 @@ New placements start at Rotation=0; saved rotations remain editable.
 Device settings for keyboards, mice and other built-in lighting outputs do not
 offer component-chain editing. Append/Remove/reordering remain available only
 for attachable controller headers. Device output/clock settings remain editable.
+
+Gaming workspace: graphite surfaces and consistent cyan interaction accents.
+Use Panels or View to show/hide Navigator and Inspector. Ctrl+Shift+L / Ctrl+Shift+P
+are the panel shortcuts. The Inspector collapses once below 1180 logical pixels;
+you can reopen it manually. Reset workspace restores both panels.
+Preview and Devices chips stay visible in every workspace.
+Live Hardware shows the complete layout. The redundant Focus devices control is removed.
+Source / Motion / Mask and the Editing badge identify what you are editing.
+Move up/down or Ctrl+PageUp/PageDown reorders layers with undo support.
+
+
+Show labels (eye icon in Layout, also under View) defaults off and remembers your
+choice. Hold H to reveal component labels temporarily, including Layout fullscreen.
+Releasing H or switching windows/workspaces or entering a text field clears the temporary reveal. Text/numeric
+input keeps H, and L remains the line tool. Labels never relocate or grow on
+selection. Hover tooltips and the inspector retain full model names. Group captions
+remain visible for chain dragging. Label visibility does not change your project.
+
+Lighting Studio UI audit implementation:
+New layer creates an empty layer; toolbar flyouts add objects; Source owns particles and source colors. Motion
+changes one layer; Apply motion to all visible layers is an explicit undoable action.
+Displayed values use integers (ms, cycles/min, px, percent), preserving exact saved
+values until edited. An approximation mark identifies an off-grid saved value; hover
+shows its exact value. Alt+R resets a numeric slider field to its default.
+The shared HSV color popover previews live; Apply commits and Cancel/Escape restores.
+One color session is one undo action. RGB details and screen eyedropper remain available.
+Palette Stop snap uses percent independently from the spatial pixel grid.
+View > Reduce UI motion controls optional popover/chevron feedback independently
+from lighting playback. The toolbar uses the compact LS identity; About retains the conceptual banner.

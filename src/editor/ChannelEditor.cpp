@@ -1,3 +1,4 @@
+#include "ParameterSpinBox.h"
 #include "ChannelEditor.h"
 #include "StudioWidgets.h"
 #include <QToolButton>
@@ -33,10 +34,11 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     if (!channel.nativeModes.isEmpty()) mode->addItem("Native firmware", false);
     if (channel.direct) mode->addItem("Software canvas", true);
     mode->setCurrentIndex(mode->findData(initial_.software)); form->addRow("Output mode", mode);
-    auto* rate=new QDoubleSpinBox; rate->setObjectName("channelRate"); rate->setRange(0,10); rate->setDecimals(3); rate->setValue(initial_.timeScale);
-    auto* offset=new QDoubleSpinBox; offset->setObjectName("channelOffset"); offset->setRange(0,86400); offset->setDecimals(3); offset->setValue(initial_.timeOffset);
+    auto* rate=new ParameterSpinBox; rate->setObjectName("channelRate"); rate->setRange(0,10); rate->setDisplayUnit(100," %"); rate->setValue(initial_.timeScale);
+    auto* offset=new ParameterSpinBox; offset->setObjectName("channelOffset"); offset->setRange(0,86400); offset->setDisplayUnit(1000," ms"); offset->setValue(initial_.timeOffset);
+    rate->setProperty("initialValue",rate->value());offset->setProperty("initialValue",offset->value());
     auto* clock=new QWidget; auto* clockForm=new QFormLayout(clock);
-    rate->setAccessibleName("Channel clock rate"); clockForm->addRow("Playback speed",sliderField(rate)); clockForm->addRow("Offset (seconds)",offset);
+    rate->setAccessibleName("Channel clock rate"); clockForm->addRow("Playback speed",sliderField(rate)); clockForm->addRow("Time offset",offset);
     auto* clockSection=disclosure(layout,fixedComponent_ ? "Device playback clock" : "Channel playback clock",clock);
     auto clockEnabled=[mode,rate,offset] { rate->setEnabled(mode->currentData().toBool()); offset->setEnabled(mode->currentData().toBool()); };
     connect(mode,&QComboBox::currentIndexChanged,this,clockEnabled); clockEnabled();
@@ -47,9 +49,9 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     QVector<QColor> colors; for(const auto& color:initial_.native.colors) colors.append(QColor(color.r,color.g,color.b));
     nativeColors->setColors(colors); nativeForm->addRow("Colors",nativeColors);
     auto* brightness = new QSpinBox; brightness->setObjectName("nativeBrightness"); brightness->setRange(0,5);
-    brightness->setValue(initial_.native.brightness); nativeForm->addRow("Brightness", brightness);
+    brightness->setSpecialValueText("Level 0 / 5");brightness->setPrefix("Level ");brightness->setSuffix(" / 5");brightness->setValue(initial_.native.brightness); nativeForm->addRow("Brightness", brightness);
     auto* speed = new QSpinBox; speed->setObjectName("nativeSpeed"); speed->setRange(0,2);
-    speed->setValue(initial_.native.speed); nativeForm->addRow("Speed", speed);
+    speed->setPrefix("Hardware level ");speed->setSuffix(" / 2");speed->setToolTip("Three firmware speed levels. Their physical ordering depends on the selected device and effect.");speed->setValue(initial_.native.speed); nativeForm->addRow("Speed", speed);
     auto* inward = new QCheckBox("Inward direction"); inward->setObjectName("nativeInward"); inward->setChecked(initial_.native.inward);
     nativeForm->addRow(inward);
     connect(mode, &QComboBox::currentIndexChanged, this, [mode,native] { native->setEnabled(!mode->currentData().toBool()); });
@@ -116,8 +118,8 @@ ChannelAssignment ChannelEditor::assignment() const
     const auto* mode = findChild<QComboBox*>("channelMode");
     if(mode->currentIndex()<0) throw std::invalid_argument("Choose a supported channel mode");
     result.software=mode->currentData().toBool();
-    result.timeScale=findChild<QDoubleSpinBox*>("channelRate")->value();
-    result.timeOffset=findChild<QDoubleSpinBox*>("channelOffset")->value();
+    const auto* rate=findChild<QDoubleSpinBox*>("channelRate");result.timeScale=rate->value()==rate->property("initialValue").toDouble() ? initial_.timeScale : rate->value();
+    const auto* offset=findChild<QDoubleSpinBox*>("channelOffset");result.timeOffset=offset->value()==offset->property("initialValue").toDouble() ? initial_.timeOffset : offset->value();
     result.native.id=findChild<QComboBox*>("nativeMode")->currentText();
     result.native.brightness=findChild<QSpinBox*>("nativeBrightness")->value();
     result.native.speed=findChild<QSpinBox*>("nativeSpeed")->value();

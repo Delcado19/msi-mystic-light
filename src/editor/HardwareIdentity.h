@@ -5,6 +5,7 @@
 // Presentation only: never rewrite a saved product's wire mapping or custom geometry.
 inline QString hardwareManufacturer(const ComponentDefinition& c)
 {
+    if(c.manufacturer.compare("LianLi",Qt::CaseInsensitive)==0)return "Lian Li";
     if(!c.manufacturer.isEmpty()) return c.manufacturer;
     const auto text=c.name+" "+c.id;
     for(const auto* brand:{"Phanteks","Roccat","Razer","SteelSeries","Gigabyte","ADATA","MSI","Corsair","Lian Li","NZXT","ASUS","Cooler Master","Thermaltake","be quiet!"})
@@ -15,6 +16,9 @@ inline QString hardwareManufacturer(const ComponentDefinition& c)
 inline QString hardwareName(const ComponentDefinition& c,int chainPosition=0)
 {
     auto name=c.name.trimmed(); const auto brand=hardwareManufacturer(c);
+    name.replace(QRegularExpression("\\bLianLi\\b",QRegularExpression::CaseInsensitiveOption),"Lian Li");
+    if(name.contains("Glacier",Qt::CaseInsensitive))
+        name.replace(QRegularExpression("/\\s*pump\\b",QRegularExpression::CaseInsensitiveOption),"/ AiO");
     name.replace(QRegularExpression("\\bPhantek\\b",QRegularExpression::CaseInsensitiveOption),"Phanteks");
     if(!name.startsWith(brand,Qt::CaseInsensitive)) name=brand+" "+name;
     name.remove(QRegularExpression("\\s*#\\d+\\b"));
@@ -28,8 +32,12 @@ inline QString hardwareName(const ComponentDefinition& c,int chainPosition=0)
 }
 inline QString hardwareCategory(const ComponentDefinition& c)
 {
-    if(!c.category.isEmpty()) return c.category;
     const auto text=(c.id+" "+c.name).toLower();
+    // Imported Glacier metadata labels the lit pump zone; the product itself is an AiO.
+    if(text.contains("glacier")) return "AiO";
+    // Strimer GPU power cables are lighting strips, not graphics cards.
+    if(text.contains("strimer") || text.contains("strimmer")) return "Strips";
+    if(!c.category.isEmpty()) return c.category;
     if(text.contains("pump")) return "Pumps";
     if(text.contains("aio") || text.contains("glacier")) return "AiO";
     if(text.contains("fan") || text.contains("m25") || text.contains("d30")) return "Fans";

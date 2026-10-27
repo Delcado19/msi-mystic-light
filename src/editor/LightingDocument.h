@@ -9,10 +9,14 @@
 #include <QUndoStack>
 #include <QUuid>
 #include <functional>
+#include <optional>
+#include <limits>
 
 enum class LayerBlend { Normal, Multiply, Screen, Overlay };
 struct EffectLayer {
     QUuid id = QUuid::createUuid();
+    QUuid parentId; // Null is a layer; children are independently editable objects in that layer.
+    bool container = false; // New empty layers have no implicit visual source.
     QString name = "Static Color";
     QColor color = Qt::white;
     EffectKind effect = EffectKind::StaticColor;
@@ -53,7 +57,7 @@ struct LightingState {
     QVector<ChannelAssignment> assignments;
     ComponentCatalog components; // Document-owned geometry participates in undo and portable saves.
     QVector<ComponentPlacement> placements;
-    QVector<EffectLayer> layers; // Bottom to top; panel presentation is reversed.
+    QVector<EffectLayer> layers; // Roots and their objects compose bottom to top; parentId defines ownership.
 };
 
 // Offline document only. Catalog geometry is never inferred as attached hardware.
@@ -69,9 +73,14 @@ public:
     quint64 revision() const { return revision_; }
     QUndoStack* history() { return &history_; }
     void edit(const QString& label, const std::function<void(LightingState&)>& operation);
-    QUuid addLayer(EffectKind effect = EffectKind::StaticColor);
-    QUuid addPaintLayer();
-    QUuid importImage(const QString& fileName);
+    // Live color sessions render immediately but enter history only on acceptance.
+    void beginColorPreview();
+    void finishColorPreview(bool accept);
+    QUuid addLayer(EffectKind effect = EffectKind::StaticColor, const QUuid& parent = {});
+    QUuid addPaintLayer(const QUuid& parent = {});
+    QUuid addEmptyLayer();
+    QUuid layerRoot(const QUuid& object) const;
+    QUuid importImage(const QString& fileName, const QUuid& parent = {});
     void defineComponent(const ComponentDefinition& component, bool replace = false);
     // Isolates geometry for one placement; physical LED count and wire order stay unchanged.
     void setComponentGeometry(const QUuid& placement, const QVector<QPointF>& positions);
@@ -98,10 +107,17 @@ public:
 signals:
     void changed();
 private:
+    QImage cachedRender(double seconds, const QUuid& channel) const;
+    mutable QMap<QString,QImage> frameCache_;
+    mutable quint64 frameRevision_ = std::numeric_limits<quint64>::max();
+    mutable double frameSeconds_ = -1;
     QVector<QColor> sampleComponent(const ComponentPlacement& placement, const QImage& premultiplied, const QRectF& bounds) const;
     const QVector<DeviceProfile> profiles_;
     const ComponentCatalog initialCatalog_;
     LightingState state_;
+    std::optional<LightingState> colorPreviewBefore_;
     QUndoStack history_;
     quint64 revision_ = 0; // Session-only monotonic invalidation for confirmed output snapshots.
+    mutable quint64 nameRevision_ = std::numeric_limits<quint64>::max();
+    mutable QMap<QUuid,QString> componentNames_;
 };

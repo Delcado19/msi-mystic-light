@@ -19,11 +19,14 @@ public:
     void setGradientStops(QVector<QColor> colors,QVector<double> positions) { gradientColors_=std::move(colors); gradientPositions_=std::move(positions); }
     void setDrawing(QColor color,double width,bool filled) { drawColor_=color; drawWidth_=width; filled_=filled; }
     void setPreviewOnly();
+    void setShowLabels(bool show) { showLabels_=show; update(); }
+    bool showLabels() const { return showLabels_; }
     enum class MaskTool { Brush, Gradient };
     LightingCanvas(LightingDocument& document, Context context, QWidget* parent = nullptr);
     Context context() const { return context_; }
     QUuid selection() const { return selected_; }
     void select(const QUuid& id);
+    void setActiveLayer(const QUuid& id) { activeLayer_=id; }
     QVector<ComponentPlacement> previewPlacements() const;
     void setMaskTarget(bool enabled);
     void setMaskTool(MaskTool tool) { cancelGesture(); tool_ = tool; }
@@ -57,6 +60,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent*) override;
     void wheelEvent(QWheelEvent*) override;
     void keyPressEvent(QKeyEvent*) override;
+    void keyReleaseEvent(QKeyEvent*) override;
     void hideEvent(QHideEvent*) override;
 private:
     bool selectedPlacement(const QUuid& id) const;
@@ -64,11 +68,15 @@ private:
     QRectF groupBounds(const ChannelAssignment& assignment) const;
     QRectF groupLabel(const ChannelAssignment& assignment) const;
     QRectF selectionBounds() const;
+    QPair<QPointF,QPointF> rotationHandle() const;
     QRectF componentBounds(const ComponentPlacement& placement) const;
     QRectF componentLabel(const ComponentPlacement& placement) const;
+    QString componentLabelText(const ComponentPlacement& placement) const;
+    QFont componentLabelFont() const;
     ComponentPlacement previewPlacement(ComponentPlacement placement) const;
     void cancelGesture();
     void beginDrawing(QPointF point);
+    void selectAt(QPointF point);
     void updateDrawing(QPointF point);
     QPointF paintPoint(QPointF point) const;
     void updateEffectGesture(QPointF point);
@@ -94,14 +102,16 @@ private:
     QRectF minimapRect() const;
     void navigateMinimap(QPointF position);
     bool navigating_=false;
+    bool pendingDrawing_=false, createdObject_=false, spaceHeld_=false;
     bool autoFit_ = true, previewOnly_=false, drawing_=false, filled_=true;
+    bool showLabels_=false;
     Tool drawingTool_=Tool::Move;
     QVector<QColor> gradientColors_; QVector<double> gradientPositions_;
     QColor drawColor_=Qt::white;
     double drawWidth_=6;
     QImage drawingBase_, fillReference_;
     QRectF previewBounds_{0,0,640,400};
-    QUuid selected_, previewChannel_;
+    QUuid selected_, previewChannel_, activeLayer_;
     bool maskTarget_ = false, showMask_ = false, dragging_ = false, panning_ = false;
     MaskTool tool_ = MaskTool::Brush;
     QPointF start_, last_, origin_, pan_;

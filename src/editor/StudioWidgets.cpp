@@ -1,14 +1,18 @@
-#include "StudioWidgets.h"
+﻿#include "StudioWidgets.h"
 #include "SnapGrid.h"
 #include "LightingDocument.h"
 #include <QApplication>
+#include <QSettings>
+#include <QVariantAnimation>
 #include <QAbstractSpinBox>
 #include <QMap>
+#include <QMenu>
 #include <QFormLayout>
 #include <QColorDialog>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
 #include <QDoubleSpinBox>
+#include <QSpinBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -32,48 +36,52 @@
 
 void applyStudioStyle(QWidget* window)
 {
+    static const bool resources=[] {Q_INIT_RESOURCE(branding);return true;}();Q_UNUSED(resources);
     auto font=window->font(); font.setPointSizeF(std::max(10.0,font.pointSizeF())); window->setFont(font);
     window->setStyleSheet(R"(
-        QWidget { color: #e8eaf0; background: #24262d; }
-        QMainWindow, QDialog { background: #1b1d23; }
-        QMenuBar, QToolBar, QStatusBar { background: #202229; spacing: 8px; }
+        QWidget { color: #f1f3f5; background: #1b1d21; }
+        QMainWindow, QDialog { background: #111214; }
+        QMenuBar, QToolBar, QStatusBar { background: #151619; spacing: 6px; }
         QMenuBar { padding: 4px; }
-        QMenuBar::item:selected, QMenu::item:selected { background: #35436a; }
-        QToolBar { border: 0; border-bottom: 1px solid #30353f; padding: 5px; }
-        QToolBar#effectTools { border-right: 1px solid #30353f; background: #1b1e24; spacing: 5px; }
+        QStatusBar::item { border: 0; }
+        QDockWidget::close-button { background: #afb4bd; border-radius: 3px; }
+        QDockWidget::close-button:hover { background: #55deff; }
+        QMenuBar::item:selected, QMenu::item:selected { background: #293c58; }
+        QToolBar { border: 0; border-bottom: 1px solid #34373d; padding: 5px; }
+        QToolBar#effectTools { border-right: 1px solid #34373d; background: #151619; spacing: 3px; }
         QToolBar#effectTools QPushButton { border-color: transparent; background: transparent; }
-        QToolBar#effectTools QPushButton:hover { background: #303845; }
-        QToolBar#effectTools QPushButton:checked { background: #344866; border-color: #8da8cd; }
-        QSplitter::handle { background: #313741; height: 5px; }
+        QToolBar#effectTools QPushButton:hover { background: #293c58; }
+        QToolBar#effectTools QPushButton:checked { background: #17465c; border-color: #55deff; }
+        QSplitter::handle { background: #34373d; height: 5px; }
         QDockWidget { font-weight: 600; }
-        QDockWidget::title { padding: 8px 12px; background: #202229; }
+        QDockWidget::title { padding: 8px 12px; background: #151619; border-bottom: 1px solid #34373d; }
         QTabWidget::pane { border: 0; }
-        QTabBar::tab { padding: 10px 18px; color: #b6bdcd; background: #202229; border-bottom: 2px solid transparent; }
-        QTabBar::tab:selected { color: #f4f6ff; border-bottom-color: #8eaaff; background: #2c303b; }
+        QTabBar::tab { padding: 10px 18px; color: #afb4bd; background: #151619; border-bottom: 2px solid transparent; }
+        QTabBar::tab:selected { color: #f4f6ff; border-bottom-color: #55deff; background: #242e33; }
         QScrollArea { border: 0; }
-        QPushButton, QToolButton { background: #323640; border: 1px solid #454b59; border-radius: 6px; padding: 6px 10px; }
-        QPushButton:hover, QToolButton:hover { background: #41495a; }
-        QPushButton:pressed, QToolButton:pressed, QToolButton:checked, QPushButton:checked { background: #3c4c76; border-color: #8eaaff; }
-        QPushButton:disabled, QToolButton:disabled { color: #8b92a1; background: #292c33; border-color: #343842; }
-        QPushButton[primary="true"] { background: #425f9f; border-color: #829de4; color: white; font-weight: 600; }
-        QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid #454b59; border-radius: 5px; background: #1d2027; padding: 6px; min-height: 18px; }
+        QPushButton, QToolButton { background: #24272d; border: 1px solid #555b65; border-radius: 4px; padding: 6px 10px; }
+        QPushButton:hover, QToolButton:hover { background: #2c3c55; border-color: #55deff; }
+        QPushButton:pressed, QToolButton:pressed, QToolButton:checked, QPushButton:checked { background: #20383e; border-color: #55deff; }
+        QPushButton:disabled, QToolButton:disabled { color: #8492a8; background: #192232; border-color: #34373d; }
+        QPushButton[primary="true"] { background: #174c68; border-color: #55deff; color: white; font-weight: 600; }
+        QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid #555b65; border-radius: 4px; background: #111214; padding: 6px; min-height: 18px; }
         QComboBox { padding-right: 20px; }
         QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { width: 0; }
-        QTreeWidget, QTreeView, QListWidget { background: #202229; border: 0; outline: 0; }
+        QTreeWidget, QTreeView, QListWidget { background: #151619; border: 0; outline: 0; }
         QTreeWidget::item, QTreeView::item, QListWidget::item { padding: 8px 4px; border-radius: 5px; }
-        QTreeWidget::item:selected, QTreeView::item:selected, QListWidget::item:selected { background: #344667; color: white; }
-        QHeaderView::section { background: #24262d; color: #b6bdcd; border: 0; padding: 6px; }
+        QTreeWidget::item:selected, QTreeView::item:selected, QListWidget::item:selected { background: #28363c; color: white; }
+        QHeaderView::section { background: #1b1d21; color: #afb4bd; border: 0; padding: 6px; }
         QSlider::groove:horizontal { background: #454c5e; height: 4px; border-radius: 2px; }
-        QSlider::sub-page:horizontal { background: #91aaff; border-radius: 2px; }
+        QSlider::sub-page:horizontal { background: #55deff; border-radius: 2px; }
         QSlider::handle:horizontal { background: #dce5ff; width: 12px; margin: -5px 0; border-radius: 6px; }
         QSlider { min-height: 24px; }
         QCheckBox { spacing: 8px; padding: 4px 0; }
         QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #717b91; border-radius: 3px; background: #1d2027; }
-        QCheckBox::indicator:checked { background: #91aaff; border-color: #c1d0ff; }
+        QCheckBox::indicator:checked { background: #55deff; border-color: #c1d0ff; }
         QLabel { background: transparent; }
-        QLabel[muted="true"] { color: #b6bdcd; }
+        QLabel[muted="true"] { color: #afb4bd; }
         QLabel[heading="true"] { font-size: 16px; font-weight: 600; padding: 6px 0; }
-        QToolButton[disclosure="true"] { text-align: left; background: transparent; border: 0; border-top: 1px solid #3a3e49; border-radius: 0; padding: 12px 0; }
+        QToolButton[disclosure="true"] { text-align: left; background: transparent; border: 0; border-top: 1px solid #34373d; border-radius: 0; padding: 12px 0; }
         /* Style both orientations and page regions: native fallbacks otherwise draw mismatched/dithered tracks. */
         QScrollBar { background: #20242c; border: 0; margin: 0; }
         QScrollBar:vertical { width: 14px; }
@@ -86,31 +94,68 @@ void applyStudioStyle(QWidget* window)
         QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: 0; background: #20242c; }
         QScrollBar::add-page, QScrollBar::sub-page { background: #20242c; border: 0; }
         QAbstractScrollArea::corner { background: #20242c; border: 0; }
-        QWidget:focus { border-color: #b7c9ff; }
+        QWidget:focus { border-color: #55deff; }
+        QAbstractItemView:focus { border: 1px solid #55deff; }
+        QToolBar#workspaceNavigation QToolButton:checked { background: #242e33; border-color: #55deff; color: #f1f3f5; font-weight: 600; }
+        QPushButton#playPreview { background: #17465c; border-color: #55deff; color: #e8faff; }
+        QLabel[statusBadge="true"], QLabel#previewPlaybackStatus { padding: 4px 10px; border: 1px solid #555b65; border-radius: 4px; background: #151619; }
+        QLabel[statusBadge="true"][outputState="running"] { color: #7de8c3; border-color: #7de8c3; }
+        QLabel[statusBadge="true"][outputState="error"], QLabel[statusBadge="true"][outputState="faulted"] { color: #ff9eac; border-color: #ff9eac; }
+        QLabel[modeBadge="true"] { padding: 6px 10px; color: #55deff; border-left: 2px solid #55deff; background: #151619; }
+        QLabel[emptyState="true"] { padding: 24px; border: 1px solid #555b65; border-radius: 6px; background: #151619; }
+        QToolButton#workspacePanels { border-color: #8a8f98; }
         QToolTip { color: #edf1ff; background: #343d50; border: 1px solid #7788ad; padding: 6px; }
     )");
 }
 
+namespace {
+int sliderPosition(QDoubleSpinBox* value) {
+    const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
+    const double lo=value->minimum()*scale,hi=value->maximum()*scale;
+    double fraction=(value->value()*scale-lo)/std::max(1e-12,hi-lo);
+    if(value->property("slowRange").toBool())fraction=std::sqrt(std::max(0.0,fraction));
+    return qRound(fraction*1000);
+}
+}
 QWidget* sliderField(QDoubleSpinBox* value)
 {
-    auto* row=new QWidget; auto* layout=new QHBoxLayout(row); layout->setContentsMargins(0,0,0,0);
-    auto* slider=new QSlider(Qt::Horizontal); slider->setRange(0,1000);
+    auto* row=new QWidget;auto* layout=new QVBoxLayout(row);layout->setContentsMargins(0,0,0,0);layout->setSpacing(2);
+    auto* top=new QHBoxLayout;top->addStretch();top->addWidget(value);layout->addLayout(top);
+    auto* slider=new QSlider(Qt::Horizontal);slider->setRange(0,1000);
     slider->setAccessibleName(value->accessibleName().isEmpty() ? value->objectName() : value->accessibleName());
     slider->setProperty("numericField",QVariant::fromValue(static_cast<QObject*>(value)));
-    value->setButtonSymbols(QAbstractSpinBox::NoButtons); value->setFixedWidth(72);
-    layout->addWidget(slider,1); layout->addWidget(value);
-    QObject::connect(slider,&QSlider::valueChanged,value,[value](int n) { value->setValue(value->minimum()+(value->maximum()-value->minimum())*n/1000.0); });
-    QObject::connect(value,&QDoubleSpinBox::valueChanged,slider,[value,slider](double n) {
-        const QSignalBlocker block(slider); slider->setValue(qRound(1000*(n-value->minimum())/(value->maximum()-value->minimum())));
+    value->setButtonSymbols(QAbstractSpinBox::NoButtons);value->setMinimumWidth(96);
+    if(!value->property("defaultValue").isValid())value->setProperty("defaultValue",value->value());
+    value->setContextMenuPolicy(Qt::CustomContextMenu);
+    QObject::connect(value,&QWidget::customContextMenuRequested,value,[value](QPoint point){QMenu menu;auto* reset=menu.addAction("Reset to default");QObject::connect(reset,&QAction::triggered,value,[value]{value->setValue(value->property("defaultValue").toDouble());});if(value->minimum()<=0 && value->maximum()>=0){auto* off=menu.addAction("Zero / Off");QObject::connect(off,&QAction::triggered,value,[value]{value->setValue(0);});}menu.exec(value->mapToGlobal(point));});
+    auto* reset=new QAction("Reset to default",value);reset->setShortcut(QKeySequence("Alt+R"));reset->setShortcutContext(Qt::WidgetShortcut);value->addAction(reset);QObject::connect(reset,&QAction::triggered,value,[value]{value->setValue(value->property("defaultValue").toDouble());});
+    top->insertWidget(0,slider,1);auto* limits=new QLabel;limits->setProperty("muted",true);limits->setObjectName("parameterLimits");layout->addWidget(limits);
+    const auto sync=[=] {
+        const QSignalBlocker block(slider);slider->setValue(sliderPosition(value));slider->setEnabled(value->isEnabled());
+        const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
+        limits->setText(QString::number(qRound64(value->minimum()*scale))+" to "+QString::number(qRound64(value->maximum()*scale))+value->suffix());
+        slider->setSingleStep(std::max(1,qRound(1000/std::max(1.0,(value->maximum()-value->minimum())*scale))));
+        slider->setTickPosition(QSlider::TicksBelow);slider->setTickInterval(value->minimum()<0 ? 500 : 250);
+    };
+    QObject::connect(slider,&QSlider::valueChanged,value,[value](int n) {
+        const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
+        double fraction=n/1000.0;if(value->property("slowRange").toBool())fraction*=fraction;
+        double shown=(value->minimum()+(value->maximum()-value->minimum())*fraction)*scale;
+        const double step=value->objectName()=="trails" ? 10 : 1;shown=std::round(shown/step)*step;
+        value->setValue(std::clamp(shown/scale,value->minimum(),value->maximum()));
     });
+    QObject::connect(value,&QDoubleSpinBox::valueChanged,slider,[sync](double){sync();});sync();
     return row;
 }
 void syncSliderFields(QWidget* root)
 {
-    // Undo/document refresh blocks numeric signals; synchronize handles without creating another edit.
-    for(auto* slider:root->findChildren<QSlider*>()) if(auto* value=qobject_cast<QDoubleSpinBox*>(slider->property("numericField").value<QObject*>())) {
-        const QSignalBlocker block(slider); slider->setEnabled(value->isEnabled());
-        slider->setValue(qRound(1000*(value->value()-value->minimum())/(value->maximum()-value->minimum())));
+    // Refresh blocks numeric signals; never round model values while synchronizing.
+    for(auto* slider:root->findChildren<QSlider*>())if(auto* value=qobject_cast<QDoubleSpinBox*>(slider->property("numericField").value<QObject*>())) {
+        const QSignalBlocker block(slider);slider->setEnabled(value->isEnabled());slider->setValue(sliderPosition(value));
+        if(auto* limits=slider->parentWidget()->findChild<QLabel*>("parameterLimits")) {
+            const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
+            limits->setText(QString::number(qRound64(value->minimum()*scale))+" to "+QString::number(qRound64(value->maximum()*scale))+value->suffix());
+        }
     }
 }
 QWidget* disclosure(QVBoxLayout* layout,const QString& title,QWidget* content)
@@ -119,7 +164,16 @@ QWidget* disclosure(QVBoxLayout* layout,const QString& title,QWidget* content)
     auto* toggle=new QToolButton; toggle->setText(title); toggle->setProperty("disclosure",true);
     toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon); toggle->setArrowType(Qt::RightArrow); toggle->setCheckable(true);
     toggle->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed); stack->addWidget(toggle); stack->addWidget(content); content->hide();
-    QObject::connect(toggle,&QToolButton::toggled,content,[toggle,content](bool open) { content->setVisible(open); toggle->setArrowType(open ? Qt::DownArrow : Qt::RightArrow); });
+    const auto icon=[toggle](double angle){QPixmap pixmap(16,16);pixmap.fill(Qt::transparent);QPainter p(&pixmap);p.setRenderHint(QPainter::Antialiasing);p.translate(8,8);p.rotate(angle);p.setPen(QPen(QColor("#afb4bd"),1.5));p.drawLine(-2,-4,2,0);p.drawLine(2,0,-2,4);toggle->setIcon(QIcon(pixmap));};
+    toggle->setArrowType(Qt::NoArrow);icon(0);
+    auto* turn=new QVariantAnimation(toggle);turn->setDuration(140);turn->setEasingCurve(QEasingCurve::OutCubic);
+    QObject::connect(turn,&QVariantAnimation::valueChanged,toggle,[=](const QVariant& angle){toggle->setProperty("arrowAngle",angle);icon(angle.toDouble());});
+    QObject::connect(toggle,&QToolButton::pressed,toggle,[=]{toggle->setProperty("mouseTriggered",QApplication::mouseButtons()!=Qt::NoButton);});
+    QObject::connect(toggle,&QToolButton::toggled,content,[=](bool open) {
+        content->setVisible(open);turn->stop();const bool mouse=toggle->property("mouseTriggered").toBool();toggle->setProperty("mouseTriggered",false);
+        if(studioMotionEnabled() && mouse){turn->setStartValue(toggle->property("arrowAngle").toDouble());turn->setEndValue(open ? 90.0 : 0.0);turn->start();}
+        else {toggle->setProperty("arrowAngle",open ? 90.0 : 0.0);icon(open ? 90 : 0);}
+    });
     layout->addWidget(box); return box;
 }
 QIcon studioToolIcon(const QString& name)
@@ -130,6 +184,14 @@ QIcon studioToolIcon(const QString& name)
         QPainterPath eye;eye.moveTo(2,12);eye.cubicTo(7,4,17,4,22,12);eye.cubicTo(17,20,7,20,2,12);
         painter.drawPath(eye);painter.drawEllipse(QPointF(12,12),3,3);
         if(name=="eye-off") {painter.setPen(QPen(QColor("#17191f"),4.5,Qt::SolidLine,Qt::RoundCap));painter.drawLine(3,3,21,21);painter.setPen(QPen(QColor("#b5c0d6"),1.7,Qt::SolidLine,Qt::RoundCap));painter.drawLine(3,3,21,21);}
+    }
+    else if(name=="zoom-in" || name=="zoom-out") {
+        painter.drawEllipse(QRectF(3,3,12,12));painter.drawLine(14,14,21,21);
+        painter.drawLine(6,9,12,9);if(name=="zoom-in")painter.drawLine(9,6,9,12);
+    }
+    else if(name=="fit") {
+        for(int i=0;i<4;++i){painter.save();painter.translate(12,12);painter.rotate(i*90);painter.drawLine(-8,-3,-8,-8);painter.drawLine(-8,-8,-3,-8);painter.restore();}
+        painter.drawRect(QRectF(8,8,8,8));
     }
     else if(name=="fullscreen") {
         for(const auto corner : {QPointF(4,4),QPointF(20,4),QPointF(4,20),QPointF(20,20)}) {
@@ -178,9 +240,9 @@ ColorEditor::ColorEditor(QWidget* parent) : QWidget(parent)
     hex_->setValidator(new QRegularExpressionValidator(QRegularExpression("#?[0-9a-fA-F]{6}"),hex_));
     hex_->setToolTip("RGB hexadecimal color: #RRGGBB, for example #FF8800. Alpha is not part of the RGB value.");
     hex_->setAccessibleName("RGB hexadecimal value"); layout->addWidget(picker_); layout->addWidget(hex_,1);
+    connect(picker_,&QPushButton::pressed,this,[this]{picker_->setProperty("mouseInitiated",QApplication::mouseButtons()!=Qt::NoButton);});
     connect(picker_,&QPushButton::clicked,this,[this] {
-        const auto selected=QColorDialog::getColor(color_,this,"Choose RGB color");
-        if(selected.isValid() && selected!=color_) { setColor(selected); emit colorChanged(color_); }
+        openStudioColorPicker(this,picker_->property("mouseInitiated").toBool());
     });
     connect(hex_,&QLineEdit::editingFinished,this,[this] {
         if(!hex_->hasAcceptableInput()) { setColor(color_); return; }
@@ -212,7 +274,7 @@ public:
         const auto grid=SnapGrid::load();
         if(gradient && grid.enabled) {
             p.setPen(QColor("#d9e6ff"));
-            for(double percent=0;percent<=100;percent+=grid.spacing) {
+            for(double percent=0;percent<=100;percent+=std::max(5,QSettings().value("editor/paletteSnapPercent",1).toInt())) {
                 const double x=bar.left()+percent/100*bar.width();p.drawLine(QPointF(x,bar.bottom()-4),QPointF(x,bar.bottom()));
             }
         }
@@ -228,7 +290,8 @@ public:
         return -1;
     }
     double position(QPointF point,Qt::KeyboardModifiers modifiers=Qt::NoModifier) const {
-        auto grid=SnapGrid::load();grid.enabled=grid.enabled && !(modifiers & Qt::AltModifier);grid.spacing/=100;
+        auto grid=SnapGrid::load();grid.enabled=grid.enabled && !(modifiers & Qt::AltModifier);grid.spacing=QSettings().value("editor/paletteSnapPercent",1).toDouble()/100;
+        if(!std::isfinite(grid.spacing) || grid.spacing<=0 || grid.spacing>1)grid.spacing=.01;
         return std::clamp(grid.snap(std::clamp((point.x()-12)/std::max(1,width()-24),0.0,1.0)),0.0,1.0);
     }
     void mousePressEvent(QMouseEvent* e) override {
@@ -256,12 +319,14 @@ ColorListEditor::ColorListEditor(int minimum,int maximum,QWidget* parent)
     connect(selectedColor_,&ColorEditor::colorChanged,this,[this](QColor color) {
         if(selected_>=colors_.size()) return; colors_[selected_]=color; rebuild(); emit colorsChanged(colors_); emit stopsChanged();
     });
+    auto* rgbDetails=new QWidget;auto* rgbLayout=new QVBoxLayout(rgbDetails);rgbLayout->setContentsMargins(0,0,0,0);
+    disclosure(layout,"RGB details",rgbDetails);
     for(int channel=0;channel<3;++channel) {
         auto* row=new QHBoxLayout; auto* label=new QLabel(QString("RGB")[channel]); row->addWidget(label);
         auto* slider=new QSlider(Qt::Horizontal); slider->setRange(0,255); slider->setObjectName(QString("stop%1").arg(QString("RGB")[channel]));
         slider->setAccessibleName(QString("Selected stop %1").arg(QString("RGB")[channel]));
         slider->setToolTip("Adjust this RGB channel of the selected color stop."); row->addWidget(slider,1);
-        auto* value=new QLabel; value->setFixedWidth(28); row->addWidget(value); rgbValues_.append(value); layout->addLayout(row); rgb_.append(slider);
+        auto* value=new QLabel; value->setFixedWidth(28); row->addWidget(value); rgbValues_.append(value); rgbLayout->addLayout(row); rgb_.append(slider);
         connect(slider,&QSlider::sliderPressed,this,&ColorListEditor::gestureStarted);
         connect(slider,&QSlider::sliderReleased,this,&ColorListEditor::gestureFinished);
         connect(slider,&QSlider::valueChanged,this,[this,channel](int value) {
@@ -270,6 +335,9 @@ ColorListEditor::ColorListEditor(int minimum,int maximum,QWidget* parent)
             colors_[selected_]=color; rebuild(); emit colorsChanged(colors_); emit stopsChanged();
         });
     }
+    if(minimum_>=2) {auto* snapStep=new QSpinBox;snapStep->setObjectName("paletteSnapPercent");snapStep->setRange(1,100);snapStep->setSuffix(" %");snapStep->setValue(QSettings().value("editor/paletteSnapPercent",1).toInt());snapStep->setAccessibleName("Color stop snap percent");
+        auto* snapRow=new QHBoxLayout;snapRow->addWidget(new QLabel("Stop snap"));snapRow->addWidget(snapStep);layout->addLayout(snapRow);
+        connect(snapStep,&QSpinBox::valueChanged,this,[](int n){QSettings().setValue("editor/paletteSnapPercent",n);});}
     auto* actions=new QHBoxLayout; add_=new QPushButton("Add"); remove_=new QPushButton("Remove");
     add_->setObjectName("addColorStop"); remove_->setObjectName("removeColorStop");
     actions->addWidget(add_); actions->addWidget(remove_); layout->addLayout(actions);
@@ -329,27 +397,27 @@ void installParameterTooltips(QWidget* root)
 {
     const QMap<QString,QString> descriptions{
         {"animationRate0","Turn the layer continuously: 90 means a quarter turn each second; -90 turns the other way. Zero stops rotation."},
-        {"animationRate1","Flash the layer on and off. 1 means one flash each second; 0.5 means one every two seconds. Zero leaves brightness steady."},
+        {"animationRate1","Pulse rate in cycles per minute: 30 means one pulse every two seconds. Zero keeps intensity steady."},
         {"animationRate2","Shift the source through the color wheel: 60 completes a cycle in six seconds. White and gray have no hue to shift. Zero keeps the source colors."},
         {"driftX","Horizontal speed in canvas pixels per second. Effects wrap from one edge to the opposite edge."},
         {"driftY","Vertical speed in canvas pixels per second. Effects wrap from one edge to the opposite edge."},
         {"zoom","Periodic size variation as a percentage of the base size. Zero keeps size constant."},
         {"warp","Horizontal wave distortion amplitude in canvas pixels. Zero disables distortion."},
-        {"breathe","Breathing frequency in cycles per second. Zero disables breathing."},
-        {"trails","Trail duration in seconds. Zero disables trails. Seeking recreates the same result."},
-        {"cycleRate","Color palette loops per second. Zero uses the selected effect color."},
+        {"breathe","Breathing intensity rate in cycles per minute. This modulates opacity, not size. Zero disables breathing."},
+        {"trails","Trail duration in milliseconds. Zero disables trails. Seeking recreates the same result."},
+        {"cycleRate","Color palette loops per minute. Zero uses the selected effect color."},
         {"particleCount","Number of particles, from 1 to 400. More particles require more rendering time."},
         {"particleSeed","Random pattern seed. The same seed and time reproduce the same particle arrangement."},
         {"particleSpeed","Particle movement speed. Zero freezes movement within the effect."},
         {"particleSize","Particle radius in canvas pixels before effect rotation and scaling."},
         {"previewTime","Absolute preview time in seconds. Editing time pauses playback; it does not change the saved effect."},
         {"effectRepetitions","Number of repeated stripes or waves across the effect width."},
-        {"channelRate","Channel playback multiplier. 1 is normal speed; 0 holds the offset frame."},
-        {"channelOffset","Channel playback offset in seconds, added after multiplying the preview time by the clock rate."},
+        {"channelRate","Channel playback speed in percent. 100% is normal; 0% holds the offset frame."},
+        {"channelOffset","Channel playback offset in milliseconds, added after multiplying the preview time by the clock rate."},
         {"nativeBrightness","Firmware brightness level, 0 (lowest) to 5 (highest). Requires output review before applying."},
         {"nativeSpeed","Firmware animation speed level, 0 to 2. Actual timing depends on the controller."},
         {"componentCount","Number of logical LEDs. Geometry is editable visually; physical wire order must contain each index exactly once."},
-        {"layerTransparency","Layer transparency: 0% is fully visible, 100% is invisible. The grayscale mask additionally controls local coverage."}
+        {"layerTransparency","Layer opacity: 100% is fully visible, 0% is invisible. The grayscale mask additionally controls local coverage."}
     };
     const QStringList geometry{"Horizontal effect center in canvas pixels.","Vertical effect center in canvas pixels.","Base effect width in canvas pixels.","Base effect height in canvas pixels.","Base effect rotation in degrees. Animation is applied on top of this angle."};
     const QStringList placement{"Horizontal component origin in layout pixels.","Vertical component origin in layout pixels.","Horizontal geometry scale in percent. 100 keeps catalog dimensions.","Vertical geometry scale in percent. 100 keeps catalog dimensions.","Component rotation in degrees around its origin. This changes layout sampling positions."};
@@ -379,3 +447,20 @@ void installParameterTooltips(QWidget* root)
         if(field && field->widget() && label && label->widget()) label->widget()->setToolTip(field->widget()->toolTip());
     }
 }
+
+bool studioMotionEnabled() { return !QSettings().value("editor/reduceMotion",!QApplication::isEffectEnabled(Qt::UI_AnimateCombo)).toBool(); }
+
+namespace {
+class StudioBanner : public QWidget {
+    QPixmap artwork_{":/branding/lighting-studio-banner.png"};
+public:
+    StudioBanner(QWidget* parent,int height):QWidget(parent){setFixedHeight(height);setMinimumWidth(240);setAccessibleName("Lighting Studio banner");setToolTip("Lighting Studio - conceptual branding artwork");}
+    void paintEvent(QPaintEvent*) override {
+        QPainter painter(this);painter.fillRect(rect(),QColor("#111214"));
+        const auto size=artwork_.size().scaled(this->size(),Qt::KeepAspectRatio);
+        const QRect target(QPoint((width()-size.width())/2,(height()-size.height())/2),size);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);painter.drawPixmap(target,artwork_);
+    }
+};
+}
+QWidget* studioBanner(QWidget* parent,int height){return new StudioBanner(parent,height);}

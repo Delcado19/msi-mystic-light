@@ -54,7 +54,8 @@ target_link_libraries(test_editor PRIVATE lighting_editor Qt6::Test)
 target_compile_definitions(test_editor PRIVATE TEST_COMPONENT_DIR="${PROJECT_SOURCE_DIR}/components" TEST_ARTIFACT_DIR="${CMAKE_BINARY_DIR}/editor-artifacts")
 add_test(NAME lighting_editor COMMAND test_editor)
 # Debug raster/particle rendering is substantially slower than the optimized build.
-set_tests_properties(lighting_editor PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,60,30>"
+# The full editor suite includes native-style rendering and 119 cases; allow slow Debug CI.
+set_tests_properties(lighting_editor PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,120,60>"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
 
 add_executable(test_output output/test_output.cpp)

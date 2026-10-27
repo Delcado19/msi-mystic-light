@@ -1,6 +1,8 @@
 @echo off
 setlocal
-set "APP=%~dp0build\dist\LightingStudio\msi_mystic_light.exe"
+set "APP=%~dp0build\dist\LightingStudio-Editor\msi_mystic_light.exe"
+if not exist "%APP%" set "APP=%~dp0build\dist\LightingStudio-Audit\msi_mystic_light.exe"
+if not exist "%APP%" set "APP=%~dp0build\dist\LightingStudio\msi_mystic_light.exe"
 if not exist "%APP%" set "APP=%~dp0build\next\Release\msi_mystic_light.exe"
 if not exist "%APP%" set "APP=%~dp0build\ninja\Release\msi_mystic_light.exe"
 if not exist "%APP%" (

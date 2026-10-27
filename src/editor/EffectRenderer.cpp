@@ -42,7 +42,7 @@ const QVector<EffectDefinition>& effectDefinitions()
         {EffectKind::RadialGradient, "radial", "Radial Gradient"},
         {EffectKind::ConicalGradient, "conical", "Conical Gradient"},
         {EffectKind::Stripes, "stripes", "Stripes"}, {EffectKind::Waves, "waves", "Waves"},
-        {EffectKind::Circle, "circle", "Circle"}, {EffectKind::Ring, "ring", "Ring"},
+        {EffectKind::Rectangle, "rectangle", "Rectangle"}, {EffectKind::Circle, "circle", "Circle"}, {EffectKind::Ring, "ring", "Ring"},
         {EffectKind::Star, "star", "Star"}, {EffectKind::Heart, "heart", "Heart"},
         {EffectKind::Triangle, "triangle", "Triangle"}, {EffectKind::Hexagon, "hexagon", "Hexagon"},
         {EffectKind::Diamond, "diamond", "Diamond"}, {EffectKind::Cross, "cross", "Cross"},
@@ -62,23 +62,25 @@ const EffectDefinition& effectDefinition(const QString& id)
     for (const auto& definition : effectDefinitions()) if (definition.id == id) return definition;
     throw std::invalid_argument("Unknown effect type");
 }
+bool isShape(EffectKind kind) { return (kind>=EffectKind::Circle && kind<=EffectKind::Moon) || kind==EffectKind::Rectangle; }
+
 bool isGradient(EffectKind kind) { return kind >= EffectKind::LinearGradient && kind <= EffectKind::Waves; }
 
 bool isParticle(EffectKind kind) { return kind >= EffectKind::Rain && kind <= EffectKind::Burst; }
 const QVector<EffectParameter>& advancedParameters()
 {
     static const QVector<EffectParameter> parameters{
-        {"driftX", "Move horizontally / sec", &EffectLayer::driftX, -500, 500},
-        {"driftY", "Move vertically / sec", &EffectLayer::driftY, -500, 500},
+        {"driftX", "Horizontal speed", &EffectLayer::driftX, -500, 500},
+        {"driftY", "Vertical speed", &EffectLayer::driftY, -500, 500},
         {"zoom", "Size change %", &EffectLayer::zoom, 0, 90},
         {"warp", "Wave distortion", &EffectLayer::warp, 0, 100},
-        {"breathe", "Size pulses / sec", &EffectLayer::breathe, 0, 10},
-        {"trails", "Trail length (sec)", &EffectLayer::trails, 0, 2},
+        {"breathe", "Breathe rate", &EffectLayer::breathe, 0, 10},
+        {"trails", "Trail duration", &EffectLayer::trails, 0, 2},
         {"cycleRate", "Palette loops / sec", &EffectLayer::cycleRate, 0, 10},
         {"particleCount", "Particle count", &EffectLayer::particleCount, 1, 400},
         {"particleSeed", "Random pattern", &EffectLayer::particleSeed, 0, 1000000},
         {"particleSpeed", "Movement speed", &EffectLayer::particleSpeed, 0, 500},
-        {"particleSize", "Particle size", &EffectLayer::particleSize, 1, 40}
+        {"particleSize", "Particle radius", &EffectLayer::particleSize, 1, 40}
     };
     return parameters;
 }
@@ -87,7 +89,7 @@ void validateEffect(const EffectLayer& layer)
 {
     effectDefinition(layer.effect);
     if(layer.gradientFill) {
-        if(layer.effect<EffectKind::Circle || layer.effect>EffectKind::Moon) throw std::invalid_argument("Gradient fill requires a shape");
+        if(!isShape(layer.effect)) throw std::invalid_argument("Gradient fill requires a shape");
         for(const auto point:{layer.gradientStart,layer.gradientEnd})
             if(!std::isfinite(point.x()) || !std::isfinite(point.y()) || std::abs(point.x())>20000 || std::abs(point.y())>20000) throw std::invalid_argument("Invalid gradient fill endpoint");
     }
@@ -237,6 +239,7 @@ static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
     }
     QPainterPath path;
     switch (layer.effect) {
+    case EffectKind::Rectangle: path.addRect(QRectF(-0.5,-0.5,1,1)); break;
     case EffectKind::Circle: path.addEllipse(QRectF(-0.5, -0.5, 1, 1)); break;
     case EffectKind::Ring:
         path.addEllipse(QRectF(-0.5, -0.5, 1, 1));

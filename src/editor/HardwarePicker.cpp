@@ -41,10 +41,16 @@ QIcon productIcon(const ComponentDefinition& c)
     const auto category=hardwareArtworkCategory(c);
     static const QMap<QString,QSizeF> sizes{{"Fans",{72,72}},{"Pumps",{72,72}},
         {"Strips",{100,14}},{"RAM",{100,30}},{"Graphics cards",{100,46}},
-        {"Keyboards",{100,43}},{"Mice",{44,72}},{"AiO",{100,57}},{"Motherboards",{58,72}}};
+        {"Keyboards",{100,43}},{"Mice",{44,72}},{"AiO",{100,57}},{"Motherboards",{58,72}},{"Cables",{100,24}}};
     const auto size=sizes.value(category,{88,66});
     const QRectF bounds(QPointF((112-size.width())/2,(88-size.height())/2),size);
-    drawHardwareArtwork(painter,category,bounds);return QIcon(pixmap);
+    if(category=="Strips") {
+        const auto body=hardwareBodyBounds(c);
+        const double scale=std::min(bounds.width()/body.width(),bounds.height()/body.height());
+        painter.translate(bounds.center());painter.scale(scale,scale);painter.translate(-body.center());
+        drawHardwareComponentArtwork(painter,c);
+    } else drawHardwareArtwork(painter,category,bounds);
+    return QIcon(pixmap);
 }
 void installedProducts(ComponentCatalog& products)
 {
@@ -85,7 +91,8 @@ void installedProducts(ComponentCatalog& products)
                 if(product.contains("D30-120",Qt::CaseInsensitive)) {
                     const auto ring=generic(c.id,c.name,int(c.positions.size()),true); c.positions=ring.positions;
                 }
-                if(c.category=="Strips") {
+                // Multi-row Strimer cables retain their physical rows; only ordinary strips use a straight template.
+                if(c.category=="Strips" && hardwareArtworkCategory(c)!="Cables") {
                     for(int i=0;i<c.positions.size();++i) c.positions[i]={3.0*i/std::max(1,int(c.positions.size())-1),0};
                 }
                 products.insert(c.id,ComponentDefinition::fromJson(c.toJson()));

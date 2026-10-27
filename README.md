@@ -15,6 +15,9 @@ research documents describe behavior and byte layouts in our own words.
 - [`CONTINUE.md`](CONTINUE.md) — implementation status, validation, and next steps.
 - [`docs/SIGNALRGB_REPOSITORY_RESEARCH.md`](docs/SIGNALRGB_REPOSITORY_RESEARCH.md) — pinned public-repository research on components, plugins, add-ons, and MSI discovery.
 
+The gaming-oriented workspace uses graphite surfaces with cyan accents.
+Panels can collapse for more canvas space; playback and device-output status remain separate.
+
 ![Lighting Studio workspace](docs/images/studio-workspace.png)
 
 ## Standalone app implementation
@@ -34,11 +37,14 @@ Hardware has its own workspace for attachment, component definitions and output,
 with the same selectable header/component overview as Layout and Add/Remove actions.
 Its searchable picker supplies product categories, quantities and physical LED mappings. Header groups and individual components can be arranged independently.
 Effects has standard drawing tools: pencil, line, rectangle, ellipse, gradient,
-fill, eraser and move/crop. New layer creates a transparent paint layer immediately;
+fill, eraser and move/crop. New layer creates an empty layer; toolbar flyouts add shapes, generators and images;
 Shapes and Particles are direct toolbar menus. The gradient tool draws editable gradients. A persistent live hardware
 preview shows the lighting while authoring. Particle motion patterns share one
-parameter inspector. Gradients have movable color stops, RGB sliders and Add/Remove;
-color pickers and optional exact RGB hex values remain available.
+Source inspector. Gradients have movable color stops, optional RGB details and Add/Remove.
+A shared live HSV color picker supports Hex, recent colors, eyedropper, cancellation and undo.
+Integer display units preserve exact existing project values; Motion changes only the selected
+layer until Apply motion to all visible layers is explicitly used. The selected Lighting Studio
+identity appears in the application toolbar. The full conceptual banner remains in About.
 Layout again shows the running effect behind component groups, with visible group
 boundaries, corner resize and rotation handles. Zoom in/out and Fit are explicit.
 Gradient arrows remain editable after drawing; the fill tool handles connected
@@ -64,7 +70,7 @@ See the [complete workspace](docs/images/studio-workspace.png),
 [hardware picker](docs/images/hardware-picker.png), [Hardware workspace](docs/images/hardware-workspace.png), and [header layout](docs/images/header-layout.png),
 [editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
 
-Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio/`
+Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio-Editor/`
 application folder and falls back to `build/ninja/Release/` for development builds.
 Close an already running instance after saving before starting an updated build.
 The old `build/ninja/msi_mystic_light.exe` is not the supported entry point.
@@ -177,7 +183,7 @@ Layout movement samples the live canvas during dragging, before the single undoa
 commit. Click a component to select it independently; drag a header label to move
 its group. Hardware keeps the header/component inventory on the left and a flat
 Endpoint / Profile / State table on the right,
-with selection-scoped Stop/Resume and an expanding status list. Canvas Start/Stop
+with selection-scoped Stop/Resume and an expanding status list. Play preview / Pause preview
 controls shared animation playback; Hardware remains the navigation action.
 
 IOShield Canvas and RTX 5080 AERO OC lighting restore the original shared-color
@@ -191,8 +197,8 @@ See third_party/pawnio/README.md for scope and prerequisites.
 Layout includes a fullscreen canvas and click/drag minimap. Its world bounds grow
 with hardware placements beyond the original area, including negative coordinates.
 The Effects raster stays 640x400 and maps across those Layout bounds for both live
-preview and hardware sampling. Canvas Start/Stop controls the shared animation
-clock; green means stopped/startable, red means running/stoppable.
+preview and hardware sampling. Play preview / Pause preview controls the shared animation
+clock; the separate Preview and Devices status chips remain visible in the status bar.
 
 Snap to grid is enabled by default for spatial editing. The toolbar toggle and
 1–100 px spacing apply to Layout, Effects and the LED arrangement editor. Hold
@@ -231,9 +237,18 @@ manufacturer/category filters. Open/Save/Save as display the active project file
 See [editor navigation and identity](docs/LIGHTING_EDITOR.md#workspace-navigation-and-catalog-identity).
 
 Local development builds use a stable portable path,
-`build/dist/LightingStudio/msi_mystic_light.exe`, launched by `Start-Lighting.cmd`.
+`build/dist/LightingStudio-Editor/msi_mystic_light.exe`, launched by `Start-Lighting.cmd`.
 The current development archive is `build/dist/MSI-Mystic-Light-current-windows-x64.zip`;
 it is separate from the published versioned release archive. Build logs are grouped
 under `build/logs`; retained diagnostics and archived transient helpers are under
 `build/research`. The active build trees remain `build/next` (Release) and
 `build/multi` (Debug).
+
+
+The Effects editor supports multiple editable objects per layer. New layer creates
+an empty container; toolbar flyouts add content. Shape gradients edit fills without
+replacing geometry. Channel preview selection stays stable while editing, and
+per-frame caching shares equivalent output compositions. Output status separates
+active, paused and failed channels, with details in Hardware. Project schema 13
+preserves older source IDs and values when loading; older editor versions cannot
+read newly saved files. See [interaction details](docs/design/EDITOR_INTERACTION_IMPLEMENTATION_2026-10-27.md).

@@ -7,7 +7,7 @@
 
 enum class EffectKind {
     StaticColor, LinearGradient, RadialGradient, ConicalGradient, Stripes, Waves,
-    Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon, Image, Rain, Orbit, Fireflies, Burst, Paint
+    Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon, Image, Rain, Orbit, Fireflies, Burst, Paint, Rectangle
 };
 struct EffectDefinition {
     EffectKind kind;
@@ -17,6 +17,7 @@ const QVector<EffectDefinition>& effectDefinitions();
 const EffectDefinition& effectDefinition(EffectKind kind);
 const EffectDefinition& effectDefinition(const QString& id);
 bool isGradient(EffectKind kind);
+bool isShape(EffectKind kind);
 struct EffectLayer;
 struct EffectParameter {
     QString id, label;

@@ -45,7 +45,7 @@ private:
     QTimer* automatic_;
     QVector<OutputFrame> configured_;
     QPushButton *start_, *stop_;
-    QLabel* status_;
+    QLabel *status_, *channelDetails_;
     QTreeWidget* endpoints_;
     QString message_ = "Waiting for configured hardware.";
 };

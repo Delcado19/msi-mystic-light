@@ -1,16 +1,22 @@
-﻿#include "HardwareArtwork.h"
+#include "HardwareArtwork.h"
 #include "HardwareIdentity.h"
 #include <QPainter>
 #include <QSvgRenderer>
 #include <QMap>
 #include <QSharedPointer>
+#include <QPixmapCache>
+#include <QLineF>
 #include <cmath>
 #include <algorithm>
+#include <set>
+#include <limits>
 
 static void initializeHardwareArtwork() { Q_INIT_RESOURCE(hardware); }
 
 QString hardwareArtworkCategory(const ComponentDefinition& component)
 {
+    const auto identity=component.id+" "+component.name;
+    if(identity.contains("strimer",Qt::CaseInsensitive) || identity.contains("strimmer",Qt::CaseInsensitive))return "Cables";
     const auto category=hardwareCategory(component);
     if(category!="Fans")return category;
     QVector<QPointF> points;
@@ -37,8 +43,14 @@ QRectF hardwareBodyBounds(const ComponentDefinition& component)
                            QPointF(std::max(bounds.right(),point.x()),std::max(bounds.bottom(),point.y())));
     }
     const auto category=hardwareArtworkCategory(component);
-    const double margin=category=="Strips" ? .15 : .5;
+    const double margin=(category=="Strips" || category=="Cables") ? .15 : .5;
     bounds=bounds.adjusted(-margin,-margin,margin,margin);
+    if(category=="Cables") {
+        // Legacy Strimer metadata stores one addressable row; retain a visible multi-wire cable housing.
+        const auto size=bounds.width()>=bounds.height()
+            ? QSizeF(bounds.width(),std::max(.7,bounds.height())) : QSizeF(std::max(.7,bounds.width()),bounds.height());
+        bounds=QRectF(bounds.center()-QPointF(size.width()/2,size.height()/2),size);
+    }
     if(category=="Keyboards") {
         const double width=std::max(.25,bounds.width()-2*margin),height=bounds.height()-2*margin;
         if(component.positions.size()-component.nonPhysicalSlots.size()>20 && height>0) {
@@ -62,22 +74,58 @@ QRectF hardwareBodyBounds(const ComponentDefinition& component)
     return bounds;
 }
 
+double hardwarePreviewLedRadius(const ComponentDefinition& component,QSizeF scale)
+{
+    QVector<std::pair<double,double>> points;
+    for(int i=0;i<component.positions.size();++i)if(!component.nonPhysicalSlots.contains(component.mapping.value(i)))
+        points.append({component.positions[i].x()*20*scale.width(),component.positions[i].y()*20*scale.height()});
+    std::sort(points.begin(),points.end());points.erase(std::unique(points.begin(),points.end()),points.end());
+    // A closest-pair sweep bounds dense imports without quadratic work on large custom definitions.
+    double distance=18.;qsizetype left=0;
+    std::set<std::pair<double,double>> active;
+    for(const auto& point:points) {
+        while(left<points.size() && points[left].first<point.first-distance) {
+            active.erase({points[left].second,points[left].first});++left;
+        }
+        auto it=active.lower_bound({point.second-distance,-std::numeric_limits<double>::infinity()});
+        for(;it!=active.end() && it->first<=point.second+distance;++it)
+            distance=std::min(distance,std::hypot(point.first-it->second,point.second-it->first));
+        active.insert({point.second,point.first});
+    }
+    const auto body=hardwareBodyBounds(component);
+    return std::min({6.,distance*.36,body.width()*20*scale.width()*.15,body.height()*20*scale.height()*.15});
+}
+
 void drawHardwareArtwork(QPainter& painter,const QString& category,const QRectF& bounds)
 {
     if(!bounds.isValid() || !std::isfinite(bounds.width()) || !std::isfinite(bounds.height()))return;
     static const bool initialized=[] {initializeHardwareArtwork();return true;}();Q_UNUSED(initialized);
     static const QMap<QString,QString> files{{"Fans","fan"},{"Strips","strip"},{"RAM","ram"},
         {"Graphics cards","gpu"},{"Keyboards","keyboard"},{"Mice","mouse"},{"Pumps","pump"},
-        {"AiO","aio"},{"Motherboards","motherboard"}};
+        {"AiO","aio"},{"Motherboards","motherboard"},{"Cables","cable"},{"Strip LED","strip-led"}};
     const auto file=files.value(category,"other");
     static QMap<QString,QSharedPointer<QSvgRenderer>> renderers;
     auto& renderer=renderers[file];
     if(!renderer)renderer=QSharedPointer<QSvgRenderer>::create(":/hardware/"+file+".svg");
+    const auto render=[&](const QRectF& target) {
+        const auto transform=painter.deviceTransform();
+        const int width=int(std::clamp(std::ceil(QLineF(transform.map(target.topLeft()),transform.map(target.topRight())).length()),1.,2048.));
+        const int height=int(std::clamp(std::ceil(QLineF(transform.map(target.topLeft()),transform.map(target.bottomLeft())).length()),1.,2048.));
+        const auto key=QString("hardware:%1:%2:%3").arg(file).arg(width).arg(height);
+        QPixmap image;
+        // Static SVG housings do not change with playback; retain bounded, resolution-specific raster artwork.
+        if(!QPixmapCache::find(key,&image)) {
+            image=QPixmap(width,height);image.fill(Qt::transparent);
+            QPainter raster(&image);raster.setRenderHint(QPainter::Antialiasing);
+            renderer->render(&raster,QRectF(0,0,width,height));raster.end();QPixmapCache::insert(key,image);
+        }
+        painter.drawPixmap(target,image,QRectF(0,0,width,height));
+    };
     painter.save();
-    if((category=="RAM" || category=="Strips") && bounds.height()>bounds.width()) {
+    if((category=="RAM" || category=="Strips" || category=="Cables") && bounds.height()>bounds.width()) {
         painter.translate(bounds.center());painter.rotate(90);
-        renderer->render(&painter,QRectF(-bounds.height()/2,-bounds.width()/2,bounds.height(),bounds.width()));
-    } else renderer->render(&painter,bounds);
+        render(QRectF(-bounds.height()/2,-bounds.width()/2,bounds.height(),bounds.width()));
+    } else render(bounds);
     painter.restore();
 }
 
@@ -85,7 +133,16 @@ void drawHardwareComponentArtwork(QPainter& painter,const ComponentDefinition& c
 {
     const auto category=hardwareArtworkCategory(component);const auto bounds=hardwareBodyBounds(component);
     painter.save();
-    if(category=="Mice" && bounds.width()>bounds.height()) {
+    if(category=="Strips") {
+        // SVG housing plus one SVG package per real LED; dense preview markers must not hide this artwork.
+        drawHardwareArtwork(painter,category,bounds);
+        const double half=component.positions.size()>1
+            ? std::min(.10,.35*std::max(bounds.width()-.3,bounds.height()-.3)/(component.positions.size()-1)) : .10;
+        for(int i=0;i<component.positions.size();++i)if(!component.nonPhysicalSlots.contains(component.mapping.value(i))) {
+            const auto point=component.positions[i];
+            drawHardwareArtwork(painter,"Strip LED",QRectF(point-QPointF(half,half),QSizeF(2*half,2*half)));
+        }
+    } else if(category=="Mice" && bounds.width()>bounds.height()) {
         // Legacy imports can bake the mouse's quarter-turn into its LED coordinates before placement rotation.
         painter.translate(bounds.center());painter.rotate(90);
         drawHardwareArtwork(painter,category,QRectF(-bounds.height()/2,-bounds.width()/2,bounds.height(),bounds.width()));

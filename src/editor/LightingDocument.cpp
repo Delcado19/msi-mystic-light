@@ -54,6 +54,7 @@ void validate(const LightingState& state)
     QSet<QUuid> ids;
     for (const auto& layer : state.layers) {
         validateEffect(layer);
+        if(layer.container && (layer.effect!=EffectKind::Paint || !layer.image.isNull()))throw std::invalid_argument("Layer containers cannot replace their source");
         imagePixels += qint64(layer.image.width()) * layer.image.height();
         if (imagePixels > 16 * 1024 * 1024)
             throw std::invalid_argument("Document image budget exceeds 16 megapixels");
@@ -63,6 +64,11 @@ void validate(const LightingState& state)
             layer.mask.size() != LightingDocument::canvasSize() || layer.mask.format() != QImage::Format_Grayscale8)
             throw std::invalid_argument("Invalid effect layer");
         ids.insert(layer.id);
+    }
+    for(const auto& layer:state.layers)if(!layer.parentId.isNull()) {
+        const auto parent=std::find_if(state.layers.cbegin(),state.layers.cend(),[&](const auto& item){return item.id==layer.parentId;});
+        if(layer.container || parent==state.layers.cend() || !parent->parentId.isNull() || parent->id==layer.id)
+            throw std::invalid_argument("Object requires an existing root layer");
     }
     for (const auto& placement : state.placements) {
         if (placement.id.isNull() || ids.contains(placement.id) || !state.components.contains(placement.componentId))
@@ -98,10 +104,24 @@ void LightingDocument::edit(const QString& label, const std::function<void(Light
     for (const auto& placement : after.placements)
         if (!after.components.contains(placement.componentId)) throw std::invalid_argument("Unknown component");
     validateChannelAssignments(after, profiles_);
+    if(colorPreviewBefore_){state_=std::move(after);++revision_;emit changed();return;}
     history_.push(new DocumentEdit(label, [this, before = state_, after](bool forward) {
         state_ = forward ? after : before;
         ++revision_; emit changed();
     }));
+}
+
+void LightingDocument::beginColorPreview()
+{
+    if(colorPreviewBefore_)throw std::logic_error("A color preview is already active");
+    colorPreviewBefore_=state_;
+}
+void LightingDocument::finishColorPreview(bool accept)
+{
+    if(!colorPreviewBefore_)return;
+    const auto after=state_;state_=std::move(*colorPreviewBefore_);colorPreviewBefore_.reset();
+    if(accept)edit("Color edit",[&](LightingState& state){state=after;});
+    else {++revision_;emit changed();}
 }
 
 QImage LightingDocument::whiteMask()
@@ -111,9 +131,10 @@ QImage LightingDocument::whiteMask()
     return mask;
 }
 
-QUuid LightingDocument::addLayer(EffectKind effect)
+QUuid LightingDocument::addLayer(EffectKind effect, const QUuid& parent)
 {
     EffectLayer layer;
+    layer.parentId=parent;
     layer.effect = effect;
     layer.name = effectDefinition(effect).label;
     if (isGradient(effect)) layer.extent = canvasSize();
@@ -122,16 +143,29 @@ QUuid LightingDocument::addLayer(EffectKind effect)
     return layer.id;
 }
 
-QUuid LightingDocument::addPaintLayer()
+QUuid LightingDocument::addPaintLayer(const QUuid& parent)
 {
-    EffectLayer layer; layer.effect=EffectKind::Paint; layer.name="Layer "+QString::number(state_.layers.size()+1);
+    EffectLayer layer; layer.parentId=parent; layer.effect=EffectKind::Paint; layer.name="Layer "+QString::number(state_.layers.size()+1);
     layer.extent=canvasSize(); layer.mask=whiteMask();
     // A null source is a transparent canvas until the first drawing gesture.
     edit("New layer",[&](LightingState& state) { state.layers.append(layer); });
     return layer.id;
 }
 
-QUuid LightingDocument::importImage(const QString& fileName)
+QUuid LightingDocument::layerRoot(const QUuid& object) const
+{
+    for(const auto& layer:state_.layers)if(layer.id==object)return layer.parentId.isNull() ? layer.id : layer.parentId;
+    return {};
+}
+
+QUuid LightingDocument::addEmptyLayer()
+{
+    EffectLayer layer;layer.container=true;layer.effect=EffectKind::Paint;layer.extent=canvasSize();layer.mask=whiteMask();
+    layer.name="Layer "+QString::number(state_.layers.size()+1);
+    edit("New empty layer",[&](auto& state){state.layers.append(layer);});return layer.id;
+}
+
+QUuid LightingDocument::importImage(const QString& fileName, const QUuid& parent)
 {
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly) || file.size() > 16 * 1024 * 1024)
@@ -146,7 +180,7 @@ QUuid LightingDocument::importImage(const QString& fileName)
     // shortcut: animated inputs import the first frame; add playback with the motion timeline.
     const auto image = reader.read();
     if (image.isNull()) throw std::invalid_argument("Unsupported or corrupt image");
-    EffectLayer layer;
+    EffectLayer layer;layer.parentId=parent;
     layer.effect = EffectKind::Image; layer.name = "Image";
     layer.image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
     layer.extent = canvasSize(); layer.mask = whiteMask();
@@ -203,12 +237,23 @@ QUuid LightingDocument::addComponent(const QString& componentId)
 
 QString LightingDocument::componentName(const ComponentPlacement& placement) const
 {
-    const auto name=hardwareName(catalog()[placement.componentId]);int count=0,ordinal=0;
-    // Instance numbers describe identical models across the layout, never electrical chain addresses.
-    for(const auto& candidate:state_.placements)if(hardwareName(catalog()[candidate.componentId]).compare(name,Qt::CaseInsensitive)==0) {
-        ++count;if(candidate.id==placement.id)ordinal=count;
+    // Layout asks for labels repeatedly per frame; normalize/count once per document revision, including undo/load.
+    if(nameRevision_!=revision_) {
+        componentNames_.clear();QMap<QString,int> counts,ordinals;QMap<QString,QString> names;
+        for(const auto& candidate:state_.placements) {
+            if(!names.contains(candidate.componentId))names[candidate.componentId]=hardwareName(catalog()[candidate.componentId]);
+            ++counts[names[candidate.componentId].toCaseFolded()];
+        }
+        for(const auto& candidate:state_.placements) {
+            auto name=names[candidate.componentId];const auto key=name.toCaseFolded();
+            const int ordinal=++ordinals[key];
+            if(counts[key]>1)name+=" #"+QString::number(ordinal);
+            componentNames_[candidate.id]=name;
+        }
+        nameRevision_=revision_;
     }
-    return count>1 ? name+" #"+QString::number(ordinal) : name;
+    const auto found=componentNames_.constFind(placement.id);
+    return found!=componentNames_.cend() ? *found : hardwareName(catalog()[placement.componentId]);
 }
 
 QVector<QPointF> LightingDocument::componentPoints(const ComponentPlacement& placement) const
@@ -304,18 +349,33 @@ double LightingDocument::channelTime(const QUuid& id, double seconds) const
 }
 QImage LightingDocument::renderForChannel(const QUuid& id, double seconds) const
 {
-    return render(state_,channelTime(id,seconds),id);
+    return cachedRender(seconds,id);
 }
 
-QImage LightingDocument::render(double seconds) const { return render(state_, seconds); }
+QImage LightingDocument::render(double seconds) const { return cachedRender(seconds,{}); }
+
+QImage LightingDocument::cachedRender(double seconds,const QUuid& channel) const
+{
+    if(!std::isfinite(seconds) || seconds<0 || seconds>86400)throw std::invalid_argument("Invalid preview time");
+    if(frameRevision_!=revision_ || frameSeconds_!=seconds){frameCache_.clear();frameRevision_=revision_;frameSeconds_=seconds;}
+    const double local=channel.isNull() ? seconds : channelTime(channel,seconds);
+    // Only effective time and included root layers affect channel composition. Share
+    // immutable rasters across output, Layout and Live Hardware for this exact frame.
+    QString key=QString::number(local,'g',17);
+    for(const auto& layer:state_.layers)if(layer.parentId.isNull() && (channel.isNull() || layer.allChannels || layer.channelTargets.contains(channel)))key+=':'+layer.id.toString();
+    const auto found=frameCache_.constFind(key);if(found!=frameCache_.cend())return *found;
+    const auto result=render(state_,local,channel);frameCache_.insert(key,result);return result;
+}
 
 void LightingDocument::save(const QString& fileName, bool markClean)
 {
+    // Autosave must not persist an unaccepted picker preview.
+    const auto& saved=colorPreviewBefore_ ? *colorPreviewBefore_ : state_;
     QJsonArray layers, placements, components, assignments;
-    validateChannelAssignments(state_, profiles_);
-    for (const auto& assignment : state_.assignments) assignments.append(channelAssignmentJson(assignment));
-    for (const auto& component : catalog()) components.append(component.toJson());
-    for (const auto& layer : state_.layers) {
+    validateChannelAssignments(saved, profiles_);
+    for (const auto& assignment : saved.assignments) assignments.append(channelAssignmentJson(assignment));
+    for (const auto& component : saved.components) components.append(component.toJson());
+    for (const auto& layer : saved.layers) {
         QByteArray png;
         QBuffer buffer(&png); buffer.open(QIODevice::WriteOnly);
         if (!layer.mask.save(&buffer, "PNG")) throw std::runtime_error("Could not encode layer mask");
@@ -333,7 +393,7 @@ void LightingDocument::save(const QString& fileName, bool markClean)
         QJsonArray positions; for(double position:layer.gradientPositions) positions.append(position);
         QJsonArray gradient; for(const auto& color:layer.gradientColors) gradient.append(color.name(QColor::HexArgb));
         QJsonArray targets; for (const auto& id : layer.channelTargets) targets.append(id.toString());
-        layers.append(QJsonObject{{"id", layer.id.toString()},
+        layers.append(QJsonObject{{"id", layer.id.toString()}, {"parentId",layer.parentId.isNull() ? QJsonValue(QJsonValue::Null) : QJsonValue(layer.parentId.toString())}, {"container",layer.container},
             {"gradientPositions",positions}, {"gradientColors", gradient}, {"targets", layer.allChannels ? QJsonValue(QJsonValue::Null) : QJsonValue(targets)}, {"name", layer.name},
             {"color", layer.color.name(QColor::HexArgb)}, {"visible", layer.visible},
             {"transparency", layer.transparency}, {"blend", static_cast<int>(layer.blend)},
@@ -348,12 +408,12 @@ void LightingDocument::save(const QString& fileName, bool markClean)
             {"maskEnabled", layer.maskEnabled}, {"maskPng", QString::fromLatin1(png.toBase64())}});
         if(layer.gradientFill) { auto json=layers.last().toObject(); json["gradientFill"]=QJsonArray{layer.gradientStart.x(),layer.gradientStart.y(),layer.gradientEnd.x(),layer.gradientEnd.y()}; layers[layers.size()-1]=json; }
     }
-    for (const auto& placement : state_.placements)
+    for (const auto& placement : saved.placements)
         placements.append(QJsonObject{{"id", placement.id.toString()}, {"componentId", placement.componentId},
             {"x", placement.origin.x()}, {"y", placement.origin.y()},
             {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
-    // Version 12 adds independent shape gradient fills; old readers must reject them rather than discard their appearance.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 12}, {"width", 640}, {"height", 400},
+    // Version 13 adds layer containers and object ownership; older readers must reject rather than flatten them.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 13}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -373,7 +433,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -468,6 +528,7 @@ void LightingDocument::load(const QString& fileName)
             layer.gradientFill=true; layer.gradientStart={points[0].toDouble(),points[1].toDouble()}; layer.gradientEnd={points[2].toDouble(),points[3].toDouble()};
             validateEffect(layer);
         }
+        if(schema<13 && layer.effect==EffectKind::Rectangle)throw std::invalid_argument("Editable rectangles require schema 13");
         if(schema<11 && layer.effect==EffectKind::Paint) throw std::invalid_argument("Paint layers require schema 11");
         if (schema < 3 && (layer.effect == EffectKind::Image || json.contains("imagePng")))
             throw std::invalid_argument("Images require document schema 3");
@@ -530,6 +591,11 @@ void LightingDocument::load(const QString& fileName)
         const auto mask = reader.read();
         if (mask.isNull() || !mask.isGrayscale() || mask.hasAlphaChannel()) throw std::invalid_argument("Invalid grayscale mask");
         layer.mask = mask.convertToFormat(QImage::Format_Grayscale8);
+        if(schema>=13) {
+            if(!json.contains("parentId") || (!json.value("parentId").isNull() && !json.value("parentId").isString()) || !json.value("container").isBool())throw std::invalid_argument("Invalid layer/object metadata");
+            if(!json.value("parentId").isNull()) {layer.parentId=QUuid(json.value("parentId").toString());if(layer.parentId.isNull())throw std::invalid_argument("Invalid parent layer UUID");}
+            layer.container=json.value("container").toBool();
+        }else if(json.contains("parentId") || json.contains("container"))throw std::invalid_argument("Layer objects require schema 13");
         candidate.layers.append(layer);
     }
     for (const auto& entry : placementArray) {
@@ -624,9 +690,17 @@ QImage LightingDocument::render(const LightingState& state, double seconds, cons
     result.fill(Qt::transparent);
     QPainter painter(&result);
     for (const auto& layer : state.layers) {
-        if (!layer.visible || layer.transparency == 100 ||
+        if (!layer.parentId.isNull() || !layer.visible || layer.transparency == 100 ||
             (!channel.isNull() && !layer.allChannels && !layer.channelTargets.contains(channel))) continue;
-        auto source = renderEffect(layer, seconds);
+        QImage source;
+        const bool children=std::any_of(state.layers.cbegin(),state.layers.cend(),[&](const auto& item){return item.parentId==layer.id;});
+        if(children) {
+            LightingState group;
+            if(!layer.container){auto own=layer;own.parentId={};own.maskEnabled=false;own.transparency=0;own.blend=LayerBlend::Normal;group.layers.append(own);}
+            for(auto child:state.layers)if(child.parentId==layer.id){child.parentId={};child.allChannels=true;group.layers.append(child);}
+            source=render(group,seconds);
+        } else if(layer.container){source=QImage(canvasSize(),QImage::Format_ARGB32_Premultiplied);source.fill(Qt::transparent);}
+        else source=renderEffect(layer, seconds);
         const auto maskImage = renderMask(layer,seconds);
         for (int y = 0; y < source.height(); ++y) {
             auto* pixels = reinterpret_cast<QRgb*>(source.scanLine(y));

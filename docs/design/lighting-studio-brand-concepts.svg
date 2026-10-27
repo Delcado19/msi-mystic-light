@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460">
+<title>Lighting Studio identity studies</title><desc>Three unapproved vector logo concepts for a native RGB lighting editor. Cyan accent on neutral graphite.</desc>
+<rect width="1200" height="460" fill="#111214"/>
+<g font-family="Segoe UI, sans-serif" fill="#f1f3f5">
+<text x="32" y="42" font-size="22" font-weight="600">Lighting Studio</text><text x="32" y="67" font-size="13" fill="#afb4bd">Identity studies / Drafts for review</text>
+<rect x="32" y="96" width="368" height="250" rx="6" fill="#1b1d21"/>
+<rect x="416" y="96" width="368" height="250" rx="6" fill="#1b1d21"/>
+<rect x="800" y="96" width="368" height="250" rx="6" fill="#1b1d21"/>
+<g fill="#55deff" transform="translate(64 125)">
+<path d="M0 0H18V64H70V82H0Z"/><path d="M32 0H92V16H32ZM32 26H80V42H32ZM32 52H56V68H32Z"/>
+</g>
+<text x="64" y="256" font-size="24" font-weight="600">Lighting Studio</text><text x="64" y="291" font-size="16">Channel mark</text><text x="64" y="316" font-size="13" fill="#afb4bd">Three light rails held by one L.</text>
+<g transform="translate(448 125)" fill="none" stroke="#55deff" stroke-width="14" stroke-linejoin="miter">
+<path d="M0 7H40L78 41H96M0 41H96M0 75H40L78 41"/>
+</g>
+<text x="448" y="256" font-size="24" font-weight="600">Lighting Studio</text><text x="448" y="291" font-size="16">Light routing</text><text x="448" y="316" font-size="13" fill="#afb4bd">Multiple channels, one composition.</text>
+<g transform="translate(837 124)" fill="none" stroke="#55deff" stroke-width="12" stroke-linecap="square">
+<path d="M0 58V0H58M76 18V76H18"/><path d="M22 54L54 22"/>
+</g>
+<text x="832" y="256" font-size="24" font-weight="600">Lighting Studio</text><text x="832" y="291" font-size="16">Canvas beam</text><text x="832" y="316" font-size="13" fill="#afb4bd">The editing frame becomes a light path.</text>
+<rect x="32" y="378" width="28" height="28" rx="3" fill="#55deff"/><text x="72" y="398" font-size="14">Signal cyan</text>
+<rect x="235" y="378" width="28" height="28" rx="3" fill="#1b1d21" stroke="#afb4bd"/><text x="275" y="398" font-size="14">Graphite surfaces</text>
+<rect x="500" y="378" width="28" height="28" rx="3" fill="#f1f3f5"/><text x="540" y="398" font-size="14">Clear type</text>
+<text x="32" y="440" font-size="13" fill="#afb4bd">Recommended starting point: Channel mark. No glow, no badge container. Check recognition at 16 / 24 / 32 px before adoption.</text>
+</g></svg>

@@ -173,7 +173,8 @@ void OutputUiTest::headerControls()
     auto* inventory=window.findChild<QTreeWidget*>("layoutComponents");
     inventory->setCurrentItem(inventory->topLevelItem(1));
     inventory->setCurrentItem(inventory->topLevelItem(0)); stop->click();
-    QCOMPARE(tree->topLevelItem(0)->text(2),QString("Partly running"));
+    QCOMPARE(tree->topLevelItem(0)->text(2),QString("1 active / 1 paused"));
+    QVERIFY(panel.findChild<QLabel*>("outputChannelDetails")->text().contains("JARGB1: Paused"));
     QCOMPARE(tree->currentItem()->data(0,Qt::UserRole+2).toString(),QString("JARGB1"));
     QVERIFY(start->isEnabled()); QVERIFY(!stop->isEnabled());
     QTest::qWait(80); const int pausedWrites=record->writes();
@@ -373,6 +374,9 @@ void OutputUiTest::reviewReports()
 void OutputUiTest::liveEditsAndConfigurationStop()
 {
     LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document()); window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    // Drain initial queued discovery before counting explicit frame submissions.
+    // Otherwise its refresh can legitimately submit another frame after a slow first flush.
+    QCoreApplication::processEvents();
     auto record=std::make_shared<Record>(); int authorizations=0;
     OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
         ++authorizations; return QVector<OutputConnection>{connection(frames[0],record)};
@@ -381,7 +385,7 @@ void OutputUiTest::liveEditsAndConfigurationStop()
     auto* outputAction=window.findChild<QAction*>("reviewOutput"); QVERIFY(outputAction);
     auto* start=panel.findChild<QPushButton*>("startOutput"); auto* stop=panel.findChild<QPushButton*>("stopOutput");
     start->click(); QTRY_COMPARE(record->writes(),2); QTRY_VERIFY(state(panel,"Running"));
-    QCOMPARE(authorizations,1); QTRY_COMPARE(outputAction->text(),QString("Output: Running"));
+    QCOMPARE(authorizations,1); QTRY_COMPARE(outputAction->text(),QString("Output: 1 active"));
     window.findChild<QDoubleSpinBox*>("previewTime")->setValue(1);
     QTRY_COMPARE(record->writes(),3);
     window.document().edit("Blue",[](LightingState& data) { data.layers[0].color=Qt::blue; });
@@ -395,7 +399,7 @@ void OutputUiTest::liveEditsAndConfigurationStop()
     auto changed=window.document().state().assignments[0]; changed.software=false;
     window.document().assignChannel(changed); QTRY_VERIFY(state(panel,"Running")); QTRY_VERIFY(record->writes()>5);
     panel.stopOutput(); const int stoppedWrites=record->writes();
-    QVERIFY(start->isEnabled()); QVERIFY(!stop->isEnabled()); QCOMPARE(outputAction->text(),QString("Output: Stopped"));
+    QVERIFY(start->isEnabled()); QVERIFY(!stop->isEnabled()); QCOMPARE(outputAction->text(),QString("Output: 0 active / 1 stopped"));
     window.document().history()->undo(); QTest::qWait(50); QCOMPARE(record->writes(),stoppedWrites); // Explicit Stop survives subsequent document changes.
     start->click(); QTRY_VERIFY(record->writes()>stoppedWrites); QVERIFY(authorizations>=3);
     QTemporaryDir dir; const auto file=dir.filePath("project.lighting.json"); window.document().save(file);
@@ -430,7 +434,10 @@ void OutputUiTest::unplugAndRestart()
         ++reviews; return QVector<OutputConnection>{connection(frames[0],record,[present] { return present->load(); })};
     });
     auto* start=panel.findChild<QPushButton*>("startOutput"); start->click(); QTRY_COMPARE(record->writes(),2);
+    QSignalSpy summaries(&panel,&OutputPanel::outputStateChanged);
     present->store(false); QTRY_VERIFY(state(panel,"Faulted")); QCOMPARE(reviews,1);
+    QVERIFY(!summaries.isEmpty());QVERIFY(summaries.last()[0].toString().contains("1 errors"));
+    QVERIFY(panel.findChild<QLabel*>("outputChannelDetails")->text().contains("Faulted"));
     QVERIFY(panel.findChild<QLabel*>("outputStatus")->text().contains("disappeared"));
     present->store(true); record=std::make_shared<Record>(); start->click(); QTRY_COMPARE(record->writes(),2);
     QCOMPARE(reviews,2); panel.findChild<QPushButton*>("stopOutput")->click(); QTRY_VERIFY(state(panel,"Stopped"));

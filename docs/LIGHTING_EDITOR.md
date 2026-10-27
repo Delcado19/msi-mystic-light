@@ -12,12 +12,12 @@ Select a header or component, then Add or Remove; both views update together.
 Configured, detected hardware receives the canvas automatically.
 
 Layout edits physical component placement. Effects is a separate authoring canvas
-with a live hardware preview below it using the same 640 by 400 coordinate space. The splitter
+with a live hardware preview below it sampling the same canonical 640 by 400 raster. The splitter
 resizes these two views. The hardware pane shows sampled component colors, including
 layer channel targets and channel clocks; it is a software preview, not device readback.
 Native firmware preview uses the configured first color, not a firmware simulation.
 
-New layer immediately creates a transparent Paint layer with a white mask. There is
+New layer creates an empty transparent layer that can contain multiple editable objects. There is
 no effect-selection dialog. Shapes and Particles have direct toolbar flyout menus;
 The redundant Other effects button/gallery is removed. Gradients are drawn with
 the gradient tool; Shapes and Particles retain their toolbar menus. Import image
@@ -51,13 +51,13 @@ pause/reset to base time, then resume previous playback after commit/cancel.
 Entering the mask inspector preserves playback; mask gestures pause only while drawing. Preview time never changes the saved document. It does
 not change hardware assignments. Configured hardware receives the current composition automatically. The effect, motion and mask inspectors expose the
 current task; numeric transforms and additional motion parameters are disclosures.
-Particle motion patterns share Count, Speed and Radius sliders; seed and spatial
-motion remain in More animation settings, with sliders beside every number.
+Particle sources expose Count, Speed and Radius in Source. Seed is an integer field
+with Randomize; transformations remain in Motion.
 Enable color animation starts palette cycling and playback, including painted sources.
-Apply animation to all visible layers applies subsequent motion edits to the full visible
-stack; otherwise only the selected layer changes. No decorative animation delays tools or shortcuts.
+Apply motion to all visible layers copies the selected layer animation in one undo
+step. Subsequent parameter edits affect only the selected layer. No decorative animation delays tools or shortcuts.
 
-Output: Stopped/Connecting/Running/Faulted is a read-only status beside Undo/Redo. Use Hardware to configure outputs. Its tooltip
+Devices: Stopped/Connecting/Running/Faulted is a read-only status in the bottom status bar, separate from Preview: playing/paused. Use Hardware to configure outputs. Its tooltip
 includes the current output status/reason; the Hardware status follows actual state.
 Changing workspace does not stop output; use Stop output. Output starts automatically for configured, detected hardware; there is no report
 approval checkbox. Tray Stop disables retries until Resume or the next app launch. Starting an animated output resumes
@@ -91,6 +91,26 @@ header to drag or nudge its complete chain; select a child to move one component
 Dashed group boundaries remain visible. Drag the visible header label to move the
 whole group, even if an individual component was selected. Drag the selected frame corners to resize
 and its round handle to rotate the complete selection, with one undo step.
+Dashed frames follow component/group geometry; model descriptions sit below the
+frame and remain reachable when scrolling. Component model labels use a smaller
+font at a fixed lower-left anchor; no collision relocation or leader lines.
+Show labels (eye icon, also in View) controls their persistent visibility and
+defaults off. Hold H in Layout, including fullscreen, to reveal labels only until
+release. H never overrides text/numeric input. Text-field focus, tab changes and
+window deactivation clear the temporary reveal. L remains the line tool. Selection never expands the label.
+Full model names remain available in tooltips and the inspector. Hidden labels
+are not click targets; navigation reserves the same footprint in both states so
+revealing them never moves the camera. Controller group captions remain visible.
+The rotation grip follows the selected
+component's angle (the first member for a group). Strip artwork uses each model's
+physical LED positions/count with an SVG housing and one SVG module per LED.
+Strimer cables use a separate multi-wire SVG and preserve rows on new imports.
+Preview LED circles fit the closest physical LED spacing and housing size, so
+dense strips/fans and single-zone devices keep visible artwork. This changes
+only preview marker sizes, never LED positions, mapping or output sampling. Glacier One
+products appear as AiO, including legacy imports whose lit zone was called pump.
+Model labels are cached per document revision and SVG housings per display
+resolution, avoiding repeated name normalization/vector rendering during playback.
 The live effect raster stays visible behind the geometry; only placements are edited.
 Arrow keys move one unit, Shift+arrows ten. Removing a component removes it from
 its chain too; removing the last member removes an empty software assignment and
@@ -105,7 +125,7 @@ a running output session still monitors endpoint presence independently.
 
 ## Layers and masks
 
-New layer creates a transparent paint source with an independent white grayscale mask.
+New layer creates a transparent container with an independent white grayscale mask.
 The top panel row is the top composited layer. Rename by editing the name,
 toggle visibility, drag to reorder, duplicate or delete. Effect/mask thumbnails
 select the target. Drawing tools operate on the selected source or mask.
@@ -222,12 +242,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 12, including placements, ordered layer
+Save/Open uses `.lighting.json` schema 13, including layer containers, object ownership, placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..11 remain readable with their original
+and advanced persistence. Schemas 1..12 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 12; older versions reject it instead of silently losing effects.
+schema 13; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -350,7 +370,7 @@ removes its UUID without broadening a layer to all channels. Unknown/duplicate
 UUIDs are rejected. Each software channel has rate 0..10 and offset 0..86400 seconds;
 local time is clamped to 0..86400. Rate zero holds the offset frame. The preview
 selector shows all layers or the selected channel's composition and local clock.
-Geometry/mask authoring returns to the global base frame.
+Geometry/mask authoring retains the chosen channel preview.
 Schema 9 stores layer targets and channel clocks; schemas 1..8 migrate to all
 channels and rate 1/offset 0. New fields under older schema numbers are rejected.
 
@@ -540,13 +560,14 @@ movable, even after cropping an image.
 
 ### Canvas playback, fullscreen and growing Layout
 
-The main toolbar has one Canvas Start/Stop button: green when stopped, red while
-running. Stop freezes the shared preview/output time; it does not turn off LEDs.
-The numeric seconds field and duplicate toolbar output status are hidden.
+The second toolbar row has a Play preview / Pause preview button. Pause freezes
+the shared animation time; it does not turn off LEDs. Permanent Preview and
+Devices chips show playback and actual output state separately. The internal
+seconds field stays hidden. Use Hardware to stop/resume device output.
 
 The top-right Layout canvas button opens that same live canvas in a fullscreen window.
 Effects stays in the workspace so its tools, layers and properties remain available.
-The fullscreen view has the same Start/Stop control. Escape or the canvas button
+The fullscreen view has the same Play/Pause preview control. Escape or the canvas button
 returns it to its original workspace without losing document edits.
 
 Only Layout expands: its bounds include the initial 640x400 area and all physical
@@ -618,7 +639,8 @@ older catalogs infer identity, with Generic as the fallback. Custom definitions
 start as Generic. Existing M25/Glacier names display the Phanteks prefix. Instance
 numbers describe current chain order, not a suffix baked into a product definition.
 Reverse fan variants are omitted from new selection without deleting saved devices.
-New strip geometry is straight. D30 selection uses a circular fan footprint with
+New ordinary strip geometry is straight; Strimer cables retain their imported rows.
+D30 selection uses a circular fan footprint with
 its existing address count/permutation; only the exact old narrow D30 template
 is migrated on load. Custom geometry remains intact. This is a visual arrangement,
 not a newly measured physical LED map.
@@ -687,7 +709,7 @@ selections and key autorepeat do not remove additional objects. The same canvas
 handler works in fullscreen. Component definitions remain in the catalog.
 
 Erasing procedural layers edits their mask, preserving editable geometry. Entering
-the mask tab preserves playback and selects Pencil; Canvas Start remains available,
+the mask tab preserves playback and selects Pencil; Play preview remains available,
 and property refreshes never disable or repeatedly stop it. A drawing gesture pauses playback,
 then resumes it only if it was running before the gesture, including mask gestures.
 Empty/no-op gestures also finish the playback pause. Undo/redo does not require
@@ -717,7 +739,8 @@ tooltip names the action and Ctrl+Shift+S shortcut.
 ### Shared effect and hardware canvas extent
 
 The hardware layout bounds determine the displayed extent and aspect ratio in
-both Effects and Live Hardware. Moving components beyond any edge, returning them
+Effects and the Live Hardware view. Live Hardware always shows the complete layout, retaining the original world-to-raster sampling.
+Moving components beyond any edge, returning them
 inside the base area, and undo/redo update both views. Each pane fits independently
 because its available screen area differs. Stored layers, brush coordinates and
 masks retain their canonical 640 x 400 raster; the Effects view applies the same
@@ -770,9 +793,8 @@ key grid. Zone keyboards have a full-height chassis, a physical key-layout drawi
 and separate zone markers. The keyboard vector is based on the shipped Vulcan ISO
 geometry; it is a schematic, not an exact Apex product image. Key markers rotate
 with their component. Artwork, hit areas, selection handles, dashed group outlines
-and navigation include the same housing bounds. Group frames and full selected
-component labels are painted after housings; component labels sit below the body
-so they cannot overwrite the header label.
+and navigation include the same housing bounds. Group frames and enabled component labels are painted after housings. Component
+labels stay at the same lower-left anchor; tooltips carry the full name.
 
 Single-zone graphics cards retain a recognizable card-sized visual housing; the
 logo address stays at its original sampling point. A saved nonzero placement
@@ -786,7 +808,7 @@ colored markers follow its key geometry; zone keyboards retain their real zone
 markers rather than pretending to expose individual key control. The same source
 is used regardless of per-key or zonal lighting.
 
-Every Layout component has exactly one model label at the lower left, including
+Each Layout component has one optional small model label at a fixed lower-left anchor, including
 when unselected. AIMO casing is normalized. Instance numbers appear only when
 multiple placements have the same normalized manufacturer/model name, even if
 custom geometry gives them different definition IDs. Numbers are stable in layout
@@ -814,3 +836,87 @@ The same rule is enforced by assignment validation: fixed-device channels cannot
 contain more than one component, even when several smaller strips would satisfy
 the total LED count. Empty native-mode assignments retain their existing support.
 Attachable motherboard/controller headers retain full component-chain editing.
+
+### Gaming workspace and responsive panels
+
+The shared native Qt theme uses graphite surfaces, cyan selection and
+higher-contrast control boundaries. System fonts
+and local vector icons remain in use; no web fonts, decorative motion or new UI
+dependencies are required. Hover, focus, checked and disabled states remain
+distinct. Output errors retain text as well as a warning color.
+
+Navigation/history and preview/view controls occupy separate toolbar rows.
+View > Navigator and Inspector (also under Panels) close/reopen the side panels;
+Ctrl+Shift+L and Ctrl+Shift+P are keyboard alternatives. Entering a window narrower
+than 1180 logical pixels collapses the inspector once. Explicit choices remain
+usable while compact and survive workspace switches. Returning to wide mode
+restores the intended inspector state. Reset workspace restores both panels.
+Hardware always hides studio docks and shows an actionable offline message when
+no supported controller is detected. Output state remains visible in every tab.
+
+Effects allocates more default height to Live Hardware, which shows the complete layout.
+The splitter still supports resizing/collapsing either pane. With no components
+the complete preview panel, including its controls, disappears. This preview does not change component coordinates, effect layers, channel clocks or LED sampling.
+
+Source / Motion / Mask tabs and an explicit Editing badge identify the active
+task. Default layer names do not repeat an identical effect subtitle; custom names
+retain their effect type. Move up/down buttons and Ctrl+PageUp/PageDown reorder the
+selected layer using the same bottom-to-top compositing order as drag reordering.
+Each valid move is one undo step; boundary actions and actions outside Effects
+are disabled. Space still toggles visibility; Delete and text editing retain their
+existing scope.
+
+## Integer controls, live color and identity (2026-10-26)
+
+The GUI audit implementation uses graphite/cyan chrome and the owner-selected
+compact LS mark and wordmark in the application toolbar. The full banner stays in About; its screens are conceptual artwork. The previous
+vector branding proposals are superseded. Panels recovery is pinned in the
+menu bar; Show labels appears only in Layout.
+
+New layer creates an empty layer. Toolbar flyouts add generators, shapes, particles and images to its object list. Source holds particle type/settings and
+primary/secondary colors. Drawing toolbar colors are brush state. Motion groups
+rotation, intensity modulation, advanced transformations and color animation.
+Pulse/Breathe/Combined preserves legacy simultaneous intensity settings.
+
+The model still stores physical floating-point units. Numeric presentation uses
+whole degrees/s, px/s, percent, source pixels for crop, milliseconds for trails and
+channel offsets, and cycles/min for pulse, breathe and palette/particle rates.
+Channel clock speed uses percent (100% normal). An approximation mark indicates
+a saved value between integer display steps; simply focusing, refreshing or saving
+does not round it. Hover shows the precise display-unit value. Right-click a slider
+number for Reset/Zero, or press Alt+R while it has focus to reset its default.
+
+Palette snapping has a separate Stop snap percentage, independent of the pixel
+grid. Native speed/brightness retain actual firmware level indices: physical
+ordering is not inferred from UI names.
+
+Shared nonmodal color editing uses a saturation/value square, hue strip, integer
+HSV, Hex, optional RGB and original/project/recent swatches. Edits preview live.
+Apply commits one undoable color session; Cancel, Escape or dismissal restores
+the previous state without touching the undo/redo branch. Autosave records the
+pre-preview state until the color session is accepted. The optional screen
+eyedropper retains Qt platform behavior. Only accepted colors enter recent history.
+
+Reduce UI motion disables optional mouse-triggered picker fade/chevron rotation.
+Keyboard navigation, sliders, painting and transform handles stay immediate.
+Lighting playback is independent of this preference.
+
+
+## Layer objects and interaction (2026-10-27)
+
+New layer creates an empty transparent container. Objects within it remain
+individually selectable and editable. Layer targets, visibility, opacity, blend
+and mask govern the composed output. Shape gradients edit fills, preserving shape
+geometry. Click selects; deliberate shape/gradient drags edit or create objects.
+Raster brush dots and bucket fills retain their painting behavior. Escape cancels
+transient creations without adding history. Space-drag temporarily pans.
+
+The channel preview remains selected while editing. Per-frame composition caching
+shares equivalent channel rasters across preview and output sampling. Output badges
+count active, paused, failed and stopped channels; clicking opens Hardware, whose
+selected-device details name affected channels. Focus devices has been removed.
+Zoom/Fit use icons; compact LS branding belongs to the main toolbar, not Hardware.
+The screen eyedropper samples directly from a temporary desktop capture overlay.
+
+See [implementation details](design/EDITOR_INTERACTION_IMPLEMENTATION_2026-10-27.md)
+for schema 13 compatibility, raster/vector distinctions and current limits.

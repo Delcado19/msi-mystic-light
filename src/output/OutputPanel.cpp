@@ -48,6 +48,7 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
     endpoints_->header()->setSectionResizeMode(0,QHeaderView::Stretch);
     endpoints_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
     endpoints_->header()->setSectionResizeMode(2,QHeaderView::ResizeToContents); layout->addWidget(endpoints_,1);
+    channelDetails_=new QLabel;channelDetails_->setObjectName("outputChannelDetails");channelDetails_->setWordWrap(true);channelDetails_->setTextFormat(Qt::PlainText);layout->addWidget(channelDetails_);
     automatic_=new QTimer(this); automatic_->setInterval(2000);
     connect(automatic_,&QTimer::timeout,this,[this] { if(!active() && !window_.document().state().assignments.isEmpty()) start(); });
     auto* inventory=window_.findChild<QTreeWidget*>("layoutComponents");
@@ -215,6 +216,7 @@ QStringList OutputPanel::selectedChannels() const
 }
 void OutputPanel::updateControls()
 {
+    const auto* row=endpoints_->currentItem();channelDetails_->setText(row ? row->toolTip(2) : QString{});
     bool resume=false, pause=false;
     for(const auto& key:selectedChannels()) {
         bool running=false;
@@ -250,7 +252,7 @@ void OutputPanel::refresh()
     for(const auto& candidate:window_.discoveredHardware()) append(candidate.device.path,candidate.profileId);
     for(const auto& assignment:window_.document().state().assignments) append(assignment.endpoint,assignment.profileId);
     for(const auto& profile:window_.document().profiles()) if(profile.match.contains("endpoint")) append(profile.match.value("endpoint").toString(),profile.id);
-    bool anyRunning=false, anyStopped=false, faulted=false, starting=false;
+    int activeCount=0,pausedCount=0,errorCount=0,connectingCount=0,stoppedCount=0;
     QTreeWidgetItem* restore=nullptr;
     for(const auto& device:devices) {
         const auto& profile=assignmentProfile(window_.document().profiles(),device.second);
@@ -261,26 +263,44 @@ void OutputPanel::refresh()
             const auto status=connection.scheduler->status(); connectionState=stateName(status.state); error=status.error;
         }
         bool running=false, stopped=false, configured=false;
+        int deviceActive=0,devicePaused=0,deviceErrors=0,deviceStopped=0;QStringList channelDetails;
         for(const auto& assignment:window_.document().state().assignments) if(assignment.endpoint==device.first && assignment.profileId==device.second) {
             configured=true;
             const auto state=pausedChannels_.contains(channelKey(device.first,device.second,assignment.channelId)) ? QString("Stopped") : connectionState;
             running|=state=="Running"; stopped|=state=="Stopped";
-            anyRunning|=state=="Running"; anyStopped|=state=="Stopped"; faulted|=state=="Faulted"; starting|=state=="Connecting";
+            const bool paused=pausedChannels_.contains(channelKey(device.first,device.second,assignment.channelId));
+            if(state=="Running"){++activeCount;++deviceActive;}
+            else if(paused){++pausedCount;++devicePaused;}
+            else if(state=="Faulted"){++errorCount;++deviceErrors;}
+            else if(state=="Connecting")++connectingCount;
+            else {++stoppedCount;++deviceStopped;}
+            channelDetails.append(assignment.channelId+": "+(paused ? "Paused" : state)+(state=="Faulted" && !error.isEmpty() ? " - "+error : QString{}));
         }
         const bool ram=profile.match.value("transport")=="pawnio";
         const auto ramError=ram && !detected ? pawnIoRamDiscoveryError() : QString{};
         auto state=!configured ? (detected ? QString("Not configured") : QString("Not detected")) : running && stopped ? QString("Partly running") : stopped ? QString("Stopped") : connectionState;
+        if(running && (devicePaused || deviceErrors || deviceStopped)) {
+            QStringList parts{QString::number(deviceActive)+" active"};
+            if(devicePaused)parts.append(QString::number(devicePaused)+" paused");
+            if(deviceErrors)parts.append(QString::number(deviceErrors)+" errors");
+            if(deviceStopped)parts.append(QString::number(deviceStopped)+" stopped");
+            state=parts.join(" / ");
+        }
         if(!detected && ramError.contains("0x80070005"))state="Run as administrator";
         auto* row=new QTreeWidgetItem(endpoints_,{device.first,device.second,state});
         row->setData(0,Qt::UserRole,device.first); row->setData(0,Qt::UserRole+1,device.second);
         row->setToolTip(0,device.first); row->setToolTip(1,profile.name);
         if(error.isEmpty() && !detected && ram)
             error=ramError+"\nRAM requires the official PawnIO 2.x driver (https://pawnio.eu) and a supported AMD/ENE module. Install PawnIO if missing, run Lighting Studio as administrator, then use Hardware > Refresh. No OpenRGB installation is needed.";
-        row->setToolTip(2,error);
+        row->setToolTip(2,channelDetails.join("\n")+(error.isEmpty() ? QString{} : "\n"+error));
         if(device.first==selectedEndpoint && device.second==selectedProfile) { row->setData(0,Qt::UserRole+2,selectedChannel); restore=row; }
     }
     if(restore) endpoints_->setCurrentItem(restore);
     else if(endpoints_->topLevelItemCount()) endpoints_->setCurrentItem(endpoints_->topLevelItem(0));
     updateControls();
-    emit outputStateChanged(anyRunning ? (anyStopped || faulted ? "Partly running" : "Running") : starting ? "Connecting" : faulted ? "Faulted" : "Stopped");
+    // A mixed summary must distinguish an intentional pause from a hardware failure.
+    QStringList parts{QString::number(activeCount)+" active"};
+    for(const auto& value:QVector<QPair<int,QString>>{{pausedCount,"paused"},{errorCount,"errors"},{connectingCount,"connecting"},{stoppedCount,"stopped"}})if(value.first)parts.append(QString::number(value.first)+" "+value.second);
+    const auto summary=parts.join(" / ");
+    emit outputStateChanged(summary);
 }

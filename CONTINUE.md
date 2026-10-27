@@ -1,3 +1,242 @@
+## Editor interaction and channel preview follow-up (2026-10-27)
+
+Owner authorized removing Focus devices, implementing the agreed editor/status
+changes, then committing and pushing. This entry supersedes earlier Hardware-banner,
+Add-layer-menu and focused-preview decisions below.
+
+New layer creates an empty transparent container; its tree contains independently
+editable source objects. Shape/gradient clicks select; drags use the platform
+threshold. New drawn objects commit only on release, so Escape leaves no empty
+object or undo entry. Filled rectangles/ellipses in containers are editable shapes.
+Legacy raster painting remains raster painting. Shape gradients preserve geometry.
+Layer routing/mask/opacity/blend apply to composed objects. Schema 13 preserves
+legacy IDs/values and rejects malformed, orphaned or nested ownership atomically.
+Legacy layer rows retain their original implicit source and may also own objects.
+See docs/design/EDITOR_INTERACTION_IMPLEMENTATION_2026-10-27.md for exact limits.
+
+A gesture previously reset the channel selector to All outputs, exposing unrelated
+layers over the inspected composition. The selector now stays stable during edits
+and appears only in Effects. Per-frame caches share equal channel compositions
+across preview/output, and preview sampling visits actual channel placements.
+Regression proof covers stacking, sampled LED values, cache identity/invalidation,
+root opacity, click selection, cancellation, gradient fills and save/load.
+
+Focus devices is removed. Zoom/Fit have icons. Compact transparent LS branding
+belongs to the app toolbar; Hardware has no banner, About retains the original.
+The screen eyedropper directly captures a temporary desktop sampling overlay;
+click accepts, Escape/right-click cancels, capture failure is visible.
+Output summaries count active/paused/failed/connecting/stopped channels separately;
+clicking opens Hardware, where selected-device details name states and errors.
+
+Validation on final source: Release CTest 17/17 (12.16 s), Debug CTest 17/17
+(40.44 s), native Windows editor 121/121 (14.28 s). Earlier failed passes exposed
+selection/gradient-handle regressions and obsolete synthetic schema fixtures;
+these were corrected before final gates. Local shared-channel 30-frame benchmark
+was 161 ms and warm Layout 30 frames 54 ms; neither is a universal FPS claim.
+Five native documentation screenshots refreshed and inspected. Actual personal
+project loaded read-only for additional 125% and 200% DPI captures in
+build/research/editor-interaction; branding, compact layout, Hardware and picker
+inspected. No physical output or screen-reader qualification was performed.
+Graphify updated with 11 existing partial-parser limitations and nine unsupported
+file types; its graph is supplementary, not a complete AST/security validation.
+
+Portable app: build/dist/LightingStudio-Editor/msi_mystic_light.exe.
+Start-Lighting.cmd prefers it and retains older fallback paths.
+ZIP: build/dist/LightingStudio-Editor-windows-x64.zip
+ZIP SHA256: c265cb26ffe0d0e0b8c0eaa3c74816d885e57f515aae505e5232b443dcc931c4
+EXE SHA256: 9d9257f39852b7b7004487ecff722b0b8ff00c2f11fe906ad910dcd1ac988884
+ZIP CRC, safe paths, project exclusion and every extracted file were checked.
+Extracted EXE matches tested Release; --inspect returned 0 with Qt SDK paths removed.
+Previous distributions retained; personal default.lighting.json remains untracked,
+unchanged and excluded. No real-device write was issued by this work.
+
+## GUI audit implementation and selected branding (2026-10-26)
+
+User authorized implementation of docs/design/GUI_AUDIT_2026-10-26.md and chose
+the final ice/cyan LS banner. The image is copied unchanged to assets/branding,
+embedded in Qt resources and shown in Hardware and About. Previous vector studies
+are superseded. Graphite/cyan styling replaces competing navy/violet states.
+
+ParameterSpinBox separates whole-number display units from exact stored values.
+Rates use cycles/min, trails and channel offsets use ms, channel speed uses percent,
+crop uses source pixels. Legacy off-grid values show an approximation mark with
+exact hover inspection; selection, focus and refresh never round the document.
+Slider steps respect units and slow rate ranges. Source includes Seed/Randomize.
+The offline Hardware card includes the selected saved header and configured counts.
+Reset/default and Zero are available from number context menus; Alt+R resets.
+Native speed/brightness preserve firmware level indices, with neutral labels.
+
+Add layer groups source creation and shares actions with toolbar flyouts. Source
+owns particle settings and colors; toolbar colors are drawing state. Motion groups
+intensity, transforms and color animation. Pulse/Breathe/Combined preserves legacy
+combinations. Bulk motion is an explicit undoable copy, not a persistent scope.
+Opacity is displayed directly. Palette snap percent is independent of pixel grid.
+Panels recovery is pinned in the menu bar, including minimum-width/offscreen views.
+
+The shared nonmodal HSV picker previews live, with Hex, optional RGB, original/
+project/recent colors and Qt screen eyedropper. Color previews use a transient
+document snapshot; Apply adds one undo command, Cancel restores state and retains
+the redo branch. Autosave records the committed pre-preview state. A regression
+test covers all three. Eyedropper uses a sibling asynchronous dialog: a test found
+and fixed popup lifetime corruption with the original nested stack dialog.
+Optional 140 ms mouse popover/chevron feedback obeys Reduce UI motion; lighting
+playback and direct manipulation stay independent and immediate.
+
+Validation: final Release and Debug builds; CTest Release 17/17 and Debug
+17/17 (both -j6); native Windows editor 119/119. A queued discovery refresh
+could add a legitimate extra output frame under slow scheduling. The output_ui
+fixture now drains discovery before counting explicit submissions; exact report
+assertions remain unchanged. The Debug case passed 5/5 repeated runs. Editor
+time budgets are now 60 s Release / 120 s Debug for the 119-case suite; final
+full runs took 15.15 s / 46.25 s. Mouse disclosure motion and reduced motion are
+explicitly tested. Native 30 warm Layout frames: 55 ms; particle/trail mean
+23.375 ms. These local measurements are not a universal FPS claim.
+Read-only real-project captures reviewed at DPR 1.25, 1.5 and 2 under
+build/research/audit-implementation. At DPR 2 Windows constrained window height
+to 708 logical px; Inspector remains scrollable and picker fits the screen.
+Five native documentation screenshots regenerated and inspected. Graphify updated;
+existing parser limitations remain. git diff --check clean.
+
+Portable app: build/dist/LightingStudio-Audit/msi_mystic_light.exe. Root
+Start-Lighting.cmd now prefers this folder, falling back to the previous build.
+Package: build/dist/LightingStudio-Audit-windows-x64.zip
+SHA256: f62ed338a999d52811a2656188bafa5b7bc0bda2087c6495775843477f120c42
+ZIP CRC/path/project-exclusion checks passed. Extracted EXE matches tested Release;
+--inspect passed with SDK Qt removed from PATH. Previous distributions retained.
+No physical device writes, personal project saves, commit, push or publication.
+Screen-reader behavior and physical native-speed ordering remain unverified.
+
+## Fixed optional component captions (2026-10-26)
+
+User requested smaller labels, fixed positions, an eye toggle and momentary reveal.
+Component captions now use 75% of the canvas font (minimum 7 pt), fixed below the
+body at its lower-left anchor. Long names stay elided even when selected. Removed
+collision relocation and leader lines. Full names remain in tooltips/Inspector.
+Controller group headers remain visible and retain their drag targets.
+
+Layout toolbar/View share the Show labels eye action. Visibility defaults off and
+persists in editor/showComponentLabels. Holding H reveals labels temporarily,
+including fullscreen; release, window deactivation, workspace changes, hiding or
+entering a text/numeric field clear the override. Moving focus within Layout
+preserves it. L remains the existing line tool. Reserved navigation bounds prevent
+camera jumps; hidden captions cannot be clicked. No document mutation or hardware
+write is involved. The application event filter preserves existing Delete scope.
+
+Validation: Release and Debug builds; CTest 17/17 for each; native Windows editor
+116/116. Coverage includes fixed anchors, hidden hits, stable navigation, saved
+visibility, auto-repeat, text entry, focus transfer, tab/window/hide reset and
+fullscreen. Native documentation screenshots regenerated and reviewed; real saved
+project screenshots under build/research/label-controls were captured read-only.
+Graphify updated (existing parser limitations remain). git diff --check clean.
+
+Portable archive: build/dist/MSI-Mystic-Light-GamingUI-Labels-windows-x64.zip
+SHA256: 7b4bfb9253ac7fa20179d048b30bb60681a474b60924131e8441e7da3e622184
+Extracted app: build/dist/LightingStudio-GamingUI-Labels/msi_mystic_light.exe
+Archive CRC/path checks passed; extracted EXE matches tested Release; --inspect
+passed with SDK Qt removed from PATH. Previous GamingUI app/package and root
+launcher retained. No commit, push, device writes or personal project changes.
+
+## Gaming lighting workspace implementation (2026-10-26)
+
+Implemented all seven findings from the user's UI review in the existing Qt
+Widgets app. Shared styling uses navy surfaces, cyan interactions, violet
+workspace selection and higher-contrast control boundaries. No new dependencies,
+web fonts or decorative animation. Native system fonts and existing SVGs remain.
+
+Navigation/history and preview controls now use separate toolbar rows. Navigator
+and Inspector are closable and accessible through Panels/View and Ctrl+Shift+L/P.
+Entering <1180 logical pixels collapses Inspector once; explicit choices survive
+tab switches and main-window hiding. Wide mode restores intended state; Reset
+workspace restores both panels. Hardware inventory gives names more width and
+shows an actionable offline state. Preview and Devices statuses remain distinct
+and visible, including live device state in Layout fullscreen.
+
+Unselected model names abbreviate, selected/hover names remain complete. Shared
+label rectangles avoid housing/label collisions, contribute to navigation and
+hit-testing, and use subtle leaders when displaced. Reserved protocol slots do
+not enlarge component bounds/focused preview. Live Hardware gets more initial height
+and a Focus devices camera toggle; canonical sampling, saved geometry, channel
+clocks and output reports remain unchanged. Empty previews hide their whole pane.
+
+Source/Motion/Mask tabs plus an Editing badge identify context. Redundant effect
+subtitles are suppressed. Move up/down and Ctrl+PageUp/PageDown reorder layers
+with one undo step and disabled boundary actions. Transport behavior is unchanged.
+
+Validation: Release and Debug CTest each 17/17; native Windows editor 115/115.
+New cases exercise compact/panel state, output/playback separation, fullscreen
+status updates, rendered control contrast >=3:1, layer order/undo and context,
+collision-free label clicking/tooltips, focused preview coordinates/colors and
+reserved slots. Refreshed screenshot cases also pass after queued layouts settle.
+Native documentation screenshots were visually reviewed and promoted using the
+existing guarded script. Real 17-placement project was loaded read-only by a
+no-device review helper; screenshots and helper source: build/research/gaming-ui/.
+A 30-frame native Layout render/grab check measured 495 ms; this is CPU rendering
+evidence, not display FPS or physical output proof.
+
+Separate portable: build/dist/LightingStudio-GamingUI/msi_mystic_light.exe.
+ZIP: build/dist/MSI-Mystic-Light-GamingUI-windows-x64.zip. CRC, private-project
+exclusion, tested EXE hash identity and portable --inspect without Qt SDK paths
+passed. Existing launcher/installation,
+personal project and published release artifacts remain unchanged. No push,
+publication, installed-app restart or physical hardware writes.
+
+## Dense strip SVG visibility regression (2026-10-26)
+
+The reported Strimer Plus failure was reproduced with its 27 addresses normalized
+to a three-unit span: fixed six-world-unit LED circles overlap and obscure the
+housing. The previous procedural strip path also bypassed SVG artwork. This
+supersedes the earlier claim that the strip presentation fix was complete.
+
+Ordinary strips now use an SVG housing and one embedded SVG LED module per real
+position. Strimer/Strimmer products use a separate multi-wire cable SVG, remain
+Strips in hardware selection, and preserve multi-row geometry on new imports.
+Existing saved positions are never migrated. Shared Layout/Live Hardware marker
+radii fit closest distinct physical LED spacing and housing dimensions; reserved
+slots and duplicates do not shrink markers. A closest-pair sweep avoids quadratic
+work at the 65,535-slot custom-definition limit. Keyboard cells and numbered LED
+editor handles keep their existing contracts. LianLi display spelling normalizes
+to Lian Li so imported names do not repeat the manufacturer.
+
+Read-only audit rendered 225 installed, bundled and saved definitions across six
+contact sheets, all visually inspected. Sources, TSV and contact sheets live in
+build/research/artwork-audit/. Native category/Strimer screenshots live in
+build/next/editor-artifacts/windows/. New regression covers SVG validity, visible
+artwork after LED overlays, dense 27-LED imports, scaling, reserved/duplicate
+points, 65,535 LEDs, cable row preservation and unchanged serialized geometry.
+
+Validation: Release/Debug CTest each 17/17; native Windows editor 111/111.
+The existing channel-color regression also caught subpixel outline blending;
+small LED centers now retain the exact sampled color in the zoomed-out preview.
+Separate portable: build/dist/LightingStudio-StripSvg/msi_mystic_light.exe.
+ZIP: build/dist/MSI-Mystic-Light-StripSvg-windows-x64.zip. CRC/private-project
+exclusion and EXE hash equality passed. Existing installed app/launcher and user
+project remain unchanged. No app restart, push, publication or hardware writes.
+
+## Layout presentation and playback fixes (2026-10-26)
+
+Glacier One is presented as AiO even when legacy/imported metadata calls its lit
+zone pump; the display suffix is corrected without rewriting saved definitions.
+The shared painted/hit-tested rotation grip follows the component angle (first
+member for groups). Dashed outlines exclude model labels; component/group labels
+remain part of navigation bounds. Model descriptions sit below their outline.
+Strip artwork/picker icons use actual LED geometry/count with package sizes bounded
+by spacing. The fallback strip SVG now contains its complete rightmost segment.
+No saved geometry, wire order, sampling, hardware reports or user projects changed.
+
+Repeated model normalization/counting now runs once per document revision, with
+undo/load invalidation. Static SVG housings use bounded resolution-specific Qt
+pixmap caching. A read-only native benchmark of default.lighting.json (17
+placements, 1600x900 widget, 30 animated render+grab frames) measured 2224 ms with
+the previous name routine/vector rendering versus 551 ms after both caches.
+This is a local CPU rendering comparison, not physical output or display FPS proof.
+Diagnostic source/logs/screenshot: build/research/layout-performance/.
+
+Validation: final Release/Debug CTest each 17/17; native Windows editor 110/110
+plus the final strip/grip/artwork regressions 5/5. Screenshots visually inspected.
+Updated build/dist/LightingStudio after confirming no app process was running;
+installed EXE hash matches tested Release. Portable CRC, project exclusion and
+installed --inspect passed. No app restart, push, publication or hardware writes.
+
 # Implementation status
 
 ## Fixed devices cannot edit component chains (2026-10-25)

@@ -7,9 +7,11 @@ class QDoubleSpinBox;
 class QVBoxLayout;
 class QSlider;
 void applyStudioStyle(QWidget* window);
+QWidget* studioBanner(QWidget* parent,int height);
 QWidget* sliderField(QDoubleSpinBox* value);
 void syncSliderFields(QWidget* root);
 QWidget* disclosure(QVBoxLayout* layout, const QString& title, QWidget* content);
+bool studioMotionEnabled();
 QIcon studioToolIcon(const QString& name);
 
 class QLabel;
@@ -23,6 +25,8 @@ public:
     QColor color() const { return color_; }
 signals:
     void colorChanged(QColor color);
+    void gestureStarted();
+    void gestureFinished(bool accept);
 private:
     QColor color_=Qt::white;
     QPushButton* picker_;
@@ -58,3 +62,5 @@ private:
     QPushButton *add_, *remove_;
 };
 void installParameterTooltips(QWidget* root);
+
+void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated);

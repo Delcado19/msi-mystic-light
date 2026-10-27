@@ -28,6 +28,7 @@ class LightingWindow : public QMainWindow {
 public:
     LightingWindow(ComponentCatalog catalog,
         std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {});
+    ~LightingWindow() override;
     LightingDocument& document() { return document_; }
     double previewSeconds() const;
     QVector<ComponentPlacement> previewPlacements() const { return layoutCanvas_->previewPlacements(); }
@@ -47,6 +48,7 @@ signals:
     void outputRequested();
 protected:
     void closeEvent(QCloseEvent*) override;
+    void resizeEvent(QResizeEvent*) override;
     bool eventFilter(QObject*,QEvent*) override;
 private:
     void refresh();
@@ -62,6 +64,9 @@ private:
     void refreshToolOptions();
     void updatePreview();
     void refreshPlacement();
+    void updateWorkspacePanels();
+    void moveSelectedLayer(int direction);
+    void setLabelsHeld(bool held);
     void removeSelectedComponents();
     void updateMotion(const QString& label,const std::function<void(EffectLayer&)>& operation);
     void updateLayer(const QString& label, const std::function<void(EffectLayer&)>& operation);
@@ -83,7 +88,7 @@ private:
     QComboBox* previewChannel_;
     QCheckBox* allChannels_;
     QListWidget* channelTargets_;
-    ColorEditor* secondaryColor_;
+    ColorEditor *secondaryColor_, *sourceColor_;
     ColorListEditor* gradientColors_;
     QWidget* geometryControls_;
     QVector<QDoubleSpinBox*> geometry_;
@@ -105,7 +110,9 @@ private:
     QCheckBox* maskLinked_;
     QElapsedTimer previewClock_;
     double playbackStart_ = 0;
-    QUuid selectedLayer_;
+    QUuid selectedLayer_, activeLayer_;
     bool editingMask_ = false, resumePreview_=false;
+    bool labelsHeld_=false;
+    bool compactWorkspace_=false, navigatorShown_=true, inspectorShown_=true, inspectorBeforeCompact_=true, adjustingPanels_=false;
     QString fileName_;
 };

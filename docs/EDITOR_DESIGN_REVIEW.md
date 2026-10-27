@@ -142,3 +142,50 @@ it to that connection. No new decorative animation or duplicated hardware hierar
 RAM now uses the user-approved direct PawnIO transport. The previous OpenRGB
 helper remains removed. Missing access rights are shown as Run as administrator
 in the flat hardware table; actual RAM lighting still needs physical validation.
+
+## Gaming lighting workspace review implementation (2026-10-26)
+
+Implemented the seven current UI findings in the existing Qt Widgets editor:
+collision-free shortened model labels with full selected/hover names; closable,
+compact-aware studio panels; separate visible playback/device state; focused
+hardware preview; wider hardware inventory and actionable offline content; explicit
+Source/Mask context plus keyboard/button layer reordering; and shared high-contrast
+navy/cyan/violet styling. No new GUI framework, decorative animation, online assets,
+project migration or transport changes.
+
+The default design-system search suggested marketing/3D patterns unsuitable for an
+editor. The focused dark technical/gaming search supplied the applicable direction:
+dark surfaces and restrained neon accents, with system typography and immediate
+editing feedback. Qt 6.8 toolbar/dock documentation was checked through Context7.
+Native screenshot proof uses synthetic fixtures and a read-only load of the real
+17-placement project, with no hardware opened by the review helper.
+
+
+## Fixed optional component captions (2026-10-26)
+
+The user replaced collision relocation with a fixed, smaller lower-left caption.
+Show labels is a persistent eye action, off by default; hold H reveals captions
+without changing that preference. Release, deactivation, text-field focus, hiding and
+workspace changes clear the temporary state. The application-wide event filter
+keeps Delete scoped to its original targets and never captures H from text/spin
+editors or another window. L remains bound to Line. Group captions stay visible.
+Hidden component captions do not accept clicks; camera/navigation geometry remains
+stable across reveal/hide. Full names stay in hover tooltips and the inspector.
+
+## Selected banner and GUI audit implementation (2026-10-26)
+
+The selected ice/cyan LS banner supersedes the earlier vector identity studies.
+The current workspace uses graphite/cyan styling, integer display units, a live
+HSV editor, stable Source/Motion ownership and explicit bulk animation copying.
+See docs/design/GUI_AUDIT_2026-10-26.md and CONTINUE.md for implementation and proof.
+
+
+## Interaction follow-up (2026-10-27)
+
+Owner feedback supersedes the earlier Hardware-banner and Add-layer-menu decisions.
+The compact LS identity now belongs to the application shell. New layer creates an
+empty container; its object tree supports multiple editable sources, shape fills
+and independent source motion. Focus devices is removed, and counted channel output
+states distinguish pauses from failures. See
+[interaction implementation](design/EDITOR_INTERACTION_IMPLEMENTATION_2026-10-27.md)
+for the schema 13 compatibility contract and tested interaction rules.
