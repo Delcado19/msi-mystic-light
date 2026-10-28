@@ -44,7 +44,10 @@ namazso/PawnIO.Modules 0.2.11 (Steve-Tech and upstream contributors), under
 LGPL-2.1-or-later. Its corresponding source archive and license are included
 under third_party/pawnio and third_party/licenses. See third_party/pawnio/README.md.
 The official installed PawnIO binaries have separate upstream distribution terms;
-this app neither redistributes nor silently installs them.
+the portable app does not redistribute them. The explicitly invoked optional
+service installer downloads the unchanged official PawnIO 2.2.0 installer, verifies
+its pinned SHA-256 and invokes it from the already elevated installation process
+when PawnIO is absent. No modified driver is distributed.
 
 ## Hardware artwork
 

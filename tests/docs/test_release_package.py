@@ -18,6 +18,7 @@ class ReleasePackageTest(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(name.encode())
         for name in ("LICENSE", "PORTABLE_README.txt", "THIRD_PARTY_NOTICES.md",
+                     "installer/Install.cmd", "installer/Install-LightingStudio.ps1",
                      "profiles/example.json", "components/example.json",
                      "third_party/licenses/LICENSE", "third_party/pawnio/SmbusPIIX4.bin",
                      "third_party/pawnio/source-0.2.11.zip"):

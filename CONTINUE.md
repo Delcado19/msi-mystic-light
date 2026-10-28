@@ -1,3 +1,78 @@
+## Windows service implementation (2026-10-28)
+
+Owner authorized implementation, commit and push. Source entry points:
+`src/service/`, `installer/Install-LightingStudio.ps1`, and docs/WINDOWS_SERVICE.md.
+This supersedes earlier statements that service implementation was deferred.
+The prior UI change is already committed/pushed as 39b3a7a.
+
+The new automatic LocalSystem host owns the existing document renderer, scheduler
+and qualified HID/NVAPI/PawnIO output. Program Files holds trusted runtime and
+three manifest-hashed module DLLs; ProgramData/LightingStudio/playback.json holds
+an atomically validated project/playback state. This is a combined privileged
+runtime, not the smaller separately privileged PawnIO broker recommended in the
+research. Qt document/image parsing and trusted native modules remain in its
+privileged attack surface; the limitation is explicit in WINDOWS_SERVICE.md.
+
+Only the installation-owner SID may issue bounded named-pipe commands. Network
+logons are rejected before JSON parsing. Clients verify SCM PID and executable
+path. No user-supplied module/file/register/shell command exists. Portable copies
+of this revision detect the installed service and fail closed instead of racing
+its hardware connections. Older binaries do not provide this safeguard.
+
+Editor reopen takes the service snapshot over stale remembered files, without
+rewriting user projects; explicit recovery/new edits while connecting win. Initial
+discovery follows snapshot restoration. Edits coalesce, failed uploads retry, close
+flushes final edits/commands, and failures are visible. Per-channel pause, global
+stop, clocks and projects persist. Clock wraps after one day for continuous output.
+Suspend releases sessions; resume/retries reverify. Conflicts stop/block output
+without terminating other software. No-project startup makes no color writes.
+
+Installer elevates once, protects ownership/ACLs, rejects pre-existing untrusted
+writes/owners and reparse entries, creates service plus Limited logon task and a
+Start-menu shortcut. It reuses PawnIO or obtains the pinned official 2.2.0 installer.
+Static inspection of that exact binary established `-install -silent`, NOT `/S`,
+and requireAdministrator manifest. SHA256 matches upstream asset metadata:
+1f519a22e47187f70a1379a48ca604981c4fcf694f4e65b734aaa74a9fba3032.
+No installer, driver, device ACL, task or service registration was changed live.
+The packaged installer passed -WhatIf; this does not establish a real UAC count.
+
+Final production-source gates: Release CTest 19/19 (12.71 s), Debug CTest 19/19
+(44.79 s). Native Windows service/UI suite 9/9, zero skipped (see
+build/service-native-final.log). After separating native/offscreen screenshot file
+names, the focused Debug service/installer gates also pass (4.96 s). New tests cover
+atomic invalid-project rejection, protocol bounds, playback/pause persistence,
+clock wrap, fake hardware writes, faults/reconnect, suspend/resume, conflicts,
+last-edit flush, stale-file protection, owner/host authentication, oversized input,
+large project round trips and child-process restart. Installer parsing, expected
+silent flags, input rejection and WhatIf run in both configurations; a bounded
+Release-shaped fixture is used in Debug because Debug Qt DLL names differ.
+Initial failures (temporary-file replacement, a no-op playback test toggle,
+Debug installer fixture names) were corrected, not bypassed.
+
+Native screenshot service-artifacts/service-hardware-windows.png was visually
+reviewed; offscreen screenshots remain separate. One earlier offscreen font-only
+render lacked native glyphs and is not native evidence. Package smoke tests remove
+Qt SDK environment: --inspect exits 0, and packaged simulation host responds via
+an owner-authenticated pipe. Simulation never scans or opens physical hardware.
+
+Portable ZIP: build/dist/LightingStudio-Service-windows-x64.zip
+SHA256: 0fedf3a1599cebf4221c0c15962cafecc8648f58cca9417231319e10ceb3d6f6
+Editor EXE SHA256: 35fa6a7d84fd9848b2e28fda330025e2e82a30fd4d3aa1fa03874175313c4ec8
+Service EXE SHA256: 69ec7c00b0ffdbd5c100d0f85aed62aaab301a39d09460016bfaedcc86260b1f
+All archive CRC/extracted bytes and binary equality to tested Release verified.
+Start-Lighting.cmd prefers installed copy then build/dist/LightingStudio-Service.
+User default.lighting.json is unchanged, untracked and excluded; its SHA256 is
+9cc3be379525f95e26d75b9bc27977cac9b3bdb3a6c126ce55fe836473a812a5.
+
+Graphify refreshed AST with known 11 partial-parser warnings; semantic label
+community mappings remain approximate, not compiler evidence. No paid labeling
+was run. Global Git ignore permission warnings remain sandbox-only, with no
+configuration changes. No live RGB process was terminated; only owned simulation
+children were stopped. Remaining qualification: actual SCM install/UAC count,
+SYSTEM driver access and mutex ACLs, pre-login NVAPI, cold boot, real standby,
+physical colors and large personal-project throughput. Do not claim those from
+software tests. Shared PawnIO/driver updates can require future UAC.
+
 ## Unified Editor UI audit implementation (2026-10-27)
 
 Owner authorized implementing the design audit; Windows service work is explicitly

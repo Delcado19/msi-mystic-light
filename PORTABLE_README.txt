@@ -1,3 +1,14 @@
+WINDOWS SERVICE OPTION (2026-10-28)
+Run installer/Install.cmd from the complete extracted package for Windows startup
+playback. Installation requests elevation once; the service owns hardware and the
+editor/tray run with ordinary rights. Scans need no new UAC. Closing the installed
+editor keeps the last confirmed project running. Stop all output is explicit.
+The installer reuses PawnIO or downloads/verifies its official installer if absent.
+See docs/WINDOWS_SERVICE.md in the source repository for updates/removal, security
+boundaries and remaining physical/clean-install validation. Real SYSTEM output and
+a clean-install UAC count are not established by software tests. Without service
+installation, this archive retains the direct portable behavior below.
+
 MSI Mystic Light - Windows x64
 
 Run msi_mystic_light.exe from this complete folder. Keep hidapi.dll, Qt DLLs,
@@ -33,7 +44,7 @@ bottom layer has no backdrop to blend with.
 
 Group labels in Layout are draggable: drag a header label to move its complete
 chain. Hardware has Stop output and Resume output; no report checkbox is required.
-Tray Stop cancels queued restarts and automatic connection retries. Hardware Stop
+In portable mode, Tray Stop cancels queued restarts and automatic connection retries. Hardware Stop
 pauses the selected output; other headers keep running. Select a controller to
 pause/resume its configured outputs together.
 
@@ -48,7 +59,7 @@ Endpoint / Profile / State list, alongside the header/component inventory; Play 
 Restored output paths: IOShield Canvas as a shared color zone and RTX 5080 AERO OC
 through NVAPI. RAM uses the separately installed official PawnIO 2.x runtime
 (https://pawnio.eu). The signed AMD module is included under third_party/pawnio.
-After installation, run Lighting Studio as administrator and use Hardware > Refresh. Supported: AMD 1022:790b primary bus,
+For portable direct output, run Lighting Studio as administrator and use Hardware > Scan hardware. Installed service mode keeps the editor unelevated. Supported: AMD 1022:790b primary bus,
 ENE AUDA0-E6K5-0101, eight LEDs at 0x71/0x73. No OpenRGB/helper process is needed.
 --scan skips active RAM probing; GUI discovery reads ENE identity registers.
 The user confirmed physical RAM Canvas output with the diagnostic build.

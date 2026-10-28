@@ -1,5 +1,10 @@
 # Lighting editor
 
+Installed Windows mode delegates rendering/output to an automatic service; the
+editor stays unelevated and closing it retains playback. Portable mode retains
+the direct output lifecycle described below. See [Windows service operation,
+security and validation limits](WINDOWS_SERVICE.md).
+
 ## Visual workspace
 
 The app opens in Editor with Components selected. Components and Layers choose the editing target inside one workspace; Hardware remains separate for discovery, attachment, channel configuration and output diagnostics. Composite shows effects with component artwork and sampled LEDs. Effect only and Components only hide the other content and disable its selection target. Camera, selection, preview channel and animation time survive target changes. View can enable the optional split hardware preview. The preview is software rendering, not physical device readback.

@@ -22,6 +22,8 @@
 #include <QStyle>
 #include <QLockFile>
 #include "editor/AppSession.h"
+#include "service/ServicePanel.h"
+#include "service/ServiceProtocol.h"
 
 int main(int argc, char** argv)
 {
@@ -39,9 +41,12 @@ int main(int argc, char** argv)
     parser.addOption({"scan", "List HID and read-only PCI profile candidates without changing lighting."});
     parser.addOption({"probe-ram", "Verify qualified RAM identity through PawnIO; selects read registers but does not write colors."});
     parser.addOption({"inspect", "Validate local catalogs only; do not show the startup conflict dialog."});
+    parser.addOption({"background", "Start installed editor in the tray without opening its window."});
     parser.addOption({"editor", "Open the editor without the startup conflict dialog; configured hardware receives the canvas automatically."});
     parser.process(app);
-    if (!parser.isSet("inspect") && !parser.isSet("scan") && !parser.isSet("probe-ram") && !parser.isSet("editor")) {
+    const auto serviceHost=StudioService::installedHost();
+    const bool serviceInstalled=!serviceHost.isEmpty() || QFileInfo::exists(QCoreApplication::applicationDirPath()+"/service.json");
+    if (!serviceInstalled && !parser.isSet("inspect") && !parser.isSet("scan") && !parser.isSet("probe-ram") && !parser.isSet("editor")) {
         SystemConflictProcesses processes;
         ConflictDialog conflicts(processes);
         if (conflicts.exec() != QDialog::Accepted) return 0;
@@ -131,22 +136,29 @@ int main(int argc, char** argv)
         return 1;
     }
     QSettings settings;
-    LightingWindow window(catalog, [availableProfiles] {
+    LightingWindow window(catalog, [availableProfiles,serviceInstalled,serviceHost] {
+        if(serviceInstalled)return serviceInventory(serviceHost.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":serviceHost);
         auto candidates=findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
         candidates+=scanAuxiliaryHardware(availableProfiles,true); return candidates;
-    }, nullptr, availableProfiles);
-    auto* outputPanel=new OutputPanel(window,[availableProfiles,directory=parser.value("module-dir")](QWidget* parent,const QVector<OutputFrame>& frames) {
-        return authorizeHardwareOutput(parent,availableProfiles,frames,directory);
-    },&window);
-    window.installOutputPanel(outputPanel);
-    QObject::connect(outputPanel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
+    }, nullptr, availableProfiles,!serviceInstalled);
+    OutputPanel* outputPanel=nullptr;ServicePanel* servicePanel=nullptr;
+    if(serviceInstalled) {
+        // Fail closed if the installed service is unavailable; never race it with direct GUI writes.
+        servicePanel=new ServicePanel(window);window.installOutputPanel(servicePanel);
+    } else {
+        outputPanel=new OutputPanel(window,[availableProfiles,directory=parser.value("module-dir")](QWidget* parent,const QVector<OutputFrame>& frames) {
+            return authorizeHardwareOutput(parent,availableProfiles,frames,directory);
+        },&window);
+        window.installOutputPanel(outputPanel);
+        QObject::connect(outputPanel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
+    }
     auto* view=window.findChild<QMenu*>("workspaceViewMenu");
     QSystemTrayIcon tray(window.style()->standardIcon(QStyle::SP_ComputerIcon),&window);
     tray.setToolTip("MSI Mystic Light");
     auto* trayMenu=new QMenu(&window);
     auto show=[&window] { window.showNormal(); window.raise(); window.activateWindow(); };
     QObject::connect(trayMenu->addAction("Show editor"),&QAction::triggered,&window,show);
-    QObject::connect(trayMenu->addAction("Stop output"),&QAction::triggered,outputPanel,&OutputPanel::stopOutput);
+    QObject::connect(trayMenu->addAction("Stop output"),&QAction::triggered,&window,[=]{if(servicePanel)servicePanel->stopOutput();else outputPanel->stopOutput();});
     QObject::connect(trayMenu->addAction("Quit"),&QAction::triggered,&window,&QWidget::close);
     tray.setContextMenu(trayMenu);
     QObject::connect(&tray,&QSystemTrayIcon::activated,&window,[show](QSystemTrayIcon::ActivationReason reason) { if(reason==QSystemTrayIcon::DoubleClick) show(); });
@@ -154,16 +166,18 @@ int main(int argc, char** argv)
         tray.show(); QObject::connect(view->addAction("Hide to tray"),&QAction::triggered,&window,&QWidget::hide);
     }
     AppSession session(window,settings,QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)+"/recovery.lighting.json");
-    session.restore([&window] {
-        return QMessageBox::question(&window,"Recover unsaved project","Recover the unsaved project from the previous session?",
+    bool recovered=false;
+    session.restore([&window,&recovered] {
+        recovered=QMessageBox::question(&window,"Recover unsaved project","Recover the unsaved project from the previous session?",
             QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes)==QMessageBox::Yes;
+        return recovered;
     });
     // The editor used a new settings namespace; restore existing chains rather than silently starting empty.
     const auto previous=qEnvironmentVariable("APPDATA")+"/MsiMysticLightApp/settings.json";
-    if(window.projectFile().isEmpty() && window.document().state().assignments.isEmpty() && QFileInfo::exists(previous))
+    if(!serviceInstalled && window.projectFile().isEmpty() && window.document().state().assignments.isEmpty() && QFileInfo::exists(previous))
         window.restoreLegacyHardware(previous);
     window.findChild<QAction*>("workspaceLayout")->trigger();
-    window.show();
-    outputPanel->enableAutomaticOutput();
+    if(!parser.isSet("background") || !QSystemTrayIcon::isSystemTrayAvailable())window.show();
+    if(servicePanel)servicePanel->activate(recovered);else outputPanel->enableAutomaticOutput();
     return app.exec();
 }

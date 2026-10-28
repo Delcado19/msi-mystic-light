@@ -168,7 +168,7 @@ QIcon colorIcon(QColor color)
 }
 
 LightingWindow::LightingWindow(ComponentCatalog catalog,
-    std::function<QVector<ProfileCandidate>()> scan, QWidget* parent, QVector<DeviceProfile> profiles)
+    std::function<QVector<ProfileCandidate>()> scan, QWidget* parent, QVector<DeviceProfile> profiles, bool automaticDiscovery)
     : QMainWindow(parent), document_(std::move(catalog), nullptr, std::move(profiles))
 {
     setWindowTitle("Lighting — MSI Mystic Light Standalone");
@@ -490,7 +490,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     refreshHardware->setToolTip("Refresh connected hardware and verify supported RAM identity through PawnIO. Discovery does not change colors; configured canvas output resumes automatically.");
     hardwareControls->insertLayout(3,hardwareActions);
     scan_=std::move(scan);
-    QTimer::singleShot(0,this,[this] { scanHeaders(); });
+    if(automaticDiscovery)QTimer::singleShot(0,this,[this] { scanHeaders(); });
 
     addToolBarBreak(Qt::TopToolBarArea);
     auto* previewToolbar = addToolBar("Preview"); previewToolbar->setObjectName("previewToolbar");

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Widgets Test Svg)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Widgets Test Svg Network)
 find_package(Threads REQUIRED)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(hidapi REQUIRED)
@@ -97,9 +97,26 @@ add_library(lighting_output_ui src/output/OutputPanel.cpp src/output/HardwareOut
 target_include_directories(lighting_output_ui PUBLIC src)
 target_link_libraries(lighting_output_ui PUBLIC lighting_output lighting_startup msi_hid lighting_backends)
 
-add_executable(msi_mystic_light src/main.cpp)
+add_library(lighting_service src/service/ServiceProtocol.cpp src/service/ServiceServer.cpp src/service/ServiceRuntime.cpp)
+target_include_directories(lighting_service PUBLIC src)
+target_link_libraries(lighting_service PUBLIC lighting_output_ui Qt6::Network)
+if(WIN32)
+    target_link_libraries(lighting_service PRIVATE advapi32 shell32 ole32)
+endif()
+add_executable(lighting_service_host src/service/main.cpp)
+set_target_properties(lighting_service_host PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
+target_link_libraries(lighting_service_host PRIVATE lighting_service)
+if(WIN32)
+    target_link_libraries(lighting_service_host PRIVATE advapi32 shell32 ole32)
+    add_custom_command(TARGET lighting_service_host POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:lighting_service_host> $<TARGET_FILE_DIR:lighting_service_host>
+        COMMAND_EXPAND_LISTS)
+endif()
+add_dependencies(lighting_service_host msi_gen1_module peripherals_module auxiliary_module)
+
+add_executable(msi_mystic_light src/main.cpp src/service/ServicePanel.cpp)
 set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
-target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor lighting_output_ui)
+target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor lighting_output_ui lighting_service)
 add_dependencies(msi_mystic_light msi_gen1_module peripherals_module auxiliary_module)
 if(WIN32)
     # A matching SDK plugin is preferred; the documented source build supplies SDKs without ImageFormats.

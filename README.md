@@ -68,15 +68,21 @@ See the [complete workspace](docs/images/studio-workspace.png),
 [hardware picker](docs/images/hardware-picker.png), [Hardware workspace](docs/images/hardware-workspace.png), and [header layout](docs/images/header-layout.png),
 [editor documentation](docs/LIGHTING_EDITOR.md) and [design review](docs/EDITOR_DESIGN_REVIEW.md).
 
-Start **`Start-Lighting.cmd`**. It prefers the prepared `build/dist/LightingStudio-Hotfix/`
-application folder and falls back to `build/ninja/Release/` for development builds.
+For automatic Windows playback, extract Release and run **`installer/Install.cmd`**.
+Installation requests elevation once; the service owns hardware while the editor
+runs unelevated. Scans also run through the service. See [service installation,
+security and validation limits](docs/WINDOWS_SERVICE.md). Real SYSTEM hardware
+output and the clean-install UAC flow still need qualification.
+
+Start **`Start-Lighting.cmd`**. It prefers the installed application, then
+`build/dist/LightingStudio-Service/`, retaining older development fallbacks.
 Close an already running instance after saving before starting an updated build.
 The old `build/ninja/msi_mystic_light.exe` is not the supported entry point.
 Keep the entire Release folder together: `hidapi.dll`, Qt DLLs, plugins and catalogs
 are runtime dependencies. A missing `hidapi.dll` means the runtime folder is incomplete;
 rebuild/copy the full folder. Do not download unrelated DLLs. See `PORTABLE_README.txt`.
 
-Canvas output starts automatically for configured, detected hardware. Hardware has
+In portable mode, canvas output starts automatically for configured, detected hardware. Hardware has
 **Stop output** and **Resume output**, with no report-consent dialog. Endpoint/profile
 identity and serialized reports are still validated before opening HID. Changed
 channel configurations reconnect automatically; offline saved devices do not block
@@ -164,7 +170,7 @@ action; a timeout or scan failure remains visible.
 Service-owned helpers require manual shutdown. Use `--inspect` for catalog-only
 validation; `--scan` remains read-only and bypasses this pre-connection gate.
 Windows builds include the required Qt DLLs and Windows platform plugin beside
-the executable; a packaged installer is not implemented yet.
+the executable. The archive includes an optional service installer under `installer/`.
 
 ### Per-device LED arrangement
 
@@ -191,7 +197,7 @@ controls shared animation playback; Hardware remains the navigation action.
 IOShield Canvas and RTX 5080 AERO OC lighting restore the original shared-color
 `0x50` fallback and qualified NVAPI path. RAM now uses PawnIO directly, with the
 signed AMD SMBus module and an exact ENE firmware/eight-LED handshake at 0x71/0x73.
-Install official PawnIO 2.x from https://pawnio.eu, run Lighting Studio as administrator, then use Hardware > Refresh.
+Installed mode provisions/reuses official PawnIO and keeps RAM access inside the service. Use Hardware > Scan hardware from the unelevated editor. Portable direct mode still needs official PawnIO 2.x and an administrator process.
 No OpenRGB process or network helper is used. The user confirmed physical RAM Canvas
 output with the diagnostic build; automated register checks alone are not physical-output proof.
 See third_party/pawnio/README.md for scope and prerequisites.

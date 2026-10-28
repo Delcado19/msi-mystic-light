@@ -18,12 +18,15 @@ headers and `../licenses/PawnIO-Modules-LGPL-2.1.txt`.
 
 Install the official signed PawnIO 2.x distribution from https://pawnio.eu.
 The app loads the installed `Program Files/PawnIO/PawnIOLib.dll` directly.
-The driver, installer and library are not redistributed here; there is no
-automatic installation, service launch, security-policy change or fallback
-to an unsigned module. Installing PawnIO requires Windows elevation. Runtime
+The driver, installer and library are not redistributed here. The optional
+installer/Install-LightingStudio.ps1 provisions the official driver from a pinned,
+verified upstream installer if absent and installs Lighting Studio's own service.
+No unsigned module fallback or PawnIO device ACL change is performed. See
+docs/WINDOWS_SERVICE.md for the service boundary. Installing PawnIO requires Windows elevation. Runtime
 driver/mutex access must also be permitted by the current security policy. The
-official installed driver grants access to SYSTEM/administrators; run Lighting
-Studio as administrator for RAM output. The app does not elevate itself or
+official installed driver grants access to SYSTEM/administrators. Installed
+service mode keeps RAM access inside SYSTEM and the editor unelevated; portable
+direct mode needs an administrator process. The app does not elevate itself or
 change the driver ACL.
 
 The RAM host adapter is currently qualified only for AMD SMBus PCI 1022:790b,

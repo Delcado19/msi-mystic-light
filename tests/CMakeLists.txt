@@ -136,3 +136,28 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:test_auxiliary> $<TARGET_FILE_DIR:test_auxiliary>
         COMMAND_EXPAND_LISTS)
 endif()
+
+add_executable(test_service service/test_service.cpp ../src/service/ServicePanel.cpp)
+target_link_libraries(test_service PRIVATE lighting_service Qt6::Test)
+target_compile_definitions(test_service PRIVATE
+    TEST_MODULE_PATH="$<TARGET_FILE:msi_gen1_module>"
+    TEST_PROFILE_PATH="${PROJECT_SOURCE_DIR}/profiles/msi-mpg-b850-edge-ti-wifi.json"
+    SERVICE_HOST_PATH="$<TARGET_FILE:lighting_service_host>"
+    TEST_SERVICE_ARTIFACT_DIR="${CMAKE_BINARY_DIR}/service-artifacts")
+add_dependencies(test_service lighting_service_host msi_gen1_module)
+add_test(NAME windows_service_contract COMMAND test_service)
+set_tests_properties(windows_service_contract PROPERTIES TIMEOUT 90
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
+if(WIN32)
+    add_custom_command(TARGET test_service POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:test_service> $<TARGET_FILE_DIR:test_service>
+        COMMAND_EXPAND_LISTS)
+endif()
+
+if(WIN32)
+    add_test(NAME service_installer_plan COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_CURRENT_SOURCE_DIR}/service/test_installer.ps1"
+        -Installer "${PROJECT_SOURCE_DIR}/installer/Install-LightingStudio.ps1"
+        -Runtime "$<TARGET_FILE_DIR:msi_mystic_light>")
+    set_tests_properties(service_installer_plan PROPERTIES TIMEOUT 30)
+endif()

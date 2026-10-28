@@ -1,5 +1,10 @@
 # Output session backend
 
+Installed Windows mode delegates rendering/output to an automatic service; the
+editor stays unelevated and closing it retains playback. Portable mode retains
+the direct output lifecycle described below. See [Windows service operation,
+security and validation limits](WINDOWS_SERVICE.md).
+
 `prepareOutput(document, composedFrame, seconds)` produces one typed `OutputFrame` per
 exact endpoint/profile. It uses `sampleChannels` once, concatenates physical
 chains in their already-mapped wire order, converts opaque RGB to driver colors

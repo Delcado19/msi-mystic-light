@@ -27,7 +27,7 @@ class LightingWindow : public QMainWindow {
     Q_OBJECT
 public:
     LightingWindow(ComponentCatalog catalog,
-        std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {});
+        std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {}, bool automaticDiscovery = true);
     ~LightingWindow() override;
     LightingDocument& document() { return document_; }
     double previewSeconds() const;

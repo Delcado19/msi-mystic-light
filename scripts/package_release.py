@@ -5,7 +5,7 @@ from pathlib import Path
 import zipfile
 
 RUNTIME = (
-    "msi_mystic_light.exe", "hidapi.dll", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6Svg.dll",
+    "msi_mystic_light.exe", "lighting_service_host.exe", "Qt6Network.dll", "hidapi.dll", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6Svg.dll",
     "platforms/qwindows.dll", "imageformats/qgif.dll", "imageformats/qjpeg.dll",
     "imageformats/qwebp.dll", "modules/msi_gen1_module.dll",
     "modules/peripherals_module.dll", "modules/auxiliary_module.dll",
@@ -17,6 +17,8 @@ def package(root: Path, runtime: Path, archive: Path) -> str:
     for name in ("LICENSE", "PORTABLE_README.txt", "THIRD_PARTY_NOTICES.md",
                  "third_party/pawnio/SmbusPIIX4.bin", "third_party/pawnio/source-0.2.11.zip"):
         files[name] = root / name
+    for name in ("Install.cmd", "Install-LightingStudio.ps1"):
+        files["installer/" + name] = root / "installer" / name
     # Use source catalogs to avoid stale profiles and user files in a reused build folder.
     for folder, pattern in (("profiles", "*.json"), ("components", "*.json"),
                             ("third_party/licenses", "*"), ("third_party/pawnio", "*")):
