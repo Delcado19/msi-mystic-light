@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "lenovo.motherboard",
+  "driverId": "lenovo.motherboard",
+  "name": "Lenovo Motherboard RGB",
+  "match": {
+    "vendorId": 6127,
+    "productId": 51541
+  },
+  "channels": [
+    {"id": "CpuFan", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["static", "sparkle", "breathing", "wave", "specter", "rainbow-wave", "random"], "address": {"zone": 18}},
+    {"id": "RearFan", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["static", "sparkle", "breathing", "wave", "specter", "rainbow-wave", "random"], "address": {"zone": 17}}
+  ]
+}

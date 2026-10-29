@@ -15,4 +15,12 @@ public:
     // Append transport methods to preserve API 1 feature-report vtable slots.
     // Modules using output reports require host API 2; old hosts reject their metadata.
     virtual bool writeOutputReport(const std::uint8_t*, std::size_t) { return false; }
+    // Read-back methods, API 3. Discovery/config-readback modules require host
+    // API 3; older hosts reject their metadata. Returns the number of bytes
+    // actually read, or 0 on a closed device, invalid buffer or OS error.
+    // buffer[0] on input selects the report ID to request (hidapi convention);
+    // the call overwrites the buffer with the response.
+    virtual std::size_t getFeatureReport(std::uint8_t*, std::size_t) { return 0; }
+    // Interrupt input report read; no report-ID selection. Same API 3 gate.
+    virtual std::size_t readInputReport(std::uint8_t*, std::size_t) { return 0; }
 };

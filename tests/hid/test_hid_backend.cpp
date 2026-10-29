@@ -2,6 +2,7 @@
 #include "FakeHidDevice.h"
 #include <hidapi.h>
 #include <QtTest>
+#include <algorithm>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
@@ -10,9 +11,11 @@
 struct hid_device_ {};
 namespace {
 hid_device_ token;
-int initCalls = 0, exitCalls = 0, openCalls = 0, closeCalls = 0, sendCalls = 0;
+int initCalls = 0, exitCalls = 0, openCalls = 0, closeCalls = 0, sendCalls = 0, getFeatureCalls = 0, readCalls = 0;
 bool openSucceeds = true;
 int sendResult = -2;
+int getFeatureResult = -2, readResult = -2;
+std::vector<unsigned char> featureReportToReturn, inputReportToReturn;
 unsigned short lastVendor = 0, lastProduct = 0;
 std::vector<unsigned char> lastReport;
 std::string lastPath;
@@ -57,6 +60,20 @@ int HID_API_CALL hid_send_feature_report(hid_device*, const unsigned char* data,
     lastReport.assign(data, data + length);
     return sendResult == -2 ? static_cast<int>(length) : sendResult;
 }
+int HID_API_CALL hid_get_feature_report(hid_device*, unsigned char* data, size_t length)
+{
+    ++getFeatureCalls;
+    const auto copyLength = std::min(length, featureReportToReturn.size());
+    std::copy_n(featureReportToReturn.begin(), copyLength, data);
+    return getFeatureResult == -2 ? static_cast<int>(copyLength) : getFeatureResult;
+}
+int HID_API_CALL hid_read_timeout(hid_device*, unsigned char* data, size_t length, int)
+{
+    ++readCalls;
+    const auto copyLength = std::min(length, inputReportToReturn.size());
+    std::copy_n(inputReportToReturn.begin(), copyLength, data);
+    return readResult == -2 ? static_cast<int>(copyLength) : readResult;
+}
 }
 
 static_assert(!std::is_copy_constructible_v<HidApiDevice>);
@@ -67,9 +84,12 @@ class HidBackendTest : public QObject {
 private slots:
     void init()
     {
-        openCalls = closeCalls = sendCalls = 0;
+        openCalls = closeCalls = sendCalls = getFeatureCalls = readCalls = 0;
         openSucceeds = true;
         sendResult = -2;
+        getFeatureResult = readResult = -2;
+        featureReportToReturn.clear();
+        inputReportToReturn.clear();
         lastReport.clear();
         lastPath.clear();
         enumCalls = freeCalls = 0;
@@ -140,6 +160,44 @@ private slots:
         QCOMPARE(sendCalls,7);
     }
 
+    void reads()
+    {
+        HidApiDevice device;
+        std::uint8_t buffer[8]{};
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{0});
+        QCOMPARE(device.readInputReport(buffer, sizeof(buffer)), std::size_t{0});
+        QVERIFY(device.open(1, 2));
+        QCOMPARE(device.getFeatureReport(nullptr, sizeof(buffer)), std::size_t{0});
+        QCOMPARE(device.getFeatureReport(buffer, 0), std::size_t{0});
+        QCOMPARE(device.readInputReport(nullptr, sizeof(buffer)), std::size_t{0});
+        QCOMPARE(device.readInputReport(buffer, 0), std::size_t{0});
+        QCOMPARE(getFeatureCalls, 0);
+        QCOMPARE(readCalls, 0);
+
+        featureReportToReturn = {0x52, 1, 2, 3};
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{4});
+        QCOMPARE(buffer[0], std::uint8_t{0x52});
+        QCOMPARE(getFeatureCalls, 1);
+
+        inputReportToReturn = {0xAA, 0xBB};
+        QCOMPARE(device.readInputReport(buffer, sizeof(buffer)), std::size_t{2});
+        QCOMPARE(buffer[0], std::uint8_t{0xAA});
+        QCOMPARE(readCalls, 1);
+
+        for (auto result : {-1, 0}) {
+            getFeatureResult = result;
+            QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{0});
+            readResult = result;
+            QCOMPARE(device.readInputReport(buffer, sizeof(buffer)), std::size_t{0});
+        }
+
+        device.close();
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{0});
+        QCOMPARE(device.readInputReport(buffer, sizeof(buffer)), std::size_t{0});
+        QCOMPARE(getFeatureCalls, 3);
+        QCOMPARE(readCalls, 3);
+    }
+
     void fakeFailures()
     {
         FakeHidDevice device;
@@ -155,6 +213,28 @@ private slots:
         device.close();
         QVERIFY(!device.sendFeatureReport(report, sizeof(report)));
         QCOMPARE(device.sentReports.size(), std::size_t{1});
+    }
+
+    void fakeReads()
+    {
+        FakeHidDevice device;
+        std::uint8_t buffer[8]{};
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{0});
+        QVERIFY(device.open(1, 2));
+        device.featureReportResponse = {0x52, 9, 9};
+        device.inputReportResponse = {0x14, 1};
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{3});
+        QCOMPARE(buffer[0], std::uint8_t{0x52});
+        QCOMPARE(device.readInputReport(buffer, sizeof(buffer)), std::size_t{2});
+        QCOMPARE(buffer[0], std::uint8_t{0x14});
+        QCOMPARE(device.getFeatureReportCalls, 1);
+        QCOMPARE(device.readInputReportCalls, 1);
+
+        device.readSucceeds = false;
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{0});
+        QCOMPARE(device.readInputReport(buffer, sizeof(buffer)), std::size_t{0});
+        QCOMPARE(device.getFeatureReportCalls, 2);
+        QCOMPARE(device.readInputReportCalls, 2);
     }
 
     void enumeration()

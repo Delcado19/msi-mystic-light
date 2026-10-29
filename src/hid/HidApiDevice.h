@@ -30,6 +30,8 @@ public:
     bool isOpen() const override;
     bool writeOutputReport(const std::uint8_t* report, std::size_t length) override;
     bool sendFeatureReport(const std::uint8_t* report, std::size_t length) override;
+    std::size_t getFeatureReport(std::uint8_t* buffer, std::size_t length) override;
+    std::size_t readInputReport(std::uint8_t* buffer, std::size_t length) override;
 
 private:
     hid_device_* handle_ = nullptr;

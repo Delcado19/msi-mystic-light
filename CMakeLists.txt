@@ -42,10 +42,24 @@ target_link_libraries(peripherals_module PRIVATE Qt6::Core)
 set_target_properties(peripherals_module PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
+add_library(lenovo_motherboard_module MODULE modules/lenovo-motherboard/LenovoMotherboardModule.cpp
+    src/protocol/LenovoMotherboardProtocol.cpp)
+target_include_directories(lenovo_motherboard_module PRIVATE src)
+target_link_libraries(lenovo_motherboard_module PRIVATE Qt6::Core msi_protocol)
+set_target_properties(lenovo_motherboard_module PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
 add_library(auxiliary_module MODULE modules/auxiliary/AuxiliaryModule.cpp)
 target_include_directories(auxiliary_module PRIVATE src)
 target_link_libraries(auxiliary_module PRIVATE Qt6::Core)
 set_target_properties(auxiliary_module PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
+add_library(asrock_polychrome_module MODULE modules/asrock-polychrome/AsrockPolychromeModule.cpp
+    src/protocol/AsrockPolychromeProtocol.cpp)
+target_include_directories(asrock_polychrome_module PRIVATE src)
+target_link_libraries(asrock_polychrome_module PRIVATE Qt6::Core msi_protocol)
+set_target_properties(asrock_polychrome_module PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
 add_library(lighting_backends src/backends/AuxiliaryHardware.cpp src/backends/PawnIoRam.cpp)
@@ -80,7 +94,7 @@ add_library(lighting_startup src/startup/ConflictProcesses.cpp src/startup/Confl
 target_include_directories(lighting_startup PUBLIC src)
 target_link_libraries(lighting_startup PUBLIC Qt6::Widgets)
 if(WIN32)
-    target_link_libraries(lighting_startup PRIVATE user32)
+    target_link_libraries(lighting_startup PRIVATE user32 advapi32)
 endif()
 
 add_library(lighting_editor src/editor/HardwareArtwork.cpp src/editor/LegacyHardware.cpp src/editor/HardwarePicker.cpp src/editor/StudioWidgets.cpp src/editor/ColorPicker.cpp src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
@@ -112,12 +126,12 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:lighting_service_host> $<TARGET_FILE_DIR:lighting_service_host>
         COMMAND_EXPAND_LISTS)
 endif()
-add_dependencies(lighting_service_host msi_gen1_module peripherals_module auxiliary_module)
+add_dependencies(lighting_service_host msi_gen1_module peripherals_module auxiliary_module asrock_polychrome_module lenovo_motherboard_module)
 
 add_executable(msi_mystic_light src/main.cpp src/service/ServicePanel.cpp)
 set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
 target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor lighting_output_ui lighting_service)
-add_dependencies(msi_mystic_light msi_gen1_module peripherals_module auxiliary_module)
+add_dependencies(msi_mystic_light msi_gen1_module peripherals_module auxiliary_module asrock_polychrome_module lenovo_motherboard_module)
 if(WIN32)
     # A matching SDK plugin is preferred; the documented source build supplies SDKs without ImageFormats.
     set(WEBP_PLUGIN_HINTS "${Qt6_DIR}/../../../plugins/imageformats")

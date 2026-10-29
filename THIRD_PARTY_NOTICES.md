@@ -36,6 +36,23 @@ GigabyteRGBFusion2BlackwellGPUController and i2c_smbus_nvapi. The NVIDIA
 NVAPI driver is not bundled. Source headers retain their attribution.
 No OpenRGB executable, PawnIO driver/library or RAM helper is distributed.
 
+The ASRock Polychrome USB motherboard module (`modules/asrock-polychrome`,
+`src/protocol/AsrockPolychromeProtocol.*`) is a from-scratch reimplementation
+of OpenRGB's GPL-2.0-or-later `PolychromeUSBController`/
+`RGBController_ASRockPolychromeUSB` whole-zone write protocol, written by
+reading OpenRGB's source (not copied from it) and cross-checked against
+SignalRGB's `Asrock_Motherboard_Controller.js` plugin; see
+docs/OPENRGB_HARDWARE_PORT_PLAN.md for the comparison and the deliberately
+narrowed scope (no RGSwap color-order config, no combined-buffer per-LED
+Direct/Chroma streaming). Source comments retain provenance.
+
+The Lenovo motherboard module (`modules/lenovo-motherboard`,
+`src/protocol/LenovoMotherboardProtocol.*`) is a from-scratch
+reimplementation of OpenRGB's GPL-2.0-or-later `LenovoMotherboardController`/
+`RGBController_LenovoMotherboard` feature-report protocol, written by
+reading OpenRGB's source (not copied from it). Source comments retain
+provenance.
+
 RAM support directly calls the installed official PawnIOLib ABI. ENE register
 encoding and AMD SMBus transfer layout follow OpenRGB's GPL-2.0-or-later
 ENESMBusController/ENESMBusInterface and i2c_smbus_pawnio references; source

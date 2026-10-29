@@ -96,3 +96,21 @@ bool HidApiDevice::writeOutputReport(const std::uint8_t* report, std::size_t len
     if (!handle_ || !report || length == 0 || length > static_cast<std::size_t>(std::numeric_limits<int>::max())) return false;
     return hid_write(handle_, report, length) == static_cast<int>(length);
 }
+
+std::size_t HidApiDevice::getFeatureReport(std::uint8_t* buffer, std::size_t length)
+{
+    if (!handle_ || !buffer || length == 0 ||
+        length > static_cast<std::size_t>(std::numeric_limits<int>::max())) return 0;
+    const int result = hid_get_feature_report(handle_, buffer, length);
+    return result > 0 ? static_cast<std::size_t>(result) : 0;
+}
+
+std::size_t HidApiDevice::readInputReport(std::uint8_t* buffer, std::size_t length)
+{
+    if (!handle_ || !buffer || length == 0 ||
+        length > static_cast<std::size_t>(std::numeric_limits<int>::max())) return 0;
+    // Bounded wait: a device that never answers must not hang the caller
+    // forever, unlike hidapi's default blocking hid_read().
+    const int result = hid_read_timeout(handle_, buffer, length, 1000);
+    return result > 0 ? static_cast<std::size_t>(result) : 0;
+}

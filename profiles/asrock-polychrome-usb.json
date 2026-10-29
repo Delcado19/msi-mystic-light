@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "asrock.polychrome-usb",
+  "driverId": "asrock.polychrome-usb",
+  "name": "ASRock Polychrome USB",
+  "match": {
+    "vendorId": 9934,
+    "productId": 418
+  },
+  "channels": [
+    {"id": "RGB1", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "static", "breathing", "strobe", "spectrum-cycle", "random", "music", "wave", "spring", "stack", "cram", "scan", "neon", "water", "rainbow"], "address": {"zone": 0}},
+    {"id": "RGB2", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "static", "breathing", "strobe", "spectrum-cycle", "random", "music", "wave", "spring", "stack", "cram", "scan", "neon", "water", "rainbow"], "address": {"zone": 1}},
+    {"id": "ARGB1", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "static", "breathing", "strobe", "spectrum-cycle", "random", "music", "wave", "spring", "stack", "cram", "scan", "neon", "water", "rainbow"], "address": {"zone": 2}},
+    {"id": "ARGB2", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "static", "breathing", "strobe", "spectrum-cycle", "random", "music", "wave", "spring", "stack", "cram", "scan", "neon", "water", "rainbow"], "address": {"zone": 3}},
+    {"id": "PCH", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "static", "breathing", "strobe", "spectrum-cycle", "random", "music", "wave", "spring", "stack", "cram", "scan", "neon", "water", "rainbow"], "address": {"zone": 4}},
+    {"id": "IOCover", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "static", "breathing", "strobe", "spectrum-cycle", "random", "music", "wave", "spring", "stack", "cram", "scan", "neon", "water", "rainbow"], "address": {"zone": 5}},
+    {"id": "PCB", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "static", "breathing", "strobe", "spectrum-cycle", "random", "music", "wave", "spring", "stack", "cram", "scan", "neon", "water", "rainbow"], "address": {"zone": 6}},
+    {"id": "Audio", "maxLeds": 1, "fixedLeds": 1, "direct": false, "nativeModes": ["off", "static", "breathing", "strobe", "spectrum-cycle", "random", "music", "wave", "spring", "stack", "cram", "scan", "neon", "water", "rainbow"], "address": {"zone": 7}}
+  ]
+}

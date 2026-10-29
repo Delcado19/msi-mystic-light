@@ -6,7 +6,7 @@ target_include_directories(test_hid_backend PRIVATE ../src
     "$<TARGET_PROPERTY:hidapi::hidapi,INTERFACE_INCLUDE_DIRECTORIES>")
 target_compile_definitions(test_hid_backend PRIVATE HID_API_NO_EXPORT_DEFINE)
 target_link_libraries(test_hid_backend PRIVATE Qt6::Test)
-add_test(NAME hid_backend COMMAND test_hid_backend lifecycle failedOpen writes fakeFailures enumeration exactPath)
+add_test(NAME hid_backend COMMAND test_hid_backend lifecycle failedOpen writes reads fakeFailures fakeReads enumeration exactPath)
 add_test(NAME hid_init_failure COMMAND test_hid_backend initializationFailure)
 set_tests_properties(hid_init_failure PROPERTIES ENVIRONMENT "HID_TEST_INIT_FAIL=1")
 add_library(incompatible_module MODULE modules/IncompatibleModule.cpp)
@@ -35,6 +35,24 @@ set_tests_properties(app_scaffold app_invalid_module_directory PROPERTIES
     TIMEOUT 15
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
 
+add_executable(test_asrock_polychrome modules/test_asrock_polychrome.cpp)
+target_include_directories(test_asrock_polychrome PRIVATE .)
+target_link_libraries(test_asrock_polychrome PRIVATE lighting_modules Qt6::Test)
+target_compile_definitions(test_asrock_polychrome PRIVATE
+    TEST_MODULE_PATH="$<TARGET_FILE:asrock_polychrome_module>"
+    TEST_PROFILE_PATH="${PROJECT_SOURCE_DIR}/profiles/asrock-polychrome-usb.json")
+add_dependencies(test_asrock_polychrome asrock_polychrome_module)
+add_test(NAME asrock_polychrome COMMAND test_asrock_polychrome)
+
+add_executable(test_lenovo_motherboard modules/test_lenovo_motherboard.cpp)
+target_include_directories(test_lenovo_motherboard PRIVATE .)
+target_link_libraries(test_lenovo_motherboard PRIVATE lighting_modules Qt6::Test)
+target_compile_definitions(test_lenovo_motherboard PRIVATE
+    TEST_MODULE_PATH="$<TARGET_FILE:lenovo_motherboard_module>"
+    TEST_PROFILE_PATH="${PROJECT_SOURCE_DIR}/profiles/lenovo-motherboard.json")
+add_dependencies(test_lenovo_motherboard lenovo_motherboard_module)
+add_test(NAME lenovo_motherboard COMMAND test_lenovo_motherboard)
+
 add_executable(test_components components/test_components.cpp)
 target_link_libraries(test_components PRIVATE lighting_modules Qt6::Test)
 target_compile_definitions(test_components PRIVATE TEST_COMPONENT_DIR="${PROJECT_SOURCE_DIR}/components")
@@ -54,8 +72,8 @@ target_link_libraries(test_editor PRIVATE lighting_editor Qt6::Test)
 target_compile_definitions(test_editor PRIVATE TEST_COMPONENT_DIR="${PROJECT_SOURCE_DIR}/components" TEST_ARTIFACT_DIR="${CMAKE_BINARY_DIR}/editor-artifacts")
 add_test(NAME lighting_editor COMMAND test_editor)
 # Debug raster/particle rendering is substantially slower than the optimized build.
-# The full editor suite includes native-style rendering and 119 cases; allow slow Debug CI.
-set_tests_properties(lighting_editor PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,120,60>"
+# Procedural controls, live gestures and galleries exceed the former 60s Release / 240s Debug budgets.
+set_tests_properties(lighting_editor PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,360,120>"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
 
 add_executable(test_output output/test_output.cpp)
@@ -84,7 +102,7 @@ set_tests_properties(output_ui PROPERTIES TIMEOUT 30
 
 if(WIN32)
     # Test executables must run without inheriting a Qt SDK PATH from the shell.
-    foreach(test_target IN ITEMS test_msi_protocol test_hid_backend test_modules test_components test_startup test_editor test_output test_scheduler test_output_ui)
+    foreach(test_target IN ITEMS test_msi_protocol test_hid_backend test_modules test_asrock_polychrome test_lenovo_motherboard test_components test_startup test_editor test_output test_scheduler test_output_ui)
         add_custom_command(TARGET ${test_target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_RUNTIME_DLLS:${test_target}> $<TARGET_FILE_DIR:${test_target}>

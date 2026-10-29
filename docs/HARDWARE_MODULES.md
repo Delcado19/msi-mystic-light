@@ -1,8 +1,15 @@
 # Hardware modules
 
 The app loads local Qt driver plugins and validates independent JSON device
-profiles. Bundled plugins are `msi.gen1` and `lighting.peripherals` (Roccat
-Vulcan/Kone, Razer Basilisk V3, SteelSeries Apex 3). No device is opened at startup.
+profiles. Bundled plugins are `msi.gen1`, `lighting.peripherals` (Roccat
+Vulcan/Kone, Razer Basilisk V3, SteelSeries Apex 3), and
+`asrock.polychrome-usb` (ASRock Polychrome USB motherboards, VID `0x26CE`
+PID `0x01A2` — whole-zone native modes only; no RGSwap, no per-LED Direct
+mode; unqualified on real hardware, see
+docs/OPENRGB_HARDWARE_PORT_PLAN.md), and `lenovo.motherboard` (Lenovo
+motherboard RGB, VID `0x17EF` PID `0xC955` — two fan-header zones, 7 native
+modes, feature reports only; unqualified on real hardware). No device is
+opened at startup.
 
 See [SignalRGB repository research](SIGNALRGB_REPOSITORY_RESEARCH.md) for the
 2026-10-23 review of all 16 public projects and the master/Development/beta
@@ -62,8 +69,9 @@ For a new protocol:
 1. Implement `IDriverModule` and `IDriver` from `src/modules/IDriverModule.h`.
 2. Export the module using `Q_PLUGIN_METADATA` and `Q_INTERFACES`, as in
    `modules/msi-gen1/MsiModule.cpp`.
-3. Embed metadata containing a unique `id`, integer `apiVersion: 1` (feature reports) or `2` (output reports), and a
-   nonempty release `version`. The interface IID is
+3. Embed metadata containing a unique `id`, integer `apiVersion: 1` (feature reports), `2` (output reports), or
+   `3` (read-back: `IHidDevice::getFeatureReport`/`readInputReport`, needed for discoverable config/topology instead
+   of a table-driven profile), and a nonempty release `version`. The interface IID is
    `org.msi-mystic-light.DriverModule/1.0`.
 4. Validate profile addresses/capabilities without touching devices. Use the
    host-supplied `IHidDevice`; do not open an independent competing handle.
@@ -120,9 +128,10 @@ added to resolve this question.
 
 ## Compatibility and trust
 
-API versions 1 and 2 use a Qt/C++ plugin boundary. API 2 adds output-report
-transport support after the existing feature-report vtable slot. Feature-only
-API 1 modules remain loadable; old hosts reject API 2 peripheral modules. Build modules with the matching
+API versions 1, 2 and 3 use a Qt/C++ plugin boundary. API 2 adds output-report
+transport support after the existing feature-report vtable slot; API 3 adds
+`getFeatureReport`/`readInputReport` read-back after that. Feature-only
+API 1 modules remain loadable; old hosts reject API 2/3 peripheral modules. Build modules with the matching
 app SDK, compatible MSVC runtime/toolchain, architecture and Qt build.
 The IID/API metadata gate is checked before instantiation; Qt performs its
 own plugin compatibility checks on load. This is not a toolchain-independent
@@ -222,7 +231,14 @@ image path and creation time; the backend checks both again using the handle
 that will be terminated to prevent PID reuse from changing the target. Self,
 unknown executable names, missing metadata and changed identities are rejected.
 Known service-owned helpers LEDKeeper2/LightingService stay listed but require
-manual application/service shutdown. There is no elevation, service disable,
+manual application/service shutdown. Exact `SignalRgbService.exe` instead uses SCM:
+its verified PID must belong exclusively to one own-process service discovered
+by PID (no hardcoded service name). Only query/stop rights are used. Shared hosts
+are refused. The delayed step only queries state and never stops a replacement
+or kills this executable. Stop-pending exits are polled asynchronously for up to
+30 seconds; access, unsupported-stop, state and timeout failures remain visible.
+No dependencies, recovery settings or service configuration are changed.
+There is no elevation, service disable,
 autostart change, or attempt to kill a generic vendor host.
 
 The wait is asynchronous so Cancel remains available; cancellation prevents the
