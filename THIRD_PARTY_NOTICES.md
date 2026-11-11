@@ -84,3 +84,10 @@ as the other Qt runtime libraries and is replaceable as Qt6Svg.dll.
 Keyboard schematic key positions follow the shipped Vulcan ISO component geometry,
 whose OpenRGB-derived mapping provenance is described above. Fullsize models share this registered SVG; per-key colored markers continue to
 use the saved LED positions, while zone devices retain their real zone markers.
+
+## HP Omen 30L protocol module
+
+modules/hp-omen/HpOmenModule.cpp adapts OpenRGB HPOmen30LController and
+RGBController_HPOmen30L, revision aac7e5511439e020ddae88e78bd400c71b8d4a9c,
+under GPL-2.0-or-later. The adapted module retains that SPDX license.
+See docs/HP_OMEN_MIGRATION.md for provenance, behavior and qualification limits.

@@ -1,5 +1,10 @@
 # Porting OpenRGB/SignalRGB hardware support into this app — motherboard tier
 
+Current policy: [Hardware support strategy](HARDWARE_SUPPORT_STRATEGY.md)
+(owner decision, 2026-10-30). It extends the research scope to all device types
+and manufacturer settings and requires comparison of both upstream
+implementations whenever they support the same exact model.
+
 Date: 2026-10-29. Scope: the 22 OpenRGB controllers that set
 `DEVICE_TYPE_MOTHERBOARD` (`Controllers/*`, current master `aac7e551`,
 local checkout `build/research/openrgb`, gitignored). Decision context:
@@ -17,7 +22,7 @@ LICENSE file; its plugins stay facts-only, never copied as code.
 | MSIMotherboardController (112/162/185/761 sub-controllers) | `REGISTER_HID_DETECTOR_PU` | HID feature reports | **Our board (`0DB0:0076`) reconciled below — already covered by `msi.gen1`** |
 | LenovoMotherboardController | `REGISTER_HID_DETECTOR_PU` | HID feature reports | Not yet inspected in depth |
 | JGINYUEInternalUSBController / V2 | `REGISTER_HID_DETECTOR[_IPU]` | HID | Not yet inspected |
-| HPOmen30LController | `REGISTER_HID_DETECTOR` | HID | Not yet inspected |
+| HPOmen30LController | `REGISTER_HID_DETECTOR` | HID | Ported as `hp.omen30l`; Direct/native modes; hardware unverified, see [migration record](HP_OMEN_MIGRATION.md) |
 | AsusAuraUSBController (mainboard variant only) | `REGISTER_HID_DETECTOR[_PU]` | HID | Not yet inspected |
 | ASRockPolychromeUSBController | `REGISTER_HID_DETECTOR` | HID output+input reports (`hid_write`/`hid_read`) | **Inspected in depth below — blocked** |
 | GigabyteRGBFusion2USBController | `REGISTER_HID_DETECTOR_PU` | HID | Not yet inspected |

@@ -1,5 +1,21 @@
 # Lighting editor
 
+Canvas picking and marquee selection in Layers are scoped to the active layer in
+the Navigator. Covering objects in other layers cannot steal that selection; use
+the Navigator to switch layers. Labels (eye icon) sits in the canvas header, beside
+fullscreen in Components and at the right edge in Layers' component composite.
+Both buttons share the saved preference; holding L reveals captions temporarily.
+The single preview transport button shows green Play while stopped and red Stop
+while running. Stop holds the current frame/time; device output remains separate.
+
+
+The **EDIT MODE** control highlights Components (arrange hardware) and Layers
+(edit effects) with labeled icon tabs and a clear selected state. The Components
+fullscreen button remains fixed in the canvas header when scrollbars appear.
+Fullscreen keeps playback/status in a compact top row and gives the remaining
+height to the canvas; Escape returns to the editor.
+
+
 Installed Windows mode delegates rendering/output to an automatic service; the
 editor stays unelevated and closing it retains playback. Portable mode retains
 the direct output lifecycle described below. See [Windows service operation,
@@ -7,7 +23,7 @@ security and validation limits](WINDOWS_SERVICE.md).
 
 ## Visual workspace
 
-The app opens in Editor with Components selected. Components and Layers choose the editing target inside one workspace; Hardware remains separate for discovery, attachment, channel configuration and output diagnostics. Composite shows effects with component artwork and sampled LEDs. Effect only and Components only hide the other content and disable its selection target. Camera, selection, preview channel and animation time survive target changes. View can enable the optional split hardware preview. The preview is software rendering, not physical device readback.
+The app opens in the Design workspace (the Editor) with Components selected. Devices is the hardware workspace. Components and Layers choose the editing target inside one workspace; Hardware remains separate for discovery, attachment, channel configuration and output diagnostics. Composite shows effects with component artwork and sampled LEDs. Effect only and Components only hide the other content and disable its selection target. Camera, selection, preview channel and animation time survive target changes. View can enable the optional split hardware preview. The preview is software rendering, not physical device readback.
 
 The navigator and inspector follow the active target. Shift-click and marquee select multiple items; right-click offers overlapping objects. Align uses selection bounds, and distribution spaces centers. Smart guides are separate from grid snapping; Alt bypasses both. View provides Lock/Unlock selection. See [the unified editor contract](design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md).
 
@@ -44,7 +60,11 @@ not change hardware assignments. Configured hardware receives the current compos
 current task; numeric transforms and additional motion parameters are disclosures.
 Particle sources expose Count, Speed and Radius in Source. Seed is an integer field
 with Randomize; transformations remain in Motion.
-Enable color animation starts palette cycling and playback, including painted sources.
+Palette rate alone controls palette cycling: zero disables it; a positive rate starts
+cycling and playback, including painted sources. Hue rotation is independent;
+opening the Color animation section does not enable either animation. Its fields
+and palette actions align with the other Motion sections without an extra inset.
+Drag color animation points to set their positions, including newly added colors. Positions control transition timing and support snapping, undo and save/load. The closing transition back to the first color retains its reserved loop segment.
 Apply motion to all visible layers copies the selected layer animation in one undo
 step. Subsequent parameter edits affect only the selected layer. No decorative animation delays tools or shortcuts.
 
@@ -84,10 +104,11 @@ and its round handle to rotate the complete selection, with one undo step.
 Dashed frames follow component/group geometry; model descriptions sit below the
 frame and remain reachable when scrolling. Component model labels use a smaller
 font at a fixed lower-left anchor; no collision relocation or leader lines.
-Show labels (eye icon, also in View) controls their persistent visibility and
-defaults off. Hold L in Layout, including fullscreen, to reveal labels only until
-release. H never overrides text/numeric input. Text-field focus, tab changes and
-window deactivation clear the temporary reveal. L remains the line tool. Selection never expands the label.
+Labels (eye icon in the canvas header, also in View) controls persistent visibility
+in Components and Layers composites and defaults off. Hold L, including fullscreen,
+to reveal labels until release. Text/numeric input keeps L; Line uses I. Text-field
+focus, tab changes and window deactivation clear temporary reveal. Selection never
+expands the label.
 Full model names remain available in tooltips and the inspector. Hidden labels
 are not click targets; navigation reserves the same footprint in both states so
 revealing them never moves the camera. Controller group captions remain visible.
@@ -146,7 +167,59 @@ and animation. No mask data is discarded.
 
 Available sources: Static Color; Linear, Radial and Conical Gradient; Stripes;
 Waves; Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon;
-Image; Particle Rain, Particle Orbit, Fireflies and Particle Burst.
+Image; Particle Rain, Particle Orbit, Fireflies and Particle Burst;
+Gradient Pinwheel, Spiral, Visor, Sine Wave, DNA, Pixel Fill, Voronoi, Fireplace,
+Radar, Fireworks, Plasma and Ripples. Multizone is a four-source editor template.
+
+The procedural patterns are in the Gradients and patterns menu and the source
+flyout. Each new native pattern or Fireworks source starts as an independent layer, even when another
+source or an empty layer is selected. Existing projects retain their hierarchy;
+manual navigator reordering can group sources deliberately. Patterns share movable
+palette stops, masks, blending and geometry. Pattern
+rate uses plain displayed numbers: zero freezes, negative reverses. Hover explains the underlying timing. Repetitions controls
+pinwheel segments, spiral turns and wave frequency. Band width and wave amplitude
+use a percentage scale without suffixes; Pixel Fill offers a 2..32 square grid with Rows, Snake or Spiral
+fill order. Visor/waves/fill use the last palette color as their background.
+Pixel Fill starts empty, fills one cell at a time with a soft leading transition,
+and restarts each loop. Sine Wave and DNA close the palette back to its first
+color instead of jumping at each wave period. Pixel Fill's spiral visits the outer perimeter clockwise and then
+proceeds inward. These are independent native implementations of the core
+patterns, not imports or complete replicas of SignalRGB effects. See the
+[effect backlog](EFFECT_BACKLOG.md) for completed and deferred candidates.
+
+![Native pattern examples](images/native-patterns.png)
+
+Additional sources: Voronoi exposes a seeded site count and Euclidean/Manhattan/
+Chebyshev metric. Fireplace uses seeded coherent flame noise with detail and
+height controls. Radar starts circular and combines a sweep/trail with rings and
+a crosshair. Fireworks is in Particles and uses the existing count, seed, speed,
+size and two-color controls for staggered launches and fading ballistic bursts.
+
+Multizone adds a root layer with four named regions in one undo step. Select a
+region in Navigator to change its source, colors or controls. Linked masks keep
+the initial regions separate and follow intentional geometry edits. The preset
+uses five of the document's 64 layer/object slots and fails atomically when there
+is insufficient room. The initial split is fixed at the canvas midpoint; further
+changes use the existing geometry and mask editor.
+
+![Additional effects](images/extended-effects.png)
+![Multizone editor](images/multizone-editor.png)
+
+
+Effect sliders use practical ranges and omit unit suffixes and range rows.
+Repetitions has a slider and numeric field spanning 1..64 for every applicable
+effect. All native pattern rates, including Ripples, span -600..600 cycles/min
+(the stored range remains -10..10 cycles/sec). Zero freezes; negative reverses.
+These UI limits now match existing renderer/persistence validation, so no project
+schema migration is needed.
+Band width is 1..25; amplitude 0..40; grids 2..32. Motion rotation/hue controls
+use -90..90; pulse/breathe/palette rates 0..60; particle count 1..200, movement
+0..60 (Fireworks 0..36) and radius 1..20. Voronoi uses 4..24 sites;
+flame detail uses 1..16 and height 10..200. Older project values beyond a practical range remain
+visible and unchanged; dragging a slider chooses within the practical range.
+Practical-range adjustments preserve the stored validation limits. The additional
+procedural parameters use schema 22.
+
 
 Gradients use 2..16 movable color stops, interpolated in premultiplied space
 to avoid transparent-stop halos. Stripes alternate colors and Waves interpolate
@@ -207,7 +280,7 @@ images. Spin is disabled for full-canvas Static Color. Pulse and breathe
 multiply each other when both enabled. All modulation happens before masks,
 transparency and layer blending. Source trails use the current mask projection.
 
-The Preview toolbar starts paused. Enter a time or enable Play preview. Pause
+The preview transport uses green Play and red Stop. Enter a time or start playback. Stop
 retains time; enter zero to reset. The 0..86400-second range stops at its end.
 Elapsed wall time controls playback, so dropped frames do not accumulate drift.
 The timer targets about 30 fps and shares each composed frame between canvases;
@@ -232,12 +305,12 @@ rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 14, including editing locks, layer containers, object ownership, placements, ordered layer
+Save/Open uses `.lighting.json` schema 22, including editing locks, layer containers, object ownership, placements, ordered layer
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..13 remain readable with their original
+and advanced persistence. Schemas 1..19 remain readable with their original
 semantics; missing newer settings get disabled/default values. Saves always use
-schema 14; older versions reject it instead of silently losing effects.
+schema 22; older versions reject it instead of silently losing effects.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -366,11 +439,19 @@ channels and rate 1/offset 0. New fields under older schema numbers are rejected
 
 ## Session and output
 
-Dirty projects are atomically autosaved after a two-second debounce without
+Dirty projects are atomically autosaved on a two-second window from the first edit without
 marking undo history clean. Startup offers recovery and restores the last project,
 window and docks. Recovered documents remain unsaved. A single-instance lock
 protects the session. The tray offers Show editor, Stop output and Quit; hiding
 is explicit, and normal closing retains the unsaved-project prompt.
+
+Continuous changes no longer restart the recovery countdown. Timing still depends
+on the GUI event loop; this is not a hard real-time guarantee. Failed writes show
+an error, keep the document dirty and retry on the next edit. Saving/undoing back
+to the clean state cancels the timer and removes the separate recovery file.
+
+The [layer model proposal](LAYER_MODEL_PLAN.md) explains the planned distinction
+between layers and their effects. It is not yet a change to creation or mixing.
 
 Configured hardware receives the canvas automatically. Effect/mask edits and undo
 update software channels live; topology changes reconnect using validated endpoint
@@ -550,14 +631,14 @@ movable, even after cropping an image.
 
 ### Canvas playback, fullscreen and growing Layout
 
-The second toolbar row has a Play preview / Pause preview button. Pause freezes
+The second toolbar row has one icon-only preview button: green Play / red Stop. Stop freezes
 the shared animation time; it does not turn off LEDs. Permanent Preview and
 Devices chips show playback and actual output state separately. The internal
 seconds field stays hidden. Use Hardware to stop/resume device output.
 
 The top-right Layout canvas button opens that same live canvas in a fullscreen window.
 Effects stays in the workspace so its tools, layers and properties remain available.
-The fullscreen view has the same Play/Pause preview control. Escape or the canvas button
+The fullscreen view has the same green Play / red Stop preview control. Escape or the canvas button
 returns it to its original workspace without losing document edits.
 
 Only Layout expands: its bounds include the initial 640x400 area and all physical
@@ -829,15 +910,27 @@ Attachable motherboard/controller headers retain full component-chain editing.
 
 ### Gaming workspace and responsive panels
 
-The shared native Qt theme uses graphite surfaces, cyan selection and
-higher-contrast control boundaries. System fonts
+The Ice revision (GS-06) of the native Qt Gaming-Pro-Studio theme
+uses deep navy surfaces, a darkened panorama from the supplied branding in
+the navigation/history header, and ice-blue/cyan focus/selection. Both adjacent header
+bars paint the same window-relative panorama so resizing keeps the artwork aligned.
+Inspector sections have clipped-corner navy headings with a short cyan top rule;
+their original accessible names remain in sentence case. The workplane has a quiet
+dot texture, drawn only as editor chrome, never into effect or device frames.
+Theme roles are shared by the controls, rather than styled per parameter.
+Compact panel spacing and short input/tab chrome keep the canvas central. System fonts
 and local vector icons remain in use; no web fonts, decorative motion or new UI
 dependencies are required. Hover, focus, checked and disabled states remain
 distinct. Output errors retain text as well as a warning color.
 
 Navigation/history and preview/view controls occupy separate toolbar rows.
 View > Navigator and Inspector (also under Panels) close/reopen the side panels;
-Ctrl+Shift+L and Ctrl+Shift+P are keyboard alternatives. Entering a window narrower
+Ctrl+Shift+L and Ctrl+Shift+P are keyboard alternatives. F6/Shift+F6 cycle focus
+through the visible Navigator, active canvas and Inspector; hidden panels are
+skipped and Hardware disables editor panel navigation. Tools exposes the same
+context-gated drawing tools and creation menus as the tool rail. View > Canvas
+retains Fit/Zoom access; Preview provides playback and output-scope alternatives
+when toolbar controls overflow. Preview playback remains separate from device output. Entering a window narrower
 than 1180 logical pixels collapses the inspector once. Explicit choices remain
 usable while compact and survive workspace switches. Returning to wide mode
 restores the intended inspector state. Reset workspace restores both panels.
@@ -848,7 +941,7 @@ Effects allocates more default height to Live Hardware, which shows the complete
 The splitter still supports resizing/collapsing either pane. With no components
 the complete preview panel, including its controls, disappears. This preview does not change component coordinates, effect layers, channel clocks or LED sampling.
 
-Source / Motion / Mask tabs and an explicit Editing badge identify the active
+Source / Motion / Mask tabs and an explicit Editing caption identify the active
 task. Default layer names do not repeat an identical effect subtitle; custom names
 retain their effect type. Move up/down buttons and Ctrl+PageUp/PageDown reorder the
 selected layer using the same bottom-to-top compositing order as drag reordering.
@@ -859,9 +952,11 @@ existing scope.
 ## Integer controls, live color and identity (2026-10-26)
 
 The GUI audit implementation uses graphite/cyan chrome and the owner-selected
-compact LS mark and wordmark in the application toolbar. The full banner stays in About; its screens are conceptual artwork. The previous
+compact LS mark and wordmark in the application toolbar. Since GS-03, a darkened
+panoramic crop also appears behind the navigation/history row; the full uncropped
+banner stays in About, and its screens are conceptual artwork. The previous
 vector branding proposals are superseded. Panels recovery is pinned in the
-menu bar; Show labels appears only in Layout.
+menu bar. Labels now lives in both editor canvas headers when components are visible.
 
 New layer creates an empty layer. Toolbar flyouts add generators, shapes, particles and images to its object list. Source holds particle type/settings and
 primary/secondary colors. Drawing toolbar colors are brush state. Motion groups
@@ -876,8 +971,9 @@ a saved value between integer display steps; simply focusing, refreshing or savi
 does not round it. Hover shows the precise display-unit value. Right-click a slider
 number for Reset/Zero, or press Alt+R while it has focus to reset its default.
 
-Palette snapping has a separate Stop snap percentage, independent of the pixel
-grid. Native speed/brightness retain actual firmware level indices: physical
+Stop snapping controls palette snapping independently from the pixel grid.
+A value of 1 means 100 positions across the color bar. It applies only while
+Snap to grid is enabled; hold Alt to bypass it. Native speed/brightness retain actual firmware level indices: physical
 ordering is not inferred from UI names.
 
 Shared nonmodal color editing uses a saturation/value square, hue strip, integer
@@ -911,3 +1007,160 @@ no window spans the virtual desktop or changes the Inspector layout.
 
 See [implementation details](design/EDITOR_INTERACTION_IMPLEMENTATION_2026-10-27.md)
 for schema 14 compatibility, raster/vector distinctions and current limits.
+
+Hue track regression: the rainbow track stays visible across the entire range,
+including hue 359 near red. The picker overrides inherited slider fill colors;
+its numeric HSV fields use plain values, matching the effect controls. Live
+preview, cancellation and undo semantics are unchanged.
+
+![Hue spectrum retained at 359](images/hue-picker.png)
+
+
+## Authoring controls follow-up
+
+Toolbar source menus create sources. The inspector deliberately omits source
+replacement. Menus now
+separate Gradients and patterns, Organic and noise, Shapes, Particles and Scenes.
+Plasma blends animated sine fields; Ripples moves closed palette rings outward
+(positive speed) or inward (negative). Both support deterministic seeking and masks.
+Projects save as schema 22; older applications cannot read these new source IDs.
+
+**Stop snapping** only controls dragging palette points: 1 means one percent
+of the bar, not an effect parameter. It applies with Snap to grid enabled; Alt
+bypasses it. Hex edits survive preview refreshes and Return commits valid #RRGGBB.
+
+Voronoi cell motion speed is cycles per minute, now -30..30. Zero freezes sites.
+Euclidean measures straight-line distance, Manhattan adds axis distances (diamond
+cells), Chebyshev takes the largest axis distance (square cells). These rules choose
+the nearest site, changing cell boundaries, not physical LED spacing.
+Radar sweep speed is revolutions per minute: positive clockwise, negative
+counterclockwise, zero still. Labels and tooltips explain these source-specific rates.
+Fireplace detail ranges 1..16 (texture density); height ranges 10..200 relative to
+source height. Enlarged flames remain clipped within a softly faded source footprint.
+The palette's final color no longer paints the outside of Fireplace's rectangle.
+
+Use **Hand (H)** and left-drag to pan either canvas. Space + left-drag and middle-drag
+remain available from other tools. Dragging the effects workspace margin also pans.
+Effect grips and gradient guide lines use smaller screen-space strokes and handles;
+hit targets stay large enough to grab. Pan changes the camera without project edits.
+
+
+## Precision tools and editor polish
+
+Snapping is configured once under **Align / Snap**: Snap to grid, Canvas grid,
+Color stop step, and Smart guides. Palette editors no longer contain snapping
+settings. Color step is a percentage of the color bar, only applied to drag
+snapping while the grid toggle is active; Alt bypasses it. Ctrl+Left/Right moves
+the selected palette point by that step; Ctrl+Alt+arrows moves by 0.1 percent.
+Plain arrows change the selected point. These preferences do not rewrite projects.
+
+Pan is an outline hand icon in the exclusive tool rail; H selects it. Its checked
+state matches the active tool, stroke/color controls disappear, and the minimap
+still navigates. Space temporarily pans from other tools and clears on focus loss.
+The startup camera fits before any screen-anchor transfer; visible mode switches
+preserve the screen anchor even if the inspector changes width.
+
+Source descriptions and core pattern controls precede compositing and palettes.
+Opacity now has an editable number next to the slider. Menus follow File, Edit,
+View, Help; Panels contains panel visibility and workspace reset. The navigator
+has more label space. Procedural sources use transform grips in Move; explicit
+Gradient mode remains available without always drawing a misleading arrow.
+
+Additional sources: Lava Lamp (blob count/seed), Checkerboard (grid size), and
+Kaleidoscope (symmetry repetitions). Lava Lamp lives in Organic and noise;
+Checkerboard/Kaleidoscope in Gradients and patterns. These types require schema 19.
+Aurora remains loadable as a legacy wave source but is omitted from new-source menus. See [Editor UX review](EDITOR_UX_REVIEW.md)
+for the applied design principles, limitations and crash evidence.
+
+Panel preferences are persisted separately from Qt dock geometry. Hiding panels
+for Hardware or compact mode does not overwrite the editing preference. Legacy
+sessions without explicit preferences use their saved Qt dock visibility.
+
+
+## Distinct source capabilities and particle authoring
+
+Source creation lives in the tool rail and Edit > Add layer. The inspector no
+longer offers Change selected effect or a source replacement selector. Adding a
+source does not replace or reinterpret the selected source.
+
+Particle sources expose a labelled **Particle colors** palette with 2..16 editable
+stops. Stop colors/positions, hex input, undo and save/load use the existing palette
+contract. Legacy files without particle palette data retain their original primary/
+secondary colors. Color animation and hue motion also operate on particle palettes.
+Burst emits short, staggered cohorts with individual velocities, gravity, fading
+and size evolution. Its default sprites are circular particles, not connected rays;
+optional temporal trails remain available as an explicit choice.
+
+Aurora is retained for existing project loading and rendering but removed from
+new-source menus: its noisy sine ribbon did not add a distinct authoring capability.
+New candidates must add behavior that existing sources and motion/compositing cannot
+reasonably recreate; palette changes, shape swaps and presets alone do not qualify.
+
+Two sources pass that gate. **Lightning** creates seeded, branching discharges with
+per-flash geometry and an explicit flash lifetime; Organic and noise contains it.
+Bolt count (1..12), flash rate, width, seed and palette are editable. **Starfield**
+projects moving stars through depth, creating perspective acceleration and size
+changes rather than a translated 2D particle field; it lives in Particles. Count,
+speed, size, seed and palette remain normal particle controls. Both are independent
+root sources. Neither imports upstream scripts or requires new dependencies.
+
+Schema 20 adds their IDs. Schemas 1..19 remain readable; files assigning the new
+IDs to older schemas reject atomically. Existing Aurora IDs remain readable.
+New regression captures are distinctive-particles.png (three times per source)
+and particle-burst-editor.png in the native editor artifacts directory. Physical
+hardware output is not established by raster/UI tests.
+
+### Independent wave distortion
+
+Horizontal distortion and Vertical distortion displace their respective axes; zero
+disables either axis independently. Both use bilinear sampling and extend boundary
+pixels instead of wrapping the opposite canvas edge. Linked masks use the same
+displacement. Schema 21 stores vertical amplitude; older projects default it to zero.
+Studio numeric fields share one compact, font-aware width (64 logical pixels at
+the standard font), not an individual width derived from each range or value.
+Changing selections or values does not move the number column. Exact legacy
+values and their approximation marks remain preserved; full precision stays in
+the tooltip. Horizontal and vertical motion expose -500..500 scene units per
+second; existing saved speeds retain their meaning (100 is not rescaled).
+
+## Artwork, continuous gestures and spatial controls (GS-06)
+
+The owner image occupies a dedicated 180-DIP desktop strip (100 DIP in compact
+or shorter windows). The 2026-11-11 correction fits the complete image inside that
+strip without cropping or an overlay fade; unused space uses the window ground.
+The compact wordmark remains in the navigation row; the previous second panorama
+behind navigation is removed. About also shows the whole image.
+Saved preview/history arrangements retain their continuous cyan separator.
+
+Effect gestures no longer toggle Play/Stop. The gesture's transform reference time
+is captured at press while live rendering advances normally; pointer movement
+therefore does not rebase on every timer tick. Explicit Stop is retained on release
+and cancellation. Mask editing follows the same playback contract. In Layers,
+selection tint spans the row with one marker at its left; Source/Mask cells retain
+keyboard focus feedback without repeated cyan selection seams.
+
+| Source | Control | Display range |
+| --- | --- | --- |
+| Plasma / Kaleidoscope | Spatial frequency | 25..400 percent; 100 preserves original frequency |
+| Plasma / Kaleidoscope | Color contrast | 25..300 percent; 100 preserves original contrast |
+| Plasma / Kaleidoscope | Pattern distortion | 0..100 percent; zero preserves original shape |
+| Kaleidoscope | Repetitions | 1..64 symmetric sectors |
+| DNA | Wave width | 25..400 percent of the original horizontal turn spacing |
+| DNA | Wave amplitude | 0..45 percent of source height |
+| Visor | Band width | 1..50 percent of source width |
+
+Schema 22 adds four metadata-backed spatial values with neutral defaults. Old files
+remain readable; their original formulas remain when the new controls are neutral.
+Older applications reject newly saved schema-22 files rather than discard settings.
+The visual character of Lightning/Fireworks is intentionally updated even for old
+saved sources; source geometry, palette and saved count/rate remain intact. New
+Fireworks sources default to 320 sparks, with a supported UI maximum of 400.
+See EFFECT_VISUAL_REVIEW.md for references, matched renders and limitations.
+
+### Startup compatibility hotfix (2026-10-30)
+
+Window-state version 5 rejects older Qt dock/toolbar layouts because the recorded
+pre-artwork arrangement can crash before the first window appears. Geometry,
+explicit panel visibility and project/recovery data still restore independently.
+The old dock/toolbar arrangement resets once; new arrangements persist normally.
+The recorded-state fixture excludes all project and hardware data.

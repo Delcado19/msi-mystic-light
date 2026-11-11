@@ -5,11 +5,14 @@
 #include <QTimer>
 #include <QApplication>
 #include "StudioWidgets.h"
+#include "StudioTheme.h"
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QKeyEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QToolButton>
+#include <QAction>
 #include <QResizeEvent>
 #include <QLineF>
 #include <QPolygonF>
@@ -23,7 +26,7 @@
 #include <QMenu>
 
 namespace {
-bool centeredGradient(EffectKind kind) { return kind==EffectKind::RadialGradient || kind==EffectKind::ConicalGradient; }
+bool centeredGradient(EffectKind kind) { return kind==EffectKind::RadialGradient || kind==EffectKind::ConicalGradient || kind==EffectKind::Pinwheel || kind==EffectKind::Spiral; }
 QPair<QPointF,QPointF> gradientEndpoints(const EffectLayer& layer, double seconds) {
     const auto transform=effectTransform(layer,seconds);
     if(layer.gradientFill) return {transform.map(layer.gradientStart-QPointF(.5,.5)),transform.map(layer.gradientEnd-QPointF(.5,.5))};
@@ -75,19 +78,37 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
 
 void LightingCanvas::setEditorView(bool effects,bool components)
 {
-    cancelGesture();showEffects_=effects;showComponents_=components;update();
+    cancelGesture();showEffects_=effects;showComponents_=components;if(labelsButton_)labelsButton_->setVisible(!previewOnly_ && components);update();
 }
-void LightingCanvas::copyCamera(const LightingCanvas& source)
+void LightingCanvas::copyCamera(const LightingCanvas& source,std::optional<QPoint> globalAnchor)
 {
     if(&source==this)return;
     cancelGesture();autoFit_=false;zoom_=source.zoom_;
     const auto bounds=document_.layoutBounds();
     const auto anchor=context_==Context::Layout ? bounds.topLeft() : QPointF();
     const auto sourceAnchor=source.context_==Context::Layout ? bounds.topLeft() : QPointF();
-    pan_+=source.viewportPoint(sourceAnchor)-viewportPoint(anchor);update();
+    // Use screen coordinates: inspector width changes can move the canvas during a mode switch.
+    const auto screen=globalAnchor.value_or(source.mapToGlobal(source.viewportPoint(sourceAnchor).toPoint()));
+    pan_+=mapFromGlobal(screen)-viewportPoint(anchor);update();
 }
 
-void LightingCanvas::setPreviewOnly() {previewOnly_=true;fullscreen_->hide();setMinimumHeight(160);setFocusPolicy(Qt::NoFocus);}
+void LightingCanvas::setLabelsAction(QAction* action)
+{
+    if(!labelsButton_) {
+        labelsButton_=new QToolButton(this);labelsButton_->setObjectName("canvasLabelsButton");
+        labelsButton_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);labelsButton_->setFixedSize(106,32);
+        labelsButton_->setAccessibleName("Toggle component labels");
+    }
+    labelsButton_->setDefaultAction(action);labelsButton_->setVisible(!previewOnly_ && showComponents_);positionHeaderControls();
+}
+void LightingCanvas::positionHeaderControls()
+{
+    // Header controls never follow scrollbar gutters; reserve the fullscreen slot only in Components mode.
+    fullscreen_->move(width()-48,10);
+    if(labelsButton_)labelsButton_->move(width()-12-labelsButton_->width()-(context_==Context::Layout?44:0),10);
+}
+
+void LightingCanvas::setPreviewOnly() {previewOnly_=true;fullscreen_->hide();if(labelsButton_)labelsButton_->hide();setMinimumHeight(160);setFocusPolicy(Qt::NoFocus);}
 
 void LightingCanvas::fitToView()
 {
@@ -104,7 +125,7 @@ void LightingCanvas::fitToView()
 }
 void LightingCanvas::resizeEvent(QResizeEvent*)
 {
-    fullscreen_->move(width()-48,10);fullscreen_->setVisible(!previewOnly_ && context_==Context::Layout);
+    positionHeaderControls();fullscreen_->setVisible(!previewOnly_ && context_==Context::Layout);
     if(autoFit_) fitToView();
     if(previewOnly_) emptyAction_->hide();
     emptyAction_->move((width()-emptyAction_->width())/2,height()/2+32);
@@ -166,12 +187,14 @@ void LightingCanvas::paintEvent(QPaintEvent*)
 {
     syncScrollbars();
     QPainter painter(this);
-    painter.fillRect(rect(), QColor("#17191f"));
-    painter.setPen(QColor("#a6afc2"));
+    painter.fillRect(rect(),studioThemeColor("@surround"));
+    // A quiet editor workplane only: this never enters the rendered effect/device frame.
+    if(!previewOnly_) {painter.setPen(studioThemeColor("@separator"));for(int y=60;y<height();y+=24)for(int x=12;x<width();x+=24)painter.drawPoint(x,y);}
+    painter.setPen(studioThemeColor("@secondary"));
     const auto placementsForBounds=previewPlacements();
     const auto world=context_==Context::Layout ? document_.layoutBounds(&placementsForBounds) : QRectF(0,0,640,400);
     const auto displayedWorld=context_==Context::Layout ? world : document_.layoutBounds();
-    painter.drawText(QRect(20,12,width()-70,24),Qt::AlignLeft|Qt::AlignVCenter,
+    painter.drawText(QRect(20,12,std::max(0,width()-70-(labelsButton_ && labelsButton_->isVisible()?labelsButton_->width()+8:0)),24),Qt::AlignLeft|Qt::AlignVCenter,
         QString("%1    /    "+QString::number(std::ceil(displayedWorld.width()))+" x "+QString::number(std::ceil(displayedWorld.height()))+"    /    %2%").arg(previewOnly_ ? QString("LIVE HARDWARE") : context_==Context::Layout ? "LAYOUT" : "EFFECT CANVAS").arg(qRound(zoom_*100)));
     const bool empty=context_==Context::Effects ? document_.state().layers.isEmpty() : document_.state().placements.isEmpty();
     if(empty && previewOnly_) {
@@ -242,20 +265,20 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             painter.setPen(QPen(QColor("#a9c2ff"), 1 / zoom_));
             painter.drawLine(start_, last_);
         }
-        if(!maskTarget_ && selections().size()<=1 && (drawingTool_==Tool::Gradient || drawingTool_==Tool::Move)) for(const auto& stored:document_.state().layers) if(stored.id==selected_ && (isGradient(stored.effect) || stored.gradientFill)) {
+        if(!maskTarget_ && selections().size()<=1 && (drawingTool_==Tool::Gradient || drawingTool_==Tool::Move)) for(const auto& stored:document_.state().layers) if(stored.id==selected_ && ((isGradient(stored.effect) && (drawingTool_==Tool::Gradient || !isPattern(stored.effect))) || stored.gradientFill)) {
             const auto& layer=workingEffect_ ? *workingEffect_ : stored;
             const auto endpoints=gradientEndpoints(layer,seconds_); const auto a=endpoints.first,b=endpoints.second;
-            painter.setPen(QPen(QColor("#101722"),4/zoom_)); painter.drawLine(a,b);
-            painter.setPen(QPen(QColor("#e8f0ff"),2/zoom_)); painter.drawLine(a,b);
+            painter.setPen(QPen(QColor("#101722"),2/zoom_)); painter.drawLine(a,b);
+            painter.setPen(QPen(QColor("#e8f0ff"),1/zoom_)); painter.drawLine(a,b);
             const auto direction=(b-a)/std::max(1.0,QLineF(a,b).length()); const QPointF side(-direction.y(),direction.x());
             painter.drawLine(b,b-direction*(13/zoom_)+side*(6/zoom_)); painter.drawLine(b,b-direction*(13/zoom_)-side*(6/zoom_));
-            painter.setBrush(layer.color); painter.drawEllipse(a,6/zoom_,6/zoom_);
-            painter.setBrush(layer.secondaryColor); painter.drawEllipse(b,6/zoom_,6/zoom_);
+            painter.setBrush(layer.color); painter.drawEllipse(a,4/zoom_,4/zoom_);
+            painter.setBrush(layer.secondaryColor); painter.drawEllipse(b,4/zoom_,4/zoom_);
         }
         if(!maskTarget_ && drawingTool_==Tool::Move && selections().size()>1) {
             QRectF bounds;for(const auto& layer:document_.state().layers)if(selections().contains(layer.id))bounds=bounds.united(effectBounds(transformedSelection(layer)));
-            painter.setPen(QPen(QColor("#55deff"),1/zoom_));painter.setBrush(Qt::NoBrush);painter.drawRect(bounds);
-            for(const auto point:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight()})painter.drawRect(QRectF(point-QPointF(4/zoom_,4/zoom_),QSizeF(8/zoom_,8/zoom_)));
+            painter.setPen(QPen(studioThemeColor("@accent"),1/zoom_));painter.setBrush(Qt::NoBrush);painter.drawRect(bounds);
+            for(const auto point:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight()})painter.drawRect(QRectF(point-QPointF(3/zoom_,3/zoom_),QSizeF(6/zoom_,6/zoom_)));
             const auto top=QPointF(bounds.center().x(),bounds.top());painter.drawLine(top,top-QPointF(0,24/zoom_));painter.drawEllipse(top-QPointF(0,24/zoom_),5/zoom_,5/zoom_);
         }
         if (!maskTarget_ && drawingTool_==Tool::Move && selections().size()<=1) for (const auto& stored : document_.state().layers) if (stored.id==selected_ && stored.effect!=EffectKind::StaticColor) {
@@ -270,7 +293,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             }
             else if (!cropTool_) {
                 for (auto point : {bounds.topLeft(),bounds.topRight(),bounds.bottomRight(),bounds.bottomLeft()}) {
-                    const auto handle=transform.map(point); painter.drawRect(QRectF(handle-QPointF(4/zoom_,4/zoom_),QSizeF(8/zoom_,8/zoom_)));
+                    const auto handle=transform.map(point); painter.drawRect(QRectF(handle-QPointF(3/zoom_,3/zoom_),QSizeF(6/zoom_,6/zoom_)));
                 }
                 const auto top=transform.map(QPointF(0,-0.5));
                 const auto rotation=transform.map(QPointF(0,-0.5-24/(zoom_*layer.extent.height())));
@@ -278,10 +301,10 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             }
         }
         for(const auto& layer:document_.state().layers)if(layer.id!=selected_ && selections().contains(layer.id)) {
-            painter.setPen(QPen(QColor("#55deff"),1/zoom_));painter.setBrush(Qt::NoBrush);painter.drawRect(effectBounds(transformedSelection(layer)));
+            painter.setPen(QPen(studioThemeColor("@accent"),1/zoom_));painter.setBrush(Qt::NoBrush);painter.drawRect(effectBounds(transformedSelection(layer)));
         }
-        if(marquee_){painter.setPen(QPen(QColor("#55deff"),1/zoom_,Qt::DashLine));painter.setBrush(QColor(85,222,255,30));painter.drawRect(QRectF(start_,last_).normalized());}
-        for(const auto& line:guides_){painter.setPen(QPen(QColor("#55deff"),1/zoom_,Qt::DashLine));painter.drawLine(line);}
+        if(marquee_){painter.setPen(QPen(studioThemeColor("@accent"),1/zoom_,Qt::DashLine));painter.setBrush(studioThemeColor("@accent",30));painter.drawRect(QRectF(start_,last_).normalized());}
+        for(const auto& line:guides_){painter.setPen(QPen(studioThemeColor("@accent"),1/zoom_,Qt::DashLine));painter.drawLine(line);}
         paintMinimap(painter);return;
     }
     // The same live raster explains sampling positions; Layout edits placements only.
@@ -289,8 +312,8 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     if(!previewOnly_) SnapGrid::load().paint(painter,world.intersected(QRectF(canvasPoint({0,0}),canvasPoint({double(width()),double(height())}))),zoom_);
     if(!previewOnly_) painter.setClipRect(QRectF(canvasPoint(contentRect().topLeft()),canvasPoint(contentRect().bottomRight())));
     if(showComponents_) paintComponents(painter,frame,world);
-    if(marquee_){painter.setPen(QPen(QColor("#55deff"),1/zoom_,Qt::DashLine));painter.setBrush(QColor(85,222,255,30));painter.drawRect(QRectF(start_,last_).normalized());}
-    for(const auto& line:guides_){painter.setPen(QPen(QColor("#55deff"),1/zoom_,Qt::DashLine));painter.drawLine(line);}
+    if(marquee_){painter.setPen(QPen(studioThemeColor("@accent"),1/zoom_,Qt::DashLine));painter.setBrush(studioThemeColor("@accent",30));painter.drawRect(QRectF(start_,last_).normalized());}
+    for(const auto& line:guides_){painter.setPen(QPen(studioThemeColor("@accent"),1/zoom_,Qt::DashLine));painter.drawLine(line);}
     paintMinimap(painter);
 }
 
@@ -364,16 +387,18 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
         const auto title=groupLabel(assignment);
         painter.fillRect(title,QColor("#202735")); painter.setPen(QColor("#dce7ff")); painter.drawText(title,Qt::AlignCenter,assignment.channelId);
     }
-    if(!previewOnly_ && context_==Context::Layout) for(const auto& placement:placements) {
+    if(!previewOnly_ && (context_==Context::Layout || showLabels_)) for(const auto& placement:placements) {
         bool chained=false;for(const auto& assignment:document_.state().assignments)
             if(visibleChain(assignment) && assignment.placements.contains(placement.id))chained=true;
-        if(!chained) {
+        if(context_==Context::Layout && !chained) {
             painter.setBrush(Qt::NoBrush);painter.setPen(QPen(QColor("#8196b8"),1/zoom_,Qt::DashLine));
             painter.drawRoundedRect(componentBounds(placement).adjusted(-8,-8,8,8),8,8);
         }
         if(showLabels_) {
             const auto label=componentLabel(placement);
-            painter.save();painter.setFont(componentLabelFont());
+            painter.save();
+            // Composite uses world coordinates too; captions may extend beyond the effect raster, but not the viewport.
+            painter.setClipRect(painter.transform().inverted().mapRect(contentRect()));painter.setFont(componentLabelFont());
             painter.fillRect(label,QColor("#202735"));painter.setPen(QColor("#dce7ff"));
             painter.drawText(label,Qt::AlignLeft|Qt::AlignVCenter,componentLabelText(placement));painter.restore();
         }
@@ -444,7 +469,6 @@ void LightingCanvas::syncScrollbars()
     };
     scrollUnits_={sync(horizontalScroll_,world.width()*scale.width()*zoom_,visibleWidth,origin.x()-area.left()),
                   sync(verticalScroll_,world.height()*scale.height()*zoom_,visibleHeight,origin.y()-area.top())};
-    fullscreen_->move(width()-48-(vertical ? thickness : 0),10);
 }
 QRectF LightingCanvas::minimapRect() const {
     if(previewOnly_ || (horizontalScroll_->isHidden() && verticalScroll_->isHidden())) return {};
@@ -714,8 +738,9 @@ bool LightingCanvas::selectedPlacement(const QUuid& id) const
 void LightingCanvas::mousePressEvent(QMouseEvent* event)
 {
     if(previewOnly_ || (context_==Context::Layout ? !showComponents_ : !showEffects_)) return;
-    setFocus();
-    if (event->button() == Qt::MiddleButton || (event->button()==Qt::LeftButton && spaceHeld_)) { cancelGesture(); autoFit_=false; panning_ = true; last_ = event->position(); return; }
+    setFocus();gestureSeconds_=seconds_;
+    if(event->button()==Qt::LeftButton && minimapRect().contains(event->position())){cancelGesture();navigating_=true;navigateMinimap(event->position());return;}
+    if (event->button() == Qt::MiddleButton || (event->button()==Qt::LeftButton && (spaceHeld_ || drawingTool_==Tool::Pan))) { cancelGesture(); autoFit_=false; panning_ = true; last_ = event->position(); return; }
     if(event->button()==Qt::RightButton) {
         const auto hits=hitsAt(canvasPoint(event->position()));QMenu menu(this);
         for(const auto& id:hits) {
@@ -727,12 +752,14 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
         if(!hits.isEmpty())menu.exec(event->globalPosition().toPoint());return;
     }
     if (event->button() != Qt::LeftButton) return;
-    if(minimapRect().contains(event->position())){cancelGesture();navigating_=true;navigateMinimap(event->position());return;}
     if(!contentRect().contains(event->position())) return;
     pointer_=event->position(); pointerModifiers_=event->modifiers();
     start_ = last_ = canvasPoint(event->position());
     snapGesture_=SnapGrid::load().enabled && !(event->modifiers() & Qt::AltModifier);
-    if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) return;
+    if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) {
+        // Dragging the workspace margin moves the camera, never the selected source.
+        autoFit_=false;panning_=true;last_=event->position();return;
+    }
     if((event->modifiers() & Qt::ShiftModifier) && (context_==Context::Layout || (!maskTarget_ && drawingTool_==Tool::Move))) {
         const auto hits=hitsAt(start_);auto ids=selectedIds_;
         if(!hits.isEmpty()){const auto id=hits.first();if(ids.contains(id))ids.remove(id);else ids.insert(id);selectMany(ids,ids.contains(id) ? id : QUuid{});return;}
@@ -753,7 +780,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
     }
     if(context_==Context::Effects && !maskTarget_ && drawingTool_!=Tool::Pencil && drawingTool_!=Tool::Fill && drawingTool_!=Tool::Eraser) {
         if(drawingTool_==Tool::Gradient || drawingTool_==Tool::Move) for(const auto& layer:document_.state().layers)
-            if(layer.id==selected_ && editable(layer.id) && (isGradient(layer.effect) || layer.gradientFill)) {
+            if(layer.id==selected_ && editable(layer.id) && ((isGradient(layer.effect) && (drawingTool_==Tool::Gradient || !isPattern(layer.effect))) || layer.gradientFill)) {
                 const auto ends=gradientEndpoints(layer,seconds_);
                 if(QLineF(start_,ends.first).length()<12/zoom_ || QLineF(start_,ends.second).length()<12/zoom_) {
                     emit effectGestureStarted();handle_=QLineF(start_,ends.first).length()<12/zoom_ ? 7 : 8;
@@ -789,7 +816,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
         }
     }
     if(context_==Context::Effects && drawingTool_!=Tool::Move) {
-        if(drawingTool_==Tool::Gradient && !maskTarget_) for(const auto& layer:document_.state().layers) if(layer.id==selected_ && editable(layer.id) && (isGradient(layer.effect) || layer.gradientFill)) {
+        if(drawingTool_==Tool::Gradient && !maskTarget_) for(const auto& layer:document_.state().layers) if(layer.id==selected_ && editable(layer.id) && ((isGradient(layer.effect) && (drawingTool_==Tool::Gradient || !isPattern(layer.effect))) || layer.gradientFill)) {
             const auto endpoints=gradientEndpoints(layer,seconds_); const auto a=endpoints.first,b=endpoints.second;
             if(QLineF(start_,a).length()<12/zoom_ || QLineF(start_,b).length()<12/zoom_) {
                 handle_=QLineF(start_,a).length()<12/zoom_ ? 7 : 8;
@@ -869,7 +896,7 @@ void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
     if(pendingDrawing_) {
         if(QLineF(viewportPoint(start_),event->position()).length()<QApplication::startDragDistance())return;
         pendingDrawing_=false;emit effectGestureStarted();
-        if(drawingTool_==Tool::Gradient)for(const auto& layer:document_.state().layers)if(layer.id==selected_ && editable(layer.id) && (isGradient(layer.effect) || layer.gradientFill)) {
+        if(drawingTool_==Tool::Gradient)for(const auto& layer:document_.state().layers)if(layer.id==selected_ && editable(layer.id) && ((isGradient(layer.effect) && (drawingTool_==Tool::Gradient || !isPattern(layer.effect))) || layer.gradientFill)) {
             const auto endpoints=gradientEndpoints(layer,seconds_);
             if(QLineF(start_,endpoints.first).length()<12/zoom_ || QLineF(start_,endpoints.second).length()<12/zoom_) {
                 handle_=QLineF(start_,endpoints.first).length()<12/zoom_ ? 7 : 8;originalEffect_=workingEffect_=layer;dragging_=true;
@@ -956,18 +983,19 @@ void LightingCanvas::updateEffectGesture(QPointF point)
 {
     if (!originalEffect_) return;
     const auto& original=*originalEffect_; auto changed=original;
-    const auto transform=effectTransform(original,seconds_);
+    // Pointer geometry uses the press-time transform while the visible source keeps animating.
+    const auto transform=effectTransform(original,gestureSeconds_);
     if((handle_==7 || handle_==8) && original.gradientFill) {
         const auto local=transform.inverted().map(point)+QPointF(.5,.5);
         if(handle_==7) changed.gradientStart=local; else changed.gradientEnd=local;
     } else if(handle_==7 || handle_==8) {
-        const auto endpoints=gradientEndpoints(original,seconds_); auto a=endpoints.first,b=endpoints.second;
+        const auto endpoints=gradientEndpoints(original,gestureSeconds_); auto a=endpoints.first,b=endpoints.second;
         if(handle_==7) a=point; else b=point;
         const bool centered=centeredGradient(original.effect);
         changed.center=centered ? a : (a+b)/2; changed.extent.setWidth(std::clamp(QLineF(a,b).length()*(centered ? 2 : 1),1.0,10000.0));
         if(centered) changed.extent.setHeight(changed.extent.width());
-        changed.rotation=std::remainder(std::atan2(b.y()-a.y(),b.x()-a.x())*180/3.141592653589793-original.spin*seconds_,360.0);
-        const double zoom=1+original.zoom/100*std::sin(2*3.141592653589793*seconds_);
+        changed.rotation=std::remainder(std::atan2(b.y()-a.y(),b.x()-a.x())*180/3.141592653589793-original.spin*gestureSeconds_,360.0);
+        const double zoom=1+original.zoom/100*std::sin(2*3.141592653589793*gestureSeconds_);
         if(std::abs(zoom)>.001){changed.extent.setWidth(changed.extent.width()/zoom);if(centered)changed.extent.setHeight(changed.extent.width());}
     } else if (cropTool_) {
         workingEffect_=original;
@@ -1012,7 +1040,7 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
         last_=canvasPoint(event->position());const QRectF area=QRectF(start_,last_).normalized();auto ids=additiveMarquee_ ? marqueeBefore_ : QSet<QUuid>{};
         if(QLineF(viewportPoint(start_),event->position()).length()>=QApplication::startDragDistance()) {
             if(context_==Context::Layout){for(const auto& item:document_.state().placements)if(editable(item.id) && area.contains(componentBounds(item)))ids.insert(item.id);}
-            else for(const auto& layer:document_.state().layers)if(!layer.container && layer.visible && editable(layer.id) && area.contains(effectBounds(layer))) {
+            else for(const auto& layer:document_.state().layers)if((activeLayer_.isNull() || document_.layerRoot(layer.id)==activeLayer_) && !layer.container && layer.visible && editable(layer.id) && area.contains(effectBounds(layer))) {
                 bool visible=true;for(const auto& parent:document_.state().layers)if(parent.id==layer.parentId)visible=parent.visible && parent.transparency<100;
                 if(visible && layer.transparency<100)ids.insert(layer.id);
             }
@@ -1115,7 +1143,12 @@ void LightingCanvas::keyPressEvent(QKeyEvent* event)
     }
     QWidget::keyPressEvent(event);
 }
-void LightingCanvas::hideEvent(QHideEvent* event) { cancelGesture(); QWidget::hideEvent(event); }
+void LightingCanvas::hideEvent(QHideEvent* event) { spaceHeld_=false;cancelGesture(); QWidget::hideEvent(event); }
+void LightingCanvas::focusOutEvent(QFocusEvent* event)
+{
+    // Space release may go to another window; never leave temporary pan latched.
+    spaceHeld_=false;cancelGesture();QWidget::focusOutEvent(event);
+}
 
 QRectF LightingCanvas::contentRect() const
 {
@@ -1163,6 +1196,8 @@ QVector<QUuid> LightingCanvas::hitsAt(QPointF point) const
     }
     for(auto position=order.crbegin();position!=order.crend();++position) {
         const auto* it=*position;
+        // The navigator's active layer owns canvas picking, even below a covering full-canvas source.
+        if(!activeLayer_.isNull() && document_.layerRoot(it->id)!=activeLayer_)continue;
         if(!editable(it->id) || it->container || !it->visible || it->transparency==100)continue;
         const EffectLayer* root=nullptr;for(const auto& parent:document_.state().layers)if(parent.id==it->parentId)root=&parent;
         if(root && (!root->visible || root->transparency==100))continue;

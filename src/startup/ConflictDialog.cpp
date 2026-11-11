@@ -8,6 +8,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <stdexcept>
+#include <algorithm>
 
 ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     : QDialog(parent), processes_(processes)
@@ -17,7 +18,8 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     auto* layout = new QVBoxLayout(this);
     auto* explanation = new QLabel("These programs may control the same lighting devices. Select processes to stop, "
         "or choose Ignore to continue. Terminate requests a normal close, then forces remaining selected processes "
-        "after a short wait. Unsaved work in those programs may be lost.", this);
+        "after a short wait. Use the separate administrator action for the SignalRGB service; it never kills the service process. "
+        "Its automatic startup and scheduled tasks are unchanged. Unsaved work in those programs may be lost.", this);
     explanation->setWordWrap(true);
     layout->addWidget(explanation);
     table_ = new QTableWidget(0, 4, this);
@@ -44,6 +46,7 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     };
     terminateAll_ = button("Terminate all", "terminateAll");
     terminate_ = button("Terminate", "terminateSelected");
+    adminStop_ = button("Stop SignalRGB service (administrator)", "stopSignalRgbServiceAdmin");
     buttons->addStretch();
     auto* rescan = button("Rescan", "rescan");
     ignore_ = button("Ignore", "ignore");
@@ -52,6 +55,7 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     layout->addLayout(buttons);
     connect(terminate_, &QPushButton::clicked, this, [this] { terminate(false); });
     connect(terminateAll_, &QPushButton::clicked, this, [this] { terminate(true); });
+    connect(adminStop_, &QPushButton::clicked, this, [this] { stopSignalRgbService(); });
     connect(rescan, &QPushButton::clicked, this, [this] { if (!busy_) refresh(); });
     connect(ignore_, &QPushButton::clicked, this, &QDialog::accept);
     connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
@@ -59,7 +63,7 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     refresh();
 }
 
-bool ConflictDialog::refresh()
+bool ConflictDialog::refresh(bool acceptEmpty)
 {
     try {
         conflicts_ = processes_.scan();
@@ -73,14 +77,22 @@ bool ConflictDialog::refresh()
             for (int col = 0; col < values.size(); ++col)
                 table_->setItem(row, col, new QTableWidgetItem(values[col]));
         }
-        if (conflicts_.isEmpty()) {
+        adminServicePid_=0;QString serviceError;
+        if(std::any_of(conflicts_.cbegin(),conflicts_.cend(),[](const auto& p){return isSignalRgbService(p.executable);})) {
+            ConflictService service;serviceError=processes_.querySignalRgbService(service);
+            if(serviceError.isEmpty())serviceError=signalRgbAdminStopError(service,conflicts_);
+            if(serviceError.isEmpty())adminServicePid_=service.pid;
+        }
+        if (conflicts_.isEmpty() && acceptEmpty) {
             QTimer::singleShot(0, this, &QDialog::accept);
             updateButtons();
             return true;
         }
-        status_->setText("Select one or more rows. Remaining or restarted processes stay listed after a rescan.");
+        status_->setText("Select one or more rows. Remaining or restarted processes stay listed after a rescan."+
+            (serviceError.isEmpty()?QString{}:"\nAdministrator service stop unavailable: "+serviceError));
     } catch (const std::exception& error) {
         conflicts_.clear();
+        adminServicePid_=0;
         table_->setRowCount(0);
         status_->setText(QString("Conflict scan failed: %1. Retry, Ignore explicitly, or Cancel.").arg(error.what()));
         updateButtons();
@@ -95,6 +107,50 @@ void ConflictDialog::updateButtons()
     terminate_->setEnabled(!busy_ && !table_->selectionModel()->selectedRows().isEmpty());
     terminateAll_->setEnabled(!busy_ && !conflicts_.isEmpty());
     ignore_->setEnabled(!busy_);
+    adminStop_->setEnabled(!busy_ && adminServicePid_!=0);
+}
+
+void ConflictDialog::stopSignalRgbService()
+{
+    if(busy_ || !adminServicePid_)return;
+    const auto originalPid=adminServicePid_;busy_=true;updateButtons();
+    status_->setText("Requesting administrator approval to stop SignalRGB service...");
+    QString error;
+    try {error=processes_.requestSignalRgbAdminStop(originalPid);}
+    catch(const std::exception& e){error=QString::fromUtf8(e.what());}
+    if(!error.isEmpty()) {
+        busy_=false;
+        if(refresh(false))status_->setText(error);
+        else status_->setText(status_->text()+"\n"+error);
+        return;
+    }
+    verifySignalRgbService(originalPid,300);
+}
+
+void ConflictDialog::verifySignalRgbService(quint32 originalPid,int checksLeft,int stableChecks)
+{
+    if(result()==QDialog::Rejected && !isVisible()){busy_=false;return;}
+    bool pending=false;QString error;
+    ConflictService service;
+    try {
+        error=processes_.pollSignalRgbAdminStop(pending);
+        if(error.isEmpty())error=processes_.querySignalRgbService(service);
+    } catch(const std::exception& e){error=QString::fromUtf8(e.what());}
+    if(!refresh(false)){busy_=false;updateButtons();if(!error.isEmpty())status_->setText(status_->text()+"\n"+error);return;}
+    const bool originalPresent=std::any_of(conflicts_.cbegin(),conflicts_.cend(),[=](const auto& p){return p.pid==originalPid && isSignalRgbService(p.executable);});
+    if(error.isEmpty() && service.pid && service.pid!=originalPid)error="SignalRGB service restarted; no automatic second stop was sent";
+    const bool stopped=!pending && service.state==ConflictService::Stopped && !originalPresent;
+    stableChecks=stopped?stableChecks+1:0;
+    if(error.isEmpty() && stableChecks>=6) {
+        busy_=false;updateButtons();status_->setText("SignalRGB service stopped. Automatic startup and scheduled tasks are unchanged.");
+        if(conflicts_.isEmpty())accept();return;
+    }
+    if(error.isEmpty() && checksLeft>0) {
+        status_->setText("Waiting for SignalRGB service to stop and remain stopped...");
+        QTimer::singleShot(100,this,[this,originalPid,checksLeft,stableChecks]{verifySignalRgbService(originalPid,checksLeft-1,stableChecks);});return;
+    }
+    busy_=false;updateButtons();
+    status_->setText(error.isEmpty()?"SignalRGB stop verification timed out. The request may still complete; rescan before retrying.":error);
 }
 
 void ConflictDialog::terminate(bool all)
@@ -120,18 +176,25 @@ void ConflictDialog::terminate(bool all)
             const auto error = processes_.stop(process, true);
             if (!error.isEmpty()) errors.append(process.executable + ": " + error);
         }
-        verifyStopped(closable, errors, 20);
+        const bool service = std::any_of(closable.begin(), closable.end(), [](const auto& p) { return isSignalRgbService(p.executable); });
+        verifyStopped(closable, errors, service ? 300 : 20);
     });
 }
 
 void ConflictDialog::verifyStopped(const QVector<ConflictProcess>& targets, QStringList errors, int checksLeft)
 {
     if (result() == QDialog::Rejected && !isVisible()) { busy_ = false; return; }
-    if (!refresh()) {
+    // A transient empty scan must not hide a failed stop or a replacement service.
+    if (!refresh(false)) {
         busy_ = false;
         updateButtons();
         if (!errors.isEmpty()) status_->setText(status_->text() + "\n" + errors.join('\n'));
         return;
+    }
+    for (const auto& target : targets) if (isSignalRgbService(target.executable)) {
+        const auto error = processes_.stop(target, true);
+        const auto message = target.executable + ": " + error;
+        if (!error.isEmpty() && !errors.contains(message)) errors.append(message);
     }
     QStringList remaining;
     for (const auto& current : conflicts_) for (const auto& target : targets)
@@ -152,4 +215,5 @@ void ConflictDialog::verifyStopped(const QVector<ConflictProcess>& targets, QStr
     updateButtons();
     if (!remaining.isEmpty()) errors.append("Still running after termination: " + remaining.join(", ") + ". Retry or stop manually.");
     if (!errors.isEmpty()) status_->setText(errors.join('\n'));
+    else if(conflicts_.isEmpty())accept();
 }

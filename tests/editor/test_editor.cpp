@@ -1,4 +1,4 @@
-#include "editor/ParameterSpinBox.h"
+﻿#include "editor/ParameterSpinBox.h"
 #include <QDialogButtonBox>
 #include <QMenu>
 #include <QColorDialog>
@@ -11,6 +11,7 @@
 #include "editor/ChannelEditor.h"
 #include "editor/AppSession.h"
 #include "editor/StudioWidgets.h"
+#include "editor/StudioTheme.h"
 #include "editor/HardwarePicker.h"
 #include "editor/LegacyHardware.h"
 #include <QStackedWidget>
@@ -24,6 +25,7 @@
 #include <QColorDialog>
 #include <QVariantAnimation>
 #include <QLabel>
+#include <QStatusBar>
 #include <QApplication>
 #include <QDir>
 #include <QComboBox>
@@ -43,12 +45,14 @@
 #include <QFontMetrics>
 #include <QJsonArray>
 #include <QImageReader>
+#include <QPainter>
 #include <QSvgRenderer>
 #include <QElapsedTimer>
 #include <QLineEdit>
 #include <QLineF>
 #include <QGraphicsView>
 #include <QScrollBar>
+#include <QScrollArea>
 #include <QSplitter>
 #include <QSplitterHandle>
 #include <QDockWidget>
@@ -134,6 +138,9 @@ private slots:
     void layoutPresentationFixes();
     void denseHardwareArtwork();
     void gamingWorkspace();
+    void creativeWorkspaceNavigation();
+    void colorAnimationAlignment();
+    void iceStudioChrome();
     void layerModeAndOrder();
     void fixedComponentLabels();
     void labelRevealControls();
@@ -164,6 +171,7 @@ private slots:
     void snapEffectAndGradient();
     void snapLedArrangement();
     void snapPaletteStops();
+    void dragCycleColors();
     void snapControls();
     void drawingAndAnimationRegressions();
     void restoredLayoutAndDrawing();
@@ -172,6 +180,7 @@ private slots:
     void globalColorControls();
     void integerDisplayRoundTrip();
     void liveColorPicker();
+    void hueTrackRetainsSpectrum();
     void screenEyedropperGeometry();
     void auditWorkspace();
     void objectLayersAndGestures();
@@ -179,12 +188,15 @@ private slots:
     void selectionActionsAndLocks();
     void gradientMotionGeometry();
     void overlapAndSmartGuides();
+    void activeLayerPickingAndCanvasControls();
     void routedCompositionCache();
     void drawingTools();
     void hardwareLibrary();
     void visualWorkspace();
     void channelScopesAndClocks();
     void sessionRecovery();
+    void recoveryDuringContinuousEdits();
+    void recoveryTimerFailureAndCleanState();
     void channelAssignments();
     void channelControls();
     void componentSampling();
@@ -204,10 +216,28 @@ private slots:
     void layerPanelOperations();
     void gradientAndShapeRendering();
     void effectPersistenceAndLegacy();
+    void nativePatterns();
+    void expandedPatternLimits();
+    void effectReferenceGallery();
+    void continuousGesturePreview();
+    void proceduralSourceControls();
+    void legacyArtworkToolbarRestore();
+    void firstRunArtworkStartup();
+    void recordedWindowArtworkStartup();
+    void headerArtworkFits_data();
+    void headerArtworkFits();
+    void neutralContainerPreservesStandaloneSources();
+    void extendedEffectsAndMultizone();
+    void authoringControlsRegression();
+    void panControlsSurviveRefresh();
+    void desktopDesignPolish();
+    void restoredPanelPreferences();
+    void patternAuthoringRegressions();
     void effectControls();
     void imageImportAndCrop();
     void animationPreview();
     void advancedEffects();
+    void distinctiveParticleSources();
     void canvasTransformsAndCrop();
     void triangleAfterCrop();
     void expandingLayoutAndFullscreen();
@@ -330,7 +360,7 @@ void EditorTest::drawingAndAnimationRegressions()
     window.findChild<QDoubleSpinBox*>("driftX")->setValue(80);
     QCOMPARE(window.document().state().layers[0].driftX,0.0);window.findChild<QPushButton*>("applyMotionToAll")->click();
     QCOMPARE(window.document().state().layers[0].driftX,80.0); QCOMPARE(window.document().state().layers[1].driftX,80.0);
-    window.findChild<QCheckBox*>("enableColorCycle")->setChecked(true); QVERIFY(window.findChild<QPushButton*>("playPreview")->isChecked());
+    QVERIFY(!window.findChild<QCheckBox*>("enableColorCycle"));window.findChild<QDoubleSpinBox*>("cycleRate")->setValue(.25); QVERIFY(window.findChild<QPushButton*>("playPreview")->isChecked());
     window.findChild<QPushButton*>("applyMotionToAll")->click();
     for(const auto& source:window.document().state().layers) QVERIFY(source.cycleRate>0);
     for(const auto& name:{"driftX","driftY","zoom","warp","breathe","trails"}) {
@@ -643,6 +673,92 @@ void EditorTest::sessionRecovery()
         LightingWindow window({},[] { return QVector<ProfileCandidate>{}; });
         AppSession session(window,settings,recovery); session.restore([] { return false; });
         QVERIFY(!QFileInfo::exists(recovery)); QCOMPARE(window.document().state().layers.size(),1);
+    }
+}
+
+void EditorTest::recoveryDuringContinuousEdits()
+{
+    QTemporaryDir directory;QSettings settings(directory.filePath("settings.ini"),QSettings::IniFormat);
+    const auto recovery=directory.filePath("recovery.json");
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});
+    AppSession session(window,settings,recovery);window.document().addEmptyLayer();
+    QTimer edits;edits.setInterval(100);int revision=0;
+    connect(&edits,&QTimer::timeout,&window,[&] {
+        window.document().edit("Continuous edit",[&](auto& state){state.layers[0].name=QString::number(++revision);});
+    });edits.start();
+    // No two-second idle gap occurs: recovery must still advance while editing continues.
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(recovery),3500);
+    LightingDocument saved(catalog());saved.load(recovery);const auto first=saved.state().layers[0].name;
+    const auto newer=[&] {saved.load(recovery);return saved.state().layers[0].name!=first;};
+    QTRY_VERIFY_WITH_TIMEOUT(newer(),3500);
+    QVERIFY(edits.isActive());QVERIFY(!window.document().history()->isClean());
+    edits.stop();window.document().history()->setClean();
+}
+
+void EditorTest::recoveryTimerFailureAndCleanState()
+{
+    QTemporaryDir directory;QSettings settings(directory.filePath("settings.ini"),QSettings::IniFormat);
+    const auto parent=directory.filePath("blocked"),recovery=parent+"/recovery.json";
+    QFile blocker(parent);QVERIFY(blocker.open(QIODevice::WriteOnly));blocker.close();
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});
+    AppSession session(window,settings,recovery);window.document().addEmptyLayer();
+    QTRY_VERIFY_WITH_TIMEOUT(window.statusBar()->currentMessage().startsWith("Recovery save failed:"),3500);
+    QVERIFY(!QFileInfo::exists(recovery));QVERIFY(!window.document().history()->isClean());
+    QVERIFY(blocker.remove());QVERIFY(QDir().mkpath(parent));
+    window.document().edit("Retry recovery",[](auto& state){state.layers[0].name="Retried";});
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(recovery),3500);
+    LightingDocument saved(catalog());saved.load(recovery);QCOMPARE(saved.state().layers[0].name,QString("Retried"));
+    window.document().edit("Pending edit",[](auto& state){state.layers[0].name="Pending";});
+    window.document().history()->setClean();QCoreApplication::processEvents();
+    QVERIFY(!QFileInfo::exists(recovery));QTest::qWait(2200);QVERIFY(!QFileInfo::exists(recovery));
+    // Undo away from a saved state must arm recovery again, without marking the document saved.
+    window.document().history()->undo();QVERIFY(!window.document().history()->isClean());
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(recovery),3500);
+    window.document().history()->setClean();QCoreApplication::processEvents();
+    QVERIFY(!QFileInfo::exists(recovery));QVERIFY(QDir(parent).entryList(QDir::Files).isEmpty());
+}
+
+void EditorTest::headerArtworkFits_data()
+{
+    QTest::addColumn<QSize>("viewport");
+    QTest::newRow("minimum-width")<<QSize(240,100);
+    QTest::newRow("normal")<<QSize(1440,180);
+    QTest::newRow("wide")<<QSize(2560,180);
+}
+
+void EditorTest::headerArtworkFits()
+{
+    QFETCH(QSize,viewport);
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});
+    std::unique_ptr<QWidget> banner(studioBanner(nullptr,viewport.height()));banner->resize(viewport);
+    const auto grab=banner->grab();const auto pixels=grab.toImage().convertToFormat(QImage::Format_RGB32);
+    const QPixmap source(":/branding/lighting-studio-ice-banner.png");QVERIFY(!source.isNull());
+    QRect occupied;const auto background=studioThemeColor("@surround").rgb();
+    for(int y=0;y<pixels.height();++y)for(int x=0;x<pixels.width();++x)
+        if(pixels.pixel(x,y)!=background)occupied=occupied.united(QRect(x,y,1,1));
+    QVERIFY(!occupied.isEmpty());
+    // Inspect the painted bounds, not a reference rendered with the production scaling formula.
+    const auto rounding=std::ceil(grab.devicePixelRatio());
+    QVERIFY(std::abs(qint64(occupied.width())*source.height()-qint64(occupied.height())*source.width())<=(source.width()+source.height())*rounding);
+    QVERIFY(occupied.width()==pixels.width() || occupied.height()==pixels.height());
+    QVERIFY(std::abs(occupied.left()-(pixels.width()-occupied.right()-1))<=rounding);
+    QVERIFY(std::abs(occupied.top()-(pixels.height()-occupied.bottom()-1))<=rounding);
+    QVERIFY(grab.save(artifactDirectory()+"/header-fit-"+QString::fromLatin1(QTest::currentDataTag())+".png"));
+}
+
+void EditorTest::neutralContainerPreservesStandaloneSources()
+{
+    // Feasibility proof for the layer proposal only; creation rules and old documents stay unchanged.
+    for(const auto& definition:effectDefinitions()) {
+        if(!isPattern(definition.kind) && definition.kind!=EffectKind::Fireworks && definition.kind!=EffectKind::Lightning && definition.kind!=EffectKind::Starfield)continue;
+        LightingDocument original(catalog());original.addLayer(definition.kind);
+        auto grouped=original.state();EffectLayer root;root.effect=EffectKind::Paint;root.container=true;
+        root.mask=LightingDocument::whiteMask();root.extent=LightingDocument::canvasSize();
+        grouped.layers[0].parentId=root.id;grouped.layers.prepend(root);
+        for(double time:{0.,.37,2.,86400.}) {
+            const auto expected=original.render(time),actual=LightingDocument::render(grouped,time);
+            QVERIFY2(actual==expected,qPrintable(definition.id+" differs in a neutral container at "+QString::number(time)));
+        }
     }
 }
 
@@ -1437,7 +1553,7 @@ void EditorTest::gradientAndShapeRendering()
     QCOMPARE(faded.red(), 255); QCOMPARE(faded.blue(), 0);
 
     for (const auto& definition : effectDefinitions()) {
-        if (definition.kind < EffectKind::Circle || (definition.kind == EffectKind::Image || definition.kind == EffectKind::Paint) || isParticle(definition.kind)) continue;
+        if (!isShape(definition.kind)) continue;
         effect.effect = definition.kind;
         effect.extent = {100, 60}; effect.center = {100, 100};
         image = renderEffect(effect);
@@ -1460,12 +1576,387 @@ void EditorTest::gradientAndShapeRendering()
     QVERIFY_EXCEPTION_THROWN(renderEffect(effect), std::invalid_argument);
 }
 
+void EditorTest::patternAuthoringRegressions()
+{
+    // Sample either side of a wave-period boundary, with a deliberately non-closing two-color palette.
+    for(auto kind:{EffectKind::SineWave,EffectKind::Dna}) {
+        auto wave=layer(Qt::red);wave.effect=kind;wave.extent={640,400};wave.repetitions=1;
+        wave.patternSpeed=0;wave.patternWidth=.23;wave.patternAmplitude=.14;wave.secondaryColor=Qt::blue;
+        const auto seam=renderEffect(wave);
+        const auto left=seam.pixelColor(638,200),right=seam.pixelColor(0,200);
+        QVERIFY(std::abs(left.red()-right.red())<15);QVERIFY(std::abs(left.blue()-right.blue())<15);
+        wave.spin=45;
+        for(int angle=0;angle<360;angle+=45) {
+            const auto rotated=renderEffect(wave,angle/45.);
+            int colored=0;
+            for(int y=0;y<400;y+=4)for(int x=0;x<640;x+=4) colored+=rotated.pixelColor(x,y).red()>30;
+            QVERIFY2(colored>100,"Wave must stay visible through a full rotation");
+        }
+    }
+
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.resize(1600,960);window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    window.findChild<QPushButton*>("newLayer")->click();
+    window.document().edit("Hidden masked parent",[](auto& state){state.layers.first().mask.fill(0);state.layers.first().visible=false;});
+    auto* tree=window.findChild<QTreeWidget*>("effectLayers");
+    QSignalSpy frames(&window,&LightingWindow::previewFrameChanged);
+    for(auto kind:{EffectKind::SineWave,EffectKind::Dna}) {
+        window.findChild<QAction*>("create_"+effectDefinition(kind).id)->trigger();
+        QVERIFY(window.document().state().layers.last().parentId.isNull());
+        QCOMPARE(tree->topLevelItemCount(),window.document().state().layers.size());
+        auto* repeats=window.findChild<QDoubleSpinBox*>("effectRepetitions");QVERIFY(repeats);
+        QSlider* slider=nullptr;
+        for(auto* candidate:window.findChildren<QSlider*>())if(candidate->property("numericField").value<QObject*>()==repeats)slider=candidate;
+        QVERIFY(slider);slider->setValue(80);QVERIFY(window.document().state().layers.last().repetitions!=4);
+        window.document().history()->undo();QCOMPARE(repeats->value(),4.);
+        window.findChild<QDoubleSpinBox*>("previewTime")->setValue(17.3);
+        window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(1);
+        frames.clear();window.findChild<QDoubleSpinBox*>("animationRate0")->setValue(17);
+        QCOMPARE(window.document().state().layers.last().spin,17.);QVERIFY(!frames.isEmpty());
+        const auto frame=qvariant_cast<QImage>(frames.last()[0]);int colored=0;
+        for(int y=0;y<frame.height();y+=4)for(int x=0;x<frame.width();x+=4) {
+            auto color=frame.pixelColor(x,y);colored+=color.red()>30 || color.green()>30;
+        }
+        QVERIFY2(colored>100,"Changing rotation in Motion must retain the visible composition");
+        QCoreApplication::processEvents();
+        QVERIFY(window.grab().save(artifactDirectory()+"/"+effectDefinition(kind).id+"-motion-rotation.png"));
+        window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(0);
+    }
+    auto* snap=window.findChild<QSpinBox*>("paletteSnapPercent");QVERIFY(snap);QVERIFY(snap->toolTip().contains("100 steps"));
+    window.document().history()->setClean();
+}
+
+void EditorTest::extendedEffectsAndMultizone()
+{
+    QTemporaryDir temporary;QImage gallery(640,456,QImage::Format_ARGB32_Premultiplied);gallery.fill(QColor("#10131b"));
+    QPainter painter(&gallery);painter.setPen(Qt::white);int index=0;
+    for(auto kind:{EffectKind::Voronoi,EffectKind::Fireplace,EffectKind::Radar,EffectKind::Fireworks}) {
+        LightingDocument document(catalog());document.addLayer(kind);
+        document.edit("Extended controls",[](auto& state){auto& source=state.layers.last();source.patternSeed=71;source.patternSites=20;source.patternDistance=2;source.patternDetail=3;source.patternHeight=.7;});
+        const auto source=document.state().layers.last();const auto frame=renderEffect(source,.37);
+        QCOMPARE(frame,renderEffect(source,.37));QVERIFY(frame!=renderEffect(source,1.7));
+        auto frozen=source;frozen.patternSpeed=0;frozen.particleSpeed=0;
+        QCOMPARE(renderEffect(frozen,0),renderEffect(frozen,10));
+        if(kind==EffectKind::Voronoi || kind==EffectKind::Fireplace) {
+            auto changed=source;changed.patternSeed+=1;QVERIFY(frame!=renderEffect(changed,.37));
+        }
+        if(kind==EffectKind::Voronoi) {auto changed=source;changed.patternDistance=0;QVERIFY(frame!=renderEffect(changed,.37));}
+        const auto path=temporary.filePath(effectDefinition(kind).id+".json");document.save(path);
+        LightingDocument loaded(catalog());loaded.load(path);QCOMPARE(loaded.render(.37),document.render(.37));
+        auto invalid=source;invalid.patternSites=3.5;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+        invalid=source;invalid.patternDistance=3;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+        invalid=source;invalid.patternHeight=0;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+        QFile file(path);QVERIFY(file.open(QIODevice::ReadOnly));auto json=QJsonDocument::fromJson(file.readAll()).object();file.close();
+        json["schemaVersion"]=16;QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));file.write(QJsonDocument(json).toJson());file.close();
+        QVERIFY_EXCEPTION_THROWN(loaded.load(path),std::invalid_argument);QCOMPARE(loaded.render(.37),document.render(.37));
+        painter.drawText((index%2)*320+8,(index/2)*228+20,effectDefinition(kind).label);
+        painter.drawImage(QRect((index%2)*320,(index/2)*228+28,320,200),frame);++index;
+        QElapsedTimer elapsed;elapsed.start();for(int i=0;i<3;++i)renderEffect(source,.4+i*.1);
+        qInfo()<<effectDefinition(kind).label<<"warm render mean ms:"<<elapsed.elapsed()/3.;
+    }
+    painter.end();QVERIFY(gallery.save(artifactDirectory()+"/extended-effects.png"));
+
+    LightingDocument zones(catalog());const auto root=zones.addMultizoneLayer();QCOMPARE(zones.history()->count(),1);
+    QCOMPARE(zones.state().layers.size(),5);for(int i=1;i<5;++i)QCOMPARE(zones.state().layers[i].parentId,root);
+    const auto before=zones.render(.37);zones.history()->undo();QVERIFY(zones.state().layers.isEmpty());zones.history()->redo();QCOMPARE(zones.render(.37),before);
+    zones.edit("Edit first region",[](auto& state){state.layers[1].gradientColors={Qt::red,Qt::yellow,Qt::black};});
+    const auto changed=zones.render(.37);QVERIFY(changed.copy(0,0,320,200)!=before.copy(0,0,320,200));
+    QCOMPARE(changed.copy(320,0,320,400),before.copy(320,0,320,400));QCOMPARE(changed.copy(0,200,640,200),before.copy(0,200,640,200));
+    zones.save(temporary.filePath("zones.json"));LightingDocument restored(catalog());restored.load(temporary.filePath("zones.json"));QCOMPARE(restored.render(.37),changed);
+    LightingDocument limited(catalog());for(int i=0;i<59;++i)limited.addEmptyLayer();limited.addMultizoneLayer();QCOMPARE(limited.state().layers.size(),64);
+    const int history=limited.history()->count();QVERIFY_EXCEPTION_THROWN(limited.addMultizoneLayer(),std::invalid_argument);QCOMPARE(limited.state().layers.size(),64);QCOMPARE(limited.history()->count(),history);
+
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.resize(1600,960);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    window.findChild<QAction*>("create_voronoi")->trigger();auto* metric=window.findChild<QComboBox*>("patternDistanceMode");QVERIFY(metric);QVERIFY(!metric->isHidden());
+    metric->setCurrentIndex(1);QCOMPARE(window.document().state().layers.last().patternDistance,1.);window.document().history()->undo();QCOMPARE(metric->currentIndex(),0);
+    auto* rate=window.findChild<QDoubleSpinBox*>("patternSpeed");rate->setValue(.15);
+    for(auto* action:rate->actions())if(action->text()=="Reset to default")action->trigger();
+    QCOMPARE(window.document().state().layers.last().patternSpeed,.1);
+    window.findChild<QDoubleSpinBox*>("patternSeed")->setValue(71);QCOMPARE(window.document().state().layers.last().patternSeed,71.);
+    window.findChild<QAction*>("create_fireplace")->trigger();auto* height=window.findChild<QDoubleSpinBox*>("patternHeight");QVERIFY(height);QVERIFY(!height->isHidden());QVERIFY(height->suffix().isEmpty());
+    height->setValue(.65);QCOMPARE(window.document().state().layers.last().patternHeight,.65);
+    window.findChild<QAction*>("create_fireworks")->trigger();QVERIFY(window.document().state().layers.last().parentId.isNull());QVERIFY(!window.findChild<QWidget*>("particleParameters")->isHidden());
+    auto* count=window.findChild<QDoubleSpinBox*>("particleCount");count->setValue(80);
+    for(auto* action:count->actions())if(action->text()=="Reset to default")action->trigger();
+    QCOMPARE(window.document().state().layers.last().particleCount,320.);
+    window.findChild<QAction*>("create_multizone")->trigger();
+    auto* tree=window.findChild<QTreeWidget*>("effectLayers");auto* item=tree->currentItem();QVERIFY(item);QCOMPARE(item->childCount(),4);
+    tree->setCurrentItem(item->child(1));window.findChild<QDoubleSpinBox*>("previewTime")->setValue(.37);QCoreApplication::processEvents();
+    QVERIFY(window.grab().save(artifactDirectory()+"/multizone-editor.png"));window.document().history()->setClean();
+
+    // Real schema-16 files have none of the schema-17 keys, even on the original pattern types.
+    LightingDocument legacy(catalog());legacy.addLayer(EffectKind::Spiral);const auto path=temporary.filePath("schema16.json");legacy.save(path);
+    QFile file(path);QVERIFY(file.open(QIODevice::ReadOnly));auto json=QJsonDocument::fromJson(file.readAll()).object();file.close();json["schemaVersion"]=16;
+    auto layers=json["layers"].toArray();auto source=layers[0].toObject();auto advanced=source["advanced"].toObject();
+    for(const auto& parameter:advancedParameters())if(parameter.schemaVersion>16)advanced.remove(parameter.id);
+    source["advanced"]=advanced;layers[0]=source;json["layers"]=layers;
+    QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));file.write(QJsonDocument(json).toJson());file.close();
+    restored.load(path);QCOMPARE(restored.render(.37),legacy.render(.37));
+}
+
+void EditorTest::continuousGesturePreview()
+{
+    SnapGrid{false,10}.save();LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});
+    window.resize(1440,960);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");auto* play=window.findChild<QPushButton*>("playPreview");
+    for(auto kind:{EffectKind::Ripples,EffectKind::Plasma,EffectKind::Kaleidoscope,EffectKind::Dna,EffectKind::Visor,EffectKind::Voronoi,EffectKind::Fireworks,EffectKind::Lightning}) {
+        window.findChild<QAction*>("create_"+effectDefinition(kind).id)->trigger();
+        const auto original=window.document().state().layers.last();canvas->setTool(LightingCanvas::Tool::Move);QCoreApplication::processEvents();canvas->fitToView();QCOMPARE(canvas->selection(),original.id);play->setChecked(true);
+        const auto anchor=isParticle(kind) ? effectTransform(original,window.previewSeconds()).map(QPointF(-.5,.5)) : original.center;
+        const auto from=canvas->viewportPoint(anchor).toPoint(),to=from+QPoint(20,12);
+        QVERIFY2(canvas->contentRect().contains(from),qPrintable(effectDefinition(kind).label));
+        QSignalSpy gestures(canvas,&LightingCanvas::effectGestureStarted);
+        QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,from);QVERIFY(play->isChecked());QVERIFY2(!gestures.isEmpty(),qPrintable(effectDefinition(kind).label));
+        const auto before=window.previewSeconds();QTRY_VERIFY(window.previewSeconds()>before);
+        QTest::mouseMove(canvas,to);QVERIFY(play->isChecked());
+        QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,to);
+        QVERIFY(play->isChecked());QVERIFY2((window.document().state().layers.last().center!=original.center || window.document().state().layers.last().extent!=original.extent),qPrintable(effectDefinition(kind).label));
+        window.document().history()->undo();QCOMPARE(window.document().state().layers.last().center,original.center);
+    }
+    play->setChecked(false);const auto held=window.previewSeconds();const auto center=window.document().state().layers.last().center;
+    const auto point=canvas->viewportPoint(effectTransform(window.document().state().layers.last(),held).map(QPointF(-.5,.5))).toPoint();QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,point);
+    QTest::mouseMove(canvas,point+QPoint(12,8));QTest::qWait(70);QCOMPARE(window.previewSeconds(),held);
+    QTest::keyClick(canvas,Qt::Key_Escape);QVERIFY(!play->isChecked());QCOMPARE(window.document().state().layers.last().center,center);
+    window.document().history()->setClean();
+}
+
+void EditorTest::recordedWindowArtworkStartup()
+{
+    QTemporaryDir dir;QSettings settings(dir.filePath("recorded.ini"),QSettings::IniFormat);
+    // Owner's pre-banner Qt state reproduces the startup layout; fixture contains no project or hardware data.
+    const auto folder=QString(TEST_COMPONENT_DIR)+"/../tests/editor/fixtures/";
+    for(const auto& entry:QVector<QPair<QString,QString>>{{"window/state","pre-banner-window-state.bin"},{"window/geometry","pre-banner-window-geometry.bin"}}) {
+        QFile file(folder+entry.second);QVERIFY(file.open(QIODevice::ReadOnly));settings.setValue(entry.first,file.readAll());
+    }
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    AppSession session(window,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+    window.findChild<QAction*>("workspaceLayout")->trigger();window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* artwork=window.findChild<QToolBar*>("artworkToolbar");
+    QTRY_VERIFY(artwork->isVisible() && artwork->width()>window.width()*.9);
+    QTest::qWait(50);
+    QVERIFY(window.grab().save(artifactDirectory()+"/recorded-startup.png"));
+}
+
+void EditorTest::firstRunArtworkStartup()
+{
+    QTemporaryDir dir;QSettings settings(dir.filePath("empty.ini"),QSettings::IniFormat);
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    AppSession session(window,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+    window.findChild<QAction*>("workspaceLayout")->trigger();window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTRY_VERIFY(window.findChild<QToolBar*>("artworkToolbar")->isVisible() && window.findChild<QToolBar*>("artworkToolbar")->width()>window.width()*.9);
+}
+
+void EditorTest::legacyArtworkToolbarRestore()
+{
+    LightingWindow previous(catalog(),[]{return QVector<ProfileCandidate>{};});
+    auto* oldArtwork=previous.findChild<QToolBar*>("artworkToolbar");previous.removeToolBar(oldArtwork);oldArtwork->hide();
+    const auto legacy=previous.saveState();
+    LightingWindow restored(catalog(),[]{return QVector<ProfileCandidate>{};});QVERIFY(!restored.restoreState(legacy,5));restored.restoreWorkspacePanelPreferences({});
+    restored.resize(1440,960);restored.show();QVERIFY(QTest::qWaitForWindowExposed(&restored));QCoreApplication::processEvents();
+    auto* artwork=restored.findChild<QToolBar*>("artworkToolbar");auto* navigation=restored.findChild<QToolBar*>("workspaceNavigation");
+    QVERIFY(artwork->isVisible());QVERIFY(artwork->width()>restored.width()*.9);
+    QVERIFY(artwork->geometry().bottom()<navigation->geometry().top());
+    QVERIFY(restored.grab().save(artifactDirectory()+"/refined-legacy-toolbar.png"));
+}
+
+void EditorTest::proceduralSourceControls()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});window.resize(1440,1000);window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    for(auto kind:{EffectKind::Plasma,EffectKind::Kaleidoscope}) {
+        window.findChild<QAction*>("create_"+effectDefinition(kind).id)->trigger();
+        for(const auto* id:{"patternFrequency","patternContrast","patternWarp"}) {
+            auto* control=window.findChild<QDoubleSpinBox*>(id);QVERIFY(control);QVERIFY(!control->isHidden());
+            const auto before=window.document().render(.37);const auto old=control->value();control->setValue(QString(id)=="patternWarp" ? .7 : 2.3);
+            QVERIFY(window.document().render(.37)!=before);window.document().history()->undo();QCOMPARE(control->value(),old);window.document().history()->redo();
+        }
+        QCoreApplication::processEvents();QTest::qWait(30);
+        QVERIFY(window.grab().save(artifactDirectory()+"/refined-"+effectDefinition(kind).id+".png"));
+    }
+    window.findChild<QAction*>("create_dna")->trigger();
+    auto* width=window.findChild<QDoubleSpinBox*>("patternWavelength");QVERIFY(!width->isHidden());
+    const auto before=window.document().render(.37);width->setValue(2);QCOMPARE(width->text(),QString("200"));QVERIFY(window.document().render(.37)!=before);
+    auto* amplitude=window.findChild<QDoubleSpinBox*>("patternAmplitude");QCOMPARE(amplitude->maximum(),.45);
+    QCoreApplication::processEvents();QTest::qWait(30);QVERIFY(window.grab().save(artifactDirectory()+"/refined-dna.png"));
+    window.findChild<QAction*>("create_visor")->trigger();auto* band=window.findChild<QDoubleSpinBox*>("patternWidth");QCOMPARE(band->maximum(),.5);band->setValue(.5);
+    QTemporaryDir dir;const auto path=dir.filePath("spatial.json");window.document().save(path);
+    LightingDocument loaded(catalog());loaded.load(path);QCOMPARE(loaded.render(.37),window.document().render(.37));
+    // Old files do not require new keys or accidentally inherit UI changes from the current document.
+    QFile file(path);QVERIFY(file.open(QIODevice::ReadOnly));auto json=QJsonDocument::fromJson(file.readAll()).object();file.close();json["schemaVersion"]=21;
+    QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));file.write(QJsonDocument(json).toJson());file.close();loaded.load(path);
+    for(const auto& source:loaded.state().layers){QCOMPARE(source.patternFrequency,1.);QCOMPARE(source.patternContrast,1.);QCOMPARE(source.patternWarp,0.);QCOMPARE(source.patternWavelength,1.);}
+    auto invalid=window.document().state().layers.last();invalid.patternFrequency=4.1;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+    invalid.patternFrequency=1;invalid.patternWavelength=0;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+    auto* banner=window.findChild<QWidget*>("studioArtworkBanner");QVERIFY(banner);QVERIFY(banner->height()>=160);
+    QVERIFY(banner->grab().save(artifactDirectory()+"/refined-banner.png"));
+    window.document().history()->setClean();
+}
+
+void EditorTest::effectReferenceGallery()
+{
+    QImage sheet(1280,520,QImage::Format_ARGB32_Premultiplied);sheet.fill(QColor("#06101e"));QPainter painter(&sheet);
+    int row=0;
+    for(auto kind:{EffectKind::Lightning,EffectKind::Fireworks}) {
+        EffectLayer source;source.effect=kind;source.extent={440,350};source.particleCount=kind==EffectKind::Lightning ? 1 : 240;source.particleSize=2;
+        source.gradientColors=kind==EffectKind::Lightning ? QVector<QColor>{QColor("#568bff"),Qt::white} : QVector<QColor>{QColor("#ff6114"),QColor("#ffd470"),Qt::white};
+        for(int i=0;i<4;++i) {
+            const double seconds=kind==EffectKind::Lightning ? .05+i*.16 : .9+i*.42;
+            const auto frame=renderEffect(source,seconds);QCOMPARE(frame,renderEffect(source,seconds));
+            painter.setPen(Qt::white);painter.drawText(i*320+8,row*260+18,effectDefinition(kind).label+QString(" t=%1").arg(seconds));
+            painter.drawImage(QRect(i*320,row*260+24,320,228),frame);
+        }
+        ++row;
+    }
+    painter.end();QVERIFY(sheet.save(artifactDirectory()+"/lightning-fireworks-reference.png"));
+}
+
+void EditorTest::expandedPatternLimits()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    for(const auto& definition:effectDefinitions())if(isPattern(definition.kind) && canCreateEffect(definition.kind)) {
+        window.findChild<QAction*>("create_"+definition.id)->trigger();
+        auto* rate=window.findChild<QDoubleSpinBox*>("patternSpeed");
+        auto* repeats=window.findChild<QDoubleSpinBox*>("effectRepetitions");
+        QCOMPARE(rate->minimum(),-10.);QCOMPARE(rate->maximum(),10.);QCOMPARE(repeats->maximum(),64.);
+        rate->setValue(10);repeats->setValue(64);
+        QCOMPARE(window.document().state().layers.last().patternSpeed,10.);
+        QCOMPARE(window.document().state().layers.last().repetitions,64);
+        window.document().history()->undo();QCOMPARE(repeats->value(),4.);
+        window.document().history()->redo();QCOMPARE(repeats->value(),64.);
+        rate->setValue(-10);QCOMPARE(window.document().state().layers.last().patternSpeed,-10.);
+    }
+    QTemporaryDir dir;const auto path=dir.filePath("expanded.json");window.document().save(path);
+    LightingDocument loaded(catalog());loaded.load(path);
+    for(const auto& source:loaded.state().layers){QCOMPARE(source.patternSpeed,-10.);QCOMPARE(source.repetitions,64);}
+    auto ripple=layer(Qt::cyan);ripple.effect=EffectKind::Ripples;ripple.patternSpeed=10;ripple.repetitions=64;
+    QVERIFY(renderEffect(ripple,.013)!=renderEffect(ripple,.029));
+    ripple.patternSpeed=10.1;QVERIFY_EXCEPTION_THROWN(validateEffect(ripple),std::invalid_argument);
+    ripple.patternSpeed=10;ripple.repetitions=65;QVERIFY_EXCEPTION_THROWN(validateEffect(ripple),std::invalid_argument);
+    window.resize(1440,960);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QAction*>("create_"+effectDefinition(EffectKind::Ripples).id)->trigger();
+    window.findChild<QDoubleSpinBox*>("effectRepetitions")->setValue(64);
+    auto* rate=window.findChild<QDoubleSpinBox*>("patternSpeed");rate->setValue(10);
+    auto* inspector=window.findChild<QTabWidget*>("layerInspectorTabs");inspector->setCurrentIndex(0);QCoreApplication::processEvents();
+    QVERIFY(window.grab().save(artifactDirectory()+"/ice-ripples-repetitions.png"));
+    inspector->setCurrentIndex(1);QCoreApplication::processEvents();QCOMPARE(rate->text(),QString("600"));
+    QVERIFY(window.grab().save(artifactDirectory()+"/ice-ripples-speed.png"));
+    window.document().history()->setClean();
+}
+
+void EditorTest::nativePatterns()
+{
+    QTemporaryDir temporary;
+    QImage gallery(960,1140,QImage::Format_ARGB32_Premultiplied); gallery.fill(QColor("#10131b"));
+    QPainter painter(&gallery); painter.setPen(Qt::white);
+    int index=0;
+    for(const auto& definition:effectDefinitions()) if(isPattern(definition.kind)) {
+        LightingDocument document(catalog()); document.addLayer(definition.kind);
+        document.edit("Pattern controls",[](auto& state) {
+            auto& source=state.layers.last();source.patternSpeed=.4;source.patternWidth=.04;
+            source.patternAmplitude=.3;source.patternCells=8;source.fillOrder=2;
+            source.gradientPositions.clear();
+            for(int i=0;i<source.gradientColors.size();++i)source.gradientPositions.append(i==1 && source.gradientColors.size()==3 ? .4 : i/double(source.gradientColors.size()-1));
+        });
+        const auto source=document.state().layers.last();
+        const auto first=renderEffect(source,.37),later=renderEffect(source,.91);
+        QVERIFY2(first!=later,qPrintable(definition.label));
+        QCOMPARE(first,renderEffect(source,.37)); // Rendering does not depend on frame history.
+        auto frozen=source;frozen.patternSpeed=0;
+        QCOMPARE(renderEffect(frozen,.37),renderEffect(frozen,2));
+        auto reverse=source;reverse.patternSpeed=-source.patternSpeed;
+        // Flame noise scrolls continuously; the geometric patterns repeat after one loop.
+        if(definition.kind!=EffectKind::Fireplace && definition.kind!=EffectKind::Aurora) QCOMPARE(renderEffect(source,.37),renderEffect(reverse,1/source.patternSpeed-.37));
+        const auto path=temporary.filePath(definition.id+".lighting.json");document.save(path);
+        LightingDocument loaded(catalog());loaded.load(path);
+        QCOMPARE(loaded.render(.37),document.render(.37));
+        const auto restored=loaded.state().layers.last();
+        QCOMPARE(restored.patternSpeed,.4);QCOMPARE(restored.patternWidth,.04);
+        QCOMPARE(restored.patternAmplitude,.3);QCOMPARE(restored.patternCells,8.);QCOMPARE(restored.fillOrder,2.);
+        auto invalid=source;invalid.patternCells=3.5;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+        invalid=source;invalid.patternWidth=0;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+        invalid=source;invalid.patternSpeed=std::numeric_limits<double>::quiet_NaN();QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+        invalid=source;invalid.fillOrder=3;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+        QFile file(path);QVERIFY(file.open(QIODevice::ReadOnly));auto json=QJsonDocument::fromJson(file.readAll()).object();file.close();
+        json["schemaVersion"]=15;QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));file.write(QJsonDocument(json).toJson());file.close();
+        QVERIFY_EXCEPTION_THROWN(loaded.load(path),std::invalid_argument);QCOMPARE(loaded.render(.37),document.render(.37));
+        painter.drawText((index%3)*320+8,(index/3)*228+20,definition.label);
+        painter.drawImage(QRect((index%3)*320,(index/3)*228+28,320,200),first);
+        ++index;
+    }
+    QCOMPARE(index,15);painter.end();QVERIFY(gallery.save(artifactDirectory()+"/native-patterns.png"));
+
+    // A four-by-four grid distinguishes row, snake and inward-spiral visitation.
+    auto fill=layer(Qt::red);fill.effect=EffectKind::PixelFill;fill.extent={640,400};fill.patternCells=4;fill.patternSpeed=1;
+    fill.gradientColors={Qt::red,Qt::white,Qt::black};
+    fill.fillOrder=0;auto rows=renderEffect(fill,5.5/16);QVERIFY(rows.pixelColor(80,150)!=QColor(Qt::black));QCOMPARE(rows.pixelColor(560,150),QColor(Qt::black));
+    fill.fillOrder=1;auto snake=renderEffect(fill,5.5/16);QCOMPARE(snake.pixelColor(80,150),QColor(Qt::black));QVERIFY(snake.pixelColor(560,150)!=QColor(Qt::black));
+    fill.fillOrder=2;auto spiral=renderEffect(fill,5.5/16);QVERIFY(spiral.pixelColor(560,250)!=QColor(Qt::black));QCOMPARE(spiral.pixelColor(240,150),QColor(Qt::black));
+    fill.patternCells=3;QVERIFY(!renderEffect(fill,.9).isNull()); // Odd grids include the final center cell.
+
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.resize(1600,960);window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    for(const auto& definition:effectDefinitions()) if(isPattern(definition.kind) && canCreateEffect(definition.kind)) {
+        auto* action=window.findChild<QAction*>("create_"+definition.id);QVERIFY(action);action->trigger();
+        QCOMPARE(window.document().state().layers.last().effect,definition.kind);
+        QVERIFY(!window.findChild<QWidget*>("patternParameters")->isHidden());
+        auto* rate=window.findChild<QDoubleSpinBox*>("patternSpeed");QVERIFY(rate);QVERIFY(!rate->isHidden());
+        const double maximumRate=10;
+        QCOMPARE(rate->property("sliderMinimum").toDouble(),-maximumRate);
+        QCOMPARE(rate->property("sliderMaximum").toDouble(),maximumRate);
+        QCOMPARE(rate->maximum(),maximumRate);QVERIFY(rate->suffix().isEmpty());
+        QVERIFY(window.findChildren<QLabel*>("parameterLimits").isEmpty());
+        rate->setValue(-.1);QCOMPARE(window.document().state().layers.last().patternSpeed,-.1);
+        const double defaultRate=definition.patternSpeed;
+        window.document().history()->undo();QCOMPARE(rate->value(),defaultRate);
+        window.document().edit("Legacy high rate",[](auto& state){state.layers.last().patternSpeed=5;});
+        QCOMPARE(rate->value(),5.);QCOMPARE(rate->property("sliderMaximum").toDouble(),maximumRate);
+        const auto revision=window.document().revision();
+        window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(1);
+        QCOMPARE(window.document().revision(),revision);QCOMPARE(rate->value(),5.);
+        QSlider* rateSlider=nullptr;
+        for(auto* candidate:window.findChildren<QSlider*>())if(candidate->property("numericField").value<QObject*>()==rate)rateSlider=candidate;
+        QVERIFY(rateSlider);rateSlider->setValue(900);
+        QVERIFY(std::abs(window.document().state().layers.last().patternSpeed)<=maximumRate);
+        window.document().history()->undo();QCOMPARE(rate->value(),5.);
+        window.document().history()->undo();QCOMPARE(rate->value(),defaultRate);
+        window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(0);
+        auto* order=window.findChild<QComboBox*>("patternFillOrder");QVERIFY(order);
+        QCOMPARE(order->isHidden(),definition.kind!=EffectKind::PixelFill);
+        if(definition.kind==EffectKind::PixelFill) {
+            order->setCurrentIndex(2);QCOMPARE(window.document().state().layers.last().fillOrder,2.);
+            window.document().history()->undo();QCOMPARE(order->currentIndex(),0);
+            QCoreApplication::processEvents();
+            for(auto* ancestor=order->parentWidget();ancestor;ancestor=ancestor->parentWidget())
+                if(auto* scroll=qobject_cast<QScrollArea*>(ancestor)) {scroll->ensureWidgetVisible(order);break;}
+            QCoreApplication::processEvents();
+            QVERIFY(window.grab().save(artifactDirectory()+"/native-pattern-controls.png"));
+        }
+    }
+    window.document().history()->setClean();
+
+    LightingDocument legacy(catalog());legacy.addLayer(EffectKind::LinearGradient);
+    const auto path=temporary.filePath("legacy.json");legacy.save(path);QFile file(path);QVERIFY(file.open(QIODevice::ReadOnly));
+    auto json=QJsonDocument::fromJson(file.readAll()).object();file.close();json["schemaVersion"]=15;
+    auto layers=json["layers"].toArray();auto source=layers[0].toObject();auto advanced=source["advanced"].toObject();
+    for(const auto& parameter:advancedParameters()) if(parameter.schemaVersion>=16) advanced.remove(parameter.id);
+    source["advanced"]=advanced;layers[0]=source;json["layers"]=layers;
+    QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));file.write(QJsonDocument(json).toJson());file.close();
+    LightingDocument loaded(catalog());loaded.load(path);QCOMPARE(loaded.render(),legacy.render());
+}
+
 void EditorTest::effectPersistenceAndLegacy()
 {
     QTemporaryDir directory;
     const auto path = directory.filePath("effects.json");
     LightingDocument document(catalog());
-    for (const auto& definition : effectDefinitions()) if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Rectangle) document.addLayer(definition.kind);
+    for (const auto& definition : effectDefinitions()) if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Rectangle && !isPattern(definition.kind)) document.addLayer(definition.kind);
     document.edit("Set gradient colors", [](LightingState& state) {
         state.layers[1].color = Qt::red; state.layers[1].secondaryColor = Qt::blue;
         for (auto& layer : state.layers) if (isParticle(layer.effect)) layer.visible = false;
@@ -1484,7 +1975,7 @@ void EditorTest::effectPersistenceAndLegacy()
     }
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     auto root = QJsonDocument::fromJson(file.readAll()).object(); file.close();
-    QCOMPARE(root.value("schemaVersion").toInt(), 14);
+    QCOMPARE(root.value("schemaVersion").toInt(), 22);
     // Published schema 2 has explicit effects but no image fields or Image type.
     auto version2 = root; version2.remove("components"); version2.remove("assignments"); QJsonArray version2Layers;
     for (const auto& item : root.value("layers").toArray()) {
@@ -1553,10 +2044,13 @@ void EditorTest::effectControls()
     auto* width = window.findChild<QDoubleSpinBox*>("effectGeometry2"); width->setValue(150);
     QCOMPARE(window.document().state().layers[0].extent.width(), 150.0);
     window.document().history()->undo(); QCOMPARE(width->value(), 240.0);
-    auto* selected = window.findChild<QComboBox*>("selectedEffectType");
-    selected->setCurrentIndex(selected->findData(static_cast<int>(EffectKind::RadialGradient)));
-    QCOMPARE(window.document().state().layers[0].name, QString("Radial Gradient"));
-    QCOMPARE(window.document().state().layers[0].effect, EffectKind::RadialGradient);
+    QVERIFY(!window.findChild<QComboBox*>("selectedEffectType"));
+    window.findChild<QAction*>("create_radial")->trigger();
+    QCOMPARE(window.document().state().layers[0].effect,EffectKind::Star);
+    QCOMPARE(window.document().state().layers.last().effect,EffectKind::RadialGradient);
+    window.document().history()->undo();
+    // Set up a background fixture; source replacement is deliberately not an inspector action.
+    window.document().edit("Preview background",[](auto& state){state.layers[0].effect=EffectKind::RadialGradient;state.layers[0].name="Radial Gradient";});
     QCOMPARE(window.document().state().layers[0].mask.constScanLine(0)[0], uchar(255));
     window.document().edit("Preview colors", [](LightingState& state) {
         state.layers[0].color = QColor("#ffb347"); state.layers[0].secondaryColor = QColor("#242c78");
@@ -1669,6 +2163,59 @@ void EditorTest::animationPreview()
     window.document().history()->undo(); window.document().history()->setClean();
 }
 
+void EditorTest::distinctiveParticleSources()
+{
+    QTemporaryDir dir;QImage gallery(960,684,QImage::Format_ARGB32_Premultiplied);gallery.fill(QColor("#10131b"));QPainter painter(&gallery);
+    int tile=0;
+    for(auto kind:{EffectKind::Burst,EffectKind::Lightning,EffectKind::Starfield}) {
+        LightingDocument document(catalog());document.addLayer(kind);
+        document.edit("Particle palette",[](auto& state){auto& source=state.layers.last();source.gradientColors={Qt::red,Qt::green,Qt::blue};source.gradientPositions={0,.2,1};});
+        const auto source=document.state().layers.last();const auto frame=renderEffect(source,.37);
+        QCOMPARE(frame,renderEffect(source,.37));QVERIFY(frame!=renderEffect(source,1.7));
+        auto frozen=source;frozen.particleSpeed=0;QCOMPARE(renderEffect(frozen,0),renderEffect(frozen,10));
+        auto recolored=source;recolored.gradientColors={Qt::yellow,Qt::cyan,Qt::magenta};QVERIFY(frame!=renderEffect(recolored,.37));
+        const auto path=dir.filePath(effectDefinition(kind).id+".json");document.save(path);LightingDocument restored(catalog());restored.load(path);QCOMPARE(restored.render(.37),document.render(.37));
+        if(kind!=EffectKind::Burst) {
+            QFile file(path);QVERIFY(file.open(QIODevice::ReadOnly));auto old=QJsonDocument::fromJson(file.readAll()).object();file.close();old["schemaVersion"]=19;
+            QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::Truncate));file.write(QJsonDocument(old).toJson());file.close();QVERIFY_EXCEPTION_THROWN(restored.load(path),std::invalid_argument);QCOMPARE(restored.render(.37),document.render(.37));
+        }
+        painter.setPen(Qt::white);painter.drawText((tile%3)*320+8,20,effectDefinition(kind).label);painter.drawImage(QRect((tile%3)*320,28,320,200),frame);++tile;
+        painter.drawImage(QRect(((tile-1)%3)*320,256,320,200),renderEffect(source,.8));painter.drawImage(QRect(((tile-1)%3)*320,484,320,200),renderEffect(source,1.7));
+    }
+    painter.end();QVERIFY(gallery.save(artifactDirectory()+"/distinctive-particles.png"));
+    auto burst=layer(Qt::red);burst.effect=EffectKind::Burst;burst.extent={640,400};burst.particleCount=24;burst.particleSize=2;burst.secondaryColor=Qt::red;
+    const auto dots=renderEffect(burst,.8);QByteArray visited(dots.width()*dots.height(),0);int roundSprites=0;
+    for(int y=0;y<dots.height();++y)for(int x=0;x<dots.width();++x) {
+        const int index=y*dots.width()+x;if(visited[index] || qAlpha(dots.pixel(x,y))<16)continue;
+        QVector<QPoint> pending{{x,y}};visited[index]=1;QRect bounds(x,y,1,1);
+        for(int head=0;head<pending.size();++head)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx) {
+            const auto next=pending[head]+QPoint(dx,dy);if(!dots.rect().contains(next))continue;const int n=next.y()*dots.width()+next.x();
+            if(visited[n] || qAlpha(dots.pixel(next))<16)continue;visited[n]=1;pending.append(next);bounds=bounds.united(QRect(next,QSize(1,1)));
+        }
+        if(bounds.width()<=8 && bounds.height()<=8)++roundSprites;
+    }
+    QVERIFY(roundSprites>=12);
+    burst.particleCount=200;
+    const auto meanRadius=[&](double time) {
+        const auto frame=renderEffect(burst,time);double radius=0,weight=0;
+        for(int y=0;y<frame.height();++y)for(int x=0;x<frame.width();++x) {
+            const double alpha=qAlpha(frame.pixel(x,y));
+            radius+=alpha*std::hypot((x+.5-burst.center.x())/burst.extent.width(),(y+.5-burst.center.y())/burst.extent.height());weight+=alpha;
+        }
+        return radius/std::max(1.0,weight);
+    };
+    QVERIFY(meanRadius(.8)>meanRadius(0)+.06); // A finite cohort expands; permanently occupied radial spokes do not.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});window.resize(1440,960);addEffect(window,EffectKind::Burst);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(!window.findChild<QComboBox*>("selectedEffectType"));QVERIFY(!window.findChild<QAction*>("create_aurora"));
+    auto* palette=window.findChild<ColorListEditor*>("gradientColors");QVERIFY(palette->isVisible());QVERIFY(window.findChild<QLabel*>("particlePaletteLabel")->isVisible());
+    const auto before=window.document().render(.37);auto* hex=palette->findChild<ColorEditor*>("selectedStopColor")->findChild<QLineEdit*>("rgbHex");hex->setFocus();hex->selectAll();QTest::keyClicks(hex,"#21FF00");QTest::keyClick(hex,Qt::Key_Return);
+    QCOMPARE(window.document().state().layers.last().gradientColors.first(),QColor("#21FF00"));QVERIFY(before!=window.document().render(.37));window.document().history()->undo();QCOMPARE(window.document().render(.37),before);
+    for(auto kind:{EffectKind::Lightning,EffectKind::Starfield}) {window.findChild<QAction*>("create_"+effectDefinition(kind).id)->trigger();QCOMPARE(window.document().state().layers.last().effect,kind);QVERIFY(window.document().state().layers.last().parentId.isNull());}
+    window.findChild<QAction*>("create_burst")->trigger();window.findChild<QDoubleSpinBox*>("previewTime")->setValue(.8);QVERIFY(window.grab().save(artifactDirectory()+"/particle-burst-editor.png"));
+    auto invalid=window.document().state().layers.last();invalid.effect=EffectKind::Lightning;invalid.particleCount=13;QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+    window.document().history()->setClean();
+}
+
 void EditorTest::advancedEffects()
 {
     auto effect = layer(Qt::red); effect.effect = EffectKind::Circle;
@@ -1681,6 +2228,12 @@ void EditorTest::advancedEffects()
     QVERIFY(renderEffect(effect,0.5).pixelColor(100,100).alpha()<10);
     effect.breathe=0; effect.cycleRate=1; effect.colorCycle={Qt::red,Qt::blue};
     QCOMPARE(renderEffect(effect,0.5).pixelColor(100,100),QColor(Qt::blue));
+    effect.colorCycle={Qt::red,Qt::green,Qt::blue}; effect.colorCyclePositions={0,.75,1};
+    QCOMPARE(renderEffect(effect,.5).pixelColor(100,100),QColor(Qt::green));
+    QCOMPARE(renderEffect(effect,1.5).pixelColor(100,100),QColor(Qt::green));
+    effect.colorCyclePositions={.1,.75,.9};
+    QVERIFY(renderEffect(effect,0).pixelColor(100,100)!=QColor(Qt::red));
+    effect.colorCyclePositions.clear();
     effect.cycleRate=0; effect.warp=20;
     QVERIFY(renderEffect(effect,0.25)!=renderEffect(effect,0)); effect.warp=0;
     effect.driftX=100; effect.trails=1;
@@ -1749,17 +2302,24 @@ void EditorTest::expandingLayoutAndFullscreen()
     QTemporaryDir directory;const auto file=directory.filePath("layout.json");window.document().save(file);
     LightingDocument restored(catalog(),nullptr,{channelProfile()});restored.load(file);QCOMPARE(restored.layoutBounds(),bounds);
     window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
-    auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(false);QCOMPARE(play->text(),QString("Play preview"));
-    QTest::mouseClick(play,Qt::LeftButton);QCOMPARE(play->text(),QString("Pause preview"));play->setChecked(false);
+    auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(false);QVERIFY(play->text().isEmpty());QCOMPARE(play->accessibleName(),QString("Play preview"));
+    QTest::mouseClick(play,Qt::LeftButton);QVERIFY(play->text().isEmpty());QCOMPARE(play->accessibleName(),QString("Stop preview"));play->setChecked(false);
     QVERIFY(window.findChild<QLabel*>("toolbarOutputStatus")->isVisible());
     auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->fitToView();
     auto* originalParent=canvas->parentWidget();auto* fullscreen=canvas->findChild<QPushButton*>("canvasFullscreenButton");
+    const auto fullscreenPosition=fullscreen->pos();
+    canvas->zoomBy(4);canvas->repaint();
+    QVERIFY(canvas->findChild<QScrollBar*>("canvasVerticalScroll")->isVisible());
+    QCOMPARE(fullscreen->pos(),fullscreenPosition); // Header controls must not follow scrollbar gutters.
+    canvas->fitToView();canvas->repaint();QCOMPARE(fullscreen->pos(),fullscreenPosition);
     QTest::mouseClick(fullscreen,Qt::LeftButton);
     auto* host=window.findChild<QDialog*>("canvasFullscreen");QVERIFY(host);QTRY_VERIFY(host->isFullScreen());
     QCOMPARE(canvas->window(),host);QVERIFY(canvas->isVisible());
+    QTRY_VERIFY(canvas->height()>host->height()*.8);
     QVERIFY(host->grab().save(artifactDirectory()+"/layout-fullscreen.png"));
     auto* fullPlay=host->findChild<QPushButton*>("fullscreenCanvasPlayback");QVERIFY(fullPlay);QTest::mouseClick(fullPlay,Qt::LeftButton);QVERIFY(play->isChecked());play->setChecked(false);
     auto* fullOutput=host->findChild<QLabel*>("fullscreenOutputStatus");QVERIFY(fullOutput);QVERIFY(fullOutput->isVisible());
+    QVERIFY(fullOutput->height()<64);QVERIFY(fullPlay->mapTo(host,QPoint()).y()<64);
     window.setOutputState("Running");QCOMPARE(fullOutput->text(),QString("Devices: Running"));
     canvas->zoomBy(4);canvas->repaint();QVERIFY(host->grab().save(artifactDirectory()+"/layout-fullscreen-overflow.png"));
     QTest::keyClick(canvas,Qt::Key_Escape);QTRY_COMPARE(canvas->parentWidget(),originalParent);QVERIFY(canvas->isVisible());
@@ -1987,7 +2547,11 @@ void EditorTest::advancedControls()
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
     addEffect(window,EffectKind::Orbit);
     window.findChild<QDoubleSpinBox*>("particleCount")->setValue(400);
-    QCOMPARE(window.document().state().layers[0].particleCount,400.0);
+    QCOMPARE(window.document().state().layers[0].particleCount,200.0); // New input uses the practical range.
+    window.document().edit("Legacy particle count",[](auto& state){state.layers[0].particleCount=400;});
+    QCOMPARE(window.findChild<QDoubleSpinBox*>("particleCount")->value(),400.);
+    QCOMPARE(window.findChild<QDoubleSpinBox*>("particleCount")->property("sliderMaximum").toDouble(),200.);
+    window.document().history()->undo();
     QVERIFY(!window.findChild<QCheckBox*>("cropTool")->isEnabled());
     window.findChild<QDoubleSpinBox*>("particleSeed")->setValue(42);
     QCOMPARE(window.document().state().layers[0].particleSeed,42.0);
@@ -2143,6 +2707,41 @@ void EditorTest::snapLedArrangement()
     QCOMPARE(editor.component().positions[0],QPointF(1,.5));
     QCOMPARE(editor.component().positions[1],QPointF(3.25,0));
     QCOMPARE(editor.component().mapping,component.mapping);
+}
+
+void EditorTest::dragCycleColors()
+{
+    LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});
+    window.document().addLayer(EffectKind::LinearGradient);
+    window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    auto* editor=window.findChild<ColorListEditor*>("colorCycle");
+    // Exercise document refresh and history connections; colors must not reorder during a drag.
+    editor->setParent(nullptr); editor->resize(600,350); editor->show();
+    QVERIFY(QTest::qWaitForWindowExposed(editor));
+    auto* strip=editor->findChild<QWidget*>("colorStopBar");
+    auto drag=[&](int index,double target) {
+        const QPoint from(12+qRound(editor->positions()[index]*(strip->width()-24)),47);
+        const QPoint to(12+qRound(target*(strip->width()-24)),47);
+        QTest::mousePress(strip,Qt::LeftButton,Qt::NoModifier,from);
+        QTest::mouseMove(strip,to); QTest::mouseRelease(strip,Qt::LeftButton,Qt::NoModifier,to);
+        QVERIFY(std::abs(editor->positions()[index]-target)<.005);
+        QCOMPARE(window.document().state().layers.last().colorCyclePositions,editor->positions());
+    };
+    const auto original=editor->colors(); const int count=window.document().history()->count();
+    drag(1,.7);
+    QCOMPARE(editor->colors(),original);
+    QCOMPARE(window.document().history()->count(),count+1);
+    window.document().history()->undo(); QCOMPARE(editor->positions()[1],.5);
+    editor->findChild<QPushButton*>("addColorStop")->click();
+    const auto addedColors=editor->colors(); drag(1,.3); QCOMPARE(editor->colors(),addedColors);
+    QTemporaryDir temporary; const auto path=temporary.filePath("cycle.lighting.json");
+    window.document().save(path); LightingDocument loaded(catalog()); loaded.load(path);
+    QCOMPARE(loaded.state().layers.last().colorCyclePositions,editor->positions());
+    auto invalid=loaded.state().layers.last(); invalid.colorCyclePositions={0,1};
+    QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+    invalid.colorCyclePositions={0,.5,.4,1};
+    QVERIFY_EXCEPTION_THROWN(validateEffect(invalid),std::invalid_argument);
+    delete editor;
 }
 
 void EditorTest::snapPaletteStops()
@@ -2324,7 +2923,7 @@ void EditorTest::protectedGroupLabels()
     // QPixmap::grab uses physical pixels on high-DPI Windows monitors; widget coordinates stay logical.
     const auto pixel=[&](QPoint point){return image.pixelColor((QPointF(point)*image.devicePixelRatio()).toPoint());};
     QVERIFY(screen.y()>=48);QCOMPARE(pixel(screen),QColor("#202735"));
-    QCOMPARE(pixel({150,45}),QColor("#17191f"));
+    QCOMPARE(pixel({150,45}),QColor("#06101E"));
 }
 
 void EditorTest::eraserPlayback_data()
@@ -2347,7 +2946,7 @@ void EditorTest::eraserPlayback()
     if(mask) window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(2);
     auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(running);
     auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");const auto point=canvas->viewportPoint({320,200}).toPoint();
-    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,point);QVERIFY(!play->isChecked());QTest::mouseMove(canvas,point+QPoint(20,0));QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,point+QPoint(20,0));
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,point);QCOMPARE(play->isChecked(),running);QTest::mouseMove(canvas,point+QPoint(20,0));QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,point+QPoint(20,0));
     QCOMPARE(window.document().state().layers.size(),2);QVERIFY(play->isEnabled());QCOMPARE(play->isChecked(),running);
     const auto after=window.document().state().layers.last();
     if(kind==int(EffectKind::Paint) && !mask) QCOMPARE(after.image.pixelColor(320,200).alpha(),0);
@@ -2426,10 +3025,10 @@ void EditorTest::scrollbarAppearance()
         QStyleOptionSlider option;option.initFrom(bar);option.orientation=bar->orientation();option.rect=bar->rect();option.minimum=0;option.maximum=100;option.sliderPosition=50;option.sliderValue=50;option.pageStep=20;
         const auto handle=bar->style()->subControlRect(QStyle::CC_ScrollBar,&option,QStyle::SC_ScrollBarSlider,bar);
         const auto image=bar->grab().toImage();const auto pixel=[&](QPoint point){return image.pixelColor((QPointF(point)*image.devicePixelRatio()).toPoint());};
-        QVERIFY(!handle.isEmpty());QCOMPARE(pixel(handle.center()),QColor("#9aa8c2"));
+        QVERIFY(!handle.isEmpty());QCOMPARE(pixel(handle.center()),QColor("#AEC6D6"));
         // Check both track regions: native page rendering must not leave a patterned or differently colored rail.
-        QCOMPARE(pixel(bar->orientation()==Qt::Horizontal ? QPoint(5,7) : QPoint(7,5)),QColor("#20242c"));
-        QCOMPARE(pixel(bar->orientation()==Qt::Horizontal ? QPoint(174,7) : QPoint(7,174)),QColor("#20242c"));
+        QCOMPARE(pixel(bar->orientation()==Qt::Horizontal ? QPoint(5,7) : QPoint(7,5)),QColor("#0D1D30"));
+        QCOMPARE(pixel(bar->orientation()==Qt::Horizontal ? QPoint(174,7) : QPoint(7,174)),QColor("#0D1D30"));
     }
     QVERIFY(window.grab().save(artifactDirectory()+"/scrollbar-contrast.png"));
 }
@@ -2523,8 +3122,10 @@ void EditorTest::stableMinimapAnchor()
     for(double zoom:{1.2,2.0,.5}) {
         canvas.zoomBy(zoom);const auto image=canvas.grab().toImage();
         QVERIFY(canvas.findChild<QScrollBar*>("canvasHorizontalScroll")->isVisible());
-        const auto pixel=image.pixelColor((QPointF(anchor+QPoint(30,0))*image.devicePixelRatio()).toPoint());
-        QCOMPARE(pixel,QColor("#596981"));
+        const auto sample=(QPointF(anchor+QPoint(30,0))*image.devicePixelRatio()).toPoint();
+        bool borderAtAnchor=false;
+        for(int dy=-1;dy<=1;++dy)borderAtAnchor |= image.pixelColor(sample+QPoint(0,dy))==QColor("#596981");
+        QVERIFY2(borderAtAnchor,"Minimap border must stay at the anchor within one raster pixel at fractional DPI");
         QCOMPARE(canvas.findChild<QScrollBar*>("canvasVerticalScroll")->isVisible(),zoom==2.0);
     }
 }
@@ -2658,6 +3259,117 @@ void EditorTest::denseHardwareArtwork()
     QCOMPARE(doc.componentPoints(doc.state().placements[0]),before);doc.history()->setClean();
 }
 
+void EditorTest::iceStudioChrome()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});addEffect(window,EffectKind::LinearGradient);
+    window.document().addComponent("test.strip");
+    window.document().edit("Ice screenshot fixture",[](auto& state){auto& source=state.layers.last();source.color=QColor("#1766B5");source.secondaryColor=QColor("#54DCEE");});
+    window.resize(1440,960);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(1);
+    auto* section=window.findChild<QWidget*>("colorAnimationSection")->findChild<QToolButton*>();section->setChecked(true);
+    window.findChild<QWidget*>("advancedMotion")->findChild<QToolButton*>()->setChecked(true);
+    window.findChild<LightingCanvas*>("effectsCanvas")->setFocus();QCoreApplication::processEvents();
+    auto* header=window.findChild<QToolBar*>("workspaceNavigation");QVERIFY(header->property("studioHeader").toBool());QVERIFY(header->height()>=56);
+    QVERIFY(window.findChild<QToolBar*>("historyToolbar")->property("studioHeader").toBool());
+    const auto image=section->grab().toImage();const auto pixel=[&](QPoint point){return image.pixelColor((QPointF(point)*image.devicePixelRatio()).toPoint());};
+    QCOMPARE(pixel({section->width()/2,4}),QColor("#122A40"));QCOMPARE(pixel({section->width()-2,2}).alpha(),0);
+    QCOMPARE(pixel({12,1}),QColor("#45DDF5"));
+    const auto sheet=window.styleSheet();
+    QVERIFY(sheet.contains("background: #06101E"));QVERIFY(sheet.contains("background: #0D1D30"));
+    QVERIFY(sheet.contains("border-color: #45DDF5"));QVERIFY(!sheet.contains("@accent"));
+    const auto headerImage=header->grab().toImage();
+    bool accentRule=false;
+    for(int y=headerImage.height()-4;y<headerImage.height();++y)
+        for(int x=0;x<headerImage.width();++x)accentRule|=headerImage.pixelColor(x,y)==QColor("#45DDF5");
+    QVERIFY2(accentRule,"Header must retain its cyan accent rule at fractional display scales");
+    auto* preview=window.findChild<QToolBar*>("previewToolbar");
+    window.removeToolBarBreak(preview);window.resize(2200,960);QCoreApplication::processEvents();
+    QCOMPARE(preview->mapTo(&window,QPoint{}).y(),header->mapTo(&window,QPoint{}).y());
+    const auto inlineImage=preview->grab().toImage();bool inlineRule=false;
+    const int sampleX=qRound((preview->width()-6)*inlineImage.devicePixelRatio());
+    for(int y=inlineImage.height()-4;y<inlineImage.height();++y)inlineRule|=inlineImage.pixelColor(sampleX,y)==QColor("#45DDF5");
+    QVERIFY2(inlineRule,"Restored inline preview controls must continue the header accent");
+    QVERIFY(window.grab().save(artifactDirectory()+"/ice-inline-header.png"));
+    window.insertToolBarBreak(preview);window.resize(1440,960);QCoreApplication::processEvents();
+    const QImage banner(":/branding/lighting-studio-ice-banner.png");QVERIFY(!banner.isNull());QVERIFY(banner.width()>3*banner.height());
+    const auto frame=window.document().render(.37);const auto points=window.document().componentPoints(window.document().state().placements.value(0));
+    applyStudioStyle(&window);QCoreApplication::processEvents();
+    QCOMPARE(window.document().render(.37),frame);
+    QCOMPARE(window.document().componentPoints(window.document().state().placements.value(0)),points);
+    QCOMPARE(section->accessibleName(),QString("Color animation"));QCOMPARE(section->text(),QString("COLOR ANIMATION"));
+    const auto revision=window.document().revision();QVERIFY(window.grab().save(artifactDirectory()+"/ice-studio-editor.png"));
+    window.resize(980,760);QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/ice-studio-compact.png"));
+    QCOMPARE(window.document().render(.37),frame);
+    QCOMPARE(window.document().revision(),revision);window.document().history()->setClean();
+}
+
+void EditorTest::colorAnimationAlignment()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});addEffect(window,EffectKind::LinearGradient);
+    window.resize(1440,960);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(1);
+    window.findChild<QWidget*>("advancedMotion")->findChild<QToolButton*>()->setChecked(true);
+    window.findChild<QWidget*>("colorAnimationSection")->findChild<QToolButton*>()->setChecked(true);
+    QCoreApplication::processEvents();
+    QVERIFY(!window.findChild<QCheckBox*>("enableColorCycle"));
+    auto* rate=window.findChild<QDoubleSpinBox*>("cycleRate");auto* hue=window.findChild<QDoubleSpinBox*>("animationRate2");
+    auto* reference=window.findChild<QDoubleSpinBox*>("driftX");
+    QCOMPARE(rate->mapTo(&window,QPoint{}).x(),reference->mapTo(&window,QPoint{}).x());
+    QCOMPARE(hue->mapTo(&window,QPoint{}).x(),reference->mapTo(&window,QPoint{}).x());
+    auto* colors=window.findChild<ColorListEditor*>("colorCycle");auto* add=colors->findChild<QPushButton*>("addColorStop");
+    QCOMPARE(add->mapTo(&window,QPoint{}).x(),window.findChild<QWidget*>("colorAnimationControls")->mapTo(&window,QPoint{}).x());
+    auto* swatch=colors->findChild<ColorEditor*>("selectedStopColor");auto* picker=swatch->findChild<QPushButton*>();auto* hex=swatch->findChild<QLineEdit*>("rgbHex");
+    QCOMPARE(picker->mapTo(&window,QPoint{}).x(),add->mapTo(&window,QPoint{}).x());
+    QVERIFY(hex->mapTo(&window,QPoint{}).x()-picker->mapTo(&window,QPoint{}).x()<=picker->width()+8);
+    auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(false);rate->setValue(.25);QVERIFY(play->isChecked());
+    QCOMPARE(window.document().state().layers.last().cycleRate,.25);
+    hue->setValue(30);rate->setValue(0);QCOMPARE(window.document().state().layers.last().cycleRate,0.);QCOMPARE(window.document().state().layers.last().hueShift,30.);
+    window.document().history()->undo();QCOMPARE(window.document().state().layers.last().cycleRate,.25);
+    play->setChecked(false);QVERIFY(window.windowTitle().contains("GS-06"));
+    for(auto* parent=colors->parentWidget();parent;parent=parent->parentWidget())if(auto* scroll=qobject_cast<QScrollArea*>(parent)){scroll->ensureWidgetVisible(add);break;}
+    QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/color-animation-aligned.png"));
+    bool pathShown=false;QTimer::singleShot(0,&window,[&]{if(auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget())){auto* path=dialog->findChild<QLabel*>("runningExecutablePath");pathShown=path && path->text()==QCoreApplication::applicationFilePath();QVERIFY(dialog->grab().save(artifactDirectory()+"/ice-about.png"));dialog->reject();}});
+    window.findChild<QAction*>("aboutLightingStudio")->trigger();QVERIFY(pathShown);window.document().history()->setClean();
+}
+
+void EditorTest::creativeWorkspaceNavigation()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});addEffect(window,EffectKind::LinearGradient);
+    window.resize(1440,900);window.show();window.activateWindow();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");
+    auto* navigator=window.findChild<QDockWidget*>("layersDock");
+    auto* inspector=window.findChild<QDockWidget*>("propertiesDock");
+    auto* next=window.findChild<QAction*>("focusNextPanel");auto* previous=window.findChild<QAction*>("focusPreviousPanel");
+    QCOMPARE(next->shortcut(),QKeySequence(Qt::Key_F6));QCOMPARE(previous->shortcut(),QKeySequence(Qt::SHIFT|Qt::Key_F6));
+    const auto revision=window.document().revision();
+    auto* inspectorTabs=window.findChild<QTabWidget*>("layerInspectorTabs");inspectorTabs->setCurrentIndex(1);
+    window.findChild<QWidget*>("advancedMotion")->findChild<QToolButton*>()->setChecked(true);QCoreApplication::processEvents();
+    QVERIFY(window.grab().save(artifactDirectory()+"/gaming-studio-motion.png"));
+    inspectorTabs->setCurrentIndex(0);
+    canvas->setFocus();QTRY_COMPARE(QApplication::focusWidget(),static_cast<QWidget*>(canvas));
+    QTest::keyClick(canvas,Qt::Key_F6);QTRY_VERIFY(inspector->isAncestorOf(QApplication::focusWidget()));
+    next->trigger();QTRY_VERIFY(navigator->isAncestorOf(QApplication::focusWidget()));
+    next->trigger();QTRY_COMPARE(QApplication::focusWidget(),static_cast<QWidget*>(canvas));
+    QTest::keyClick(canvas,Qt::Key_F6,Qt::ShiftModifier);QTRY_VERIFY(navigator->isAncestorOf(QApplication::focusWidget()));
+    window.findChild<QAction*>("toggleInspector")->trigger();QVERIFY(!inspector->isVisible());
+    canvas->setFocus();next->trigger();QTRY_VERIFY(navigator->isAncestorOf(QApplication::focusWidget()));
+    QCOMPARE(window.document().revision(),revision);
+    window.findChild<QAction*>("toggleInspector")->trigger();
+    auto* toolsMenu=window.findChild<QMenu*>("drawingToolsMenu");QVERIFY(toolsMenu);
+    QVERIFY(QMetaObject::invokeMethod(toolsMenu,"aboutToShow"));
+    auto* pencil=window.findChild<QAction*>("choose_pencilTool");QVERIFY(pencil && pencil->isEnabled());pencil->trigger();
+    QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);QVERIFY(pencil->isChecked());pencil->trigger();
+    QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);QVERIFY(pencil->isChecked());
+    auto* playback=window.findChild<QPushButton*>("playPreview");const bool running=playback->isChecked();
+    window.findChild<QAction*>("togglePreviewPlayback")->trigger();QCOMPARE(playback->isChecked(),!running);
+    auto* scope=window.findChild<QMenu*>("previewOutputMenu");QVERIFY(QMetaObject::invokeMethod(scope,"aboutToShow"));
+    QCOMPARE(scope->actions().size(),window.findChild<QComboBox*>("previewChannel")->count());
+    window.findChild<QAction*>("workspaceHardware")->trigger();QVERIFY(!next->isEnabled());QVERIFY(!previous->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(toolsMenu,"aboutToShow"));QVERIFY(!pencil->isEnabled());
+    window.document().history()->setClean();
+}
+
 void EditorTest::gamingWorkspace()
 {
     LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
@@ -2675,7 +3387,7 @@ void EditorTest::gamingWorkspace()
     const auto edge=luminance(colorAt({panels->width()/2,0})),fill=luminance(colorAt({6,panels->height()/2}));
     QVERIFY((std::max(edge,fill)+.05)/(std::min(edge,fill)+.05)>=3.);
     play->setChecked(true);play->setChecked(false);QCOMPARE(output->text(),QString("Devices: Running"));
-    QCOMPARE(window.findChild<QLabel*>("previewPlaybackStatus")->text(),QString("Preview: paused"));
+    QCOMPARE(window.findChild<QLabel*>("previewPlaybackStatus")->text(),QString("Preview: stopped"));
     window.resize(1000,720);QCoreApplication::processEvents();QVERIFY(!inspector->isVisible());QVERIFY(canvas->width()>window.width()/2);
     auto* preview=window.findChild<QToolBar*>("previewToolbar");auto* navigation=window.findChild<QToolBar*>("workspaceNavigation");
     QVERIFY(preview->geometry().top()>navigation->geometry().top());QVERIFY(output->isVisible());
@@ -2964,6 +3676,30 @@ void EditorTest::integerDisplayRoundTrip()
     window.findChild<QAction*>("workspaceEffects")->trigger();window.findChild<QTabWidget*>("layerInspectorTabs")->setCurrentIndex(1);
     QCOMPARE(window.document().revision(),revision);QCOMPARE(window.document().state().layers[0].pulse,original.pulse);
     QCOMPARE(window.findChild<QComboBox*>("intensityMode")->currentText(),QString("Combined"));
+    auto* horizontal=window.findChild<QDoubleSpinBox*>("driftX");
+    auto* vertical=window.findChild<QDoubleSpinBox*>("driftY");
+    QCOMPARE(horizontal->minimum(),-500.);QCOMPARE(horizontal->maximum(),500.);
+    QCOMPARE(vertical->minimum(),-500.);QCOMPARE(vertical->maximum(),500.);
+    QVERIFY(horizontal->maximumWidth()<80);
+    auto* zoom=window.findChild<QDoubleSpinBox*>("zoom");
+    QCOMPARE(zoom->maximumWidth(),horizontal->maximumWidth());
+    const int numericWidth=horizontal->maximumWidth();
+    for(const auto* name:{"placement0","effectGeometry0","imageCrop0","transparencyValue","gridSpacing","paletteSnapPercent","brushDiameter","previewTime"}) {
+        auto* control=window.findChild<QAbstractSpinBox*>(name);QVERIFY(control);control->ensurePolished();QCOMPARE(control->width(),numericWidth);
+    }
+    ParameterSpinBox seed;seed.setRange(-9999999,9999999);seed.setValue(7654321);
+    seed.ensurePolished();QCOMPARE(seed.width(),numericWidth);QCOMPARE(numericWidth,64);
+    QCOMPARE(seed.text(),QString("7654321"));
+    seed.setValue(-500);QCOMPARE(seed.width(),numericWidth);QCOMPARE(seed.text(),QString("-500"));
+    seed.setValue(.12345678901234567);QVERIFY(seed.text().contains(QChar(0x2248)));
+    QCOMPARE(seed.value(),.12345678901234567);QCOMPARE(seed.width(),numericWidth);
+    QSpinBox integer;styleStudioNumericField(&integer);integer.ensurePolished();QCOMPARE(integer.width(),numericWidth);
+    auto larger=seed.font();larger.setPointSizeF(16);seed.setFont(larger);integer.setFont(larger);
+    QCOMPARE(seed.width(),integer.width());QVERIFY(seed.width()>numericWidth);
+    const int largeWidth=seed.width();seed.setValue(9999999);QCOMPARE(seed.width(),largeWidth);
+    horizontal->setValue(500);QCOMPARE(window.document().state().layers[0].driftX,500.);
+    vertical->setValue(-500);QCOMPARE(window.document().state().layers[0].driftY,-500.);
+    QCOMPARE(horizontal->maximumWidth(),numericWidth);QCOMPARE(vertical->maximumWidth(),numericWidth);
     window.findChild<QDoubleSpinBox*>("animationRate0")->setValue(42);
     QCOMPARE(window.document().state().layers[0].pulse,original.pulse);QCOMPARE(window.document().state().layers[0].center,original.center);
     QTemporaryDir dir;window.document().save(dir.filePath("exact.json"));LightingDocument restored(catalog());restored.load(dir.filePath("exact.json"));
@@ -2971,6 +3707,115 @@ void EditorTest::integerDisplayRoundTrip()
     const auto assignment=channelProfile();ChannelAssignment channel;channel.profileId=assignment.id;channel.channelId=assignment.channels.first().id;channel.endpoint="test";channel.timeScale=precise;channel.timeOffset=precise;
     LightingDocument document(catalog(),nullptr,{assignment});ChannelEditor editor(document,channel);QCOMPARE(editor.assignment().timeScale,precise);QCOMPARE(editor.assignment().timeOffset,precise);
     window.document().history()->setClean();
+}
+
+void EditorTest::panControlsSurviveRefresh()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});addEffect(window,EffectKind::Plasma);
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));window.findChild<QAction*>("workspaceEffects")->trigger();
+    auto* pan=window.findChild<QToolButton*>("panCanvasTool");pan->click();QVERIFY(pan->isChecked());QVERIFY(!window.findChild<QPushButton*>("moveEffectTool")->isChecked());
+    window.document().edit("Refresh while panning",[](auto& state){state.layers.last().transparency=10;});
+    QVERIFY(window.findChild<QLabel*>("toolHint")->text().contains("Pan"));QVERIFY(!window.findChild<QAction*>("strokeSizeAction")->isVisible());
+    window.findChild<QPushButton*>("moveEffectTool")->click();QVERIFY(!pan->isChecked());
+    window.document().history()->setClean();
+}
+
+void EditorTest::restoredPanelPreferences()
+{
+    QTemporaryDir dir;QSettings settings(dir.filePath("session.ini"),QSettings::IniFormat);
+    {
+        LightingWindow original(catalog(),[]{return QVector<ProfileCandidate>{};});original.resize(1440,900);
+        AppSession session(original,settings,dir.filePath("recovery.json"));original.show();QVERIFY(QTest::qWaitForWindowExposed(&original));
+        original.findChild<QAction*>("toggleNavigator")->trigger();QVERIFY(original.findChild<QDockWidget*>("layersDock")->isHidden());
+        original.findChild<QAction*>("workspaceHardware")->trigger();QCoreApplication::processEvents();original.close();
+    }
+    LightingWindow restored(catalog(),[]{return QVector<ProfileCandidate>{};});AppSession session(restored,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+    // restoreGeometry clamps to the offscreen plugin's tiny virtual monitor; test wide-mode preferences explicitly.
+    restored.resize(1440,900);restored.show();QVERIFY(QTest::qWaitForWindowExposed(&restored));QVERIFY(restored.width()>=1180);
+    for(const auto* mode:{"workspaceEffects","workspaceLayout","workspaceHardware","workspaceEffects"}) {
+        restored.findChild<QAction*>(mode)->trigger();QCoreApplication::processEvents();QVERIFY(restored.findChild<QDockWidget*>("layersDock")->isHidden());
+        if(QString(mode)!="workspaceHardware")QVERIFY(restored.findChild<QDockWidget*>("propertiesDock")->isVisible());
+    }
+    restored.close();
+}
+
+void EditorTest::desktopDesignPolish()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});window.resize(1440,960);addEffect(window,EffectKind::LavaLamp);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();window.findChild<QPushButton*>("playPreview")->setChecked(false);
+    auto* palette=window.findChild<ColorListEditor*>("gradientColors");QVERIFY(!palette->findChild<QSpinBox*>("paletteSnapPercent"));
+    auto* align=window.findChild<QToolButton*>("alignSelection");QVERIFY(align->menu()->actions().contains(window.findChild<QAction*>("snapToGrid")));
+    QCOMPARE(window.findChildren<QSpinBox*>("paletteSnapPercent").size(),1);
+    auto* opacity=window.findChild<QSpinBox*>("transparencyValue");opacity->setValue(37);QCOMPARE(window.document().state().layers.last().transparency,63);window.document().history()->undo();
+    auto* bar=palette->findChild<QWidget*>("colorStopBar");bar->setFocus();QTest::keyClick(bar,Qt::Key_Right,Qt::ControlModifier);
+    QVERIFY(window.document().state().layers.last().gradientPositions.first()>0);window.document().history()->undo();
+    QVERIFY(window.findChild<QLabel*>("effectDescription")->text().contains("blobs"));
+    auto* effectCanvas=window.findChild<LightingCanvas*>("effectsCanvas");QVERIFY(effectCanvas->contentRect().contains(effectCanvas->viewportPoint({320,200})));
+    QVERIFY(window.grab().save(artifactDirectory()+"/desktop-polish.png"));
+    align->menu()->popup(align->mapToGlobal(QPoint(0,align->height())));QCoreApplication::processEvents();QVERIFY(align->menu()->grab().save(artifactDirectory()+"/align-snap.png"));align->menu()->hide();
+    window.resize(1100,800);QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/desktop-polish-compact.png"));
+    window.document().history()->setClean();
+    LightingDocument document(catalog());const auto id=document.addLayer(EffectKind::Circle);LightingCanvas canvas(document,LightingCanvas::Context::Effects);canvas.resize(800,600);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.select(id);
+    canvas.setTool(LightingCanvas::Tool::Move);QTest::keyPress(&canvas,Qt::Key_Space);QFocusEvent lost(QEvent::FocusOut,Qt::OtherFocusReason);QCoreApplication::sendEvent(&canvas,&lost);
+    const auto original=document.state().layers.first().center;
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint(original).toPoint());QTest::mouseMove(&canvas,canvas.viewportPoint(original+QPointF(20,0)).toPoint());QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,canvas.viewportPoint(original+QPointF(20,0)).toPoint());
+    QVERIFY(document.state().layers.first().center!=original);
+    canvas.zoomBy(2);canvas.repaint();QVERIFY(canvas.findChild<QScrollBar*>("canvasHorizontalScroll")->isVisible());
+    canvas.setTool(LightingCanvas::Tool::Pan);const auto camera=canvas.canvasPoint({300,300});QTest::mouseClick(&canvas,Qt::LeftButton,Qt::NoModifier,{canvas.width()-176,canvas.height()-110});QVERIFY(canvas.canvasPoint({300,300})!=camera);
+}
+
+void EditorTest::authoringControlsRegression()
+{
+    ColorEditor editor;editor.resize(400,80);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
+    auto* hex=editor.findChild<QLineEdit*>("rgbHex");hex->setFocus();hex->selectAll();QTest::keyClicks(hex,"#123ABC");
+    editor.setColor(Qt::red);QCOMPARE(hex->text(),QString("#123ABC"));
+    QTest::keyClick(hex,Qt::Key_Return);QCOMPARE(editor.color(),QColor("#123ABC"));
+    LightingDocument document(catalog());QTemporaryDir dir;
+    for(auto kind:{EffectKind::Plasma,EffectKind::Ripples}) {
+        document.addLayer(kind);const auto source=document.state().layers.last();
+        QVERIFY(renderEffect(source,0)!=renderEffect(source,1));
+        QCOMPARE(renderEffect(source,1),renderEffect(source,1));
+    }
+    document.edit("Independent wave axes",[](auto& state){state.layers.last().warpY=18;});
+    const auto verticalFrame=document.render(.37);
+    document.edit("Both wave axes",[](auto& state){state.layers.last().warp=23;});
+    QVERIFY(document.render(.37)!=verticalFrame);
+    document.history()->undo();QCOMPARE(document.render(.37),verticalFrame);
+    const auto path=dir.filePath("new-effects.json");document.save(path);LightingDocument loaded(catalog());loaded.load(path);
+    QCOMPARE(loaded.render(.5),document.render(.5));
+    QFile saved(path);QVERIFY(saved.open(QIODevice::ReadOnly));auto old=QJsonDocument::fromJson(saved.readAll()).object();saved.close();old["schemaVersion"]=17;
+    QVERIFY(saved.open(QIODevice::WriteOnly|QIODevice::Truncate));saved.write(QJsonDocument(old).toJson());saved.close();
+    QVERIFY_EXCEPTION_THROWN(loaded.load(path),std::invalid_argument);QCOMPARE(loaded.render(.5),document.render(.5));
+    auto fire=layer(Qt::red);fire.effect=EffectKind::Fireplace;fire.center={320,200};fire.extent={320,200};fire.patternHeight=2;fire.patternDetail=16;
+    validateEffect(fire);const auto image=renderEffect(fire,.7);
+    QCOMPARE(qAlpha(image.pixel(0,0)),0);QVERIFY(qAlpha(image.pixel(320,299))<255);QVERIFY(qAlpha(image.pixel(320,250))>0);
+    LightingCanvas canvas(document,LightingCanvas::Context::Effects);canvas.resize(800,600);canvas.show();QVERIFY(QTest::qWaitForWindowExposed(&canvas));
+    canvas.setTool(LightingCanvas::Tool::Pan);const auto before=canvas.canvasPoint({300,300});const auto revision=document.revision();
+    QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,{300,300});QTest::mouseMove(&canvas,{350,320});QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,{350,320});
+    QVERIFY(canvas.canvasPoint({300,300})!=before);QCOMPARE(document.revision(),revision);
+}
+
+void EditorTest::hueTrackRetainsSpectrum()
+{
+    ColorEditor editor;applyStudioStyle(&editor);editor.setColor(Qt::red);editor.resize(400,80);editor.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&editor));editor.findChild<QPushButton*>()->click();
+    auto* popup=editor.findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
+    auto* hue=popup->findChild<QSlider*>("pickerHue");QVERIFY(hue);QCoreApplication::processEvents();
+    // Numeric entry must survive intermediate keystrokes before the commit.
+    auto* numericHue=popup->findChild<QSpinBox*>("pickerHue");QVERIFY(numericHue);
+    numericHue->setFocus();numericHue->selectAll();QTest::keyClicks(numericHue,"210");
+    QTest::keyClick(numericHue,Qt::Key_Tab);QCOMPARE(numericHue->value(),210);
+    QVERIFY(popup->findChild<QSpinBox*>("pickerRed")->isVisible());
+    hue->setValue(0);QCoreApplication::processEvents();
+    const auto before=hue->grab().toImage();hue->setValue(359);QCoreApplication::processEvents();
+    const auto after=hue->grab().toImage();
+    for(double fraction:{.2,.4,.6,.8}) {
+        const QPoint point(qRound(fraction*(before.width()-1)),before.height()/2);
+        QCOMPARE(after.pixelColor(point),before.pixelColor(point));
+    }
+    QVERIFY(editor.color().red()>250);QVERIFY(editor.color().green()<5);QVERIFY(editor.color().blue()<8);
+    QVERIFY(popup->grab().save(artifactDirectory()+"/hue-359-spectrum.png"));
+    popup->reject();QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);QCOMPARE(editor.color(),QColor(Qt::red));
 }
 
 void EditorTest::liveColorPicker()
@@ -3074,7 +3919,11 @@ void EditorTest::unifiedEditorWorkflow()
     const auto primary=canvas->selection();canvas->selectMany({document.state().layers[1].id,document.state().layers[2].id},primary);
     QCOMPARE(window.findChild<QTreeWidget*>("effectLayers")->selectedItems().size(),2);canvas->selectMany({primary},primary);
     const auto selected=canvas->selection();canvas->zoomBy(1.2);const auto bounds=document.layoutBounds();const auto anchor=canvas->mapToGlobal(canvas->viewportPoint({0,0}).toPoint());
-    auto* target=window.findChild<QTabBar*>("editorTarget");target->setCurrentIndex(0);QCoreApplication::processEvents();
+    auto* target=window.findChild<QTabBar*>("editorTarget");
+    auto* targetGroup=window.findChild<QWidget*>("editorTargetGroup");QVERIFY(targetGroup);QVERIFY(targetGroup->isVisible());
+    QCOMPARE(window.findChild<QLabel*>("editorTargetLabel")->text(),QString("EDIT MODE"));
+    QVERIFY(!target->tabIcon(0).isNull());QVERIFY(!target->tabIcon(1).isNull());QVERIFY(target->tabRect(0).height()>=28);
+    target->setCurrentIndex(0);QCoreApplication::processEvents();
     QVERIFY(layout->isVisible());QVERIFY(!canvas->isVisible());QVERIFY(QLineF(layout->mapToGlobal(layout->viewportPoint(bounds.topLeft()).toPoint()),anchor).length()<2);
     layout->select(first);
     for(int i=0;i<5;++i){auto* field=window.findChild<QDoubleSpinBox*>(QString("placement%1").arg(i));QVERIFY(field);QTRY_VERIFY(field->height()>=field->minimumSizeHint().height());if(i>0){auto* above=window.findChild<QDoubleSpinBox*>(QString("placement%1").arg(i-1));QVERIFY(field->geometry().top()>above->geometry().bottom());}}
@@ -3172,7 +4021,7 @@ void EditorTest::screenEyedropperGeometry()
     auto* color=window.findChild<ColorEditor*>("sourceColor");const auto original=color->color();
     color->findChild<QPushButton*>()->click();auto* popup=color->findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
     QPushButton* eyedropper=nullptr;for(auto* button:popup->findChildren<QPushButton*>())if(button->text()=="Screen eyedropper...")eyedropper=button;
-    QVERIFY(eyedropper);auto* details=popup->findChild<QCheckBox*>("pickerRgbDetails");QVERIFY(details);details->setChecked(true);QCoreApplication::processEvents();
+    QVERIFY(eyedropper);QVERIFY(!popup->findChild<QCheckBox*>("pickerRgbDetails"));QVERIFY(popup->findChild<QSpinBox*>("pickerRed")->isVisible());QCoreApplication::processEvents();
     QVERIFY(color->screen()->availableGeometry().contains(popup->geometry()));
     eyedropper->click();QCoreApplication::processEvents();
     const auto overlays=window.findChildren<QDialog*>("screenColorDialog");
@@ -3194,4 +4043,44 @@ void EditorTest::screenEyedropperGeometry()
     popup->reject();QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
     QCOMPARE(color->color(),original);QCOMPARE(window.geometry(),windowBounds);QCOMPARE(inspector->geometry(),inspectorBounds);
     window.document().history()->setClean();
+}
+
+void EditorTest::activeLayerPickingAndCanvasControls()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});window.resize(1440,900);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.document().addComponent("test.strip");auto& doc=window.document();
+    const auto lower=doc.addEmptyLayer(),small=doc.addLayer(EffectKind::Rectangle,lower);
+    const auto upper=doc.addEmptyLayer(),cover=doc.addLayer(EffectKind::Rectangle,upper);
+    doc.edit("Overlapping layers",[&](auto& state){for(auto& layer:state.layers){if(layer.id==small){layer.center={320,240};layer.extent={70,70};layer.color=Qt::red;}if(layer.id==cover){layer.center={320,200};layer.extent={600,360};layer.color=Qt::yellow;}}});
+    window.findChild<QAction*>("workspaceEffects")->trigger();auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(false);
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");auto* components=window.findChild<LightingCanvas*>("layoutCanvas");
+    auto* tree=window.findChild<QTreeWidget*>("effectLayers");
+    const auto choose=[&](QUuid id){for(QTreeWidgetItemIterator it(tree);*it;++it)if((*it)->data(0,Qt::UserRole).toUuid()==id){tree->setCurrentItem(*it,0,QItemSelectionModel::ClearAndSelect);break;}QCoreApplication::processEvents();};
+    choose(lower);canvas->fitToView();
+    QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,240}).toPoint());QCOMPARE(canvas->selection(),small);
+    // Clearing an object does not surrender the active layer to a covering layer.
+    QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({140,180}).toPoint());QVERIFY(canvas->selection().isNull());
+    QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,240}).toPoint());QCOMPARE(canvas->selection(),small);
+    choose(lower);
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({200,150}).toPoint());QTest::mouseMove(canvas,canvas->viewportPoint({420,320}).toPoint());QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({420,320}).toPoint());
+    QVERIFY(canvas->selections().contains(small));QVERIFY(!canvas->selections().contains(cover));
+    choose(upper);QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,240}).toPoint());QCOMPARE(canvas->selection(),cover);
+    auto* labels=window.findChild<QAction*>("showComponentLabels");QCOMPARE(labels->text(),QString("Labels"));
+    auto* eye=canvas->findChild<QToolButton*>("canvasLabelsButton");QVERIFY(eye);QVERIFY(eye->isVisible());QCOMPARE(eye->defaultAction(),labels);
+    QVERIFY(!window.findChild<QToolBar*>("previewToolbar")->actions().contains(labels));
+    const auto anchor=canvas->viewportPoint({0,0});const auto before=canvas->grab().toImage();
+    QTest::mouseClick(eye,Qt::LeftButton);QVERIFY(canvas->showLabels());QVERIFY(components->showLabels());const auto after=canvas->grab().toImage();
+    const QRect caption(canvas->viewportPoint({60,95}).toPoint(),canvas->viewportPoint({240,125}).toPoint());
+    const double dpr=canvas->devicePixelRatioF();const QRect pixels((QPointF(caption.topLeft())*dpr).toPoint(),(QPointF(caption.bottomRight())*dpr).toPoint());
+    QVERIFY(before.copy(pixels)!=after.copy(pixels));QCOMPARE(canvas->viewportPoint({0,0}),anchor);
+    QVERIFY(window.grab().save(artifactDirectory()+"/layers-component-labels.png"));
+    window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();
+    auto* componentEye=components->findChild<QToolButton*>("canvasLabelsButton");QVERIFY(componentEye->isVisible());QVERIFY(componentEye->isChecked());
+    const auto fixed=componentEye->pos();components->zoomBy(4);components->repaint();QCOMPARE(componentEye->pos(),fixed);
+    QTest::mouseClick(componentEye,Qt::LeftButton);QVERIFY(!canvas->showLabels());QVERIFY(!components->showLabels());
+    const auto iconColor=[&]{auto image=play->icon().pixmap(QSize(24,24)).toImage();return image.pixelColor(image.width()/2,image.height()/2);};
+    QVERIFY(play->text().isEmpty());QVERIFY(iconColor().green()>iconColor().red());QCOMPARE(play->accessibleName(),QString("Play preview"));
+    QTest::mouseClick(play,Qt::LeftButton);QVERIFY(play->isChecked());QVERIFY(iconColor().red()>iconColor().green());QCOMPARE(play->accessibleName(),QString("Stop preview"));
+    QTest::mouseClick(play,Qt::LeftButton);const auto held=window.previewSeconds();QTest::qWait(60);QCOMPARE(window.previewSeconds(),held);
+    QVERIFY(window.grab().save(artifactDirectory()+"/canvas-header-controls.png"));doc.history()->setClean();
 }

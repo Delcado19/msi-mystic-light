@@ -21,7 +21,7 @@ struct EffectLayer {
     QColor color = Qt::white;
     EffectKind effect = EffectKind::StaticColor;
     QColor secondaryColor = Qt::black;
-    QVector<QColor> gradientColors; // Empty preserves the legacy two-color gradient. Otherwise 2..16 evenly spaced stops.
+    QVector<QColor> gradientColors; // Empty preserves legacy primary/secondary colors; source palettes support 2..16 stops.
     bool gradientFill = false;
     QPointF gradientStart{0,.5}, gradientEnd{1,.5}; // Normalized shape-local fill endpoints; geometry stays editable.
     QVector<double> gradientPositions; // Empty means evenly spaced, preserving schemas 1..10.
@@ -33,8 +33,16 @@ struct EffectLayer {
     bool imageFill = false; // Fit preserves the whole image; fill crops to the effect rectangle.
     double spin = 0, pulse = 0, hueShift = 0; // Degrees/second, cycles/second, degrees/second.
     double driftX = 0, driftY = 0, zoom = 0, warp = 0, breathe = 0, trails = 0, cycleRate = 0;
+    double warpY = 0; // Vertical displacement; zero disables this axis independently.
     double particleCount = 80, particleSeed = 1, particleSpeed = 60, particleSize = 3;
     QVector<QColor> colorCycle{Qt::red, Qt::green, Qt::blue};
+    QVector<double> colorCyclePositions; // Empty preserves evenly spaced timing from schemas 1..14.
+    double patternSpeed=.25, patternWidth=.08, patternAmplitude=.25;
+    double patternCells=12, fillOrder=0; // Integral grid size and Rows/Snake/Spiral order, validated before rendering.
+    double patternSeed=1, patternSites=12, patternDistance=0;
+    double patternDetail=4, patternHeight=.8; // Schema 17: seeded sites, distance metric and flame shaping.
+    // Schema 22: independent spatial controls; defaults preserve the earlier procedural formulas.
+    double patternFrequency=1, patternContrast=1, patternWarp=0, patternWavelength=1;
     QRectF crop{0, 0, 1, 1}; // Normalized, non-destructive source-image selection.
     bool maskLinked = false;
     bool allChannels = true;
@@ -81,6 +89,7 @@ public:
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor, const QUuid& parent = {});
     QUuid addPaintLayer(const QUuid& parent = {});
     QUuid addEmptyLayer();
+    QUuid addMultizoneLayer(); // One undoable group with four independently editable, masked sources.
     QUuid layerRoot(const QUuid& object) const;
     QUuid importImage(const QString& fileName, const QUuid& parent = {});
     void defineComponent(const ComponentDefinition& component, bool replace = false);

@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QSaveFile>
 #include <QTemporaryFile>
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 namespace {
@@ -81,11 +82,18 @@ void ServiceRuntime::reconnect() {
         if(guard_)guard_();
         error_.clear();
         const auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
-        bool rebuild=connections_.size()!=size_t(frames.size());
-        for(const auto& c:connections_)if(c->status().state==OutputScheduler::State::Faulted || c->status().state==OutputScheduler::State::Stopped)rebuild=true;
-        if(!rebuild)return;
-        stopConnections();error_.clear();
-        const auto prepared=connect_(frames);
+        // Offline saved endpoints are omitted by connect_; retry them without resetting healthy hardware.
+        for(int i=int(connections_.size())-1;i>=0;--i) {
+            const auto state=connections_[i]->status().state;
+            const bool wanted=std::any_of(frames.cbegin(),frames.cend(),[&](const auto& frame){return sameOutputScope(scopes_[i],frame);});
+            if(wanted && (state==OutputScheduler::State::Starting || state==OutputScheduler::State::Running))continue;
+            connections_[i]->stop();connections_.erase(connections_.begin()+i);
+            scopes_.removeAt(i);generations_.removeAt(i);
+        }
+        QVector<OutputFrame> missing;
+        for(const auto& frame:frames)if(!std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return sameOutputScope(scope,frame);}))missing.append(frame);
+        if(missing.isEmpty())return;
+        const auto prepared=connect_(missing);
         for(const auto& connection:prepared) {
             auto scheduler=std::make_unique<OutputScheduler>();
             const auto generation=scheduler->start(connection.factory,connection.present);

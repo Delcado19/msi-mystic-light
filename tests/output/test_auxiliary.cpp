@@ -1,5 +1,6 @@
 #include "backends/AeroBackend.h"
 #include "backends/EneRamProtocol.h"
+#include "backends/PawnIoRam.h"
 #include "modules/ModuleRegistry.h"
 #include "protocol/MsiProtocol.h"
 #include "../hid/FakeHidDevice.h"
@@ -10,6 +11,14 @@
 class AuxiliaryTest : public QObject {
     Q_OBJECT
 private slots:
+    void ramDiscoveryContention() {
+        // Lock contention keeps only an earlier verified identity, never a new or foreign endpoint.
+        QCOMPARE(reconcilePawnIoRamAddresses({0x71,0x73},{0x73},{0x71}),QVector<int>({0x71,0x73}));
+        QCOMPARE(reconcilePawnIoRamAddresses({0x71},{},{0x73}),QVector<int>{});
+        QCOMPARE(reconcilePawnIoRamAddresses({0x71,0x73},{0x71},{}),QVector<int>({0x71}));
+        QCOMPARE(reconcilePawnIoRamAddresses({0x50,0x71},{0x50,0x73},{0x50,0x71}),QVector<int>({0x71,0x73}));
+        QCOMPARE(reconcilePawnIoRamAddresses({0x71},{0x71,0x71},{0x71}),QVector<int>({0x71}));
+    }
     void ramProtocol() {
         QVector<EneRamProtocol::Input> commands;
         int selected=-1, failAt=-1;

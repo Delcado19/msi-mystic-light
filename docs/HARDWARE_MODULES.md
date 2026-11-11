@@ -1,5 +1,9 @@
 # Hardware modules
 
+Migration increment (2026-10-30): `hp.omen30l`, HID `103C:84FD`, adds seven
+single-color zones with Canvas output and seven native modes. Physical hardware
+is unverified. See [HP Omen migration](HP_OMEN_MIGRATION.md) for sources and scope.
+
 The app loads local Qt driver plugins and validates independent JSON device
 profiles. Bundled plugins are `msi.gen1`, `lighting.peripherals` (Roccat
 Vulcan/Kone, Razer Basilisk V3, SteelSeries Apex 3), and

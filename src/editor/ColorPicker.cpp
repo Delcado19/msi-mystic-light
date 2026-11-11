@@ -100,7 +100,7 @@ public:
         // Global project/tool shortcuts must not retarget a live color session.
         if(event->type()==QEvent::ShortcutOverride){event->accept();return true;}
         const bool result=QDialog::event(event);
-        // Restoring sampling and expanding RGB details can change the popup's screen bounds.
+        // Restoring screen sampling can change the popup's screen bounds.
         if(event->type()==QEvent::Show || event->type()==QEvent::Resize)clampToOwner();
         return result;
     }
@@ -121,19 +121,19 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
     popup->setAttribute(Qt::WA_DeleteOnClose);popup->setWindowTitle("Choose color");
     auto* stack=new QVBoxLayout(popup);auto* square=new SaturationValueField(popup);stack->addWidget(square);
     auto* hue=new QSlider(Qt::Horizontal);hue->setRange(0,359);hue->setObjectName("pickerHue");hue->setAccessibleName("Hue degrees");
-    hue->setStyleSheet("QSlider::groove:horizontal {height:10px;background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 red,stop:.167 yellow,stop:.333 lime,stop:.5 cyan,stop:.667 blue,stop:.833 magenta,stop:1 red);}");
+    // The shared cyan sub-page would paint over the spectrum as the hue approaches 359.
+    hue->setStyleSheet("QSlider::groove:horizontal {height:10px;background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 red,stop:.167 yellow,stop:.333 lime,stop:.5 cyan,stop:.667 blue,stop:.833 magenta,stop:1 red);} QSlider::sub-page:horizontal, QSlider::add-page:horizontal {background:transparent;}");
     stack->addWidget(hue);
     auto* form=new QFormLayout;stack->addLayout(form);QVector<QSpinBox*> hsv,rgb;
     for(const auto& name:QStringList{"Hue","Saturation","Brightness","Red","Green","Blue"}) {
         auto* value=new QSpinBox;value->setObjectName("picker"+name);value->setAccessibleName(name);
-        value->setRange(0,name=="Hue" ? 359 : hsv.size()<3 ? 100 : 255);
-        if(hsv.size()<3){hsv.append(value);value->setSuffix(name=="Hue" ? " deg" : " %");}else rgb.append(value);
+        value->setRange(0,name=="Hue" ? 360 : hsv.size()<3 ? 100 : 255);
+        // Commit numeric text once; live conversion must not replace partially typed values.
+        value->setKeyboardTracking(false);
+        if(hsv.size()<3)hsv.append(value);else rgb.append(value);
         form->addRow(name,value);
     }
     auto* hex=new QLineEdit;hex->setObjectName("pickerHex");hex->setAccessibleName("Hex RGB");hex->setMaxLength(7);form->addRow("Hex",hex);
-    auto* numeric=new QCheckBox("RGB details");numeric->setObjectName("pickerRgbDetails");stack->addWidget(numeric);
-    for(auto* field:rgb){field->hide();form->labelForField(field)->hide();}
-    QObject::connect(numeric,&QCheckBox::toggled,popup,[=](bool on){for(auto* field:rgb){field->setVisible(on);form->labelForField(field)->setVisible(on);}popup->adjustSize();});
     auto update=std::make_shared<std::function<void(QColor)>>();
     *update=[=](QColor color) {
         color=color.toRgb();const bool changed=color!=editor->color();
@@ -151,7 +151,7 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
     QObject::connect(hue,&QSlider::valueChanged,popup,[=](int value){square->hue=value;fromHsv();});
     for(int i=0;i<3;++i) {
         QObject::connect(hsv[i],&QSpinBox::valueChanged,popup,[=](int value) {
-            if(i==0)square->hue=value;else if(i==1)square->saturation=qRound(value*255./100);else square->brightness=qRound(value*255./100);fromHsv();
+            if(i==0)square->hue=value%360;else if(i==1)square->saturation=qRound(value*255./100);else square->brightness=qRound(value*255./100);fromHsv();
         });
         QObject::connect(rgb[i],&QSpinBox::valueChanged,popup,[=](int) {(*update)(QColor(rgb[0]->value(),rgb[1]->value(),rgb[2]->value()));});
     }

@@ -1,5 +1,6 @@
 #pragma once
 #include <QDoubleSpinBox>
+#include "StudioWidgets.h"
 #include <cmath>
 #include <QEvent>
 #include <algorithm>
@@ -9,7 +10,7 @@
 class ParameterSpinBox : public QDoubleSpinBox {
 public:
     explicit ParameterSpinBox(QWidget* parent=nullptr) : QDoubleSpinBox(parent) {
-        setDecimals(323); setKeyboardTracking(false); setMinimumWidth(88);
+        setDecimals(323); setKeyboardTracking(false); styleStudioNumericField(this);
         setProperty("displayScale",1.0);
     }
     void setDisplayUnit(double scale,const QString& unit) {

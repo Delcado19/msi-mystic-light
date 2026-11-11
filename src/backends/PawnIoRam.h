@@ -13,6 +13,7 @@ public:
     bool open(int address);
     bool pushColors(const QVector<RgbColor>& colors);
     QString error() const;
+    bool temporarilyUnavailable() const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
@@ -21,3 +22,7 @@ private:
 // Passive callers only obtain identities verified by an earlier GUI scan.
 QVector<int> scanPawnIoRam(bool activeProbe);
 QString pawnIoRamDiscoveryError();
+
+// Retain historical presence only after a transient bus failure; opening still verifies identity.
+QVector<int> reconcilePawnIoRamAddresses(const QVector<int>& previous,const QVector<int>& verified,
+                                       const QVector<int>& temporarilyUnavailable);

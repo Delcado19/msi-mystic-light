@@ -33,7 +33,7 @@ certificate is installed. Driver repairs and protected updates can require UAC
 again. The exact one-prompt flow still needs observation on clean Windows, including
 reboot/policy conditions. Shared PawnIO device permissions are not changed.
 
-Start-Lighting.cmd prefers the installed editor, then the new Service package.
+Start-Lighting.cmd prefers the installed editor, then the latest prepared development package.
 Current portable builds also detect a registered service and route to it, preventing
 a second direct hardware writer. Installed mode fails closed when service access
 fails. Older portable binaries cannot provide that protection; close them before
@@ -78,7 +78,9 @@ Commands are limited to status/snapshot, project, scan, playback, output enable 
 channel pause. No client file/DLL/module/register/shell API exists.
 
 Program Files and state ACLs protect runtime/configuration from normal-user writes.
-The three installed official module DLLs are hashed in protected service.json and
+The six installed module DLLs (`msi_gen1`, `peripherals`, `auxiliary`,
+`asrock_polychrome`, `lenovo_motherboard` and `hp_omen`, each with the
+`_module.dll` suffix) are hashed in protected service.json and
 verified before loading; unexpected module DLLs fail closed. Editor plugins are
 not copied into privileged execution. SYSTEM already has PawnIO access under the
 existing device ACL. The signed driver and pinned module remain unchanged.
@@ -90,6 +92,29 @@ the privileged attack surface. This is not a full security audit or separate
 low-privilege renderer. Further isolation can narrow this boundary later.
 
 ## Diagnostics and removal
+
+The service retains healthy output workers when other saved devices are offline.
+Five-second retries target missing or faulted output scopes rather than reopening
+every controller. Global discovery, conflict-guard or connection-preparation errors
+still stop all workers; they do not bypass the output guard.
+
+The portable startup dialog offers a separate **Stop SignalRGB service
+(administrator)** action. It reads the actual executable path from the Windows
+service configuration, not a fixed installation directory, and validates the
+exclusive process for the fixed service name `SignalRgb.Service`. Close the
+SignalRGB application first: it can start the service again. The action launches
+only Windows' system `sc.exe` with `stop SignalRgb.Service` after UAC consent.
+It checks the command result, service state and disappearance of the original
+service process, including a short stable-stop observation. Restarts, denied
+access, cancellation, query errors and timeouts remain visible. It never force
+kills the service, disables a task, changes its start mode or grants permissions.
+Canceling the dialog cannot recall a stop already approved through UAC. Automatic
+startup and vendor tasks may start SignalRGB again later. The installed service
+continues to report conflicts rather than stopping another controller itself.
+
+Fake service tests are not proof of an actual UAC stop. Microsoft documents the
+[service access rights](https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights)
+and the [ShellExecuteEx runas/handle contract](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shellexecuteinfow).
 
 Hardware shows service/per-channel failures. Startup failures reach SCM and, when
 writable, `%ProgramData%/LightingStudio/service-error.log` (administrator-readable).

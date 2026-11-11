@@ -50,7 +50,15 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
     endpoints_->header()->setSectionResizeMode(2,QHeaderView::ResizeToContents); layout->addWidget(endpoints_,1);
     channelDetails_=new QLabel;channelDetails_->setObjectName("outputChannelDetails");channelDetails_->setWordWrap(true);channelDetails_->setTextFormat(Qt::PlainText);layout->addWidget(channelDetails_);
     automatic_=new QTimer(this); automatic_->setInterval(2000);
-    connect(automatic_,&QTimer::timeout,this,[this] { if(!active() && !window_.document().state().assignments.isEmpty()) start(); });
+    connect(automatic_,&QTimer::timeout,this,[this] {
+        if(window_.document().state().assignments.isEmpty()) return;
+        if(!active()) start();
+        else if(std::any_of(connections_.begin(),connections_.end(),[this](const auto& connection) {
+            const auto state=connection.scheduler->status().state;
+            return (state==OutputScheduler::State::Faulted || state==OutputScheduler::State::Stopped) &&
+                !enabledFrame(connection.approved).channels.isEmpty();
+        })) start(true,true); // A failed RAM endpoint must not stay stopped merely because a peer is healthy.
+    });
     auto* inventory=window_.findChild<QTreeWidget*>("layoutComponents");
     connect(endpoints_,&QTreeWidget::currentItemChanged,this,[this] { updateControls(); });
     connect(endpoints_,&QTreeWidget::itemClicked,this,[this](QTreeWidgetItem* row) {
@@ -82,7 +90,11 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
         message_="Selected output paused. Other outputs keep running; devices retain their last applied state.";
         dispatch(window_.previewFrame()); refresh();
     });
-    connect(&window_,&LightingWindow::hardwareDiscovered,this,&OutputPanel::refresh);
+    connect(&window_,&LightingWindow::hardwareDiscovered,this,[this] {
+        refresh();
+        // Startup RAM probing finishes after HID output starts; include newly detected saved endpoints too.
+        if(automatic_->isActive())start(true);
+    });
     connect(&window_,&LightingWindow::previewFrameChanged,this,&OutputPanel::dispatch);
     connect(&window_.document(),&LightingDocument::changed,this,[this] {
         refresh();
@@ -113,7 +125,7 @@ void OutputPanel::stop(const QString& reason)
     for(auto& connection:connections_) connection.scheduler->stop();
     stopping_=false; refresh();
 }
-void OutputPanel::start(bool includeMissing)
+void OutputPanel::start(bool includeMissing, bool retryApprovedOnly)
 {
     if(authorizing_ || (!includeMissing && active()) || !authorize_) return;
     authorizing_=true; refresh();
@@ -123,7 +135,11 @@ void OutputPanel::start(bool includeMissing)
         const auto frames=prepareOutput(window_.document(),window_.previewFrame(),window_.previewSeconds(),&placements);
         if(frames.isEmpty()) throw std::invalid_argument("Configure at least one channel assignment first");
         auto pending=frames;
-        pending.removeIf([this](const auto& frame) {
+        pending.removeIf([this,retryApprovedOnly](const auto& frame) {
+            // Background recovery only reauthorizes unchanged scopes that have already connected.
+            if(retryApprovedOnly && std::none_of(connections_.begin(),connections_.end(),[&](const auto& connection) {
+                return sameOutputScope(connection.approved,frame);
+            })) return true;
             for(const auto& connection:connections_) if(connection.approved.endpoint==frame.endpoint &&
                 connection.approved.profileId==frame.profileId) {
                 const auto state=connection.scheduler->status().state;

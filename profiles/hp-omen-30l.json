@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "id": "hp.omen30l",
+  "driverId": "hp.omen30l",
+  "name": "HP Omen 30L (hardware unverified)",
+  "match": {
+    "vendorId": 4156,
+    "productId": 34045
+  },
+  "channels": [
+    {
+      "id": "Logo",
+      "maxLeds": 1,
+      "fixedLeds": 1,
+      "direct": true,
+      "nativeModes": [
+        "static",
+        "off",
+        "breathing",
+        "color-cycle",
+        "blinking",
+        "wave",
+        "radial"
+      ],
+      "address": {
+        "zone": 1
+      }
+    },
+    {
+      "id": "LightBar",
+      "maxLeds": 1,
+      "fixedLeds": 1,
+      "direct": true,
+      "nativeModes": [
+        "static",
+        "off",
+        "breathing",
+        "color-cycle",
+        "blinking",
+        "wave",
+        "radial"
+      ],
+      "address": {
+        "zone": 2
+      }
+    },
+    {
+      "id": "FrontFan",
+      "maxLeds": 1,
+      "fixedLeds": 1,
+      "direct": true,
+      "nativeModes": [
+        "static",
+        "off",
+        "breathing",
+        "color-cycle",
+        "blinking",
+        "wave",
+        "radial"
+      ],
+      "address": {
+        "zone": 3
+      }
+    },
+    {
+      "id": "CpuFan",
+      "maxLeds": 1,
+      "fixedLeds": 1,
+      "direct": true,
+      "nativeModes": [
+        "static",
+        "off",
+        "breathing",
+        "color-cycle",
+        "blinking",
+        "wave",
+        "radial"
+      ],
+      "address": {
+        "zone": 4
+      }
+    },
+    {
+      "id": "BottomFan",
+      "maxLeds": 1,
+      "fixedLeds": 1,
+      "direct": true,
+      "nativeModes": [
+        "static",
+        "off",
+        "breathing",
+        "color-cycle",
+        "blinking",
+        "wave",
+        "radial"
+      ],
+      "address": {
+        "zone": 5
+      }
+    },
+    {
+      "id": "MiddleFan",
+      "maxLeds": 1,
+      "fixedLeds": 1,
+      "direct": true,
+      "nativeModes": [
+        "static",
+        "off",
+        "breathing",
+        "color-cycle",
+        "blinking",
+        "wave",
+        "radial"
+      ],
+      "address": {
+        "zone": 6
+      }
+    },
+    {
+      "id": "TopFan",
+      "maxLeds": 1,
+      "fixedLeds": 1,
+      "direct": true,
+      "nativeModes": [
+        "static",
+        "off",
+        "breathing",
+        "color-cycle",
+        "blinking",
+        "wave",
+        "radial"
+      ],
+      "address": {
+        "zone": 7
+      }
+    }
+  ]
+}

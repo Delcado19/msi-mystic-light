@@ -1,0 +1,441 @@
+source,name,usb_id,priority,device_type_expression,transport_expression,endpoint_validation_present,subdevices_present,openrgb_candidates,match_status,unresolved_exports
+Plugins/A4Tech/A4Tech_Controller.js,A4Tech Device,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/AMD/AMD_Wraith_Prism.js,AMD Wraith Prism,2516:0051,P2,"""aio""",,True,False,AMDWraithPrismController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Airgoo/Airgoo_Controller.js,Airgoo DRGB Controller,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Alienware/Alienware_15_R3_Laptop.js,Alienware 15 R3,187C:0530,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Alienware/Alienware_AW558_Mouse.js,Alienware AW558,04CA:00A5,P2,"""mouse""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Alienware/Alienware_Monitor_Gen1_Controller.js,Alienware Device,,P1,"""other""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Alienware/Alienware_Monitor_Gen2_Controller.js,Alienware Device,,P1,"""other""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Alienware/Alienware_Monitor_Gen3_Controller.js,Alienware Device,,P1,"""other""","""hybrid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Anne/Anne_Pro_2_Keyboard.js,Anne Pro 2,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Anne/Anne_Pro_2_a297_Keyboard.js,Anne Pro 2,3311:A297,P2,"""keyboard""",,True,False,AnnePro2Controller,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Aqua Computer/Aqua_Computer_D5_Next.js,Aqua Computer D5 Next,0C70:F00E,P2,"""lightingcontroller""","""rawusb""",False,False,,unmatched or unresolved; manual review,
+Plugins/Aqua Computer/Aqua_Computer_Farbwerk_360.js,Aqua Computer Farbwerk 360,0C70:F010,P2,"""lightingcontroller""","""rawusb""",False,False,,unmatched or unresolved; manual review,
+Plugins/Aqua Computer/Aqua_Computer_Farbwerk_Nano.js,Aqua Computer Farbwerk Nano,0C70:F00F,P2,"""lightingcontroller""","""rawusb""",False,False,,unmatched or unresolved; manual review,
+Plugins/Aqua Computer/Aqua_Computer_HighFlow_Next.js,Aqua Computer High Flow Next,0C70:F012,P2,"""lightingcontroller""","""rawusb""",False,False,,unmatched or unresolved; manual review,
+Plugins/AsRock/ASRock GPU.js,ASRock GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/AsRock/ASRock LCD.js,ASRock LCD,,P1,"""lcd""","""hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/AsRock/ASRock LCD_Test.js,ASRock LCD,,P1,"""lcd""","""hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/AsRock/Asrock_Monitor_Controller.js,Asrock Monitor Controller,26CE:01C4,P1,"""mousepad""",,True,False,,unmatched or unresolved; manual review,
+Plugins/AsRock/Asrock_Motherboard_Controller.js,Asrock Motherboard,26CE:01A2,P2,"""motherboard""","""Hid""",True,False,ASRockPolychromeUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Asus/ARGB Controllers/Asus_Motherboard_ARGB_Controller.js,ASUS Aura ARGB Header Controller,,P2,"""motherboard""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_Keyboard.js,Asus Keyboard,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_Monitor_Controller.js,ASUS Monitor,,P1,"""other""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_Monitor_Controller2.js,ASUS Monitor,,P1,"""other""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_Multidevice_Controller.js,ASUS Device,,P2,"""dongle""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_ROG_Claymore_I.js,ASUS ROG Claymore,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_ROG_Claymore_II.js,ASUS ROG Claymore II,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_ROG_Spotlight.js,ASUS ROG Spotlight,0B05:1881,P2,"""other""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Asus/ASUS_ROG_Strix_LC.js,ASUS ROG Strix LC,0B05:879E,P2,"""aio""","""Hid""",True,False,AsusAuraUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Asus/ASUS_Ryujin_AIO_Controller.js,ASUS Ryujin Device,,P2,"""aio""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_Ryuo_AIO_Controller.js,ASUS Ryuo Device,,P2,"""aio""","""hybrid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ASUS_TUF_K1.js,Asus TUF K1,0B05:1945,P2,"""keyboard""",,True,False,AsusAuraUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Asus/Asus_Aura_Terminal_Controller.js,Asus Aura Terminal,0B05:1889,P2,"""lightingcontroller""",,True,False,AsusAuraUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Asus/Asus_Mouse.js,Asus Mouse,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/Asus_ROG_Balteus.js,Asus ROG Balteus,0B05:1891,P2,"""mousepad""",,True,False,AsusAuraUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Asus/Asus_ROG_Balteus_Qi.js,Asus ROG Balteus Qi,0B05:1890,P2,"""mousepad""",,True,False,AsusAuraUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Asus/Asus_ROG_Throne_Qi_Stand.js,Asus ROG Throne,,P2,"""mousepad""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/ENE_RAM.js,Aura Compatible RAM,,P2,"""ram""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/GPUs/ASUS_Legacy_GPU.js,ASUS Legacy GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/GPUs/Asus_Ampere_Lovelace_GPU.js,Asus Ampere/Lovelace GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/Motherboard Controllers/AsusSMBusMotherboardController.js,Asus SMBus Motherboard Controller,,P2,"""motherboard""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/Motherboard Controllers/Asus_Motherboard_Controller.js,ASUS Aura Motherboard Controller,,P2,"""motherboard""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/Motherboard Controllers/Asus_Motherboard_Controller_X870E.js,ASUS Aura Motherboard Controller,,P2,"""motherboard""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Asus/Omni Controller/ASUS_Keyboard_Protocol.js,,,P2,,,False,False,,unmatched or unresolved; manual review,Name | VendorId/ProductId
+Plugins/Asus/Omni Controller/ASUS_Mouse_Protocol.js,,,P2,,,False,False,,unmatched or unresolved; manual review,Name | VendorId/ProductId
+Plugins/Asus/Omni Controller/ASUS_Omni_Device.js,ASUS Omni Device,0B05:1ACE,P2,"""dongle""",,True,False,,unmatched or unresolved; manual review,
+Plugins/BYTech/BYTech_Keyboard_Controller.js,BYTech Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Colorful/Colorful_Ampere_GPU.js,Colorful Ampere GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/CoolerMaster/ACER_P09-600_Controller.js,ACER P09-600 RGB controller,2516:010B,P2,"""lightingcontroller""",,True,False,,unmatched or unresolved; manual review,
+Plugins/CoolerMaster/CoolerMaster_CK530_V2_Keyboard.js,CoolerMaster CK530 V2,2516:0147,P2,"""keyboard""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_CK550_V2_Keyboard.js,CoolerMaster CK550 V2,2516:0145,P2,"""keyboard""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_CK552_V2_Keyboard.js,CoolerMaster CK552 V2,2516:007F,P2,"""keyboard""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_CK720_Keyboard.js,CoolerMaster CK720,2516:016B,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/CoolerMaster/CoolerMaster_CK721_Keyboard.js,CoolerMaster CK721,2516:016D,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/CoolerMaster/CoolerMaster_MK730_Keyboard.js,CoolerMaster MK730,2516:008F,P2,"""keyboard""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_MM711_Mouse.js,Cooler Master MM711 Gaming Mouse,2516:0101,P2,"""mouse""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_MP750L_Mat.js,Cooler Master MP750L Mouse Pad,2516:0107,P2,"""mousepad""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_MP750M_Mat.js,Cooler Master MP750m Mouse Pad,2516:0105,P2,"""mousepad""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_MP750XL_Mat.js,Cooler Master MP750XL Mouse Pad,2516:0109,P2,"""mousepad""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_MP860_Mat.js,Cooler Master MP860 Mouse Pad,2516:006D,P2,"""mousepad""",,True,False,,unmatched or unresolved; manual review,
+Plugins/CoolerMaster/CoolerMaster_Mk750_Keyboard.js,CoolerMaster MK750,2516:0067,P2,"""keyboard""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_Mk850_Keyboard.js,CoolerMaster MK850,2516:0069,P2,"""keyboard""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_SK622_Keyboard.js,CoolerMaster SK620,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/CoolerMaster/CoolerMaster_SK650_Keyboard.js,CoolerMaster SK650,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/CoolerMaster/CoolerMaster_SK652_Keyboard.js,CoolerMaster SK652,2516:015D,P2,"""keyboard""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/CoolerMaster_SK653_Keyboard.js,CoolerMaster SK653,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/CoolerMaster/Cooler_Master_A-RGB_LED_Small_Controller.js,Cooler Master A-RGB LED Small Controller,2516:1000,P2,"""lightingcontroller""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/Cooler_Master_ARGB_Controller.js,Cooler Master ARGB Controller,2516:1011,P2,"""lightingcontroller""",,True,False,CoolerMasterController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/CoolerMaster/Cooler_Master_Gen2_LED_Controller_A1.js,Cooler Master Gen2 LED Controller A1,,P2,"""lightingcontroller""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/CoolerMaster/Intel_Arc770_GPU.js,Intel Arc 770,2516:01B5,P2,"""gpu""",,True,False,IntelArcA770LEController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Corsair_Elite_Capellix_LCD.js,Corsair Elite Capellix LCD,,P1,"""lcd""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Corsair_ICUE_Link_LCD.js,Corsair Link LCD,1B1C:0C4E,P1,"""lcd""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Corsair_Nautilus_RS_LCD.js,Corsair Nautilus RS LCD,1B1C:0C55,P1,"""lcd""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Corsair_Nexus_Screen.js,Corsair Nexus,1B1C:1B8E,P2,"""lcd""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Corsair_Void_Headset_Controller.js,Corsair Void Headset Device,,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Corsair_XC7_LCD.js,Corsair XC7 RGB ELITE LCD,1B1C:0C42,P1,"""lcd""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Corsair_XD6_Elite_LCD.js,Corsair XD6 Elite LCD,1B1C:0C43,P1,"""lcd""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Legacy_Corsair/Corsair_Legacy_Keyboard.js,Corsair Legacy Keyboard,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Legacy_Corsair/Corsair_Legacy_Mouse.js,Legacy Corsair Mouse,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Legacy_Corsair/Corsair_Legacy_Mouse.test.js,,,P2,,,False,False,,unmatched or unresolved; manual review,Name | VendorId/ProductId
+Plugins/Corsair/Legacy_Corsair/Corsair_MM800_RGB_Polaris_MousePad.js,Corsair MM800 RGB Polaris,1B1C:1B3B,P2,"""mousepad""",,True,False,CorsairPeripheralController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Legacy_Corsair/Corsair_ST100_Headset_Stand.js,Corsair ST100 HeadSet Stand,1B1C:0A34,P2,"""other""",,True,False,CorsairPeripheralController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_LS100_Light_Strips.js,Corsair LS100 Light Strips,1B1C:0C1E,P2,"""lightingcontroller""",,True,False,CorsairLightingNodeController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_LT100_Lighting_Tower.js,Corsair LT100 Lighting Tower Controller,1B1C:0C23,P2,"""lightingcontroller""",,True,False,CorsairLightingNodeController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_Lighting_Commander_Pro.js,Corsair Commander Pro,,P2,"""lightingcontroller""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_Lighting_Node_Core.js,Corsair Lighting Node Core ,1B1C:0C1A,P2,"""lightingcontroller""",,True,False,CorsairLightingNodeController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_Lighting_Node_Pro.js,Corsair Lighting Node Pro,1B1C:0C0B,P2,"""lightingcontroller""",,True,False,CorsairLightingNodeController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_Spec_Omega_Case.js,Corsair Spec Omega Case,1B1C:1D04,P2,"""lightingcontroller""",,True,False,CorsairLightingNodeController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Modern_Corsair/Corsair_Bragi_Device.js,Corsair Bragi Device,,P2,"""dongle""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Modern_Corsair/Corsair_HS80_RGB_Wired_Gaming_Headset.js,Corsair HS80 RGB Wired Gaming Headset,1B1C:0A88,P2,"""headphones""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Modern_Corsair/Corsair_Headset_Controller.js,Corsair Headset Device,,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Modern_Corsair/Corsair_Headset_Controller_Bragi.js,Corsair Bragi Headset,,P2,"""dongle""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Modern_Corsair/Corsair_ICUE_Link_Hub.js,Corsair iCUE LINK Device,,P2,"""lightingcontroller""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Modern_Corsair/Corsair_Lighting_Commander_Core.js,Corsair Commander Core,,P2,"""lightingcontroller""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Modern_Corsair/Corsair_Lighting_Commander_Core_XT.js,Corsair Commander Core XT,1B1C:0C2A,P2,"""lightingcontroller""",,True,False,CorsairCommanderCoreController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Corsair/Modern_Corsair/Corsair_MM700_RGB_MousePad.js,Corsair MM700 RGB,,P2,"""mousepad""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Platinum_Pro_XT_AIO/Platinum_Pro_XT_Elite_AIO.js,Corsair Platinum/Pro XT/Elite Cooler,,P2,"""aio""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Ram/Corsair_Dominator_Ram.js,Corsair Dominator Ram,,P2,"""ram""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Ram/Corsair_Dominator_Ram.test.bak.js,,,P2,,,False,False,,unmatched or unresolved; manual review,Name | VendorId/ProductId
+Plugins/Corsair/Ram/Corsair_Dominator_Titanium_Ram.js,Corsair Dominator Titanium Ram,,P2,"""ram""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Ram/Corsair_Vengeance_Pro_Ram.js,Corsair Vengeance Pro Ram,,P2,"""ram""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Elite_HeadSet.js,Corsair Void Elite Headset,1B1C:0A56,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Elite_HeadSet_0x0A52.js,Corsair Void Elite Headset,1B1C:0A52,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Elite_HeadSet_Wireless_0x0A75.js,Corsair Void Elite Wireless Headset,1B1C:0A75,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Pro_HeadSet_0x0A14.js,Corsair Void Pro Headset,1B1C:0A14,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Pro_HeadSet_0x0A17.js,Corsair Void Pro Headset,1B1C:0A17,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Pro_HeadSet_0x0A19.js,Corsair Void Pro Headset,1B1C:0A19,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Pro_HeadSet_0x0A1A.js,Corsair Void Pro Headset,1B1C:0A1A,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Pro_HeadSet_0x0A1D.js,Corsair Void Pro Headset,1B1C:0A1D,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Corsair/Void_HeadSets/Corsair_Void_Pro_HeadSet_0x1B23.js,Corsair Void Pro Headset,1B1C:1B23,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Creative Labs/Creative_Sound_BlasterX_Katana_Soundbar.js,Sound BlasterX Katana,041E:3247,P2,"""speakers""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Crucial/Crucial Ballistix Ram.js,Crucial Ballistix Ram,,P2,"""ram""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/EVGA/GPU's/EVGA_Ampere_GPU.js,EVGA Ampere GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/EVGA/GPU's/EVGA_Pascal_GPU.js,EVGA Pascal GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/EVGA/GPU's/EVGA_Turing_GPU.js,EVGA Turing GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/EVGA/X-15_Mouse.js,EVGA X15 Mouse,3842:2415,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/EVGA/X-17_Mouse.js,EVGA X17 Mouse,3842:240D,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/EVGA/Z-15_Keyboard_0x260e_ISO.js,EVGA Z15 Keyboard,3842:260E,P2,"""keyboard""",,True,False,EVGAUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/EVGA/Z-15_Keyboard_ANSI.js,EVGA Z15 Keyboard,3842:2608,P2,"""keyboard""",,True,False,EVGAUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/EVGA/Z-20_ISO_Keyboard.js,EVGA Z20 Keyboard,3842:2610,P2,"""keyboard""",,True,False,EVGAUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/EVGA/Z-20_Keyboard.js,EVGA Z20 Keyboard,3842:260A,P2,"""keyboard""",,True,False,EVGAUSBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/EVision/EVision_Keyboard_Controller.js,EVision Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Fnatic/Fnatic_Keyboard_Controller.js,FNATIC Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Fnatic/Fnatic_MiniSTREAK_Speed_Keyboard.js,Fnatic MiniSTREAK Speed,2F0E:0103,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Fnatic/Fnatic_STREAK65_Keyboard.js,Fnatic STREAK65,2F0E:0105,P2,"""keyboard""",,True,False,FnaticStreakController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Fnatic/Fnatic_STREAK_Keyboard.js,Fnatic STREAK,2F0E:0101,P2,"""keyboard""",,True,False,FnaticStreakController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/GigaByte/Aorus_ATC800.js,Gigabyte Aorus ATC800,1044:7A42,P2,"""aio""",,True,False,GigabyteAorusCPUCoolerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/GigaByte/Aorus_Liquid_Cooler_360.js,Gigabyte Aorus Liquid Cooler 360,1044:7A46,P2,"""aio""",,True,False,,unmatched or unresolved; manual review,
+Plugins/GigaByte/Gigabyte_AORUS_Waterforce_X_I.js,Gigabyte Aorus Waterforce X I,1044:7A4D,P2,"""aio""",,True,False,,unmatched or unresolved; manual review,
+Plugins/GigaByte/Gigabyte_AORUS_Waterforce_X_II.js,Gigabyte Aorus Waterforce X II,0414:7A5E,P2,"""aio""",,True,False,GigabyteCastor3Controller,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/GigaByte/Gigabyte_Gen1_GPU.js,Gigabyte Vision GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/GigaByte/Gigabyte_Gen2_GPU.js,Gigabyte Master GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/GigaByte/Gigabyte_Gen3_GPU.js,Gigabyte XTREME GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/GigaByte/Gigabyte_Gen4_GPU.js,Gigabyte Gen 4 GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/GigaByte/Gigabyte_Motherboard_Controller.js,GIGABYTE Motherboard LED Controller,,P2,"""motherboard""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/GigaByte/Gigabyte_Motherboard_Controller_0x5711.js,GIGABYTE Motherboard LED Controller,048D:5711,P2,"""motherboard""","""Hid""",True,False,GigabyteRGBFusion2USBController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Glorious/Glorious_Model_D_Wireless.js,Glorious Model D Wireless,258A:2025,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Glorious/Glorious_Model_D_Wireless_-_Wired.js,Glorious Model D Wireless - Wired ,258A:2014,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Glorious/Glorious_Model_D_Wireless_-_Wired_0x2012.js,Glorious Model D Wireless - Wired ,258A:2012,P2,"""mouse""",,True,False,SinowealthController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Glorious/Glorious_Model_D_Wireless_0x2023.js,Glorious Model D Wireless,258A:2023,P2,"""mouse""",,True,False,SinowealthController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Glorious/Glorious_Model_O_Wireless.js,Glorious Model O Wireless,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Glorious/Glorious_Model_O_Wireless_-_Wired.js,Glorious Model O Wireless - Wired ,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/HyperX/HyperX_Alloy_Elite.js,HyperX Alloy Elite RGB,0951:16BE,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Elite_2.js,HyperX Elite 2 RGB,0951:1711,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Elite_2_Keyboard_Alt_PID.js,HyperX Elite 2 RGB,03F0:058F,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_FPS_RGB.js,HyperX Alloy FPS RGB,0951:16DC,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Origins.js,HyperX Alloy Origins,0951:16E5,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Origins_0x03f0_0x0591.js,HyperX Alloy Origins,03F0:0591,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Origins_60.js,HyperX Alloy Origins 60,0951:1734,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Origins_60_0c8e.js,HyperX Alloy Origins 60,03F0:0C8E,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Origins_65.js,HyperX Alloy Origins 65,03F0:038F,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Origins_Core.js,HyperX Alloy Origins Core,0951:16E6,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Alloy_Origins_Core_0x03f0_0x098f.js,HyperX Alloy Origins Core,03F0:098F,P2,"""keyboard""",,True,False,HyperXKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Cloud_Flight.js,HyperX Cloud Flight,,P2,"""headphones""","""HID""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/HyperX/HyperX_Duocast.js,HyperX Duocast,03F0:098C,P2,"""microphone""",,True,False,HyperXMicrophoneController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Fury_Ultra.js,HyperX Fury Ultra,0951:1705,P2,"""mousepad""",,True,False,HyperXMousematController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Mouse_Controller.js,HyperX Device,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/HyperX/HyperX_PulseFire_Haste.js,HyperX Pulsefire Haste,0951:1727,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_PulseFire_Haste_0x03f0_0x0f8f.js,HyperX Pulsefire Haste,03F0:0F8F,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_PulseFire_Haste_Wireless_Mouse.js,HyperX Pulsefire Haste Wireless,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/HyperX/HyperX_Pulsefire_Core.js,HyperX PulseFire Core,0951:16DE,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_Core_0x03F0.js,HyperX PulseFire Core,03F0:0D8F,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_Dart_Wireless-Wireless_Mode_03f0.js,HyperX PulseFire Dart Wireless Mode,03F0:068E,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_Dart_Wireless-_Wired_Mode.js,HyperX PulseFire Dart Wired Mode,0951:16E2,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_Dart_Wireless-_Wireless_Mode.js,HyperX PulseFire Dart Wireless Mode,0951:16E1,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_FPS_Pro.js,HyperX PulseFire FPS Pro,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/HyperX/HyperX_Pulsefire_Haste_2_Mouse.js,HyperX Pulsefire 2,,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/HyperX/HyperX_Pulsefire_Mat.js,HyperX PulseFire Mat,03F0:0F8D,P2,"""mousepad""",,True,False,HyperXMousematController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_Mat_Kingston.js,HyperX PulseFire Mat,0951:1741,P2,"""mousepad""",,True,False,HyperXMousematController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_Raid.js,HyperX PulseFire Raid,0951:16E4,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_Surge.js,HyperX PulseFire Surge,0951:16D3,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Pulsefire_Surge_0x03f0_Mouse.js,HyperX PulseFire Surge,03F0:0490,P2,"""mouse""",,True,False,HyperXMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Quadcast_2_S.js,HyperX Quadcast 2 S,03F0:02B5,P2,"""microphone""",,True,False,HyperXMicrophoneV2Controller,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/HyperX/HyperX_Quadcast_S.js,HyperX Quadcast S,,P2,"""microphone""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/HyperX/HyperX_Quadcast_S_0x03f0.js,HyperX Quadcast S,,P2,"""microphone""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Hyte/CNVS.js,HYTE CNVS,,P2,"""mousepad""","""serial""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/ID-Cooling/ID-Cooling-FX-LCD.js,ID-Cooling FX-LCD,2000:3000,P1,"""lcd""",,True,False,,unmatched or unresolved; manual review,
+Plugins/KBM Gaming/KBM_Keyboard_Controller.js,KBM! Gaming Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Kingston/Kingston Hyper Fury Ram.js,Kingston Hyper Fury Ram,,P2,"""ram""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/LG/LG_UltraGear_27GN950.js,LG UltraGear 27GN950,043E:9A8A,P2,"""other""","""Hid""",True,False,LGMonitorController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/LG/LG_UltraGear_38GL950G.js,LG UltraGear 38GL950G,043E:9A57,P2,"""other""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Lenovo/Lenovo_Legion_5_Pro_Keyboard.js,Lenovo Legion 5 Pro Keyboard,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Lenovo/Lenovo_Legion_7.js,Lenovo Legion 7,048D:C968,P2,"""keyboard""",,True,False,LenovoControllers,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Lian Li/LianLi_SL_Infinity.js,Lian Li Uni Fan Controller SL Infinity,0CF2:A102,P2,"""lightingcontroller""",,True,False,LianLiController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Lian Li/LianLi_Strimer_Controller.js,LianLi L-Connect 3 Strimer Controller,0CF2:A200,P2,"""lightingcontroller""","""Hid""",True,False,LianLiController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Lian Li/Lian_Li_Galahad_II_LCD.js,Lian Li Galahad II LCD,0416:7395,P1,,,True,False,,unmatched or unresolved; manual review,
+Plugins/Lian Li/Lian_Li_Uni_Fans.js,Lian Li Uni Fan Controller,0CF2:7750,P2,"""lightingcontroller""","""rawusb""",False,False,,unmatched or unresolved; manual review,
+Plugins/Lian Li/Lian_Li_Uni_Fans_AL_1.1.js,Lian Li Uni Fan Controller AL 1.1,0CF2:A101,P2,"""lightingcontroller""","""hybrid""",True,False,LianLiController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Lian Li/Lian_Li_Uni_Fans_AL_V2.js,Lian Li Uni Fan Controller AL V2,0CF2:A104,P2,"""lightingcontroller""","""hybrid""",True,False,LianLiController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Lian Li/Lian_Li_Uni_Fans_SL_1.2.js,Lian Li Uni Fan Controller SL 1.2,,P2,"""lightingcontroller""","""rawusb""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Lian Li/Lian_Li_Uni_Fans_SL_V2.js,Lian Li Uni Fan Controller SL V2,,P2,"""lightingcontroller""","""hybrid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G213_Keyboard.js,Logitech G213,046D:C336,P2,"""keyboard""",,True,False,LogitechController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G402_Hyperion_Mouse.js,Logitech G402 Hyperion,046D:C07E,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G410_Keyboard.js,Logitech G410 Atlas Spectrum,046D:C330,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G413_Keyboard.js,Logitech G413,046D:C33A,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G512_SE_Keyboard.js,Logitech G512 SE,046D:C342,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G513_Keyboard.js,Logitech G513,046D:C33C,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G560_Speakers.js,Logitech G560 Gaming Speakers,046D:0A78,P2,"""speakers""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G810_Keyboard.js,Logitech G810,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G815_Keyboard.js,Logitech G815 Lightsync,046D:C33F,P2,"""keyboard""",,True,False,LogitechController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G910_Keyboard.js,Logitech G910,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_Headset_Controller.js,Logitech Headset Device,,P2,"""headphones""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_Pro_TKL_Keyboard.js,Logitech Pro TKL,046D:C339,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/Logitech_G13_Keyboard.js,Logitech G13,046D:C21C,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/Logitech_G19_Keyboard.js,Logitech G19,046D:C229,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Logitech/Logitech_G600_Mouse.js,Logitech G600 Mouse,046D:C24A,P2,"""mouse""",,True,False,LogitechController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Logitech/Logitech_Modern_Device.js,Logitech Device,,P2,"""dongle""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Logitech/Logitech_Wireless_Dongle.test.js,,,P2,,,False,False,,unmatched or unresolved; manual review,Name | VendorId/ProductId
+Plugins/Logitech/Logitech_X56_HOTAS_Joystick.js,Logitech X56 H.O.T.A.S. Stick,0738:2221,P2,"""other""","""HID""",True,False,LogitechController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Logitech/Logitech_X56_HOTAS_Throttle.js,Logitech X56 H.O.T.A.S. Throttle,0738:A221,P2,"""other""","""HID""",True,False,LogitechController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Mountain/Mountain Everest 60.js,Mountain Everest 60 Keyboard,3282:0005,P2,"""keyboard""",,True,False,MountainKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Mountain/Mountain Everest Max.js,Mountain Everest Max Keyboard,3282:0001,P2,"""keyboard""",,True,False,MountainKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Mountain/Mountain_Macropad.js,Mountain Macropad,3282:0008,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Mountain/Mountain_Makalu_67_Mouse.js,Mountain Makalu 67,3282:0003,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0x1720.js,MSI Mystic Light Controller (162 Byte),1462:1720,P2,"""motherboard""","""Hid""",True,False,MSIMotherboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0x7B17.js,MSI Mystic Light Controller (162 Byte),1462:7B17,P2,"""motherboard""","""Hid""",True,False,MSIMotherboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0x7B18.js,MSI Mystic Light Controller (162 Byte),1462:7B18,P2,"""motherboard""","""Hid""",True,False,MSIMotherboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0x7B85.js,MSI B450 GAMING PRO CARBON AC (162 Byte),1462:7B85,P2,"""motherboard""","""Hid""",True,False,MSIMotherboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0xB926.js,MSI Mystic Light Controller (162 Byte),1462:B926,P2,"""motherboard""","""Hid""",True,False,MSIMotherboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Msi/185 Byte Motherboard Controller/MSI_185Byte_Controller.js,MSI Mystic Light Controller,,P2,"""motherboard""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Msi/185 Byte Motherboard Controller/MSI_185Byte_Controller_0x0DB0.js,MSI Mystic Light Controller,,P2,"""motherboard""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Msi/Apache_GS63_Keyboard.js,MSI GS63 Keyboard,1770:FF00,P2,"""keyboard""",,True,False,MSI3ZoneController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Msi/GPU's/MSI_GPU.js,MSI GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Msi/GPU's/MSI_GPU_Blackwell.js,MSI Blackwell GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Msi/GPU's/MSI_GPU_Lovelace.js,MSI Lovelace GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Msi/MSI_Keyboard_Controller.js,MSI Keyboard Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Msi/MSI_MAG_Monitor.js,MSI Monitor Controller,1038:1128,P1,"""other""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Msi/MSI_Monitor_Controller.js,MSI Monitor Controller,1462:3FA4,P1,"""other""","""Hid""",True,False,MSIMonitorController | MSIOptixController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Nollie/Nollie1.js,Nollie1,16D2:1F11,P2,"""lightingcontroller""","""Hid""",True,False,NollieController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Nollie/Nollie16v3.js,Nollie16v3,3061:4716,P2,"""lightingcontroller""","""Hid""",True,False,NollieController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Nollie/Nollie32.js,Nollie32,3061:4714,P2,"""lightingcontroller""","""Hid""",True,False,NollieController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Nollie/Nollie8 v2.js,Nollie 8 v2,16D2:1F01,P2,"""lightingcontroller""","""Hid""",True,False,NollieController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Nuvoton/Nuvoton_Keyboard2_Controller.js,Nuvoton Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Nuvoton/Nuvoton_Keyboard_Controller.js,Nuvoton Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Nzxt/NZXT_Kraken_Elite.js,NZXT Kraken,,P2,"""aio""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Nzxt/NZXT_Kraken_Elite_V2_AIO.js,NZXT Kraken Elite v2,1E71:3012,P2,"""aio""",,True,False,NZXTHue2Controller,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Nzxt/NZXT_Motherboard.js,NZXT Motherboard,,P2,"""motherboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Nzxt/NZXT_Smart_Device_V1_Controller.js,NZXT Smart Device V1,1E71:1714,P2,"""lightingcontroller""",,True,False,NZXTHue1Controller,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Nzxt/NZXT_Smart_Device_V2_Controller.js,NZXT Smart Device V2,,P2,"""lightingcontroller""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Nzxt/Nzxt_Kraken_X2_M2_AIO.js,NZXT Kraken X2/M2,,P2,"""aio""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Nzxt/Nzxt_Kraken_X3_AIO.js,NZXT Kraken X3,,P2,"""aio""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Nzxt/Nzxt_Kraken_Z3_AIO.js,NZXT Kraken Z3,1E71:3008,P2,"""aio""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Nzxt/Peripheral Protocol/NZXT_Function_Keyboard.js,NZXT Keyboard,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Nzxt/Peripheral Protocol/NZXT_Lift_Mouse.js,NZXT Lift,1E71:2100,P2,"""mouse""",,True,False,NZXTMouseController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Nzxt/Vertagear_RGB_LED_Upgrade_Kits.js,Vertagear RGB LED Upgrade Kits,1E71:2004,P2,"""lightingcontroller""",,True,False,,unmatched or unresolved; manual review,
+Plugins/OEM/OEM_Keyboard_Wireless_Controller.js,OEM Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/PNY/PNY_Blackwell_GPU.js,PNY Blackwell GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/PNY/PNY_Turing_Ampere_GPU_Controller.js,PNY Ampere GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/PNY/PNY_XLR8_Lovelace_GPU.js,PNY XLR8 GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/PNY/PNY_XLR8_REVEL_Lovelace_GPU.js,PNY GPU,,P2,"""gpu""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Patriot/Patriot_Viper_RAM.js,Patriot Viper RAM,,P2,"""ram""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Patriot/Patriot_Viper_Steel_RGB_RAM.js,Patriot Viper Steel RGB RAM,,P2,"""ram""","""SMBUS""",False,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Patriot/V380_Headset.js,Patriot Viper V380 Headset,260D:2002,P2,"""headphones""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/PrismRGB/PrismRGB_8.js,Prism 8,16D5:1F01,P2,"""lightingcontroller""","""Hid""",True,False,NollieController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/PrismRGB/Prism_Mini.js,Prism Mini,16D0:1407,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/PrismRGB/Prism_S.js,Prism S,16D0:1294,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Rama/Rama_M65B.js,Rama Works M65-B,5241:065B,P2,"""keyboard""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Razer/Razer_Addressable_RGB_Controller.js,Razer Addressable RGB Controller,1532:0F1F,P0,"""lightingcontroller""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Barracuda_X_Chroma_Headset.js,Razer Barracuda X Chroma,1532:0574,P0,"""headphones""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Razer/Razer_BaseStation_Chroma_White.js,Razer Base Station Chroma,1532:0F08,P0,"""other""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_BaseStation_V2.js,Razer Base Station V2,1532:0F20,P0,"""other""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Blackwidow_2019_Keyboard.js,Razer Blackwidow 2019,1532:0241,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Blackwidow_Chroma_Keyboard.js,Razer Blackwidow Chroma,1532:0203,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Blackwidow_Overwatch_Keyboard.js,Razer Blackwidow Chroma Overwatch,1532:0211,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Blackwidow_T_Chroma_Keyboard.js,Razer Blackwidow T Chroma,1532:0209,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Blackwidow_Ultimate_2013_2014_Keyboard.js,Razer Blackwidow Ultimate 2013/2014,1532:011A,P0,"""keyboard""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Razer/Razer_Blackwidow_X_Chroma_Keyboard.js,Razer Blackwidow X Chroma,1532:0216,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Blackwidow_v3_Pro.js,Razer Blackwidow V3 Pro,1532:025A,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Blackwidow_v3_Pro_Wireless_Mode.js,Razer Blackwidow V3 Pro Wireless Mode,1532:025C,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Charging_Pad.js,Razer Charging Pad,1532:0F26,P0,"""mousepad""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Chroma_HDK_Lighting_Controller.js,Razer Chroma HDK,1532:0F09,P0,"""lightingcontroller""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Chroma_Light_Strip_Set.js,Razer Chroma Light Strip Set,1532:0F2C,P0,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Razer/Razer_Chroma_Lighting_Kit.js,Razer Chroma Lighting Kit,1532:0F0E,P0,"""lightingcontroller""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Cynosa_Chroma_Keyboard.js,Razer Cynosa Chroma,1532:022A,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Cynosa_Chroma_Pro_Keyboard.js,Razer Cynosa Chroma Pro,1532:022C,P0,"""keyboard""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Razer/Razer_Cynosa_Lite_Keyboard.js,Razer Cynosa Lite,1532:023F,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Cynosa_V2_Keyboard.js,Razer Cynosa V2,1532:025E,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_DeathAdder_Essential_Mouse.js,Razer Deathadder Essential,,P0,"""mouse""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_DeathAdder_Essential_Mouse_0x006E.js,Razer Deathadder Essential,1532:006E,P0,"""mouse""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Deathstalker_V2_Pro_TKL_Keyboard.js,Razer Deathstalker V2 Pro TKL Wired,1532:0298,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Deathstalker_V2_Pro_TKL_Keyboard_Wireless.js,Razer Deathstalker V2 Pro TKL Wireless,1532:0296,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Diamondback_Chroma_Mouse.js,Razer Diamondback Chroma,1532:004C,P0,"""mouse""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Goliathus_Chroma_3XL_Mouse_Mat.js,Razer Goliathus Chroma 3XL,1532:0C06,P0,"""mousepad""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Goliathus_Chroma_Mouse_Pad.js,Razer Goliathus Chroma,1532:0C01,P0,"""mousepad""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Goliathus_Extended_Chroma_Mouse_Pad.js,Razer Goliathus Extended Chroma,1532:0C02,P0,"""mousepad""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Hanbo_Cooler.js,Razer Hanbo AIO,1532:0F35,P0,"""aio""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Huntsman_V2_TKL_Keyboard.js,Razer Huntsman V2 TKL,1532:026B,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Kraken_7.1_V2_Headset.js,Razer Kraken 7.1 V2,,P0,"""headphones""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Kraken_Headset_Controller.js,Razer Headset Device,,P0,"""headphones""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Kraken_Kitty_Edition_Headset.js,Razer Kraken Kitty Edition,1532:0F19,P0,"""headphones""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Laptop_Cooling_Pad.js,Razer Laptop Cooling Pad,1532:0F43,P0,"""other""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Razer/Razer_Laptop_Stand_Chroma.js,Razer Laptop Stand Chroma,1532:0F0D,P0,"""other""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Laptop_Stand_Chroma_V2.js,Razer Laptop Stand Chroma V2,1532:0F2B,P0,"""other""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Legacy_Mouse.js,Razer Mouse,,P0,"""mouse""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_LianLi_Case.js,Razer Lian Li Case,1532:0F13,P0,"""case""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Mamba_TE_Mouse.js,Razer Mamba TE,,P0,"""mouse""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Modern_Keyboard.js,Razer Keyboard,,P0,"""keyboard""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Modern_Mouse.js,Razer Mouse,,P0,"""mouse""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Modern_Mouse.test.js,,,P0,,,False,False,,unmatched or unresolved; manual review,Name | VendorId/ProductId
+Plugins/Razer/Razer_Monitor_Stand_Chroma.js,Razer Device,,P0,"""other""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Mouse_Bungee_V3.js,Razer Mouse Bungee V3,1532:0F1D,P0,"""other""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Mouse_Dock.js,Razer Mouse Dock,1532:007E,P0,"""other""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Mouse_Dock_Pro.js,Razer Mouse Dock Pro,1532:00A4,P0,"""other""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Mousepad_Controller.js,Razer Mousepad,,P0,"""mousepad""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Naga_Hex_V2_Mouse.js,Razer Naga Hex V2,1532:0050,P0,"""mouse""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Nari_Headset_Controller.js,Razer Headset Device,,P0,"""headphones""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Nommo_Speakers.js,Razer Nommo,,P0,"""speakers""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Orbweaver_Chroma_Keypad--Broken.js,Razer Orbweaver Chroma,1532:0207,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Ornata_Chroma_Keyboard.js,Razer Ornata Chroma,1532:021E,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Ornata_V3_TKL_Keyboard.js,Razer Ornata V3 TKL,1532:02A3,P0,"""keyboard""",,True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Ornata_V3_X_Keyboard.js,Razer Ornata V3 X,,P0,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_PWM_Controller.js,Razer PWM Controller,1532:0F3C,P0,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Razer/Razer_Raptor_27_Inch_Monitor.js,Razer Raptor 27 Inch,,P0,"""other""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Seiren_V3_Mic.js,Razer Seiren V3,1532:056F,P0,"""microphone""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Razer/Razer_Soundbar.js,Razer Soundbar,,P0,"""speakers""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Razer/Razer_Tartarus_Pro_Keypad.js,Razer Tartarus Pro,1532:0244,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Tartarus_V2_Keypad.js,Razer Tartarus V2,1532:022B,P0,"""keyboard""","""Hid""",True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Thuderbolt_Dock.js,Razer Thunderbolt Dock,1532:0F21,P0,"""other""",,True,False,RazerController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Razer/Razer_Tomahawk_Case.js,Razer Tomahawk ATX Case,1532:0F17,P0,"""case""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_AIMO_Mousepad.js,Roccat AIMO Pad,1E7D:343A,P0,"""mousepad""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_AIMO_Wide_Mousepad.js,Roccat AIMO Pad Wide,1E7D:343B,P0,"""mousepad""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Burst_Core_Mouse.js,Roccat Burst Core,1E7D:2DE6,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Burst_Pro_Air_Mouse_Wired.js,Roccat Burst Pro Air - Wired,1E7D:2CAB,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Burst_Pro_Air_Mouse_Wireless.js,Roccat Burst Pro Air,1E7D:2CA6,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Burst_Pro_Mouse.js,Roccat Burst Pro,1E7D:2DE1,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Elo_7.1 USB_Headset.js,Roccat Elo 7.1 USB,1E7D:3A34,P0,"""headphones""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Elo_7.1_Air_Headset.js,Roccat Elo 7.1 Air,1E7D:3A37,P0,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Kain_100_Mouse.js,Roccat Kain 100,1E7D:2D00,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Kain_120_Mouse.js,Roccat Kain 120,1E7D:2D5C,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Kain_200_Mouse_Wired.js,Roccat Kain 200,1E7D:2D5F,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Kain_200_Mouse_Wireless.js,Roccat Kain 200,1E7D:2D60,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Kone_Mouse.js,Roccat Kone,1E7D:2E27,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Kone_Pro_Air_Mouse.js,Roccat Kone Pro Air,1E7D:2C8E,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Kone_Pro_Air_Mouse_Wired_Mode.js,Roccat Kone Pro Air Wired Mode,1E7D:2C92,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Kone_Pro_Mouse.js,Roccat Kone Pro,1E7D:2C88,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Kone_Remastered_Mouse.js,Roccat Kone Remastered,1E7D:2E2C,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Kone_XP_Air.js,Roccat Kone XP Air,1E7D:2CB6,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Kone_XP_Air_Dock.js,Roccat Kone XP Air Dock,1E7D:2CB8,P0,"""other""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Kone_XP_Air_Mouse_Wired.js,Roccat Kone XP Air - Wired,1E7D:2CB2,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Kone_XP_Mouse.js,Roccat Kone XP,1E7D:2C8B,P0,"""mouse""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Kova_Aimo_Mouse.js,Roccat Kova Aimo,1E7D:2CF1,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Magma_Keyboard.js,Roccat Magma,1E7D:3124,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Pyro_Keyboard.js,Roccat Pyro,1E7D:314C,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Syn_Pro_Air_Headset.js,Roccat Syn Pro Air,1E7D:3A3B,P0,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Torch_Microphone.js,Roccat Torch,1E7D:3A56,P0,"""microphone""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Roccat/Roccat_Vulcan_100_Keyboard.js,Roccat Vulcan 100,1E7D:307A,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Vulcan_120_Keyboard.js,Roccat Vulcan 120,1E7D:3098,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Vulcan_II_Keyboard.js,Roccat Vulcan II,1E7D:2F4E,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Vulcan_II_Max_Keyboard.js,Roccat Vulcan II MAX,1E7D:2EE2,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Vulcan_II_Mini_Air_Keyboard.js,Roccat Vulcan II Mini Air,,P0,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Roccat/Roccat_Vulcan_II_Mini_Keyboard.js,Roccat Vulcan II Mini,1E7D:2F09,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Vulcan_Pro_Keyboard.js,Roccat Vulcan Pro,1E7D:30F7,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Vulcan_Pro_TKL_Keyboard.js,Roccat Vulcan Pro TKL,1E7D:311A,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Roccat/Roccat_Vulcan_TKL_Keyboard.js,Roccat Vulcan TKL,1E7D:2FEE,P0,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Royal Kludge/RK_61_Keyboard.js,Royal Kludge RK61,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Royal Kludge/RK_84_Keyboard.js,Royal Kludge RK84,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Royuan/Royuan_Keyboard_Controller.js,Royuan Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Sinowealth/Sinowealth_Keyboard_Controller.js,Sinowealth Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Sinowealth/Sinowealth_Keyboard_Controller2.js,Sinowealth Device 2,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Sonix/SONIX_Keyboard_Controller.js,SONIX Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Sonix/SONIX_Keyboard_Controller_2.js,SONIX Device 2,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Sony/Sony_Dual_Sense_Controller.js,Sony Dualsense Controller,054C:0CE6,P2,"""other""",,True,False,SonyGamepadController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Sony/Sony_Dualshock_4_Controller_Wired.js,Sony Dualshock 4,,P2,"""other""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/SpeedLink/Speedlink_ORIOS_RGB_Gaming_Mouse.js,Speedlink ORIOS RGB Gaming Mouse,0C45:5F01,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/SpeedLink/Speedlink_ORIOS_RGB_Gaming_Mousepad.js,Speedlink ORIOS RGB Gaming Mousepad,0C45:763D,P2,"""mousepad""",,True,False,,unmatched or unresolved; manual review,
+Plugins/SpeedLink/Speedlink_ORIOS_RGB_Opto-Mech_KB.js,Speedlink ORIOS RGB Opto-Mech KB,0C45:763E,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Steelseries/Steelseries_Aerox_Wired_Mouse.js,SteelSeries Aerox Mouse Wired,,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Aerox_Wireless_Mouse.js,SteelSeries Aerox Mouse,,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Apex_3_Keyboard.js,SteelSeries Apex 3,1038:161A,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_3_TKL_Keyboard.js,SteelSeries Apex 3 TKL,1038:1622,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_5_Keyboard.js,SteelSeries Apex 5,1038:161C,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_7_Keyboard.js,SteelSeries Apex 7,1038:1612,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_7_TKL_Keyboard.js,SteelSeries Apex 7 TKL,1038:1618,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_9_Mini_Keyboard.js,SteelSeries Apex 9 Mini,1038:1620,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_9_TKL_Keyboard.js,SteelSeries Apex 9 TKL,1038:1634,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_M750_Keyboard.js,SteelSeries Apex M750 RGB,1038:0616,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_M750_TKL_Keyboard.js,SteelSeries Apex M750 TKL,,P0,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Apex_Pro_Keyboard.js,SteelSeries Apex Pro,1038:1610,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_Pro_Mini_Keyboard.js,SteelSeries Apex Pro Mini,,P0,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Apex_Pro_TKL_2023_Keyboard.js,SteelSeries Apex Pro TKL 2023,1038:1628,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Apex_Pro_TKL_2023_Wireless_Keyboard.js,SteelSeries Apex Pro TKL 2023 Wireless,,P0,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Apex_Pro_TKL_Keyboard.js,SteelSeries Apex Pro TKL,1038:1614,P0,"""keyboard""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Arctis_5_Headset.js,SteelSeries Arctis 5,1038:1250,P0,"""headphones""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Arctis_5_Headset_Alt_PID.js,SteelSeries Arctis 5,1038:12AA,P0,"""headphones""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Arctis_Pro_GameDAC_Headset.js,SteelSeries Arctis Pro GameDAC,1038:1280,P0,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Steelseries/Steelseries_Arctis_Pro_Headset.js,SteelSeries Arctis Pro,1038:1252,P0,"""headphones""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Steelseries/Steelseries_Arena_7_Speakers.js,SteelSeries Arena 7,1038:1A00,P0,"""speakers""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Steelseries/Steelseries_Arena_9_Speakers.js,SteelSeries Arena 9,1038:1A05,P0,"""speakers""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Steelseries/Steelseries_Keyboard_Controller.js,Steelseries Device,,P0,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Qck_Mousepad_Controller.js,Steelseries QcK Prism,,P0,"""mousepad""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Qck_Prism_Mousepad.js,Steelseries QcK ,,P0,"""mousepad""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Rival_110.js,SteelSeries Rival 110,1038:1729,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Rival_310_Mouse.js,SteelSeries Rival 310,,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Rival_3_Gen2_Mouse.js,SteelSeries Rival 3 Gen 2,1038:1870,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Steelseries/Steelseries_Rival_3_Mouse.js,SteelSeries Rival 3,1038:184C,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Rival_3_Mouse_Alt_PID.js,SteelSeries Rival 3,1038:1824,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Rival_3_Mouse_Wireless.js,SteelSeries Rival 3 Wireless,1038:1830,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Rival_5_Destiny_Mouse.js,SteelSeries Rival 5 Destiny,1038:183E,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Steelseries/Steelseries_Rival_5_Mouse.js,SteelSeries Rival 5,1038:183C,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Rival_600_Mouse.js,SteelSeries Rival 600,1038:1724,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Rival_650_Mouse.js,SteelSeries Rival 650,,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Steelseries/Steelseries_Rival_700_Mouse.js,SteelSeries Rival 700,1038:1700,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Rival_710_Mouse.js,SteelSeries Rival 710,1038:1730,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Rival_Prime_Mouse.js,SteelSeries Rival Prime,1038:182E,P0,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Steelseries/Steelseries_Sensi_310_Mouse.js,SteelSeries Sensi 310,1038:1722,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Steelseries/Steelseries_Sensi_Ten_Mouse.js,SteelSeries Sensi Ten,1038:1832,P0,"""mouse""",,True,False,SteelSeriesController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Thermal Take/ThermalTake_Argent_Mouse_Bungee.js,ThermalTake Argent Mouse Bungee,264A:8020,P2,"""other""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Thermal Take/ThermalTake_E1_Headphone_Stand.js,ThermalTake Argent E1 Headphone Stand,264A:8002,P2,"""other""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Thermal Take/ThermalTake_LEDBOX_0x213Cf.js,ThermalTake LedBox,264A:213C,P2,"""lightingcontroller""","""Hid""",True,False,ThermaltakeRiingController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Thermal Take/ThermalTake_LEDBOX_Pacific_Controller.js,ThermalTake LedBox Pacific,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Thermal Take/ThermalTake_LEDBOX_Standard.js,ThermalTake LedBox,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Thermal Take/ThermalTake_Level20_Desk.js,ThermalTake Level 20 Desk,264A:07D1,P2,"""other""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Thermal Take/ThermalTake_Riing_Plus.js,TT Floe Riing Controller,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Thermal Take/ThermalTake_Ring_Controller.js,ThermalTake Riing Controller,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Thermal Take/Thermaltake_Argent_MP1_Mousepad.js,ThermalTake Argent MP1 Mousepad,264A:9011,P2,"""mousepad""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Thermal Take/Thermaltake_DPSG_PSU.js,ThermalTake DPSG PSU,264A:2329,P2,"""other""","""Hid""",True,False,,unmatched or unresolved; manual review,
+Plugins/Thermal Take/Thermaltake_HS1_Headphone_Stand.js,ThermalTake Argent HS1 Headphone Stand,264A:8022,P2,"""other""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Thermalright/Thermalright_Grand_Vision_LCD.js,THERMALRIGHT GRAND VISION LCD,87AD:70DB,P1,"""lcd""","""rawusb""",False,False,,unmatched or unresolved; manual review,
+Plugins/Turtle Beach/Turtle_Beach_AIMO_Wide_Mousepad.js,Turtle Beach AIMO Pad Wide,10F5:5026,P2,"""mousepad""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Turtle Beach/Turtle_Beach_Kone_XP_Air_Dock.js,Turtle Beach Kone XP Air Dock,10F5:5019,P2,"""other""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Turtle Beach/Turtle_Beach_Kone_XP_Air_Mouse.js,Turtle Beach Kone XP Air,10F5:5017,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Turtle Beach/Turtle_Beach_Kone_XP_Air_Wired_Mouse.js,Turtle Beach Kone XP Air,10F5:5015,P2,"""mouse""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Turtle Beach/Turtle_Beach_Vulcan_II_Keyboard.js,Turtle Beach Vulcan II,10F5:501B,P2,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Turtle Beach/Turtle_Beach_Vulcan_II_Max_Keyboard.js,Turtle Beach Vulcan II MAX,10F5:501C,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,
+Plugins/Turtle Beach/Turtle_Beach_Vulcan_II_Mini_Air_Keyboard.js,Turtle Beach Vulcan II Mini Air,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Turtle Beach/Turtle_Beach_Vulcan_TKL_Keyboard.js,Turtle Beach Vulcan TKL,10F5:5023,P2,"""keyboard""",,True,False,RoccatController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Turzx/Turzx_LCD_Controller.js,Turzx Device,,P1,"""lcd""","""serial""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Wooting/Wooting_60HE_Keyboard.js,Wooting 60 HE,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Wooting/Wooting_80HE_Keyboard.js,Wooting 80 HE,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Wooting/Wooting_One_Keyboard.js,Wooting One Keyboard,03EB:FF01,P2,"""keyboard""",,True,False,WootingKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Wooting/Wooting_Two_HE_Keyboard.js,Wooting Two HE,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/XPG/XPG_Summoner_Keyboard.js,XPG Summoner,125F:9418,P2,"""keyboard""",,True,False,XPGSummonerKeyboardController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Xiaohua/Xiaohua_Keyboard_Controller.js,Xiaohua Device,,P2,"""keyboard""",,True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Zalman/Zalman_ZSYNC.js,Zalman ZSYNC,1C57:7ED0,P2,"""lightingcontroller""",,True,False,ZalmanZSyncController,USB identity candidate; exact model/interface/firmware comparison required,
+Plugins/Zhi Yan/DRGB ELITE.js,DRGB Controller,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Zhi Yan/DRGB_V3.js,DRGB V3,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Zhi Yan/DRGB_V4F.js,DRGB Controller,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Zhi Yan/JPU ELITE.js,JPU ELITE,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Zhi Yan/NEEDMAX.js,NEEDMAX ELITE,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Zhi Yan/YICO.js,YICO,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId
+Plugins/Zhi Yan/YICO_16.js,YICO 16,,P2,"""lightingcontroller""","""Hid""",True,False,,unmatched or unresolved; manual review,VendorId/ProductId

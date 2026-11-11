@@ -59,7 +59,9 @@ void verifyInstall(const QString& root,const QJsonObject& config) {
         throw std::runtime_error("Service must run from its protected Program Files installation");
 #endif
     const auto manifest=config.value("modules").toObject();
-    const QStringList expected{"msi_gen1_module.dll","peripherals_module.dll","auxiliary_module.dll"};
+    // Keep the protected module allowlist aligned with the installer and portable profile catalog.
+    const QStringList expected{"msi_gen1_module.dll","peripherals_module.dll","auxiliary_module.dll",
+        "asrock_polychrome_module.dll","lenovo_motherboard_module.dll","hp_omen_module.dll"};
     const auto actual=QDir(root+"/modules").entryList({"*.dll"},QDir::Files);
     if(actual.size()!=expected.size() || manifest.size()!=expected.size())throw std::runtime_error("Unexpected service modules");
     for(const auto& name:expected) {

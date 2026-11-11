@@ -24,7 +24,7 @@ public:
 signals:
     void outputStateChanged(const QString& state);
 private:
-    void start(bool includeMissing = false);
+    void start(bool includeMissing = false, bool retryApprovedOnly = false);
     void stop(const QString& reason);
     void dispatch(const QImage& frame);
     void refresh();

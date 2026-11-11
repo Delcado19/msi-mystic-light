@@ -9,6 +9,8 @@ RUNTIME = (
     "platforms/qwindows.dll", "imageformats/qgif.dll", "imageformats/qjpeg.dll",
     "imageformats/qwebp.dll", "modules/msi_gen1_module.dll",
     "modules/peripherals_module.dll", "modules/auxiliary_module.dll",
+    "modules/asrock_polychrome_module.dll", "modules/lenovo_motherboard_module.dll",
+    "modules/hp_omen_module.dll",
 )
 
 

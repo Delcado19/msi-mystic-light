@@ -53,6 +53,15 @@ target_compile_definitions(test_lenovo_motherboard PRIVATE
 add_dependencies(test_lenovo_motherboard lenovo_motherboard_module)
 add_test(NAME lenovo_motherboard COMMAND test_lenovo_motherboard)
 
+add_executable(test_hp_omen modules/test_hp_omen.cpp)
+target_include_directories(test_hp_omen PRIVATE .)
+target_link_libraries(test_hp_omen PRIVATE lighting_modules Qt6::Test)
+target_compile_definitions(test_hp_omen PRIVATE
+    TEST_MODULE_PATH="$<TARGET_FILE:hp_omen_module>"
+    TEST_PROFILE_PATH="${PROJECT_SOURCE_DIR}/profiles/hp-omen-30l.json")
+add_dependencies(test_hp_omen hp_omen_module)
+add_test(NAME hp_omen COMMAND test_hp_omen)
+
 add_executable(test_components components/test_components.cpp)
 target_link_libraries(test_components PRIVATE lighting_modules Qt6::Test)
 target_compile_definitions(test_components PRIVATE TEST_COMPONENT_DIR="${PROJECT_SOURCE_DIR}/components")
@@ -64,7 +73,8 @@ set_tests_properties(app_invalid_component_directory PROPERTIES WILL_FAIL TRUE T
 add_executable(test_startup startup/test_startup.cpp)
 target_link_libraries(test_startup PRIVATE lighting_startup Qt6::Test)
 add_test(NAME startup_conflicts COMMAND test_startup)
-set_tests_properties(startup_conflicts PROPERTIES TIMEOUT 20
+# Includes the real 30-second administrator-stop verification deadline with fake service I/O.
+set_tests_properties(startup_conflicts PROPERTIES TIMEOUT 75
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
 
 add_executable(test_editor editor/test_editor.cpp)

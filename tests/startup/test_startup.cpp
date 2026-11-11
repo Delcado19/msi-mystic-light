@@ -15,6 +15,32 @@ public:
     bool denied = false, failScan = false, restart = false;
     int exitScanDelay = 0;
     QMap<quint32,int> pendingExits;
+    ConflictService adminService{"SignalRgb.Service",42,true,ConflictService::Running,true,"\"C:/rgb/SignalRgbService.exe\""};
+    bool adminSupported=false,adminRestarts=false,adminNeverStops=false,clearOnAdminError=false,adminActive=false,failScanOnAdminRequest=false;
+    QString adminQueryError,adminRequestError,adminPollError;
+    int adminRequests=0,adminPendingPolls=2;
+    QString querySignalRgbService(ConflictService& out) override {
+        out=adminService;return adminSupported?adminQueryError:QString("Service query unavailable");
+    }
+    QString requestSignalRgbAdminStop(quint32 pid) override {
+        if(adminActive)return "An administrator service-stop request is already active";
+        ++adminRequests;
+        if(pid!=adminService.pid)return "Service identity changed";
+        if(clearOnAdminError)running.clear();
+        if(failScanOnAdminRequest)failScan=true;
+        adminActive=adminRequestError.isEmpty();
+        return adminRequestError;
+    }
+    QString pollSignalRgbAdminStop(bool& pending) override {
+        pending=adminPendingPolls-- > 0;
+        if(!pending)adminActive=false;
+        if(pending)return {}; // Match the native contract: a live controller has no exit result yet.
+        if(!adminPollError.isEmpty() || adminNeverStops)return adminPollError;
+        if(adminRestarts) {
+            adminService.pid=142;running={{142,"SignalRgbService.exe",{},"service",0,false}};
+        } else {adminService.state=ConflictService::Stopped;adminService.pid=0;running.clear();}
+        return {};
+    }
     QVector<ConflictProcess> scan() override {
         if (failScan) throw std::runtime_error("Access denied");
         for(auto it=pendingExits.begin();it!=pendingExits.end();) {
@@ -42,6 +68,19 @@ public:
     }
 };
 
+class FakeServices final : public IConflictServices {
+public:
+    QVector<ConflictService> entries{{"discovered.name", 42, true, ConflictService::Running, true}};
+    QString error;
+    int stops = 0;
+    QString enumerate(QVector<ConflictService>& out) override { out = entries; return error; }
+    QString query(const QString&, ConflictService& out) override { out = entries.first(); return error; }
+    QString requestStop(const QString& name) override {
+        if (name != "discovered.name") return "wrong service";
+        ++stops; return error;
+    }
+};
+
 class StartupTest : public QObject {
     Q_OBJECT
     QPushButton* button(ConflictDialog& dialog, const char* name) {
@@ -61,12 +100,159 @@ private slots:
         QVERIFY(conflictReason("SomeMSIUpdater.exe").isEmpty());
         QVERIFY(conflictReason("signalrgblauncher.exe").isEmpty());
         QVERIFY(requiresManualStop("LightingService.exe"));
+        QVERIFY(!conflictReason("SignalRgbService.exe").isEmpty());QVERIFY(!requiresManualStop("SignalRgbService.exe"));
+        QVERIFY(conflictReason("SignalRgbServiceUpdater.exe").isEmpty());
         SystemConflictProcesses system;
         QVERIFY(!system.stop({}, true).isEmpty());
         ConflictProcess invalid{123, "SignalRgb.exe", {}, "", 0, false};
         QVERIFY(!system.stop(invalid, true).isEmpty());
         invalid.executable = "LEDKeeper2.exe";
         QVERIFY(system.stop(invalid, true).contains("manually"));
+    }
+    void servicePolicy() {
+        ConflictProcess p{42, "SignalRgbService.exe", "C:/rgb/SignalRgbService.exe", "", 10, false};
+        FakeServices scm;
+        QVERIFY(stopSignalRgbService(p, false, scm).isEmpty()); QCOMPARE(scm.stops, 1);
+        QVERIFY(!stopSignalRgbService(p, true, scm).isEmpty()); QCOMPARE(scm.stops, 1);
+        scm.entries[0].state = ConflictService::StopPending;
+        QVERIFY(stopSignalRgbService(p, true, scm).isEmpty());
+        scm.entries[0].state = ConflictService::Stopped;
+        QVERIFY(stopSignalRgbService(p, true, scm).isEmpty());
+        scm.entries[0].state = ConflictService::Running;
+        scm.entries[0].acceptsStop = false;
+        QVERIFY(stopSignalRgbService(p, false, scm).contains("accept stop"));
+        scm.entries[0].ownProcess = false;
+        QVERIFY(stopSignalRgbService(p, false, scm).contains("exclusive"));
+        scm.entries[0].ownProcess = true;
+        scm.entries.append(scm.entries[0]);
+        QVERIFY(stopSignalRgbService(p, false, scm).contains("exclusive"));
+        scm.entries.removeLast(); scm.entries[0].pid++;
+        QVERIFY(!stopSignalRgbService(p, true, scm).isEmpty());
+        scm.error = "Access denied";
+        QCOMPARE(stopSignalRgbService(p, false, scm), scm.error);
+        QCOMPARE(scm.stops, 1);
+    }
+    void administratorServiceIdentity_data() {
+        QTest::addColumn<QString>("command");QTest::addColumn<bool>("allowed");
+        QTest::newRow("quoted")<<QString("\"C:/rgb/SignalRgbService.exe\"")<<true;
+        QTest::newRow("spaces-and-arguments")<<QString("\"C:/Program Files/rgb/SignalRgbService.exe\" --service")<<true;
+        QTest::newRow("unquoted")<<QString("C:\\rgb\\SIGNALRGBSERVICE.EXE --service")<<true;
+        QTest::newRow("custom-install-other-drive")<<QString("\"D:/Applications/My RGB Suite/SignalRgbService.exe\" --service")<<true;
+        QTest::newRow("observed-install")<<QString("\"C:/ProgramData/WhirlwindFX/SignalRgb/service/SignalRgbService.exe\"")<<true;
+        QTest::newRow("empty")<<QString()<<false;
+        QTest::newRow("relative")<<QString("SignalRgbService.exe")<<false;
+        QTest::newRow("wrong-name")<<QString("C:/rgb/SignalRgbService.exe.bak")<<false;
+        QTest::newRow("unclosed-quote")<<QString("\"C:/rgb/SignalRgbService.exe")<<false;
+        QTest::newRow("quote-concatenation")<<QString("\"C:/rgb/SignalRgbService.exe\"suffix")<<false;
+        QTest::newRow("unquoted-spaces")<<QString("C:/Program Files/rgb/SignalRgbService.exe")<<false;
+        QTest::newRow("unexpanded-variable")<<QString("%ProgramData%/rgb/SignalRgbService.exe")<<false;
+        QTest::newRow("unc")<<QString("\\\\server\\rgb\\SignalRgbService.exe")<<false;
+        QTest::newRow("device-prefix")<<QString("\\\\?\\C:\\rgb\\SignalRgbService.exe")<<false;
+        QTest::newRow("nt-prefix")<<QString("\\??\\C:\\rgb\\SignalRgbService.exe")<<false;
+        QTest::newRow("drive-relative")<<QString("C:SignalRgbService.exe")<<false;
+        QTest::newRow("invalid-drive-letter")<<QString::fromUtf8("Ä:/rgb/SignalRgbService.exe")<<false;
+        QTest::newRow("embedded-null")<<(QString("C:/rgb/")+QChar::Null+"SignalRgbService.exe")<<false;
+    }
+    void administratorServiceIdentity() {
+        QFETCH(QString,command);QFETCH(bool,allowed);
+        ConflictService service{"SignalRgb.Service",42,true,ConflictService::Running,true,command};
+        // No process path or creation time is available for this protected service.
+        const QVector<ConflictProcess> processes{{42,"SignalRgbService.exe",{},"service",0,false}};
+        QCOMPARE(signalRgbAdminStopError(service,processes).isEmpty(),allowed);
+    }
+    void administratorServiceGuardsAndErrors() {
+        FakeProcesses fixture;auto service=fixture.adminService;
+        const QVector<ConflictProcess> processes{{42,"SignalRgbService.exe",{},"service",0,false}};
+        QVERIFY(signalRgbAdminStopError(service,processes).isEmpty());
+        auto changed=service;changed.name="Other.Service";QVERIFY(!signalRgbAdminStopError(changed,processes).isEmpty());
+        changed=service;changed.pid=0;QVERIFY(!signalRgbAdminStopError(changed,processes).isEmpty());
+        changed=service;changed.pid=43;QVERIFY(!signalRgbAdminStopError(changed,processes).isEmpty());
+        changed=service;changed.ownProcess=false;QVERIFY(!signalRgbAdminStopError(changed,processes).isEmpty());
+        changed=service;changed.acceptsStop=false;QVERIFY(!signalRgbAdminStopError(changed,processes).isEmpty());
+        for(auto state:{ConflictService::Other,ConflictService::StopPending,ConflictService::Stopped}) {
+            changed=service;changed.state=state;QVERIFY(!signalRgbAdminStopError(changed,processes).isEmpty());
+        }
+        auto client=processes;client.append({52,"SignalRgb.exe",{},"client",0,false});
+        QVERIFY(signalRgbAdminStopError(service,client).contains("Close the SignalRGB application"));
+        QVERIFY(!signalRgbAdminStopError(service,{}).isEmpty());
+        auto withPath=processes;withPath[0].path="C:/other/SignalRgbService.exe";
+        QVERIFY(signalRgbAdminStopError(service,withPath).contains("differs"));
+        withPath[0].path="c:/RGB/SignalRgbService.exe";QVERIFY(signalRgbAdminStopError(service,withPath).isEmpty());
+        QVERIFY(signalRgbAdminStopExitError(0).isEmpty());QVERIFY(signalRgbAdminStopExitError(1062).isEmpty());
+        for(quint32 code:{5u,1223u,1051u,1052u,1061u,1060u,259u,0xffffffffu})
+            QVERIFY(signalRgbAdminStopExitError(code).contains(QString::number(code)));
+        SystemConflictProcesses native;QVERIFY(!native.requestSignalRgbAdminStop(0).isEmpty());
+    }
+    void administratorStopLifecycle() {
+        FakeProcesses processes;processes.adminSupported=true;
+        processes.running={{42,"SignalRgbService.exe",{},"service",0,false}};
+        ConflictDialog dialog(processes);dialog.show();auto* stop=button(dialog,"stopSignalRgbServiceAdmin");
+        QVERIFY(stop->isEnabled());stop->click();stop->click();QCOMPARE(processes.adminRequests,1);
+        QVERIFY(!stop->isEnabled());QVERIFY(!button(dialog,"ignore")->isEnabled());
+        QTest::qWait(250);QVERIFY(dialog.isVisible());
+        QTRY_COMPARE_WITH_TIMEOUT(dialog.result(),int(QDialog::Accepted),2000);
+        QVERIFY(processes.graceful.isEmpty());QVERIFY(processes.forced.isEmpty());
+    }
+    void administratorStopErrorsStayVisible() {
+        for(const auto code:{1223u,5u,1051u,1060u}) {
+            FakeProcesses processes;processes.adminSupported=true;processes.running={{42,"SignalRgbService.exe",{},"service",0,false}};
+            processes.adminRequestError=signalRgbAdminStopExitError(code);processes.clearOnAdminError=true;
+            ConflictDialog dialog(processes);dialog.show();button(dialog,"stopSignalRgbServiceAdmin")->click();QTest::qWait(20);
+            QVERIFY(dialog.isVisible());QVERIFY(dialog.findChild<QLabel*>("conflictStatus")->text().contains(QString::number(code)));
+            QVERIFY(button(dialog,"ignore")->isEnabled());QCOMPARE(processes.adminRequests,1);button(dialog,"cancel")->click();
+        }
+        FakeProcesses processes;processes.adminSupported=true;processes.running={{42,"SignalRgbService.exe",{},"service",0,false}};
+        processes.adminPollError=signalRgbAdminStopExitError(5);
+        ConflictDialog denied(processes);denied.show();button(denied,"stopSignalRgbServiceAdmin")->click();
+        QTRY_VERIFY(denied.findChild<QLabel*>("conflictStatus")->text().contains("Windows error 5"));QVERIFY(denied.isVisible());
+        button(denied,"cancel")->click();
+        processes.adminPollError.clear();processes.adminRestarts=true;processes.adminPendingPolls=0;
+        ConflictDialog restarted(processes);restarted.show();button(restarted,"stopSignalRgbServiceAdmin")->click();
+        QTRY_VERIFY(restarted.findChild<QLabel*>("conflictStatus")->text().contains("restarted"));
+        QVERIFY(restarted.isVisible());QCOMPARE(processes.adminRequests,2);button(restarted,"cancel")->click();
+        FakeProcesses failed;failed.adminSupported=true;failed.running={{42,"SignalRgbService.exe",{},"service",0,false}};
+        failed.adminRequestError="Administrator request denied";failed.failScanOnAdminRequest=true;
+        ConflictDialog combined(failed);combined.show();button(combined,"stopSignalRgbServiceAdmin")->click();
+        const auto message=combined.findChild<QLabel*>("conflictStatus")->text();
+        QVERIFY(message.contains("scan failed"));QVERIFY(message.contains("request denied"));QVERIFY(combined.isVisible());
+        QVERIFY(button(combined,"ignore")->isEnabled());button(combined,"cancel")->click();
+    }
+    void administratorStopQueryFailureAndCancellation() {
+        FakeProcesses processes;processes.adminSupported=true;processes.running={{42,"SignalRgbService.exe",{},"service",0,false}};
+        processes.adminQueryError="Service query failed (Windows error 1060)";
+        ConflictDialog missing(processes);missing.show();QVERIFY(!button(missing,"stopSignalRgbServiceAdmin")->isEnabled());
+        QVERIFY(missing.findChild<QLabel*>("conflictStatus")->text().contains("1060"));button(missing,"cancel")->click();
+        processes.adminQueryError.clear();processes.adminNeverStops=true;
+        ConflictDialog cancelled(processes);cancelled.show();button(cancelled,"stopSignalRgbServiceAdmin")->click();
+        button(cancelled,"cancel")->click();const int remaining=processes.adminPendingPolls;QTest::qWait(250);
+        QCOMPARE(processes.adminPendingPolls,remaining);QCOMPARE(processes.adminRequests,1);
+        processes.adminActive=false; // A separate fresh fixture operation follows the cancelled UI.
+        ConflictDialog failedQuery(processes);failedQuery.show();button(failedQuery,"stopSignalRgbServiceAdmin")->click();
+        processes.adminQueryError="Service status unknown";
+        QTRY_VERIFY(failedQuery.findChild<QLabel*>("conflictStatus")->text().contains("unknown"));
+        QVERIFY(failedQuery.isVisible());button(failedQuery,"cancel")->click();
+    }
+    void administratorStopTimeoutIsVisible() {
+        FakeProcesses processes;processes.adminSupported=true;processes.adminPendingPolls=1000;
+        processes.running={{42,"SignalRgbService.exe",{},"service",0,false}};
+        ConflictDialog dialog(processes);dialog.show();button(dialog,"stopSignalRgbServiceAdmin")->click();
+        QTRY_VERIFY_WITH_TIMEOUT(dialog.findChild<QLabel*>("conflictStatus")->text().contains("timed out"),34000);
+        QVERIFY(dialog.isVisible());QVERIFY(button(dialog,"ignore")->isEnabled());QCOMPARE(processes.adminRequests,1);
+        button(dialog,"stopSignalRgbServiceAdmin")->click();QCOMPARE(processes.adminRequests,1);
+        QVERIFY(dialog.findChild<QLabel*>("conflictStatus")->text().contains("already active"));
+        button(dialog,"cancel")->click();
+    }
+    void serviceDialogPaths() {
+        for (const auto* action : {"terminateSelected", "terminateAll"}) {
+            FakeProcesses processes;
+            processes.running = {{42, "SignalRgbService.exe", "C:/rgb/SignalRgbService.exe", "service", 10, false}};
+            ConflictDialog dialog(processes); dialog.show();
+            dialog.findChild<QTableWidget*>("conflictTable")->selectRow(0);
+            button(dialog, action)->click();
+            QCOMPARE(processes.graceful, (QVector<quint32>{42}));
+            QTRY_COMPARE_WITH_TIMEOUT(dialog.result(), int(QDialog::Accepted), 2500);
+            QVERIFY(!processes.forced.isEmpty());
+        }
     }
     void identityGuard() {
         ConflictProcess process{11, "SignalRgb.exe", "C:/rgb/SignalRgb.exe", "", 100, false};

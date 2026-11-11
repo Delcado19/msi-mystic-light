@@ -1,3 +1,4 @@
+import re
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -11,6 +12,18 @@ SPEC.loader.exec_module(release)
 
 
 class ReleasePackageTest(unittest.TestCase):
+    def test_module_delivery_matches_service_allowlist(self):
+        # A valid portable profile catalog must also survive installation into the protected service tree.
+        packaged = {Path(name).name for name in release.RUNTIME if name.startswith("modules/")}
+        source = (ROOT / "src/service/main.cpp").read_text()
+        expected = source.split("const QStringList expected{", 1)[1].split("};", 1)[0]
+        self.assertEqual(packaged, set(re.findall(r'"([a-z0-9_]+_module\.dll)"', expected)))
+        installer = (ROOT / "installer/Install-LightingStudio.ps1").read_text()
+        required = installer.split("$required = @(", 1)[1].split(")", 1)[0]
+        self.assertEqual(packaged, set(re.findall(r"'modules/([^']+\.dll)'", required)))
+        hashed = installer.split("foreach ($name in @(", 1)[1].split(")", 1)[0]
+        self.assertEqual(packaged, set(re.findall(r"'([^']+\.dll)'", hashed)))
+
     def fixture(self, root):
         runtime = root / "runtime"
         for name in release.RUNTIME:

@@ -1,5 +1,8 @@
 ﻿#include "StudioWidgets.h"
 #include "SnapGrid.h"
+#include "StudioTheme.h"
+#include <QEvent>
+#include <QToolBar>
 #include "LightingDocument.h"
 #include <QApplication>
 #include <QSettings>
@@ -34,113 +37,205 @@
 #include <cmath>
 #include <algorithm>
 
+namespace {
+class NumericFieldStyle final : public QObject {
+public:
+    explicit NumericFieldStyle(QAbstractSpinBox* field) : QObject(field) { field->installEventFilter(this); }
+    bool eventFilter(QObject* object,QEvent* event) override {
+        if(event->type()==QEvent::FontChange || event->type()==QEvent::Polish || event->type()==QEvent::StyleChange)
+            resize(static_cast<QAbstractSpinBox*>(object));
+        return false;
+    }
+    static void resize(QAbstractSpinBox* field) {
+        QFont reference=field->font();reference.setPointSizeF(10);
+        const auto sample=QStringLiteral("8888888");
+        const double ratio=double(field->fontMetrics().horizontalAdvance(sample))/std::max(1,QFontMetrics(reference).horizontalAdvance(sample));
+        field->setFixedWidth(int(std::ceil(64*std::max(1.0,ratio))));
+    }
+};
+}
+void styleStudioNumericField(QAbstractSpinBox* field)
+{
+    if(!field->property("studioNumericField").toBool()) {
+        field->setProperty("studioNumericField",true);
+        new NumericFieldStyle(field);
+    }
+    field->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    field->setAlignment(Qt::AlignRight);
+    NumericFieldStyle::resize(field);
+}
+
+namespace {
+class StudioHeaderToolbar final : public QToolBar {
+    bool followHeaderRow_;
+public:
+    StudioHeaderToolbar(const QString& title,QWidget* parent,bool followHeaderRow):QToolBar(title,parent),followHeaderRow_(followHeaderRow) {setProperty("studioHeader",!followHeaderRow);if(!followHeaderRow)setMinimumHeight(56);setMovable(false);}
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        QToolBar::paintEvent(event);
+        // Restored layouts can place preview controls beside History; continue its chrome only on that row.
+        if(followHeaderRow_) {
+            const auto* history=window()->findChild<QToolBar*>("historyToolbar");
+            if(!history || mapTo(window(),QPoint{}).y()!=history->mapTo(window(),QPoint{}).y())return;
+        }
+        static const QPixmap artwork(":/branding/lighting-studio-ice-banner.png");
+        QPainter painter(this);
+        // Adjacent navigation/history toolbars share one panorama, including after resizing.
+        const double scale=artwork.width()/double(std::max(1,window()->width()));
+        if(!window()->findChild<QWidget*>("studioArtworkBanner") && !artwork.isNull())painter.drawPixmap(QRectF(rect()),artwork,QRectF(mapTo(window(),QPoint{}).x()*scale,0,width()*scale,height()*scale));
+        painter.fillRect(rect(),studioThemeColor("@surround",205));
+        painter.setPen(studioThemeColor("@accent"));painter.drawLine(0,height()-1,width(),height()-1);
+    }
+};
+class StudioSectionButton final : public QToolButton {
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        QPainter painter(this);const qreal right=width(),bottom=height();
+        painter.setPen(Qt::NoPen);painter.setBrush(studioThemeColor("@section"));
+        painter.drawPolygon(QPolygonF{{0,0},{right-12,0},{right,12},{right,bottom},{0,bottom}});
+        painter.setPen(QPen(studioThemeColor("@accent"),2));painter.drawLine(0,1,std::min(64,width()-12),1);painter.end();
+        QToolButton::paintEvent(event);
+    }
+};
+}
+QToolBar* studioHeaderToolbar(const QString& title,QWidget* parent,bool followHeaderRow) {return new StudioHeaderToolbar(title,parent,followHeaderRow);}
+
 void applyStudioStyle(QWidget* window)
 {
     static const bool resources=[] {Q_INIT_RESOURCE(branding);return true;}();Q_UNUSED(resources);
     auto font=window->font(); font.setPointSizeF(std::max(10.0,font.pointSizeF())); window->setFont(font);
-    window->setStyleSheet(R"(
-        QWidget { color: #f1f3f5; background: #1b1d21; }
-        QMainWindow, QDialog { background: #111214; }
-        QMenuBar, QToolBar, QStatusBar { background: #151619; spacing: 6px; }
-        QMenuBar { padding: 4px; }
+    QString sheet=QString::fromUtf8(R"(
+        QWidget { color: @text; background: @panel; }
+        QMainWindow, QDialog { background: @surround; }
+        QMenuBar, QToolBar, QStatusBar { background: @chrome; spacing: 6px; }
+        QMenuBar { padding: 2px 4px; }
+        QMenu { padding: 4px; border: 1px solid @separator; }
+        QMenu::item { padding: 6px 24px 6px 12px; }
+        QMenu::separator { height: 1px; background: @separator; margin: 4px 8px; }
         QStatusBar::item { border: 0; }
-        QDockWidget::close-button { background: #afb4bd; border-radius: 3px; }
-        QDockWidget::close-button:hover { background: #55deff; }
-        QMenuBar::item:selected, QMenu::item:selected { background: #293c58; }
-        QToolBar { border: 0; border-bottom: 1px solid #34373d; padding: 5px; }
-        QToolBar#effectTools { border-right: 1px solid #34373d; background: #151619; spacing: 3px; }
-        QToolBar#effectTools QPushButton { border-color: transparent; background: transparent; }
-        QToolBar#effectTools QPushButton:hover { background: #293c58; }
-        QToolBar#effectTools QPushButton:checked { background: #17465c; border-color: #55deff; }
-        QSplitter::handle { background: #34373d; height: 5px; }
+        QDockWidget::close-button { background: @secondary; border-radius: 3px; }
+        QDockWidget::close-button:hover { background: @accent; }
+        QMenuBar::item:selected, QMenu::item:selected { background: @hover; }
+        QToolBar { border: 0; border-bottom: 1px solid @separator; padding: 5px; }
+        QToolBar#effectTools { border-right: 1px solid @separator; background: @chrome; spacing: 3px; }
+        QToolBar#effectTools QPushButton, QToolBar#effectTools QToolButton { border-color: transparent; background: transparent; padding: 4px; }
+        QToolBar#effectTools QPushButton:hover, QToolBar#effectTools QToolButton:hover { background: @hover; }
+        QToolBar#effectTools QPushButton:focus, QToolBar#effectTools QToolButton:focus { border-color: @accent; }
+        QToolBar#effectTools QPushButton:checked, QToolBar#effectTools QToolButton:checked { background: @selected; border-color: @accent; }
+        QSplitter::handle { background: @separator; height: 5px; }
         QDockWidget { font-weight: 600; }
-        QDockWidget::title { padding: 8px 12px; background: #151619; border-bottom: 1px solid #34373d; }
+        QDockWidget::title { padding: 7px 10px; background: @chrome; color: @secondary; border-top: 1px solid @separator; border-bottom: 1px solid @separator; }
+        QToolBar[studioHeader="true"] { background: transparent; padding: 6px 10px; border: 0; spacing: 8px; }
+        QToolBar[studioHeader="true"] QToolButton { background: rgba(9, 22, 37, 180); border-color: @separator; }
+        QToolBar[studioHeader="true"] QToolButton:hover { background: @hover; border-color: @border; }
+        QToolBar[studioHeader="true"] QToolButton:checked { color: @accent; background: @selected; border-color: @accent; }
+        QToolBar[studioHeader="true"] QLabel { background: transparent; }
+        QLabel#currentProjectName { padding: 0 8px; font-weight: 600; }
+        QToolBar#drawingOptions { padding: 2px 8px; background: @chrome; }
         QTabWidget::pane { border: 0; }
-        QTabBar::tab { padding: 10px 18px; color: #afb4bd; background: #151619; border-bottom: 2px solid transparent; }
-        QTabBar::tab:selected { color: #f4f6ff; border-bottom-color: #55deff; background: #242e33; }
+        QTabBar::tab { padding: 5px 10px; color: @secondary; background: @chrome; border-bottom: 2px solid transparent; }
+        QTabBar::tab:selected { color: @accent; border-bottom-color: @accent; background: @selected; }
+        QWidget#editorTargetGroup { background: transparent; border: 0; }
+        QLabel#editorTargetLabel { background: transparent; color: @secondary; border: 0; font-size: 9pt; font-weight: 600; }
+        QTabBar#editorTarget { background: transparent; border: 0; }
+        QTabBar#editorTarget::tab { min-width: 82px; min-height: 20px; padding: 4px 10px; margin: 0 2px; border: 1px solid @separator; border-radius: 4px; color: @text; background: @panel; font-weight: 600; }
+        QTabBar#editorTarget::tab:selected { color: @text; background: @selected; border-color: @accent; }
+        QTabBar#editorTarget::tab:hover { background: @hover; border-color: @border; }
+        QTabBar#editorTarget::tab:disabled { color: @secondary; background: @panel; border-color: @separator; }
         QScrollArea { border: 0; }
-        QPushButton, QToolButton { background: #24272d; border: 1px solid #555b65; border-radius: 4px; padding: 6px 10px; }
-        QPushButton:hover, QToolButton:hover { background: #2c3c55; border-color: #55deff; }
-        QPushButton:pressed, QToolButton:pressed, QToolButton:checked, QPushButton:checked { background: #20383e; border-color: #55deff; }
-        QPushButton:disabled, QToolButton:disabled { color: #8492a8; background: #192232; border-color: #34373d; }
-        QPushButton[primary="true"] { background: #174c68; border-color: #55deff; color: white; font-weight: 600; }
-        QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid #555b65; border-radius: 4px; background: #111214; padding: 6px; min-height: 18px; }
+        QPushButton, QToolButton { background: @panel; border: 1px solid @border; border-radius: 4px; padding: 4px 8px; min-height: 1.3em; }
+        QPushButton:hover, QToolButton:hover { background: @hover; border-color: @border; }
+        QPushButton:pressed, QToolButton:pressed, QToolButton:checked, QPushButton:checked { background: @selected; border-color: @accent; }
+        QPushButton:disabled, QToolButton:disabled { color: @secondary; background: @panel; border-color: @separator; }
+        QPushButton[primary="true"] { background: @selected; border-color: @accent; color: @text; font-weight: 600; }
+        QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid @border; border-radius: 4px; background: @input; padding: 3px 4px; min-height: 1.3em; }
         QComboBox { padding-right: 20px; }
         QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { width: 0; }
-        QTreeWidget, QTreeView, QListWidget { background: #151619; border: 0; outline: 0; }
-        QTreeWidget::item, QTreeView::item, QListWidget::item { padding: 8px 4px; border-radius: 5px; }
-        QTreeWidget::item:selected, QTreeView::item:selected, QListWidget::item:selected { background: #28363c; color: white; }
-        QHeaderView::section { background: #1b1d21; color: #afb4bd; border: 0; padding: 6px; }
-        QSlider::groove:horizontal { background: #454c5e; height: 4px; border-radius: 2px; }
-        QSlider::sub-page:horizontal { background: #55deff; border-radius: 2px; }
-        QSlider::handle:horizontal { background: #dce5ff; width: 12px; margin: -5px 0; border-radius: 6px; }
+        QTreeWidget, QTreeView, QListWidget { background: @chrome; border: 0; outline: 0; }
+        QTreeWidget::item, QTreeView::item, QListWidget::item { padding: 5px 4px; border-radius: 2px; border-left: 2px solid transparent; }
+        QTreeWidget::item:selected, QTreeView::item:selected, QListWidget::item:selected { background: @selected; color: @text; border-left-color: @accent; }
+        QTreeWidget#effectLayers::item:selected { border-left-color: transparent; }
+        QToolBar#artworkToolbar { padding: 0; margin: 0; border: 0; spacing: 0; }
+        QHeaderView::section { background: @panel; color: @secondary; border: 0; padding: 6px; }
+        QSlider::groove:horizontal { background: @separator; height: 4px; border-radius: 2px; }
+        QSlider::sub-page:horizontal { background: @accent; border-radius: 2px; }
+        QSlider::handle:horizontal { background: @text; width: 12px; margin: -5px 0; border-radius: 6px; }
         QSlider { min-height: 24px; }
         QCheckBox { spacing: 8px; padding: 4px 0; }
-        QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #717b91; border-radius: 3px; background: #1d2027; }
-        QCheckBox::indicator:checked { background: #55deff; border-color: #c1d0ff; }
+        QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid @border; border-radius: 3px; background: @panel; }
+        QCheckBox::indicator:checked { background: @accent; border-color: @text; }
         QLabel { background: transparent; }
-        QLabel[muted="true"] { color: #afb4bd; }
+        QLabel[muted="true"] { color: @secondary; }
         QLabel[heading="true"] { font-size: 16px; font-weight: 600; padding: 6px 0; }
-        QToolButton[disclosure="true"] { text-align: left; background: transparent; border: 0; border-top: 1px solid #34373d; border-radius: 0; padding: 12px 0; }
+        QToolButton[disclosure="true"] { text-align: left; color: @text; background: transparent; border: 0; border-radius: 0; padding: 7px 8px; font-size: 9pt; font-weight: 600; }
         /* Style both orientations and page regions: native fallbacks otherwise draw mismatched/dithered tracks. */
-        QScrollBar { background: #20242c; border: 0; margin: 0; }
+        QScrollBar { background: @panel; border: 0; margin: 0; }
         QScrollBar:vertical { width: 14px; }
         QScrollBar:horizontal { height: 14px; }
-        QScrollBar::handle { background: #9aa8c2; border: 1px solid #b1bbcf; border-radius: 5px; }
+        QScrollBar::handle { background: @secondary; border: 1px solid @secondary; border-radius: 5px; }
         QScrollBar::handle:vertical { min-height: 28px; }
         QScrollBar::handle:horizontal { min-width: 28px; }
-        QScrollBar::handle:hover { background: #b9c9e7; }
-        QScrollBar::handle:pressed { background: #d2def4; }
-        QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: 0; background: #20242c; }
-        QScrollBar::add-page, QScrollBar::sub-page { background: #20242c; border: 0; }
-        QAbstractScrollArea::corner { background: #20242c; border: 0; }
-        QWidget:focus { border-color: #55deff; }
-        QAbstractItemView:focus { border: 1px solid #55deff; }
-        QToolBar#workspaceNavigation QToolButton:checked { background: #242e33; border-color: #55deff; color: #f1f3f5; font-weight: 600; }
-        QPushButton#playPreview { background: #17465c; border-color: #55deff; color: #e8faff; }
-        QLabel[statusBadge="true"], QLabel#previewPlaybackStatus { padding: 4px 10px; border: 1px solid #555b65; border-radius: 4px; background: #151619; }
+        QScrollBar::handle:hover { background: @secondary; }
+        QScrollBar::handle:pressed { background: @text; }
+        QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: 0; background: @panel; }
+        QScrollBar::add-page, QScrollBar::sub-page { background: @panel; border: 0; }
+        QAbstractScrollArea::corner { background: @panel; border: 0; }
+        QComboBox:focus, QLineEdit:focus, QAbstractSpinBox:focus, QPushButton:focus, QToolButton:focus { border-color: @accent; }
+        QToolButton[disclosure="true"]:focus { border: 1px solid @accent; }
+        QCheckBox:focus { outline: 1px solid @accent; }
+        QTabBar::tab:focus { border: 1px solid @accent; }
+        QAbstractItemView:focus { border: 1px solid @accent; }
+        QToolBar#workspaceNavigation QToolButton:checked { background: @selected; border-color: @accent; color: @text; font-weight: 600; }
+        QPushButton#playPreview { background: @selected; border-color: @accent; color: @text; }
+        QLabel[statusBadge="true"], QLabel#previewPlaybackStatus { padding: 4px 10px; border: 1px solid @border; border-radius: 4px; background: @chrome; }
         QLabel[statusBadge="true"][outputState="running"] { color: #7de8c3; border-color: #7de8c3; }
         QLabel[statusBadge="true"][outputState="error"], QLabel[statusBadge="true"][outputState="faulted"] { color: #ff9eac; border-color: #ff9eac; }
-        QLabel[modeBadge="true"] { padding: 6px 10px; color: #55deff; border-left: 2px solid #55deff; background: #151619; }
-        QLabel[emptyState="true"] { padding: 24px; border: 1px solid #555b65; border-radius: 6px; background: #151619; }
-        QToolButton#workspacePanels { border-color: #8a8f98; }
-        QToolTip { color: #edf1ff; background: #343d50; border: 1px solid #7788ad; padding: 6px; }
+        QLabel[modeBadge="true"] { padding: 2px 0; min-height: 1.1em; color: @secondary; border: 0; background: transparent; font-size: 9pt; }
+        QLabel[emptyState="true"] { padding: 24px; border: 1px solid @border; border-radius: 6px; background: @chrome; }
+        QToolButton#workspacePanels { border-color: @border; }
+        QToolTip { color: @text; background: @hover; border: 1px solid @border; padding: 6px; }
     )");
+    for(const auto& token:studioThemeColors)sheet.replace(QString::fromLatin1(token.name),QString::fromLatin1(token.value));
+    window->setStyleSheet(sheet);
 }
 
 namespace {
+QPair<double,double> sliderRange(QDoubleSpinBox* value) {
+    return {value->property("sliderMinimum").isValid() ? value->property("sliderMinimum").toDouble() : value->minimum(),
+            value->property("sliderMaximum").isValid() ? value->property("sliderMaximum").toDouble() : value->maximum()};
+}
 int sliderPosition(QDoubleSpinBox* value) {
-    const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
-    const double lo=value->minimum()*scale,hi=value->maximum()*scale;
-    double fraction=(value->value()*scale-lo)/std::max(1e-12,hi-lo);
-    if(value->property("slowRange").toBool())fraction=std::sqrt(std::max(0.0,fraction));
+    const auto [lo,hi]=sliderRange(value);
+    double fraction=std::clamp((value->value()-lo)/std::max(1e-12,hi-lo),0.0,1.0);
+    if(value->property("slowRange").toBool())fraction=std::sqrt(fraction);
     return qRound(fraction*1000);
 }
 }
 QWidget* sliderField(QDoubleSpinBox* value)
 {
     auto* row=new QWidget;auto* layout=new QVBoxLayout(row);layout->setContentsMargins(0,0,0,0);layout->setSpacing(2);
-    auto* top=new QHBoxLayout;top->addStretch();top->addWidget(value);layout->addLayout(top);
+    auto* top=new QHBoxLayout;top->setSpacing(6);top->addWidget(value);layout->addLayout(top);
     auto* slider=new QSlider(Qt::Horizontal);slider->setRange(0,1000);
     slider->setAccessibleName(value->accessibleName().isEmpty() ? value->objectName() : value->accessibleName());
     slider->setProperty("numericField",QVariant::fromValue(static_cast<QObject*>(value)));
-    value->setButtonSymbols(QAbstractSpinBox::NoButtons);value->setMinimumWidth(96);
+    styleStudioNumericField(value);
     if(!value->property("defaultValue").isValid())value->setProperty("defaultValue",value->value());
     value->setContextMenuPolicy(Qt::CustomContextMenu);
     QObject::connect(value,&QWidget::customContextMenuRequested,value,[value](QPoint point){QMenu menu;auto* reset=menu.addAction("Reset to default");QObject::connect(reset,&QAction::triggered,value,[value]{value->setValue(value->property("defaultValue").toDouble());});if(value->minimum()<=0 && value->maximum()>=0){auto* off=menu.addAction("Zero / Off");QObject::connect(off,&QAction::triggered,value,[value]{value->setValue(0);});}menu.exec(value->mapToGlobal(point));});
     auto* reset=new QAction("Reset to default",value);reset->setShortcut(QKeySequence("Alt+R"));reset->setShortcutContext(Qt::WidgetShortcut);value->addAction(reset);QObject::connect(reset,&QAction::triggered,value,[value]{value->setValue(value->property("defaultValue").toDouble());});
-    top->insertWidget(0,slider,1);auto* limits=new QLabel;limits->setProperty("muted",true);limits->setObjectName("parameterLimits");layout->addWidget(limits);
+    top->insertWidget(0,slider,1);
     const auto sync=[=] {
         const QSignalBlocker block(slider);slider->setValue(sliderPosition(value));slider->setEnabled(value->isEnabled());
         const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
-        limits->setText(QString::number(qRound64(value->minimum()*scale))+" to "+QString::number(qRound64(value->maximum()*scale))+value->suffix());
-        slider->setSingleStep(std::max(1,qRound(1000/std::max(1.0,(value->maximum()-value->minimum())*scale))));
+        const auto [lo,hi]=sliderRange(value);
+        slider->setSingleStep(std::max(1,qRound(1000/std::max(1.0,(hi-lo)*scale))));
         slider->setTickPosition(QSlider::TicksBelow);slider->setTickInterval(value->minimum()<0 ? 500 : 250);
     };
     QObject::connect(slider,&QSlider::valueChanged,value,[value](int n) {
         const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
         double fraction=n/1000.0;if(value->property("slowRange").toBool())fraction*=fraction;
-        double shown=(value->minimum()+(value->maximum()-value->minimum())*fraction)*scale;
+        const auto [lo,hi]=sliderRange(value);
+        double shown=(lo+(hi-lo)*fraction)*scale;
         const double step=value->objectName()=="trails" ? 10 : 1;shown=std::round(shown/step)*step;
         value->setValue(std::clamp(shown/scale,value->minimum(),value->maximum()));
     });
@@ -152,16 +247,15 @@ void syncSliderFields(QWidget* root)
     // Refresh blocks numeric signals; never round model values while synchronizing.
     for(auto* slider:root->findChildren<QSlider*>())if(auto* value=qobject_cast<QDoubleSpinBox*>(slider->property("numericField").value<QObject*>())) {
         const QSignalBlocker block(slider);slider->setEnabled(value->isEnabled());slider->setValue(sliderPosition(value));
-        if(auto* limits=slider->parentWidget()->findChild<QLabel*>("parameterLimits")) {
-            const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
-            limits->setText(QString::number(qRound64(value->minimum()*scale))+" to "+QString::number(qRound64(value->maximum()*scale))+value->suffix());
-        }
+        const auto [lo,hi]=sliderRange(value);
+        const double scale=value->property("displayScale").isValid() ? value->property("displayScale").toDouble() : 1;
+        slider->setSingleStep(std::max(1,qRound(1000/std::max(1.0,(hi-lo)*scale))));
     }
 }
 QWidget* disclosure(QVBoxLayout* layout,const QString& title,QWidget* content)
 {
     auto* box=new QWidget; auto* stack=new QVBoxLayout(box); stack->setContentsMargins(0,0,0,0); stack->setSpacing(0);
-    auto* toggle=new QToolButton; toggle->setText(title); toggle->setProperty("disclosure",true);
+    auto* toggle=new StudioSectionButton;toggle->setAccessibleName(title); toggle->setText(title.toUpper()); toggle->setProperty("disclosure",true);
     toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon); toggle->setArrowType(Qt::RightArrow); toggle->setCheckable(true);
     toggle->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed); stack->addWidget(toggle); stack->addWidget(content); content->hide();
     const auto icon=[toggle](double angle){QPixmap pixmap(16,16);pixmap.fill(Qt::transparent);QPainter p(&pixmap);p.setRenderHint(QPainter::Antialiasing);p.translate(8,8);p.rotate(angle);p.setPen(QPen(QColor("#afb4bd"),1.5));p.drawLine(-2,-4,2,0);p.drawLine(2,0,-2,4);toggle->setIcon(QIcon(pixmap));};
@@ -180,7 +274,16 @@ QIcon studioToolIcon(const QString& name)
 {
     QPixmap pixmap(24,24); pixmap.fill(Qt::transparent); QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing); painter.setPen(QPen(QColor("#e0e8fc"),1.7,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
-    if(name=="eye" || name=="eye-off") {
+    if(name=="preview-play") {
+        painter.setPen(Qt::NoPen);painter.setBrush(QColor("#57e389"));
+        painter.drawPolygon(QPolygonF{QPointF(6,3),QPointF(21,12),QPointF(6,21)});
+    } else if(name=="preview-stop") {
+        painter.setPen(Qt::NoPen);painter.setBrush(QColor("#ff5c68"));painter.drawRect(QRectF(4,4,16,16));
+    }
+    else if(name=="pan") {
+        QPainterPath hand;hand.moveTo(7,21);hand.lineTo(3,13);hand.quadTo(2,10,5,11);hand.lineTo(8,14);hand.lineTo(8,5);hand.quadTo(8,2,10,4);hand.lineTo(10,11);hand.lineTo(10,3);hand.quadTo(11,1,12,3);hand.lineTo(12,11);hand.lineTo(12,4);hand.quadTo(14,2,14,5);hand.lineTo(14,12);hand.lineTo(14,7);hand.quadTo(16,5,16,8);hand.lineTo(17,14);hand.quadTo(18,18,15,21);hand.closeSubpath();painter.drawPath(hand);
+    }
+    else if(name=="eye" || name=="eye-off") {
         QPainterPath eye;eye.moveTo(2,12);eye.cubicTo(7,4,17,4,22,12);eye.cubicTo(17,20,7,20,2,12);
         painter.drawPath(eye);painter.drawEllipse(QPointF(12,12),3,3);
         if(name=="eye-off") {painter.setPen(QPen(QColor("#17191f"),4.5,Qt::SolidLine,Qt::RoundCap));painter.drawLine(3,3,21,21);painter.setPen(QPen(QColor("#b5c0d6"),1.7,Qt::SolidLine,Qt::RoundCap));painter.drawLine(3,3,21,21);}
@@ -222,6 +325,10 @@ QIcon studioToolIcon(const QString& name)
     else if(name=="ellipse") painter.drawEllipse(QRectF(4,4,16,16));
     else if(name=="shapes") { QPolygonF star; for(int i=0;i<10;++i) { const double angle=i*3.141592653589793/5-3.141592653589793/2, radius=i%2 ? 4 : 10; star<<QPointF(12+radius*std::cos(angle),12+radius*std::sin(angle)); } painter.drawPolygon(star); }
     else if(name=="particles") { painter.setBrush(QColor("#e0e8fc")); for(const auto point:{QPointF(5,5),QPointF(15,4),QPointF(21,12),QPointF(12,12),QPointF(5,19),QPointF(16,20)}) painter.drawEllipse(point,1.7,1.7); }
+    else if(name=="layers") {
+        painter.drawPolygon(QPolygonF{QPointF(12,3),QPointF(22,8),QPointF(12,13),QPointF(2,8)});
+        for(int y:{12,16})painter.drawPolyline(QPolygonF{QPointF(2,y),QPointF(12,y+5),QPointF(22,y)});
+    }
     else if(name=="sources") { painter.drawRect(QRectF(3,6,12,14));painter.drawLine(6,3,18,3);painter.drawLine(18,3,18,11);painter.drawLine(15,15,23,15);painter.drawLine(19,11,19,19); }
     else if(name=="gradient") { QLinearGradient gradient(4,12,20,12); gradient.setColorAt(0,Qt::white); gradient.setColorAt(1,QColor("#414957")); painter.setBrush(gradient); painter.drawRect(QRectF(3,5,18,14)); }
     else if(name=="fill") { QPolygonF bucket; bucket<<QPointF(5,10)<<QPointF(12,3)<<QPointF(20,11)<<QPointF(12,19); painter.drawPolygon(bucket); painter.drawLine(4,10,14,10); painter.drawLine(19,15,21,20); }
@@ -235,12 +342,12 @@ QIcon studioToolIcon(const QString& name)
 ColorEditor::ColorEditor(QWidget* parent) : QWidget(parent)
 {
     auto* layout=new QHBoxLayout(this); layout->setContentsMargins(0,0,0,0); layout->setSpacing(6);
-    picker_=new QPushButton; picker_->setFixedSize(40,30); picker_->setAccessibleName("Choose RGB color");
+    picker_=new QPushButton; picker_->setFixedSize(32,32); picker_->setAccessibleName("Choose RGB color");
     picker_->setToolTip("Choose a color visually. Transparency is controlled separately.");
-    hex_=new QLineEdit; hex_->setObjectName("rgbHex"); hex_->setMaxLength(7); hex_->setMinimumWidth(86);
+    hex_=new QLineEdit; hex_->setObjectName("rgbHex"); hex_->setMaxLength(7); hex_->setFixedWidth(104);
     hex_->setValidator(new QRegularExpressionValidator(QRegularExpression("#?[0-9a-fA-F]{6}"),hex_));
     hex_->setToolTip("RGB hexadecimal color: #RRGGBB, for example #FF8800. Alpha is not part of the RGB value.");
-    hex_->setAccessibleName("RGB hexadecimal value"); layout->addWidget(picker_); layout->addWidget(hex_,1);
+    hex_->setAccessibleName("RGB hexadecimal value"); layout->addWidget(picker_); layout->addWidget(hex_);layout->addStretch();
     connect(picker_,&QPushButton::pressed,this,[this]{picker_->setProperty("mouseInitiated",QApplication::mouseButtons()!=Qt::NoButton);});
     connect(picker_,&QPushButton::clicked,this,[this] {
         openStudioColorPicker(this,picker_->property("mouseInitiated").toBool());
@@ -248,6 +355,7 @@ ColorEditor::ColorEditor(QWidget* parent) : QWidget(parent)
     connect(hex_,&QLineEdit::editingFinished,this,[this] {
         if(!hex_->hasAcceptableInput()) { setColor(color_); return; }
         const auto text=hex_->text(); const QColor chosen(text.startsWith('#') ? text : "#"+text);
+        hex_->setModified(false);
         if(chosen.isValid() && chosen!=color_) { setColor(chosen); emit colorChanged(color_); }
         else setColor(color_);
     });
@@ -255,7 +363,9 @@ ColorEditor::ColorEditor(QWidget* parent) : QWidget(parent)
 }
 void ColorEditor::setColor(QColor color)
 {
-    color_=color; hex_->setText(color.name(QColor::HexRgb).toUpper());
+    color_=color;
+    // Preview refreshes must not replace an unfinished hexadecimal edit.
+    if(!hex_->hasFocus() || !hex_->isModified()) hex_->setText(color.name(QColor::HexRgb).toUpper());
     QPixmap icon(26,18); icon.fill(color); picker_->setIcon(QIcon(icon)); picker_->setIconSize({26,18});
 }
 namespace {
@@ -265,7 +375,7 @@ public:
     std::function<void(int)> select;
     std::function<void(double)> move, add;
     std::function<void()> begin,end,remove;
-    PaletteStrip(QWidget* parent):QWidget(parent) { setMinimumHeight(66); setFocusPolicy(Qt::StrongFocus); setAccessibleName("Color stops: drag to move, double click to add, Delete to remove"); }
+    PaletteStrip(QWidget* parent):QWidget(parent) { setMinimumHeight(66); setFocusPolicy(Qt::StrongFocus); setAccessibleName("Color stops: drag or Ctrl+arrows to move, double click to add, Delete to remove");setToolTip("Drag a color point, or use Ctrl+Left/Right to move it by the Align / Snap color step. Ctrl+Alt+arrows moves finely. Plain arrows select a point; Delete removes it."); }
     void paintEvent(QPaintEvent*) override {
         QPainter p(this); p.setRenderHint(QPainter::Antialiasing);
         const QRectF bar(12,8,width()-24,28);
@@ -306,6 +416,10 @@ public:
     void mouseDoubleClickEvent(QMouseEvent* e) override { if(gradient && hit(e->position())<0) add(position(e->position(),e->modifiers())); }
     void keyPressEvent(QKeyEvent* e) override {
         if(e->key()==Qt::Key_Delete) remove();
+        else if(gradient && (e->modifiers() & Qt::ControlModifier) && (e->key()==Qt::Key_Left || e->key()==Qt::Key_Right)) {
+            const double step=(e->modifiers() & Qt::AltModifier) ? .001 : QSettings().value("editor/paletteSnapPercent",1).toDouble()/100;
+            begin();move(std::clamp(positions.value(selected)+(e->key()==Qt::Key_Left ? -step : step),0.0,1.0));end();
+        }
         else if(e->key()==Qt::Key_Left || e->key()==Qt::Key_Right) select(std::clamp(selected+(e->key()==Qt::Key_Left ? -1 : 1),0,int(colors.size()-1)));
         else QWidget::keyPressEvent(e);
     }
@@ -320,25 +434,6 @@ ColorListEditor::ColorListEditor(int minimum,int maximum,QWidget* parent)
     connect(selectedColor_,&ColorEditor::colorChanged,this,[this](QColor color) {
         if(selected_>=colors_.size()) return; colors_[selected_]=color; rebuild(); emit colorsChanged(colors_); emit stopsChanged();
     });
-    auto* rgbDetails=new QWidget;auto* rgbLayout=new QVBoxLayout(rgbDetails);rgbLayout->setContentsMargins(0,0,0,0);
-    disclosure(layout,"RGB details",rgbDetails);
-    for(int channel=0;channel<3;++channel) {
-        auto* row=new QHBoxLayout; auto* label=new QLabel(QString("RGB")[channel]); row->addWidget(label);
-        auto* slider=new QSlider(Qt::Horizontal); slider->setRange(0,255); slider->setObjectName(QString("stop%1").arg(QString("RGB")[channel]));
-        slider->setAccessibleName(QString("Selected stop %1").arg(QString("RGB")[channel]));
-        slider->setToolTip("Adjust this RGB channel of the selected color stop."); row->addWidget(slider,1);
-        auto* value=new QLabel; value->setFixedWidth(28); row->addWidget(value); rgbValues_.append(value); rgbLayout->addLayout(row); rgb_.append(slider);
-        connect(slider,&QSlider::sliderPressed,this,&ColorListEditor::gestureStarted);
-        connect(slider,&QSlider::sliderReleased,this,&ColorListEditor::gestureFinished);
-        connect(slider,&QSlider::valueChanged,this,[this,channel](int value) {
-            if(selected_>=colors_.size()) return;
-            auto color=colors_[selected_]; if(channel==0) color.setRed(value); if(channel==1) color.setGreen(value); if(channel==2) color.setBlue(value);
-            colors_[selected_]=color; rebuild(); emit colorsChanged(colors_); emit stopsChanged();
-        });
-    }
-    if(minimum_>=2) {auto* snapStep=new QSpinBox;snapStep->setObjectName("paletteSnapPercent");snapStep->setRange(1,100);snapStep->setSuffix(" %");snapStep->setValue(QSettings().value("editor/paletteSnapPercent",1).toInt());snapStep->setAccessibleName("Color stop snap percent");
-        auto* snapRow=new QHBoxLayout;snapRow->addWidget(new QLabel("Stop snap"));snapRow->addWidget(snapStep);layout->addLayout(snapRow);
-        connect(snapStep,&QSpinBox::valueChanged,this,[](int n){QSettings().setValue("editor/paletteSnapPercent",n);});}
     auto* actions=new QHBoxLayout; add_=new QPushButton("Add"); remove_=new QPushButton("Remove");
     add_->setObjectName("addColorStop"); remove_->setObjectName("removeColorStop");
     actions->addWidget(add_); actions->addWidget(remove_); layout->addLayout(actions);
@@ -388,8 +483,7 @@ void ColorListEditor::rebuild()
     auto* strip=static_cast<PaletteStrip*>(rows_); strip->colors=colors_; strip->positions=positions_; strip->selected=selected_; strip->gradient=gradient_; strip->update();
     selectedColor_->setEnabled(!colors_.isEmpty());
     if(!colors_.isEmpty()) {
-        const auto color=colors_[selected_]; selectedColor_->setColor(color); const int values[]{color.red(),color.green(),color.blue()};
-        for(int i=0;i<3;++i) { const QSignalBlocker block(rgb_[i]); rgb_[i]->setValue(values[i]); rgbValues_[i]->setText(QString::number(values[i])); }
+        selectedColor_->setColor(colors_[selected_]);
     }
     add_->setEnabled(colors_.size()<maximum_); remove_->setEnabled(colors_.size()>minimum_);
 }
@@ -403,11 +497,28 @@ void installParameterTooltips(QWidget* root)
         {"driftX","Horizontal speed in canvas pixels per second. Effects wrap from one edge to the opposite edge."},
         {"driftY","Vertical speed in canvas pixels per second. Effects wrap from one edge to the opposite edge."},
         {"zoom","Periodic size variation as a percentage of the base size. Zero keeps size constant."},
-        {"warp","Horizontal wave distortion amplitude in canvas pixels. Zero disables distortion."},
+        {"warp","Horizontal wave displacement in canvas pixels. Zero disables the horizontal axis."},
+        {"warpY","Vertical wave displacement in canvas pixels. Zero disables the vertical axis."},
         {"breathe","Breathing intensity rate in cycles per minute. This modulates opacity, not size. Zero disables breathing."},
         {"trails","Trail duration in milliseconds. Zero disables trails. Seeking recreates the same result."},
         {"cycleRate","Color palette loops per minute. Zero uses the selected effect color."},
-        {"particleCount","Number of particles, from 1 to 400. More particles require more rendering time."},
+        {"patternFrequency","Spatial frequency as a percentage: 100 keeps the original Plasma fields or Kaleidoscope rings; 200 doubles detail."},
+        {"patternContrast","Color-field contrast around the palette midpoint as a percentage. 100 preserves the original field."},
+        {"patternWarp","Distorts Plasma waves or twists Kaleidoscope sectors. Zero preserves the original shape."},
+        {"patternWavelength","Horizontal width of DNA turns as a percentage. 200 doubles the spacing; amplitude controls height separately."},
+        {"patternSpeed","Pattern animation speed. Negative values reverse motion; zero freezes the pattern."},
+        {"patternWidth","Soft band width as a percentage of the effect's local dimensions."},
+        {"patternAmplitude","Wave height as a percentage of the effect height."},
+        {"patternCells","Square grid size: this many cells along each side."},
+        {"patternSeed","Seed for site placement or flame noise. Randomize changes the arrangement without changing colors."},
+        {"patternSites","Number of moving Voronoi sites. Each pixel takes the color of its nearest site."},
+        {"patternDistance","Voronoi distance metric. Euclidean gives organic polygons; Manhattan and Chebyshev give angular cells."},
+        {"patternDetail","Flame texture density, 1 to 16. Higher values create more, smaller tongues; this does not increase height."},
+        {"patternHeight","Flame height relative to the source: 100 fills its height; 200 stretches flames to twice that height, clipped with a soft edge."},
+        {"patternDistanceMode","Nearest-site rule: Euclidean uses straight-line distance; Manhattan sums horizontal and vertical distances (diamond); Chebyshev uses the larger axis distance (square)."},
+        {"patternFillOrder","Order in which Pixel Fill visits cells: rows, alternating snake rows, or a clockwise inward spiral."},
+        {"fillOrder","Order in which Pixel Fill visits cells: rows, alternating snake rows, or a clockwise inward spiral."},
+        {"particleCount","Number of particles. The editor uses 1 to 200; older projects retain their saved count. More particles require more rendering time."},
         {"particleSeed","Random pattern seed. The same seed and time reproduce the same particle arrangement."},
         {"particleSpeed","Particle movement speed. Zero freezes movement within the effect."},
         {"particleSize","Particle radius in canvas pixels before effect rotation and scaling."},
@@ -453,11 +564,12 @@ bool studioMotionEnabled() { return !QSettings().value("editor/reduceMotion",!QA
 
 namespace {
 class StudioBanner : public QWidget {
-    QPixmap artwork_{":/branding/lighting-studio-banner.png"};
+    QPixmap artwork_{":/branding/lighting-studio-ice-banner.png"};
 public:
-    StudioBanner(QWidget* parent,int height):QWidget(parent){setFixedHeight(height);setMinimumWidth(240);setAccessibleName("Lighting Studio banner");setToolTip("Lighting Studio - conceptual branding artwork");}
+    StudioBanner(QWidget* parent,int height):QWidget(parent){setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed);setFixedHeight(height);setMinimumWidth(240);setAccessibleName("Lighting Studio banner");setToolTip("Lighting Studio - conceptual branding artwork");}
     void paintEvent(QPaintEvent*) override {
-        QPainter painter(this);painter.fillRect(rect(),QColor("#111214"));
+        QPainter painter(this);painter.fillRect(rect(),studioThemeColor("@surround"));
+        // Fit the complete owner-supplied logo; filling the header crops its sides or top/bottom.
         const auto size=artwork_.size().scaled(this->size(),Qt::KeepAspectRatio);
         const QRect target(QPoint((width()-size.width())/2,(height()-size.height())/2),size);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);painter.drawPixmap(target,artwork_);

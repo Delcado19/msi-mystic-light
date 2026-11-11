@@ -1,8 +1,13 @@
+> Current local package: `build/dist/LightingStudio-ReliabilityFix/msi_mystic_light.exe` (GS-06-R1).
+> See [current validation and remaining limits](docs/COLLABORATION_FIXES.md).
+> The [layer model proposal](docs/LAYER_MODEL_PLAN.md) is a plan, not an implemented redesign.
+
 # MSI Mystic Light - Lighting Studio
 
 A standalone Windows lighting application with a unified component and effect editor. Configure supported controllers/channels, arrange physical component
 geometry and create layered software effects with masks and live output.
-The current native module is msi.gen1 with an explicit B850 Edge TI board profile;
+The six bundled modules cover MSI, peripherals, auxiliary devices, ASRock, Lenovo
+and HP Omen, with model-specific profiles and qualification limits;
 physical-device qualification remains separate from software regression tests.
 
 This repository also contains reverse-engineering notes on MSI Mystic Light.
@@ -11,13 +16,20 @@ research documents describe behavior and byte layouts in our own words.
 
 ## Contents
 
+- [Hardware migration inventory and priorities](docs/hardware-inventory/README.md) — pinned OpenRGB/SignalRGB file/model inventory, comparison candidates and installed vendor sources.
+- [HP Omen migration](docs/HP_OMEN_MIGRATION.md) ? first independent driver increment; hardware unverified.
+- [`docs/HARDWARE_SUPPORT_STRATEGY.md`](docs/HARDWARE_SUPPORT_STRATEGY.md) — independent modules, mandatory upstream comparison and manufacturer-setting research policy.
 - [`CONTINUE.md`](CONTINUE.md) — implementation status, validation, and next steps.
 - [`docs/SIGNALRGB_REPOSITORY_RESEARCH.md`](docs/SIGNALRGB_REPOSITORY_RESEARCH.md) — pinned public-repository research on components, plugins, add-ons, and MSI discovery.
 
-The gaming-oriented workspace uses graphite surfaces with cyan accents.
+The GS-06 Ice workspace uses deep navy surfaces with ice-blue/cyan interaction accents.
+The supplied artwork is fitted completely inside the responsive header, without cropping or a fade over the logo.
 Panels can collapse for more canvas space; playback and device-output status remain separate.
+The current local build is `build/dist/LightingStudio-ReliabilityFix/msi_mystic_light.exe`.
+`Start-Lighting.cmd` prefers an installed service editor, then this portable build.
+Help > About shows the executable path; the GS-06-R1 window title identifies this correction build.
 
-![Lighting Studio unified editor](docs/images/unified-editor.png)
+![Native Windows startup with the complete header artwork; hardware-free test](docs/images/reliability-header.png)
 
 ## Standalone app implementation
 
@@ -75,7 +87,7 @@ security and validation limits](docs/WINDOWS_SERVICE.md). Real SYSTEM hardware
 output and the clean-install UAC flow still need qualification.
 
 Start **`Start-Lighting.cmd`**. It prefers the installed application, then
-`build/dist/LightingStudio-Service/`, retaining older development fallbacks.
+`build/dist/LightingStudio-ReliabilityFix/`, retaining older development fallbacks.
 Close an already running instance after saving before starting an updated build.
 The old `build/ninja/msi_mystic_light.exe` is not the supported entry point.
 Keep the entire Release folder together: `hidapi.dll`, Qt DLLs, plugins and catalogs
@@ -191,7 +203,7 @@ Layout movement samples the live canvas during dragging, before the single undoa
 commit. Click a component to select it independently; drag a header label to move
 its group. Hardware keeps the header/component inventory on the left and a flat
 Endpoint / Profile / State table on the right,
-with selection-scoped Stop/Resume and an expanding status list. Play preview / Pause preview
+with selection-scoped Stop/Resume and an expanding status list. Green Play / red Stop preview
 controls shared animation playback; Hardware remains the navigation action.
 
 IOShield Canvas and RTX 5080 AERO OC lighting restore the original shared-color
@@ -205,7 +217,7 @@ See third_party/pawnio/README.md for scope and prerequisites.
 Layout includes a fullscreen canvas and click/drag minimap. Its world bounds grow
 with hardware placements beyond the original area, including negative coordinates.
 The Effects raster stays 640x400 and maps across those Layout bounds for both live
-preview and hardware sampling. Play preview / Pause preview controls the shared animation
+preview and hardware sampling. Green Play / red Stop preview controls the shared animation
 clock; the separate Preview and Devices status chips remain visible in the status bar.
 
 Snap to grid is enabled by default for spatial editing. The toolbar toggle and
@@ -256,8 +268,43 @@ under `build/logs`; retained diagnostics and archived transient helpers are unde
 The unified Editor combines component arrangement and effect authoring. Components and Layers choose the editing target; Composite, Effect only and Components only choose the view. Multiple editable objects share each layer. New layer creates
 an empty container; toolbar flyouts add content. G creates new gradient objects; visible endpoint grips edit existing gradients. Shapes choose Solid or Gradient fill without replacing geometry. Channel preview selection stays stable while editing, and
 per-frame caching shares equivalent output compositions. Output status separates
-active, paused and failed channels, with details in Hardware. Project schema 14
+active, paused and failed channels, with details in Hardware. Project schema 19
 preserves older source IDs and values when loading; older editor versions cannot
 read newly saved files. See [unified editor controls and compatibility](docs/design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md).
 
 Shift-click and marquee select multiple objects. Align supports selection bounds and distribution; smart guides and grid snapping respect Alt bypass. View offers editing locks, saved in schema 14. Hold L to reveal component labels; Line uses I. Split hardware preview is optional.
+
+Native procedural patterns include Gradient Pinwheel, Spiral, Visor, Sine Wave,
+DNA and Pixel Fill. Add them from **Gradients and patterns** or the source flyout;
+edit their palette and pattern controls in Source. No SignalRGB installation or
+additional dependency is needed. See [completed effects and backlog](docs/EFFECT_BACKLOG.md).
+
+Pattern controls use plain numeric fields. Every native pattern, including Ripples,
+exposes -600..600 cycles/min; zero freezes and negative rates reverse motion.
+Repetitions exposes 1..64 with a slider. Native patterns start as independent layers;
+Sine Wave and DNA palettes close smoothly. Saved values and existing layer
+hierarchies are preserved.
+
+Additional native sources now include Voronoi, Fireplace, Radar, Fireworks, Plasma, Ripples, Aurora, Lava Lamp, Checkerboard and Kaleidoscope.
+Multizone creates four independently editable masked regions in one step. The
+editor exposes site metrics, seeds and flame controls without requiring SignalRGB.
+The Hue picker keeps its full rainbow track visible when adjusting toward red.
+Current files use schema 19; schemas 1..18 remain readable.
+
+Editor authoring: Hand (H) pans with left-drag; effect replacement is a labeled inspector disclosure. Hex input survives live preview refreshes. Source-specific speed tooltips describe direction and rate. See docs/LIGHTING_EDITOR.md for distance metrics and flame controls.
+
+The editor now groups snapping under Align / Snap and uses an exclusive Pan icon.
+Source descriptions, core controls and inline opacity improve precision authoring.
+Design decisions and validation boundaries: [Editor UX review](docs/EDITOR_UX_REVIEW.md).
+
+## Procedural control and visual refinement (GS-06)
+
+Dragging an effect or editing a mask keeps preview playback running; an explicit
+Stop remains stopped. Source/Motion/Mask task switches return to their primary
+controls. Layer selection has one row marker rather than a cyan seam per cell.
+Plasma and Kaleidoscope expose spatial frequency, color contrast and distortion.
+DNA exposes horizontal Wave width independently of amplitude height; Visor band
+width reaches 50 percent. New parameters save in schema 22; existing files load
+with their original spatial defaults. Update editor and service host together.
+Lightning and Fireworks were refined against inspected real references; see
+[the visual comparison and limits](docs/EFFECT_VISUAL_REVIEW.md).

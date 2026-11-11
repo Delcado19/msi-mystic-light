@@ -27,7 +27,7 @@ struct PawnIoRam::Impl {
     QLibrary library{libraryPath()};
     QString error;
     int address=0;
-    bool ready=false, sent=false;
+    bool ready=false, sent=false, temporaryFailure=false;
 #ifdef Q_OS_WIN
     using Open=HRESULT(WINAPI*)(HANDLE*);
     using Load=HRESULT(WINAPI*)(HANDLE,const unsigned char*,SIZE_T);
@@ -39,14 +39,18 @@ struct PawnIoRam::Impl {
         SIZE_T returned=0;
         const auto status=execute(handle,name,in,count,out,capacity,&returned);
         if(FAILED(status) || returned!=expected) {
+            temporaryFailure=FAILED(status) && (status==HRESULT_FROM_WIN32(ERROR_BUSY) ||
+                status==HRESULT_FROM_WIN32(ERROR_TIMEOUT) || status==HRESULT_FROM_WIN32(ERROR_SEM_TIMEOUT));
             error=QString("PawnIO %1 failed (0x%2, returned %3/%4)").arg(name).arg(quint32(status),8,16,QLatin1Char('0')).arg(returned).arg(expected);
             return false;
         }
         return true;
     }
     bool locked(const std::function<bool()>& operation) {
+        temporaryFailure=false;
         const auto wait=WaitForSingleObject(mutex,250);
-        if(wait!=WAIT_OBJECT_0 && wait!=WAIT_ABANDONED) {error="SMBus is busy or its shared lock is unavailable";return false;}
+        if(wait==WAIT_TIMEOUT) {temporaryFailure=true;error="SMBus lock timed out after 250 ms; another controller may be using the bus";return false;}
+        if(wait!=WAIT_OBJECT_0 && wait!=WAIT_ABANDONED) {error=QString("SMBus lock wait failed (Windows error %1)").arg(GetLastError());return false;}
         struct Release {HANDLE handle;~Release(){ReleaseMutex(handle);}} release{mutex};
         return operation();
     }
@@ -69,6 +73,7 @@ struct PawnIoRam::Impl {
 PawnIoRam::PawnIoRam():impl_(std::make_unique<Impl>()) {}
 PawnIoRam::~PawnIoRam()=default;
 QString PawnIoRam::error() const {return impl_->error;}
+bool PawnIoRam::temporarilyUnavailable() const {return impl_->temporaryFailure;}
 bool PawnIoRam::runtimeAvailable(QString* error) {
 #ifdef Q_OS_WIN
     QLibrary library(libraryPath());
@@ -98,13 +103,14 @@ bool PawnIoRam::open(int address) {
     if(QCryptographicHash::hash(blob,QCryptographicHash::Sha256).toHex()!="91f9b4b1c39e3d399ce48477a89d8f6bd3e58a2241064a4daec3a1513dff56e5") {
         p.error="AMD SMBus module integrity check failed";return false;
     }
-    p.mutex=CreateMutexW(nullptr,FALSE,L"Global\\Access_SMBUS.HTP.Method");
-    if(!p.mutex) {p.error="Cannot open the shared SMBus lock";return false;}
+    // A foreign service can grant synchronization but deny MUTEX_ALL_ACCESS; never loosen its ACL.
+    p.mutex=CreateMutexExW(nullptr,L"Global\\Access_SMBUS.HTP.Method",0,SYNCHRONIZE|MUTEX_MODIFY_STATE);
+    if(!p.mutex) {p.error=QString("Cannot open the shared SMBus lock (Windows error %1)").arg(GetLastError());return false;}
     if(!p.locked([&] {
         const auto status=open(&p.handle);
         if(FAILED(status)) {p.error=QString("Cannot open PawnIO (0x%1); verify driver installation and access permissions").arg(quint32(status),8,16,QLatin1Char('0'));return false;}
         const auto loaded=load(p.handle,reinterpret_cast<const unsigned char*>(blob.constData()),blob.size());
-        if(FAILED(loaded)) {p.error="Signed PawnIO AMD module rejected or chipset unsupported";return false;}
+        if(FAILED(loaded)) {p.error=QString("Signed PawnIO AMD module rejected or chipset unsupported (0x%1)").arg(quint32(loaded),8,16,QLatin1Char('0'));return false;}
         std::array<quint64,3> identity{};
         if(!p.call("ioctl_identity",nullptr,0,identity.data(),3,3))return false;
         if((identity[2]&0xffffffff)!=0x790b1022) {p.error="Unsupported AMD SMBus controller";return false;}
@@ -141,14 +147,26 @@ bool PawnIoRam::pushColors(const QVector<RgbColor>& colors) {
     Q_UNUSED(colors);return false;
 #endif
 }
+QVector<int> reconcilePawnIoRamAddresses(const QVector<int>& previous,const QVector<int>& verified,
+                                       const QVector<int>& temporarilyUnavailable)
+{
+    QVector<int> result;
+    for(int address:{0x71,0x73})if(verified.contains(address) ||
+        (previous.contains(address) && temporarilyUnavailable.contains(address)))result.append(address);
+    return result;
+}
 QVector<int> scanPawnIoRam(bool activeProbe) {
     if(!activeProbe) {QMutexLocker lock(&cacheMutex);return verifiedAddresses;}
-    QVector<int> result;QString error;
+    QVector<int> result,temporary;QString error;
     if(!PawnIoRam::runtimeAvailable(&error))qWarning().noquote()<<error;
     else for(int address:{0x71,0x73}) {
         PawnIoRam ram;if(ram.open(address))result.append(address);
-        else {if(error.isEmpty())error=ram.error();qWarning().noquote()<<ram.error();}
+        else {if(ram.temporarilyUnavailable())temporary.append(address);if(error.isEmpty())error=ram.error();qWarning().noquote()<<QString("RAM probe 0x%1: %2").arg(address,2,16,QLatin1Char('0')).arg(ram.error());}
     }
-    QMutexLocker lock(&cacheMutex);verifiedAddresses=result;discoveryError=error;return result;
+    QMutexLocker lock(&cacheMutex);
+    // A busy discovery scan must not make a healthy RAM worker fail its cached presence check.
+    const auto current=reconcilePawnIoRamAddresses(verifiedAddresses,result,temporary);
+    if(current!=result)error+="; retaining previously verified RAM presence until the next probe";
+    verifiedAddresses=current;discoveryError=error;return current;
 }
 QString pawnIoRamDiscoveryError() {QMutexLocker lock(&cacheMutex);return discoveryError;}

@@ -1,0 +1,219 @@
+source,product_name,brand,type,led_count,status
+Components/APNX/APNX_FP2_Fan.json,APNX FP2,APNX,Fan,16,data conversion candidate; not a device driver
+Components/Aerocool/Aerocool_Duo_12_Fan.json,Aerocool Duo 12,Aerocool,Fan,16,data conversion candidate; not a device driver
+Components/Airgoo/Airgoo_AFL120_Halo.json,Airgoo AFL120 Halo,Airgoo,Fan,16,data conversion candidate; not a device driver
+Components/Airgoo/Airgoo_ATX_Streamer_S1.json,Airgoo ATX Streamer S1,Airgoo,Cable,63,data conversion candidate; not a device driver
+Components/Airgoo/Airgoo_ATX_Streamer_S2.json,Airgoo ATX Streamer S2,Airgoo,Cable,126,data conversion candidate; not a device driver
+Components/Airgoo/Airgoo_GPU_Dual_8P.json,Airgoo GPU Dual 8P,Airgoo,Cable,108,data conversion candidate; not a device driver
+Components/Airgoo/Airgoo_GPU_Triple_8P.json,Airgoo GPU Triple 8P,Airgoo,Cable,162,data conversion candidate; not a device driver
+Components/Airgoo/Airgoo_Neon_DLS30.json,Airgoo Neon DLS30,Airgoo,Strip,30,data conversion candidate; not a device driver
+Components/Airgoo/Airgoo_Neon_LS1.json,Airgoo Neon LS1,Airgoo,Strip,21,data conversion candidate; not a device driver
+Components/Antec/Antec Fusion 120.json,Antec Fusion 120,Antec,Fan,16,data conversion candidate; not a device driver
+Components/Antec/Antec Neo Prizm 120.json,Antec Neo Prizm 120,Antec,Fan,20,data conversion candidate; not a device driver
+Components/Antec/Antec Neo Prizm 140.json,Antec Neo Prizm 140,Antec,Fan,20,data conversion candidate; not a device driver
+Components/Antec/Antec Vision 120.json,Antec Vision,Antec,Fan,16,data conversion candidate; not a device driver
+Components/Antec/Antec Vortex AIO Pump.json,Antec Vortex AIO Pump,Antec,AIO,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic Bionix P120.json,ARCTIC BioniX P120 A-RGB,ARCTIC,Fan,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic Freezer 36.json,ARCTIC Freezer 36 A-RGB,ARCTIC,Cooler,24,data conversion candidate; not a device driver
+Components/Arctic/Arctic Freezer 50.json,ARCTIC Freezer 50 A-RGB,ARCTIC,Heatsink,13,data conversion candidate; not a device driver
+Components/Arctic/Arctic P12.json,ARCTIC P12 PWM PST A-RGB,ARCTIC,Fan,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic P14.json,ARCTIC P14 PWM PST A-RGB,ARCTIC,Fan,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic Xtender - 24 LED.json,Arctic Xtender PSU Shroud,ARCTIC,Case,24,data conversion candidate; not a device driver
+Components/Arctic/Arctic_Liquid_Freezer_III.json,ARCTIC Liquid Freezer III A-RGB,ARCTIC,AIO,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic_Liquid_Freezer_III_Pro.json,Arctic Liquid Freezer III Pro,ARCTIC,AIO,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic_P12_Pro.json,ARCTIC P12 Pro,ARCTIC,Fan,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic_P12_Pro_Reverse.json,ARCTIC P12 Pro Reverse,ARCTIC,Fan,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic_P14_Pro.json,ARCTIC P14 Pro,ARCTIC,Fan,12,data conversion candidate; not a device driver
+Components/Arctic/Arctic_P14_Pro_Reverse.json,ARCTIC P14 Pro Reverse,ARCTIC,Fan,12,data conversion candidate; not a device driver
+Components/Argus/Argus RGB-Fan RS-08 - 24 LED.json,Argus RGB-Fan RS-08,Inter tech,Fan,24,data conversion candidate; not a device driver
+Components/Asiahorse/Asiahorse-Matrix-360_Fan.json,Asiahorse Matrix 360,Asiahorse,Fan,32,data conversion candidate; not a device driver
+Components/Asiahorse/Asiahorse_Aurora.json,Asiahorse Aurora,Asiahorse,Cable,108,data conversion candidate; not a device driver
+Components/Asiahorse/Asiahorse_Cosmiq_Fan.json,Asiahorse Cosmiq,Asiahorse,Fan,8,data conversion candidate; not a device driver
+Components/Asiahorse/Asiahorse_Dawn_Fan.json,Asiahorse Dawn,Asiahorse,Fan,8,data conversion candidate; not a device driver
+Components/Asiahorse/Asiahorse_Hydrus.json,Asiahorse Hydrus,Asiahorse,Cable,6,data conversion candidate; not a device driver
+Components/Asiahorse/Asiahorse_Nyota_Fan.json,Asiahorse Nyota,Asiahorse,Fan,8,data conversion candidate; not a device driver
+Components/Asiahorse/Asiahorse_Nyota_Ultra_Fan.json,Asiahorse Nyota Ultra,Asiahorse,Fan,9,data conversion candidate; not a device driver
+Components/Asus/ROG_AF_12S_Fan.json,ASUS ROG AF 12S,ASUS,Fan,8,data conversion candidate; not a device driver
+Components/Asus/ROG_Herculx_GPU_Holder.json,ASUS ROG Herculx,ASUS,Strip,17,data conversion candidate; not a device driver
+Components/Asus/ROG_LC_Fan.json,ASUS ROG LC,ASUS,Fan,8,data conversion candidate; not a device driver
+Components/CoolerMaster/CoolerMaster_MF120AB_Fan.json,CoolerMaster MasterFan 120AB,CoolerMaster,Fan,8,data conversion candidate; not a device driver
+Components/CoolerMaster/CoolerMaster_MF120Halo_Fan.json,CoolerMaster MasterFan 120 Halo,CoolerMaster,Fan,24,data conversion candidate; not a device driver
+Components/CoolerMaster/CoolerMaster_MF140Halo_Fan.json,CoolerMaster MasterFan 140 Halo,CoolerMaster,Fan,24,data conversion candidate; not a device driver
+Components/CoolerMaster/CoolerMaster_ML240_Illusion_Pump.json,CoolerMaster ML240 Illusion Pump,CoolerMaster,AIO,12,data conversion candidate; not a device driver
+Components/CoolerMaster/CoolerMaster_ML240_Mirror_RGB_Pump.json,CoolerMaster ML240 Mirror RGB Pump,CoolerMaster,AIO,12,data conversion candidate; not a device driver
+Components/CoolerMaster/CoolerMaster_ML240_RGB_Pump.json,CoolerMaster ML240 RGB Pump,CoolerMaster,AIO,10,data conversion candidate; not a device driver
+Components/CoolerMaster/CoolerMaster_SickleFlow120_Fan.json,CoolerMaster SickleFlow 120 ARGB,CoolerMaster,Fan,6,data conversion candidate; not a device driver
+Components/CoolerMaster/Coolermaster_Atmos_AIO.json,CoolerMaster Atmos AIO,CoolerMaster,AIO,12,data conversion candidate; not a device driver
+Components/CoolerMaster/Coolermaster_HAF_700_Evo_Bottom.json,CoolerMaster HAF 700 Evo Bottom,CoolerMaster,Case,6,data conversion candidate; not a device driver
+Components/CoolerMaster/Coolermaster_HAF_700_Evo_Top.json,CoolerMaster HAF 700 Evo Top,CoolerMaster,Case,6,data conversion candidate; not a device driver
+Components/CoolerMaster/Coolermaster_MF120_Prismatic.json,CoolerMaster Master Fan MF120 Prismatic,CoolerMaster,Fan,30,data conversion candidate; not a device driver
+Components/CoolerMaster/Coolermaster_Mobius_120P_ARGB.json,CoolerMaster Mobius 120P ARGB,CoolerMaster,Fan,8,data conversion candidate; not a device driver
+Components/CoolerMaster/Coolermaster_PL360.json,CoolerMaster PL360 Flux,CoolerMaster,AIO,12,data conversion candidate; not a device driver
+Components/CoolerOne/CoolerOne_120MM_Heatpipe_Fan.json,CoolerOne 120MM Heatpipe Fan,CoolerOne,Fan,16,data conversion candidate; not a device driver
+Components/CoolerOne/CoolerOne_Spire_Cpu_Fan.json,CoolerOne Spire Cpu Fan,CoolerOne,Fan,6,data conversion candidate; not a device driver
+Components/CoolerOne/CoolerOne_Stealth_Cpu_Fan.json,CoolerOne Stealth Cpu Fan,CoolerOne,Fan,8,data conversion candidate; not a device driver
+Components/Coolmoon/Coolmoon-Multilens.json,Coolmoon Multilens ARGB,Coolmoon,Fan,18,data conversion candidate; not a device driver
+Components/Corsair/Corsair_1.4m_Strip.json,Corsair 1.4m Strip,Corsair,Strip,87,data conversion candidate; not a device driver
+Components/Corsair/Corsair_250mm_Strip.json,Corsair 250mm Strip,Corsair,Strip,15,data conversion candidate; not a device driver
+Components/Corsair/Corsair_350mm_Strip.json,Corsair 350mm Strip,Corsair,Strip,21,data conversion candidate; not a device driver
+Components/Corsair/Corsair_450mm_Strip.json,Corsair 450mm Strip,Corsair,Strip,27,data conversion candidate; not a device driver
+Components/Corsair/Corsair_9000D_IO_Strip.json,Corsair LINK 9000D IO,Corsair,Strip,18,data conversion candidate; not a device driver
+Components/Corsair/Corsair_9000D_Logo_Strip.json,Corsair LINK 9000D Logo,Corsair,Strip,4,data conversion candidate; not a device driver
+Components/Corsair/Corsair_GPU_Water_Block.json,Corsair GPU Water Block,Corsair,Water Block,16,data conversion candidate; not a device driver
+Components/Corsair/Corsair_HD_Fan.json,Corsair HD Fan,Corsair,Fan,12,data conversion candidate; not a device driver
+Components/Corsair/Corsair_Internal_425mm_Strip.json,Corsair Internal 425mm Strip,Corsair,Strip,25,data conversion candidate; not a device driver
+Components/Corsair/Corsair_Internal_500mm_Strip.json,Corsair Internal 500mm Strip,Corsair,Strip,30,data conversion candidate; not a device driver
+Components/Corsair/Corsair_Internal_Strip.json,Corsair Internal Strip,Corsair,Strip,10,data conversion candidate; not a device driver
+Components/Corsair/Corsair_LC100_Panel.json,Corsair LC100 Panel,Corsair,Strip,9,data conversion candidate; not a device driver
+Components/Corsair/Corsair_LL_Fan.json,Corsair LL Fan,Corsair,Fan,16,data conversion candidate; not a device driver
+Components/Corsair/Corsair_LS350.json,Corsair LS350,Corsair,Strip,40,data conversion candidate; not a device driver
+Components/Corsair/Corsair_LS430.json,Corsair LS430,Corsair,Strip,49,data conversion candidate; not a device driver
+Components/Corsair/Corsair_LT100_Light_Tower.json,Corsair LT100 Light Tower,Corsair,Tower,27,data conversion candidate; not a device driver
+Components/Corsair/Corsair_ML_Fan.json,Corsair ML Fan,Corsair,Fan,4,data conversion candidate; not a device driver
+Components/Corsair/Corsair_ML_Fan_-_8_LED.json,Corsair ML Fan - 8 Led,Corsair,Fan,8,data conversion candidate; not a device driver
+Components/Corsair/Corsair_QL_Fan.json,Corsair QL Fan,Corsair,Fan,34,data conversion candidate; not a device driver
+Components/Corsair/Corsair_SpPro_Fan.json,Corsair SpPro Fan,Corsair,Fan,8,data conversion candidate; not a device driver
+Components/Corsair/Corsair_XD5_CPU_Water_Block.json,Corsair XD5 CPU Water Block,Corsair,Water Block,16,data conversion candidate; not a device driver
+Components/Corsair/Corsair_XD5_Reservior.json,Corsair XD5 Reservior,Corsair,Water Block,10,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_AK400_Heatsink.json,DeepCool AK400 Heatsink,DeepCool,Heatsink,10,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_AK620_Heatsink.json,DeepCool AK620 Heatsink,DeepCool,Heatsink,22,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_AS500_Heatsink.json,DeepCool AS500 Heatsink,DeepCool,Heatsink,8,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_CF120_Plus_Fan.json,DeepCool CF120 Plus,DeepCool,Fan,18,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_CF140_RGB_Fan.json,DeepCool CF140 RGB Fan,DeepCool,Fan,12,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_Castle_EX_Pump_AIO.json,DeepCool Castle EX Pump,DeepCool,AIO,12,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_FC120_ARGB_Fan.json,DeepCool FC120 ARGB,DeepCool,Fan,6,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_GH_01_A-RGB_Strip.json,DeepCool GH-01 A-RGB,DeepCool,Strip,9,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_LS_AIO_Pump.json,DeepCool LS AIO Pump,DeepCool,AIO,12,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_LS_LE_AIO_Pump.json,DeepCool LS LE AIO Pump,DeepCool,AIO,16,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_LT_AIO_Pump.json,DeepCool LT AIO Pump,DeepCool,AIO,12,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_MF120_GT_Fan.json,DeepCool MF120 GT,DeepCool,Fan,10,data conversion candidate; not a device driver
+Components/DeepCool/DeepCool_ST500_ARGB_Strip.json,DeepCool ST500 ARGB,DeepCool,Strip,8,data conversion candidate; not a device driver
+Components/EK/Nucleus-Lux.json,EK-Nucleus AIO Lux,EKWB,Water Block,12,data conversion candidate; not a device driver
+Components/EZDIY-FAB/EZDIY-FAB_ARGB_DDR_Memory_RAM_Cooler-8_LED.json,EZDIY-FAB ARGB DDR Memory RAM Cooler,EZDIY-FAB,custom,8,data conversion candidate; not a device driver
+Components/EZDIY-FAB/EZDIY-FAB_ARGB_GPU_Holder_v1-10_LED.json,EZDIY-FAB 10 RGB GPU Holder,EZDIY-FAB,custom,10,data conversion candidate; not a device driver
+Components/EZDIY-FAB/EZDIY-FAB_ARGB_GPU_Holder_v1-16_LED.json,EZDIY-FAB 16 RGB GPU Holder,EZDIY-FAB,custom,16,data conversion candidate; not a device driver
+Components/EZDIY-FAB/EZDIY-FAB_ARGB_LED_Premium-Strip-30_LED.json,EZDIY-FAB Premium Addressable LED Strip,EZDIY-FAB,custom,30,data conversion candidate; not a device driver
+Components/EZDIY-FAB/EZDIY-FAB_ARGB_LED_Strip-24_LED.json,EZDIY-FAB Addressable RGB PC LED Strip,EZDIY-FAB,custom,24,data conversion candidate; not a device driver
+Components/EZDIY-FAB/EZDIY-FAB_ATX_Connector-5_LED.json,EZDIY-FAB ATX Connector,EZDIY-FAB,custom,5,data conversion candidate; not a device driver
+Components/Enermax/Enermax_SquA-RGB_Fans-18_LED.json,Enermax SquA RGB Fans,Enermax,Fan,18,data conversion candidate; not a device driver
+Components/Fractal/Fractal_Design_Aspect_12_RGB-6_Fan.json,Fractal Design Aspect 12 RGB,Fractal Design,Fan,6,data conversion candidate; not a device driver
+Components/Fractal/Fractal_Design_Lumen_Sxx.json,Fractal Design Lumen Sxx,Fractal Design,AIO,6,data conversion candidate; not a device driver
+Components/Fractal/Fractal_Prisma_AL18.json,Fractal Prisma AL-18,Fractal Design,Fan,12,data conversion candidate; not a device driver
+Components/Gamdias/GAMDIAS_E2_CHIONE_Pump.json,GAMDIAS E2 CHIONE Pump,GAMDIAS,AIO,9,data conversion candidate; not a device driver
+Components/Gamdias/GAMDIAS_M2_1201R_Fan.json,GAMDIAS M2 1201R Fan,GAMDIAS,Fan,16,data conversion candidate; not a device driver
+Components/Generic/Generic_ARGB_Fan_12_LEDs.json,Generic ARGB Fan 12 LEDs,Generic,Fan,12,data conversion candidate; not a device driver
+Components/Generic/Generic_ARGB_Fan_16_LEDs.json,Generic ARGB Fan 16 LEDs,Generic,Fan,16,data conversion candidate; not a device driver
+Components/Generic/Generic_ARGB_Fan_6_LEDs.json,Generic ARGB Fan 6 LEDs,Generic,Fan,6,data conversion candidate; not a device driver
+Components/Generic/Generic_ARGB_Fan_8_LEDs.json,Generic ARGB Fan 8 LEDs,Generic,Fan,8,data conversion candidate; not a device driver
+Components/ID-Cooling/ID-Cooling_AF-127.json,ID-Cooling AF-127,ID-Cooling,Fan,23,data conversion candidate; not a device driver
+Components/ID-Cooling/ID-Cooling_AS-120-K.json,ID-Cooling AS-120-K,ID-Cooling,Fan,11,data conversion candidate; not a device driver
+Components/ID-Cooling/ID-Cooling_FX_INF.json,ID-Cooling FX-INF AIO,ID-Cooling,Fan,8,data conversion candidate; not a device driver
+Components/ID-Cooling/ID-Cooling_FX_LCD.json,ID-Cooling FX LCD,ID-Cooling,AIO,8,data conversion candidate; not a device driver
+Components/ID-Cooling/ID-Cooling_TTF120_Fan.json,ID-Cooling TF120,ID-Cooling,Fan,14,data conversion candidate; not a device driver
+Components/ID-Cooling/ID-Cooling_Zoomflow_X_AIO.json,ID-Cooling Zoomflow X,ID-Cooling,AIO,11,data conversion candidate; not a device driver
+Components/Ice Whale/Ice_Whale_4RS.json,Ice Whale 4RS,Ice Whale,Fan,12,data conversion candidate; not a device driver
+Components/JUMPEAK/JUMPEAK_CS120.json,JUMPEAK CS120,JUMPEAK,Fan,22,data conversion candidate; not a device driver
+Components/JUMPEAK/JUMPEAK_HS120.json,JUMPEAK HS120,JUMPEAK,Fan,28,data conversion candidate; not a device driver
+Components/JUMPEAK/JUMPEAK_Ms120.json,JUMPEAK Ms120,JUMPEAK,Fan,12,data conversion candidate; not a device driver
+Components/JUMPEAK/JUMPEAK_Mx120.json,JUMPEAK Mx120,JUMPEAK,Fan,24,data conversion candidate; not a device driver
+Components/Jonsbo/JONSBO_ZA360_TRIO.json,JONSBO ZA360 TRIO ROCK ,JONSBO,Fan,68,data conversion candidate; not a device driver
+Components/Jonsbo/JONSBO_ZB240_DUAL.json,JONSBO ZB240 DUAL ROCK ,JONSBO,Fan,52,data conversion candidate; not a device driver
+Components/Jungle_Leopard/Jungle_Leopard_4RS.json,Jungle Leopard 4RS,Jungle Leopard,Fan,16,data conversion candidate; not a device driver
+Components/Jungle_Leopard/Jungle_Leopard_Interstellar_V2.json,Jungle Leopard Interstellar V2,Jungle Leopard,Fan,8,data conversion candidate; not a device driver
+Components/Jungle_Leopard/Jungle_Leopard_Interstellar_V2RS.json,Jungle Leopard Interstellar V2RS,Jungle Leopard,Fan,8,data conversion candidate; not a device driver
+Components/Jungle_Leopard/Jungle_Leopard_Interstellar_V3.json,Jungle Leopard Interstellar V3,Jungle Leopard,Fan,8,data conversion candidate; not a device driver
+Components/Jungle_Leopard/Jungle_Leopard_Prism_XH.json,Jungle Leopard Prism XH,Jungle Leopard,Fan,8,data conversion candidate; not a device driver
+Components/Jungle_Leopard/Jungle_Leopard_S30RS.json,Jungle Leopard S30RS,Jungle Leopard,Fan,10,data conversion candidate; not a device driver
+Components/Jungle_Leopard/Jungle_Leopard_Transwarp.json,Jungle Leopard Transwarp,Jungle Leopard,Fan,16,data conversion candidate; not a device driver
+Components/Jupiter/Jupiter_AJ120_Fan.json,Jupiter AJ120 Fan,Jupiter,Fan,6,data conversion candidate; not a device driver
+Components/Leetdesk/LeetDesk AURA - Left side.json,LeetDesk AURA - Left side,LeetDesk,Desk,140,data conversion candidate; not a device driver
+Components/Leetdesk/LeetDesk AURA - Middle part.json,LeetDesk AURA - Middle part,LeetDesk,Desk,232,data conversion candidate; not a device driver
+Components/Leetdesk/LeetDesk AURA - Right side.json,LeetDesk AURA - Right side,LeetDesk,Desk,140,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_AL_UniFan_Fan.json,Lian Li AL120,LianLi,Fan,20,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_ATX_Strimer.json,Lian Li ATX Strimer Plus,LianLi,Cable,60,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_GPU_Strimer_4x27.json,Lian Li GPU Dual 8 Pin Strimers,LianLi,Cable,108,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_GPU_Strimer_6x27.json,Lian Li GPU Triple 8 Pin Strimers ,LianLi,Cable,162,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_GPU_Strimmer_Plus.json,Lian Li GPU Strimer Plus,LianLi,Strip,27,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_Galahad_AIO.json,Lian Li Galahad AIO,LianLi,AIO,12,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_Galahad_II_AIO.json,Lian Li Galahad II AIO,LianLi,AIO,20,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_O11_Dynamic_Evo_Front_Case.json,Lian Li O11 Dynamic Evo Front Strip,LianLi,Case,21,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_O11_Dynamic_Evo_RGB_Front_Case.json,Lian Li O11 Dynamic Evo RGB Front Strip,LianLi,Case,47,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_O11_Dynamic_Evo_XL_Front_Case.json,Lian Li O11 Dynamic Evo XL Front Strip,LianLi,Case,25,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_SL_Infinity_140_Fan.json,Lian Li SL140 Infinity,LianLi,Fan,20,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_SL_Infinity_140_Inner_Fan.json,LianLi SL140 Infinity Inner,LianLi,Fan,8,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_SL_Infinity_140_Outter_Fan.json,LianLi SL140 Infinity Outter,LianLi,Fan,12,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_SL_Infinity_Fan.json,Lian Li SL120 Infinity,LianLi,Fan,20,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_SL_Infinity_Inner_Fan.json,LianLi SL120 Infinity Inner,LianLi,Fan,8,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_SL_Infinity_Outter_Fan.json,LianLi SL120 Infinity Outter,LianLi,Fan,12,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_SL_UniFan_Fan.json,Lian Li SL120,LianLi,Fan,16,data conversion candidate; not a device driver
+Components/Lian_Li/Lian_Li_TL_Fan.json,Lian Li TL,LianLi,Fan,26,data conversion candidate; not a device driver
+Components/MSI/MSI_Coreliquid_Block.json,MSI CoreLiquid CPU Block,MSI,AIO,9,data conversion candidate; not a device driver
+Components/MSI/MSI_Coreliquid_Fan.json,MSI MPG F120,MSI,Fan,12,data conversion candidate; not a device driver
+Components/MSI/MSI_Vampiric_300R_Strip.json,MSI Vampiric 300R Case strip,MSI,Case,12,data conversion candidate; not a device driver
+Components/Magnium/Magnium_Neo_Qube_2_Case.json,Magnium gear Neo Qube 2,MagniumGear,Case,74,data conversion candidate; not a device driver
+Components/Misc/Hexagon_Wall_Panel.json,Hexagon Wall Panel,Misc,custom,30,data conversion candidate; not a device driver
+Components/Montech/Montech_AX120_Fan.json,Montech AX120,Montech,Fan,20,data conversion candidate; not a device driver
+Components/Montech/Montech_AX140_Fan.json,Montech AX140,Montech,Fan,24,data conversion candidate; not a device driver
+Components/NZXT/NZXT_10_Led_Strip.json,NZXT 10 Led Strip,NZXT,Strip,10,data conversion candidate; not a device driver
+Components/NZXT/NZXT_6_Led_Strip.json,NZXT 6 Led Strip,NZXT,Strip,6,data conversion candidate; not a device driver
+Components/NZXT/NZXT_8_Led_Strip.json,NZXT 8 Led Strip,NZXT,Strip,8,data conversion candidate; not a device driver
+Components/NZXT/NZXT_AER_2_Fan.json,NZXT AER 2 Fan,NZXT,Fan,8,data conversion candidate; not a device driver
+Components/NZXT/NZXT_AER_2_Fan_140.json,NZXT AER 2 Fan 140mm,NZXT,Fan,8,data conversion candidate; not a device driver
+Components/NZXT/NZXT_F120_Duo_Fan.json,NZXT F120 Duo Fan 120mm,NZXT,Fan,20,data conversion candidate; not a device driver
+Components/NZXT/NZXT_F120_Fan.json,NZXT F120 Fan 120mm,NZXT,Fan,18,data conversion candidate; not a device driver
+Components/NZXT/NZXT_F140_Duo_Fan.json,NZXT F140 Duo Fan 140mm,NZXT,Fan,20,data conversion candidate; not a device driver
+Components/NZXT/NZXT_F140_Fan.json,NZXT F140 Fan 140mm,NZXT,Fan,18,data conversion candidate; not a device driver
+Components/Nanoleaf/Nanoleaf_Panel.json,Nanoleaf Panel,Nanoleaf,custom,1,data conversion candidate; not a device driver
+Components/Nollie/Nollie_Fan_GC120.json,Nollie GC120,Nollie,Fan,26,data conversion candidate; not a device driver
+Components/Nollie/Nollie_Strimer_108_Strip.json,Nollie Strimer 108,Nollie,Strip,108,data conversion candidate; not a device driver
+Components/Nollie/Nollie_Strimer_120_Strip.json,Nollie Strimer 120,Nollie,Strip,120,data conversion candidate; not a device driver
+Components/OEM/OEM_PRISM_5_Pro.json,OEM PRISM 5 PRO,OEM,Fan,17,data conversion candidate; not a device driver
+Components/PALIT/5090_GameRock_GPU.json,PALIT 5090 GameRock,PALIT,GPU,36,data conversion candidate; not a device driver
+Components/PCYES/PCYES_Sangue_Frio_3_AIO.json,PCYES Sangue Frio 3 AIO,PCYES,AIO,12,data conversion candidate; not a device driver
+Components/PCYES/PCYES_Sangue_Frio_3_Fan.json,PCYES Sangue Frio 3,PCYES,Fan,20,data conversion candidate; not a device driver
+Components/Phanteks/HalosLuxDigital.json,Phanteks Halos Lux Digital,Phanteks,Fan,30,data conversion candidate; not a device driver
+Components/Phanteks/Phanteks_120SK.json,Phanteks 120 SK,Phanteks,Fan,12,data conversion candidate; not a device driver
+Components/Phanteks/Phanteks_D30-120.json,Phantek D30-120,Phanteks,Fan,15,data conversion candidate; not a device driver
+Components/Phanteks/Phanteks_NEON_Strip_ComboKit.json,Phanteks Neon Combo Kit Strip,Phanteks,Strip,28,data conversion candidate; not a device driver
+Components/Phanteks/Phanteks_NEON_Strip_M1.json,Phanteks Neon M1 Strip,Phanteks,Strip,70,data conversion candidate; not a device driver
+Components/Phanteks/Phanteks_NEON_Strip_M5.json,Phanteks Neon M5 Strip,Phanteks,Strip,38,data conversion candidate; not a device driver
+Components/PowerColor/RedDevil_RX6700XT.json,PowerColor RX 6700XT Red Devil,PowerColor,Strip,5,data conversion candidate; not a device driver
+Components/PowerColor/RedDevil_RX7800XT.json,PowerColor RX 7800XT Red Devil,PowerColor,Strip,20,data conversion candidate; not a device driver
+Components/SilentiumPC/SilentiumPC_Stella_HP_ARGB_120_PWM-9_Fan.json,SilentiumPC Stella HP ARGB 120 PWM,SilentiumPC,Fan,9,data conversion candidate; not a device driver
+Components/Teucer/Teucer_Infinite_Mirror_4_Fan.json,Teucer Infinite mirror 4,Teucer,Fan,16,data conversion candidate; not a device driver
+Components/Teucer/Teucer_JM1_Fan.json,Teucer JM-1,Teucer,Fan,16,data conversion candidate; not a device driver
+Components/Teucer/Teucer_JM2_Fan.json,Teucer JM-2,Teucer,Fan,8,data conversion candidate; not a device driver
+Components/ThermalTake/ThermalTake_Floe_Riing_AIO.json,ThermalTake Floe Riing RGB AIO,ThermalTake,AIO,6,data conversion candidate; not a device driver
+Components/ThermalTake/ThermalTake_Riing_Plus_Radiator_Fan.json,ThermalTake Riing Plus Fan,ThermalTake,Fan,12,data conversion candidate; not a device driver
+Components/ThermalTake/ThermalTake_Riing_Quad_12_Fan.json,ThermalTake Riing Quad v2,ThermalTake,Fan,54,data conversion candidate; not a device driver
+Components/ThermalTake/ThermalTake_SWAFAN.json,ThermalTake SWAFAN,ThermalTake,Fan,30,data conversion candidate; not a device driver
+Components/ThermalTake/ThermalTake_SWAFAN_EX.json,ThermalTake SWAFAN EX,ThermalTake,Fan,20,data conversion candidate; not a device driver
+Components/ThermalTake/ThermalTake_TT1225_Fan.json,ThermalTake TT1225 Fan,ThermalTake,Fan,9,data conversion candidate; not a device driver
+Components/ThermalTake/Thermaltake_Pacific_R1_-_36_LED.json,ThermalTake Pacific R1,ThermalTake,custom,36,data conversion candidate; not a device driver
+Components/ThermalTake/Thermaltake_Riing_Duo_12_Fan .json,Thermaltake Riing Duo 12 Fan,ThermalTake,Fan,18,data conversion candidate; not a device driver
+Components/Thermalright/ThermalRight_TL-S12_Fan.json,ThermalRight TL-S12,Thermalright,Fan,15,data conversion candidate; not a device driver
+Components/Thermalright/Thermalright_TL-M12-S_Fan.json,ThermalRight TL-M12-S,Thermalright,Fan,10,data conversion candidate; not a device driver
+Components/Thermalright/Thermalright_TL_C12C-S_Fan.json,Thermalright TL-C12C-S,Thermalright,Fan,8,data conversion candidate; not a device driver
+Components/Valkyrie/Dragonfang_AIO.json,Dragonfang AIO,Valkyrie,AIO,10,data conversion candidate; not a device driver
+Components/Valkyrie/x12_Fan.json,X12 Fan,Valkyrie,Fan,8,data conversion candidate; not a device driver
+Components/Vertagear/VertaGear_RGB_PL4500_Bottom_Kit.json,Vertagear RGB Bottom Kit (Underglow),Vertagear,Chair,10,data conversion candidate; not a device driver
+Components/Vertagear/VertaGear_RGB_PL4500_Top_Kit.json,Vertagear PL4500 RGB Top Kit (Chair Front and Back),Vertagear,Chair,5,data conversion candidate; not a device driver
+Components/Vertagear/VertaGear_RGB_SL5000_Top_Kit.json,Vertagear SL5000 RGB Top Kit (Chair Front and Back),Vertagear,Chair,26,data conversion candidate; not a device driver
+Components/XPG/XPG_Vento_ARGB_Fan.json,XPG Vento ARGB Fan,XPG,Fan,9,data conversion candidate; not a device driver
+Components/Xilence/Xilence 120 MM ARGB Fan.json,Xilence 120 MM ARGB Fan,Xilence,Fan,11,data conversion candidate; not a device driver
+Components/Xilence/Xilence ARGB M.2 Cover.json,Xilence M.2 ARGB Cover,Xilence,Strip,5,data conversion candidate; not a device driver
+Components/Xilence/Xilence LQ240 ARGB.json,Xilence LQ240 ARGB,Xilence,AIO,12,data conversion candidate; not a device driver
+Components/be_quiet!/Bequiet_Light_Loop_AIO.json,be quiet! Light Loop AIO,be quiet!,AIO,16,data conversion candidate; not a device driver
+Components/be_quiet!/Bequiet_Light_Wings_LX_Fan.json,be quiet! Light Wings LX,be quiet!,Fan,16,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_DarkBase701_Case.json,be quiet! Dark Base 701 Case,be quiet!,Case,24,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_DarkBasePro901_Case.json,be quiet! Dark Base Pro 901 Case,be quiet!,Case,24,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_DarkRockElite_Cooler.json,be quiet! Dark Rock Elite Cooler,be quiet!,Cooler,12,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_Light_Wings_120mm_PWM.json,be quiet! Light Wings 120mm,be quiet!,Fan,18,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_Light_Wings_140mm_PWM.json,be quiet! Light Wings 140mm,be quiet!,Fan,20,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_Pure_Base_500DX.json,be quiet! Pure Base 500DX,be quiet!,Case,14,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_Pure_Base_500_FX.json,be quiet! Pure Base 500 FX,be quiet!,Case,14,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_Pure_Loop_2.json,be quiet! Pure Loop 2,be quiet!,AIO,10,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_Pure_Loop_2_FX.json,be quiet! Pure Loop 2 FX,be quiet!,AIO,10,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_ShadowBase800DX_Case.json,be quiet! Shadow Base 800 DX Case,be quiet!,Case,20,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_ShadowBase800FX_Case.json,be quiet! Shadow Base 800 FX Case,be quiet!,Case,20,data conversion candidate; not a device driver
+Components/be_quiet!/be_quiet!_Silent_Loop_2.json,be quiet! Silent Loop 2,be quiet!,AIO,9,data conversion candidate; not a device driver

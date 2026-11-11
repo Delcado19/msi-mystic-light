@@ -5,6 +5,11 @@ editor stays unelevated and closing it retains playback. Portable mode retains
 the direct output lifecycle described below. See [Windows service operation,
 security and validation limits](WINDOWS_SERVICE.md).
 
+Service retries preserve healthy Starting/Running scopes when another saved
+endpoint is offline. Only missing, stopped, faulted or changed scopes need new
+workers. Global discovery/guard/preparation failures still stop output; this
+change does not relax device identity checks or imply physical calibration.
+
 `prepareOutput(document, composedFrame, seconds)` produces one typed `OutputFrame` per
 exact endpoint/profile. It uses `sampleChannels` once, concatenates physical
 chains in their already-mapped wire order, converts opaque RGB to driver colors
@@ -110,7 +115,10 @@ a hung OS driver, unplug notification or actual device behavior.
 
 ## Automatic GUI output and presence
 
-The app enables canvas output after project restoration and initial discovery.
+The app enables canvas output after project restoration. Initial RAM discovery
+can finish later; each completed hardware scan starts missing configured endpoints
+without reconnecting healthy peers. Global Stop and per-channel pauses still block
+automatic resume. This avoids RAM remaining stopped when HID output starts first.
 Configured, detected endpoints connect automatically, without an initial report
 approval checkbox. Startup process-conflict choices remain user-controlled; no
 RGB process is terminated automatically. --editor skips that startup conflict dialog

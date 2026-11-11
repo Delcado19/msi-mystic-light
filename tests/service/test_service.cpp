@@ -21,18 +21,22 @@
 #include <memory>
 namespace {
 QJsonObject cmd(const QString& op) {return {{"version",1},{"op",op}};}
-QJsonObject project(const DeviceProfile& profile) {
+QJsonObject project(const DeviceProfile& profile, bool secondEndpoint=false) {
     ComponentDefinition strip;strip.id="fixture-strip";strip.name="Fixture strip";strip.positions={{0,0},{1,0}};strip.mapping={0,1};
     LightingDocument document({{strip.id,strip}},nullptr,{profile});
     const auto placement=document.addComponent(strip.id);document.addLayer(EffectKind::StaticColor);
     ChannelAssignment assignment;assignment.endpoint="fake-hid-path";assignment.profileId=profile.id;assignment.channelId="JARGB1";assignment.software=true;assignment.placements={placement};document.assignChannel(assignment);
+    if(secondEndpoint) {
+        assignment.id=QUuid::createUuid();assignment.endpoint="second-hid-path";
+        assignment.placements={document.addComponent(strip.id)};document.assignChannel(assignment);
+    }
     QTemporaryDir folder;if(!folder.isValid())throw std::runtime_error("fixture directory");const auto path=folder.path()+"/project.json";document.save(path);QFile input(path);if(!input.open(QIODevice::ReadOnly))throw std::runtime_error("fixture read");
     auto result=cmd("project");result["project"]=StudioService::decode(input.readAll());result["enabled"]=true;result["playing"]=true;result["seconds"]=1.;return result;
 }
-struct Recording {std::atomic_int writes{0};std::atomic_bool present{true};};
+struct Recording {std::atomic_int writes{0},opens{0};std::atomic_bool present{true};};
 class Transport:public IHidDevice {
 public:
-    explicit Transport(std::shared_ptr<Recording> r):record(std::move(r)){}
+    explicit Transport(std::shared_ptr<Recording> r):record(std::move(r)){++record->opens;}
     bool open(std::uint16_t,std::uint16_t)override{return false;}
     void close()override{opened=false;}
     bool isOpen()const override{return opened;}
@@ -54,6 +58,7 @@ private slots:
  void authenticatedPipe();
  void editorSynchronization();
  void persistedPauseAndReconnect();
+ void offlineEndpointKeepsHealthyOutput();
  void editorRestoresServiceSnapshot();
 };
 void ServiceTest::protocolBounds(){
@@ -153,6 +158,46 @@ void ServiceTest::persistedPauseAndReconnect() {
     }
     ServiceRuntime restored({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QCOMPARE(restored.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Paused"));
+}
+void ServiceTest::offlineEndpointKeepsHealthyOutput() {
+    QTemporaryDir folder;const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    auto first=std::make_shared<Recording>(),second=std::make_shared<Recording>();
+    bool firstAvailable=false,secondAvailable=false;QVector<OutputFrame> requested;
+    const auto output=[&](const QVector<OutputFrame>& frames) {
+        requested=frames;QVector<OutputConnection> result;
+        for(const auto& frame:frames) {
+            const bool isSecond=frame.endpoint=="second-hid-path";
+            if(isSecond?!secondAvailable:!firstAvailable)continue;
+            auto record=isSecond?second:first;auto device=identity();device.path=frame.endpoint;
+            result.append({frame,[record,device,profile] {
+                ModuleRegistry modules;QString error;if(!modules.load(TEST_MODULE_PATH,&error))throw std::runtime_error(error.toStdString());
+                auto session=std::make_unique<OutputSession>();
+                if(!session->connect(modules,device,profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());
+                return session;
+            },[record]{return record->present.load();}});
+        }
+        return result;
+    };
+    ServiceRuntime runtime({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
+    QVERIFY(runtime.command(project(profile,true)).value("ok").toBool());
+    QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());
+    QCOMPARE(first->opens.load(),0);QCOMPARE(second->opens.load(),0);
+    QCOMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Offline"));
+    firstAvailable=true;runtime.command(cmd("scan"));QTRY_VERIFY(first->writes>0);
+    for(int i=0;i<3;++i)QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());
+    QCOMPARE(first->opens.load(),1);QCOMPARE(requested.size(),1);QCOMPARE(requested[0].endpoint,QString("second-hid-path"));
+    QCOMPARE(runtime.status().value("outputs").toArray()[1].toObject().value("state").toString(),QString("Offline"));
+    const int writes=first->writes;QTRY_VERIFY(first->writes>writes);
+    secondAvailable=true;runtime.command(cmd("scan"));QTRY_VERIFY(second->writes>0);
+    QCOMPARE(first->opens.load(),1);QCOMPARE(second->opens.load(),1);
+    auto invalid=project(profile,true);invalid["seconds"]=-1.;
+    QVERIFY(!runtime.command(invalid).value("ok").toBool());
+    QCOMPARE(first->opens.load(),1);QCOMPARE(second->opens.load(),1);
+    // A fault on B must not reinitialize A either; factories use distinct verified identities.
+    second->present=false;QTRY_COMPARE_WITH_TIMEOUT(runtime.status().value("outputs").toArray()[1].toObject().value("state").toString(),QString("Faulted"),2500);
+    second->present=true;runtime.command(cmd("scan"));QTRY_COMPARE(second->opens.load(),2);
+    QTRY_COMPARE(runtime.status().value("outputs").toArray()[1].toObject().value("state").toString(),QString("Running"));
+    QCOMPARE(first->opens.load(),1);
 }
 void ServiceTest::editorSynchronization() {
     const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});

@@ -1,0 +1,188 @@
+signalrgb_source,signalrgb_name,usb_id,openrgb_family,status
+Plugins/AMD/AMD_Wraith_Prism.js,AMD Wraith Prism,2516:0051,AMDWraithPrismController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Anne/Anne_Pro_2_a297_Keyboard.js,Anne Pro 2,3311:A297,AnnePro2Controller,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/AsRock/Asrock_Motherboard_Controller.js,Asrock Motherboard,26CE:01A2,ASRockPolychromeUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Asus/ASUS_ROG_Strix_LC.js,ASUS ROG Strix LC,0B05:879E,AsusAuraUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Asus/ASUS_TUF_K1.js,Asus TUF K1,0B05:1945,AsusAuraUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Asus/Asus_Aura_Terminal_Controller.js,Asus Aura Terminal,0B05:1889,AsusAuraUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Asus/Asus_ROG_Balteus.js,Asus ROG Balteus,0B05:1891,AsusAuraUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Asus/Asus_ROG_Balteus_Qi.js,Asus ROG Balteus Qi,0B05:1890,AsusAuraUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_CK530_V2_Keyboard.js,CoolerMaster CK530 V2,2516:0147,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_CK550_V2_Keyboard.js,CoolerMaster CK550 V2,2516:0145,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_CK552_V2_Keyboard.js,CoolerMaster CK552 V2,2516:007F,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_MK730_Keyboard.js,CoolerMaster MK730,2516:008F,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_MM711_Mouse.js,Cooler Master MM711 Gaming Mouse,2516:0101,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_MP750L_Mat.js,Cooler Master MP750L Mouse Pad,2516:0107,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_MP750M_Mat.js,Cooler Master MP750m Mouse Pad,2516:0105,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_MP750XL_Mat.js,Cooler Master MP750XL Mouse Pad,2516:0109,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_Mk750_Keyboard.js,CoolerMaster MK750,2516:0067,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_Mk850_Keyboard.js,CoolerMaster MK850,2516:0069,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/CoolerMaster_SK652_Keyboard.js,CoolerMaster SK652,2516:015D,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/Cooler_Master_A-RGB_LED_Small_Controller.js,Cooler Master A-RGB LED Small Controller,2516:1000,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/Cooler_Master_ARGB_Controller.js,Cooler Master ARGB Controller,2516:1011,CoolerMasterController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/CoolerMaster/Intel_Arc770_GPU.js,Intel Arc 770,2516:01B5,IntelArcA770LEController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Corsair/Legacy_Corsair/Corsair_MM800_RGB_Polaris_MousePad.js,Corsair MM800 RGB Polaris,1B1C:1B3B,CorsairPeripheralController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Corsair/Legacy_Corsair/Corsair_ST100_Headset_Stand.js,Corsair ST100 HeadSet Stand,1B1C:0A34,CorsairPeripheralController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_LS100_Light_Strips.js,Corsair LS100 Light Strips,1B1C:0C1E,CorsairLightingNodeController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_LT100_Lighting_Tower.js,Corsair LT100 Lighting Tower Controller,1B1C:0C23,CorsairLightingNodeController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_Lighting_Node_Core.js,Corsair Lighting Node Core ,1B1C:0C1A,CorsairLightingNodeController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_Lighting_Node_Pro.js,Corsair Lighting Node Pro,1B1C:0C0B,CorsairLightingNodeController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Corsair/Legacy_Lighting_Controllers/Corsair_Spec_Omega_Case.js,Corsair Spec Omega Case,1B1C:1D04,CorsairLightingNodeController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Corsair/Modern_Corsair/Corsair_Lighting_Commander_Core_XT.js,Corsair Commander Core XT,1B1C:0C2A,CorsairCommanderCoreController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/EVGA/Z-15_Keyboard_0x260e_ISO.js,EVGA Z15 Keyboard,3842:260E,EVGAUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/EVGA/Z-15_Keyboard_ANSI.js,EVGA Z15 Keyboard,3842:2608,EVGAUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/EVGA/Z-20_ISO_Keyboard.js,EVGA Z20 Keyboard,3842:2610,EVGAUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/EVGA/Z-20_Keyboard.js,EVGA Z20 Keyboard,3842:260A,EVGAUSBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Fnatic/Fnatic_STREAK65_Keyboard.js,Fnatic STREAK65,2F0E:0105,FnaticStreakController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Fnatic/Fnatic_STREAK_Keyboard.js,Fnatic STREAK,2F0E:0101,FnaticStreakController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/GigaByte/Aorus_ATC800.js,Gigabyte Aorus ATC800,1044:7A42,GigabyteAorusCPUCoolerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/GigaByte/Gigabyte_AORUS_Waterforce_X_II.js,Gigabyte Aorus Waterforce X II,0414:7A5E,GigabyteCastor3Controller,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/GigaByte/Gigabyte_Motherboard_Controller_0x5711.js,GIGABYTE Motherboard LED Controller,048D:5711,GigabyteRGBFusion2USBController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Glorious/Glorious_Model_D_Wireless_-_Wired_0x2012.js,Glorious Model D Wireless - Wired ,258A:2012,SinowealthController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Glorious/Glorious_Model_D_Wireless_0x2023.js,Glorious Model D Wireless,258A:2023,SinowealthController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Elite.js,HyperX Alloy Elite RGB,0951:16BE,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Elite_2.js,HyperX Elite 2 RGB,0951:1711,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Elite_2_Keyboard_Alt_PID.js,HyperX Elite 2 RGB,03F0:058F,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_FPS_RGB.js,HyperX Alloy FPS RGB,0951:16DC,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Origins.js,HyperX Alloy Origins,0951:16E5,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Origins_0x03f0_0x0591.js,HyperX Alloy Origins,03F0:0591,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Origins_60.js,HyperX Alloy Origins 60,0951:1734,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Origins_60_0c8e.js,HyperX Alloy Origins 60,03F0:0C8E,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Origins_65.js,HyperX Alloy Origins 65,03F0:038F,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Origins_Core.js,HyperX Alloy Origins Core,0951:16E6,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Alloy_Origins_Core_0x03f0_0x098f.js,HyperX Alloy Origins Core,03F0:098F,HyperXKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Duocast.js,HyperX Duocast,03F0:098C,HyperXMicrophoneController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Fury_Ultra.js,HyperX Fury Ultra,0951:1705,HyperXMousematController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_PulseFire_Haste.js,HyperX Pulsefire Haste,0951:1727,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_PulseFire_Haste_0x03f0_0x0f8f.js,HyperX Pulsefire Haste,03F0:0F8F,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Core.js,HyperX PulseFire Core,0951:16DE,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Core_0x03F0.js,HyperX PulseFire Core,03F0:0D8F,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Dart_Wireless-Wireless_Mode_03f0.js,HyperX PulseFire Dart Wireless Mode,03F0:068E,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Dart_Wireless-_Wired_Mode.js,HyperX PulseFire Dart Wired Mode,0951:16E2,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Dart_Wireless-_Wireless_Mode.js,HyperX PulseFire Dart Wireless Mode,0951:16E1,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Mat.js,HyperX PulseFire Mat,03F0:0F8D,HyperXMousematController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Mat_Kingston.js,HyperX PulseFire Mat,0951:1741,HyperXMousematController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Raid.js,HyperX PulseFire Raid,0951:16E4,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Surge.js,HyperX PulseFire Surge,0951:16D3,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Pulsefire_Surge_0x03f0_Mouse.js,HyperX PulseFire Surge,03F0:0490,HyperXMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/HyperX/HyperX_Quadcast_2_S.js,HyperX Quadcast 2 S,03F0:02B5,HyperXMicrophoneV2Controller,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/LG/LG_UltraGear_27GN950.js,LG UltraGear 27GN950,043E:9A8A,LGMonitorController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Lenovo/Lenovo_Legion_7.js,Lenovo Legion 7,048D:C968,LenovoControllers,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Lian Li/LianLi_SL_Infinity.js,Lian Li Uni Fan Controller SL Infinity,0CF2:A102,LianLiController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Lian Li/LianLi_Strimer_Controller.js,LianLi L-Connect 3 Strimer Controller,0CF2:A200,LianLiController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Lian Li/Lian_Li_Uni_Fans_AL_1.1.js,Lian Li Uni Fan Controller AL 1.1,0CF2:A101,LianLiController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Lian Li/Lian_Li_Uni_Fans_AL_V2.js,Lian Li Uni Fan Controller AL V2,0CF2:A104,LianLiController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G213_Keyboard.js,Logitech G213,046D:C336,LogitechController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Logitech/8080 Devices (Legacy)/Logitech_G815_Keyboard.js,Logitech G815 Lightsync,046D:C33F,LogitechController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Logitech/Logitech_G600_Mouse.js,Logitech G600 Mouse,046D:C24A,LogitechController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Logitech/Logitech_X56_HOTAS_Joystick.js,Logitech X56 H.O.T.A.S. Stick,0738:2221,LogitechController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Logitech/Logitech_X56_HOTAS_Throttle.js,Logitech X56 H.O.T.A.S. Throttle,0738:A221,LogitechController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Mountain/Mountain Everest 60.js,Mountain Everest 60 Keyboard,3282:0005,MountainKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Mountain/Mountain Everest Max.js,Mountain Everest Max Keyboard,3282:0001,MountainKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0x1720.js,MSI Mystic Light Controller (162 Byte),1462:1720,MSIMotherboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0x7B17.js,MSI Mystic Light Controller (162 Byte),1462:7B17,MSIMotherboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0x7B18.js,MSI Mystic Light Controller (162 Byte),1462:7B18,MSIMotherboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0x7B85.js,MSI B450 GAMING PRO CARBON AC (162 Byte),1462:7B85,MSIMotherboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Msi/162 Byte Motherboard Controller/MSI_Motherboard_Controller_0xB926.js,MSI Mystic Light Controller (162 Byte),1462:B926,MSIMotherboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Msi/Apache_GS63_Keyboard.js,MSI GS63 Keyboard,1770:FF00,MSI3ZoneController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Msi/MSI_Monitor_Controller.js,MSI Monitor Controller,1462:3FA4,MSIMonitorController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Msi/MSI_Monitor_Controller.js,MSI Monitor Controller,1462:3FA4,MSIOptixController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Nollie/Nollie1.js,Nollie1,16D2:1F11,NollieController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Nollie/Nollie16v3.js,Nollie16v3,3061:4716,NollieController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Nollie/Nollie32.js,Nollie32,3061:4714,NollieController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Nollie/Nollie8 v2.js,Nollie 8 v2,16D2:1F01,NollieController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Nzxt/NZXT_Kraken_Elite_V2_AIO.js,NZXT Kraken Elite v2,1E71:3012,NZXTHue2Controller,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Nzxt/NZXT_Smart_Device_V1_Controller.js,NZXT Smart Device V1,1E71:1714,NZXTHue1Controller,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Nzxt/Peripheral Protocol/NZXT_Lift_Mouse.js,NZXT Lift,1E71:2100,NZXTMouseController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/PrismRGB/PrismRGB_8.js,Prism 8,16D5:1F01,NollieController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Addressable_RGB_Controller.js,Razer Addressable RGB Controller,1532:0F1F,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_BaseStation_Chroma_White.js,Razer Base Station Chroma,1532:0F08,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_BaseStation_V2.js,Razer Base Station V2,1532:0F20,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Blackwidow_2019_Keyboard.js,Razer Blackwidow 2019,1532:0241,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Blackwidow_Chroma_Keyboard.js,Razer Blackwidow Chroma,1532:0203,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Blackwidow_Overwatch_Keyboard.js,Razer Blackwidow Chroma Overwatch,1532:0211,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Blackwidow_T_Chroma_Keyboard.js,Razer Blackwidow T Chroma,1532:0209,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Blackwidow_X_Chroma_Keyboard.js,Razer Blackwidow X Chroma,1532:0216,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Blackwidow_v3_Pro.js,Razer Blackwidow V3 Pro,1532:025A,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Blackwidow_v3_Pro_Wireless_Mode.js,Razer Blackwidow V3 Pro Wireless Mode,1532:025C,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Charging_Pad.js,Razer Charging Pad,1532:0F26,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Chroma_HDK_Lighting_Controller.js,Razer Chroma HDK,1532:0F09,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Chroma_Lighting_Kit.js,Razer Chroma Lighting Kit,1532:0F0E,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Cynosa_Chroma_Keyboard.js,Razer Cynosa Chroma,1532:022A,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Cynosa_Lite_Keyboard.js,Razer Cynosa Lite,1532:023F,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Cynosa_V2_Keyboard.js,Razer Cynosa V2,1532:025E,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_DeathAdder_Essential_Mouse_0x006E.js,Razer Deathadder Essential,1532:006E,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Deathstalker_V2_Pro_TKL_Keyboard.js,Razer Deathstalker V2 Pro TKL Wired,1532:0298,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Deathstalker_V2_Pro_TKL_Keyboard_Wireless.js,Razer Deathstalker V2 Pro TKL Wireless,1532:0296,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Diamondback_Chroma_Mouse.js,Razer Diamondback Chroma,1532:004C,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Goliathus_Chroma_3XL_Mouse_Mat.js,Razer Goliathus Chroma 3XL,1532:0C06,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Goliathus_Chroma_Mouse_Pad.js,Razer Goliathus Chroma,1532:0C01,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Goliathus_Extended_Chroma_Mouse_Pad.js,Razer Goliathus Extended Chroma,1532:0C02,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Hanbo_Cooler.js,Razer Hanbo AIO,1532:0F35,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Huntsman_V2_TKL_Keyboard.js,Razer Huntsman V2 TKL,1532:026B,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Kraken_Kitty_Edition_Headset.js,Razer Kraken Kitty Edition,1532:0F19,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Laptop_Stand_Chroma.js,Razer Laptop Stand Chroma,1532:0F0D,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Laptop_Stand_Chroma_V2.js,Razer Laptop Stand Chroma V2,1532:0F2B,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_LianLi_Case.js,Razer Lian Li Case,1532:0F13,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Mouse_Bungee_V3.js,Razer Mouse Bungee V3,1532:0F1D,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Mouse_Dock.js,Razer Mouse Dock,1532:007E,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Mouse_Dock_Pro.js,Razer Mouse Dock Pro,1532:00A4,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Naga_Hex_V2_Mouse.js,Razer Naga Hex V2,1532:0050,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Orbweaver_Chroma_Keypad--Broken.js,Razer Orbweaver Chroma,1532:0207,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Ornata_Chroma_Keyboard.js,Razer Ornata Chroma,1532:021E,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Ornata_V3_TKL_Keyboard.js,Razer Ornata V3 TKL,1532:02A3,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Tartarus_Pro_Keypad.js,Razer Tartarus Pro,1532:0244,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Tartarus_V2_Keypad.js,Razer Tartarus V2,1532:022B,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Razer/Razer_Thuderbolt_Dock.js,Razer Thunderbolt Dock,1532:0F21,RazerController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_AIMO_Mousepad.js,Roccat AIMO Pad,1E7D:343A,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_AIMO_Wide_Mousepad.js,Roccat AIMO Pad Wide,1E7D:343B,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Burst_Core_Mouse.js,Roccat Burst Core,1E7D:2DE6,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Burst_Pro_Air_Mouse_Wireless.js,Roccat Burst Pro Air,1E7D:2CA6,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Burst_Pro_Mouse.js,Roccat Burst Pro,1E7D:2DE1,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Elo_7.1 USB_Headset.js,Roccat Elo 7.1 USB,1E7D:3A34,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Kone_Mouse.js,Roccat Kone,1E7D:2E27,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Kone_Pro_Air_Mouse.js,Roccat Kone Pro Air,1E7D:2C8E,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Kone_Pro_Air_Mouse_Wired_Mode.js,Roccat Kone Pro Air Wired Mode,1E7D:2C92,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Kone_Pro_Mouse.js,Roccat Kone Pro,1E7D:2C88,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Kone_Remastered_Mouse.js,Roccat Kone Remastered,1E7D:2E2C,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Kone_XP_Mouse.js,Roccat Kone XP,1E7D:2C8B,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Magma_Keyboard.js,Roccat Magma,1E7D:3124,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Pyro_Keyboard.js,Roccat Pyro,1E7D:314C,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Vulcan_100_Keyboard.js,Roccat Vulcan 100,1E7D:307A,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Vulcan_120_Keyboard.js,Roccat Vulcan 120,1E7D:3098,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Vulcan_II_Keyboard.js,Roccat Vulcan II,1E7D:2F4E,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Vulcan_II_Max_Keyboard.js,Roccat Vulcan II MAX,1E7D:2EE2,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Vulcan_II_Mini_Keyboard.js,Roccat Vulcan II Mini,1E7D:2F09,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Vulcan_Pro_Keyboard.js,Roccat Vulcan Pro,1E7D:30F7,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Vulcan_Pro_TKL_Keyboard.js,Roccat Vulcan Pro TKL,1E7D:311A,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Roccat/Roccat_Vulcan_TKL_Keyboard.js,Roccat Vulcan TKL,1E7D:2FEE,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Sony/Sony_Dual_Sense_Controller.js,Sony Dualsense Controller,054C:0CE6,SonyGamepadController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_3_Keyboard.js,SteelSeries Apex 3,1038:161A,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_3_TKL_Keyboard.js,SteelSeries Apex 3 TKL,1038:1622,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_5_Keyboard.js,SteelSeries Apex 5,1038:161C,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_7_Keyboard.js,SteelSeries Apex 7,1038:1612,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_7_TKL_Keyboard.js,SteelSeries Apex 7 TKL,1038:1618,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_9_Mini_Keyboard.js,SteelSeries Apex 9 Mini,1038:1620,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_9_TKL_Keyboard.js,SteelSeries Apex 9 TKL,1038:1634,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_M750_Keyboard.js,SteelSeries Apex M750 RGB,1038:0616,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_Pro_Keyboard.js,SteelSeries Apex Pro,1038:1610,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_Pro_TKL_2023_Keyboard.js,SteelSeries Apex Pro TKL 2023,1038:1628,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Apex_Pro_TKL_Keyboard.js,SteelSeries Apex Pro TKL,1038:1614,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Arctis_5_Headset.js,SteelSeries Arctis 5,1038:1250,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Arctis_5_Headset_Alt_PID.js,SteelSeries Arctis 5,1038:12AA,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Rival_110.js,SteelSeries Rival 110,1038:1729,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Rival_3_Mouse.js,SteelSeries Rival 3,1038:184C,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Rival_3_Mouse_Alt_PID.js,SteelSeries Rival 3,1038:1824,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Rival_3_Mouse_Wireless.js,SteelSeries Rival 3 Wireless,1038:1830,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Rival_5_Mouse.js,SteelSeries Rival 5,1038:183C,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Rival_600_Mouse.js,SteelSeries Rival 600,1038:1724,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Rival_700_Mouse.js,SteelSeries Rival 700,1038:1700,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Rival_710_Mouse.js,SteelSeries Rival 710,1038:1730,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Sensi_310_Mouse.js,SteelSeries Sensi 310,1038:1722,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Steelseries/Steelseries_Sensi_Ten_Mouse.js,SteelSeries Sensi Ten,1038:1832,SteelSeriesController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Thermal Take/ThermalTake_LEDBOX_0x213Cf.js,ThermalTake LedBox,264A:213C,ThermaltakeRiingController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Turtle Beach/Turtle_Beach_Vulcan_II_Keyboard.js,Turtle Beach Vulcan II,10F5:501B,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Turtle Beach/Turtle_Beach_Vulcan_TKL_Keyboard.js,Turtle Beach Vulcan TKL,10F5:5023,RoccatController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Wooting/Wooting_One_Keyboard.js,Wooting One Keyboard,03EB:FF01,WootingKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/XPG/XPG_Summoner_Keyboard.js,XPG Summoner,125F:9418,XPGSummonerKeyboardController,USB pair only; exact model/interface/firmware and protocol comparison pending
+Plugins/Zalman/Zalman_ZSYNC.js,Zalman ZSYNC,1C57:7ED0,ZalmanZSyncController,USB pair only; exact model/interface/firmware and protocol comparison pending

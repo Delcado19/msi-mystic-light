@@ -14,6 +14,7 @@ $destination = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Lightin
 $state = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'LightingStudio'
 $required = @('msi_mystic_light.exe','lighting_service_host.exe','Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll','Qt6Svg.dll','Qt6Network.dll','hidapi.dll',
     'modules/msi_gen1_module.dll','modules/peripherals_module.dll','modules/auxiliary_module.dll',
+    'modules/asrock_polychrome_module.dll','modules/lenovo_motherboard_module.dll','modules/hp_omen_module.dll',
     'third_party/pawnio/SmbusPIIX4.bin','third_party/pawnio/source-0.2.11.zip','LICENSE','THIRD_PARTY_NOTICES.md','PORTABLE_README.txt')
 foreach ($relative in $required) { if (!(Test-Path -LiteralPath (Join-Path $Source $relative) -PathType Leaf)) { throw "Missing runtime input: $relative" } }
 foreach ($folder in @('profiles','components','platforms','imageformats','third_party/licenses')) { if (!(Test-Path -LiteralPath (Join-Path $Source $folder) -PathType Container)) { throw "Missing runtime folder: $folder" } }
@@ -93,7 +94,7 @@ foreach ($root in @($destination,$state)) {
     }
 }
 $hashes = @{}
-foreach ($name in @('msi_gen1_module.dll','peripherals_module.dll','auxiliary_module.dll')) { $hashes[$name] = (Get-FileHash -LiteralPath (Join-Path $destination "modules/$name") -Algorithm SHA256).Hash.ToLowerInvariant() }
+foreach ($name in @('msi_gen1_module.dll','peripherals_module.dll','auxiliary_module.dll','asrock_polychrome_module.dll','lenovo_motherboard_module.dll','hp_omen_module.dll')) { $hashes[$name] = (Get-FileHash -LiteralPath (Join-Path $destination "modules/$name") -Algorithm SHA256).Hash.ToLowerInvariant() }
 @{ownerSid=$OwnerSid;modules=$hashes} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $destination 'service.json') -Encoding UTF8
 $exe = Join-Path $destination 'lighting_service_host.exe'
 if (!$existing) { New-Service -Name LightingStudio -DisplayName 'Lighting Studio' -BinaryPathName ('"'+$exe+'" --service') -StartupType Automatic | Out-Null }

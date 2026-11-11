@@ -68,11 +68,11 @@ OutputConnection connection(OutputFrame frame,std::shared_ptr<Record> record,std
         return session;
     },std::move(present)};
 }
-bool state(OutputPanel& panel,const QString& expected)
+bool state(OutputPanel& panel,const QString& expected,const QString& endpoint=identity().path)
 {
     const auto* tree=panel.findChild<QTreeWidget*>("outputEndpoints");
     for(int i=0;i<tree->topLevelItemCount();++i)
-        if(tree->topLevelItem(i)->data(0,Qt::UserRole).toString()==identity().path) return tree->topLevelItem(i)->text(2)==expected;
+        if(tree->topLevelItem(i)->data(0,Qt::UserRole).toString()==endpoint) return tree->topLevelItem(i)->text(2)==expected;
     return false;
 }
 }
@@ -92,6 +92,8 @@ private slots:
     void headerControls();
     void auxiliaryInventory();
     void independentConnections();
+    void automaticMixedRecovery();
+    void delayedDiscoveryStartsMissingOutput();
     void scopeGuard();
     void pausedGradientPlayback();
     void automaticOutput();
@@ -267,6 +269,73 @@ void OutputUiTest::independentConnections()
     QTRY_VERIFY(secondRecord->writes()>before);
     QCOMPARE(panel.findChild<QTreeWidget*>("outputEndpoints")->topLevelItem(1)->text(2),QString("Running"));
     panel.stopOutput(); window.document().history()->setClean();
+}
+
+void OutputUiTest::automaticMixedRecovery() try {
+    LightingWindow window({},[] { return QVector<ProfileCandidate>{}; },nullptr,{profile()}); configure(window.document());
+    auto peer=window.document().state().assignments[0]; peer.id=QUuid::createUuid(); peer.endpoint="healthy-peer";
+    peer.placements={window.document().addComponent("test")}; window.document().assignChannel(peer);
+    auto unavailable=peer;unavailable.id=QUuid::createUuid();unavailable.endpoint="never-authorized";unavailable.placements={window.document().addComponent("test")};window.document().assignChannel(unavailable);
+    window.findChild<QPushButton*>("playPreview")->setChecked(false); QCoreApplication::processEvents();
+    auto ram=std::make_shared<Record>(), healthy=std::make_shared<Record>();
+    auto present=std::make_shared<std::atomic_bool>(true); QMap<QString,int> authorizations;
+    const auto closes=[](const std::shared_ptr<Record>& record) { const std::lock_guard<std::mutex> lock(record->mutex);return record->closes; };
+    OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
+        QVector<OutputConnection> result;
+        for(const auto& frame:frames) {
+            ++authorizations[frame.endpoint];
+            if(frame.endpoint==unavailable.endpoint)continue;
+            result.append(frame.endpoint==identity().path ? connection(frame,ram,[present]{return present->load();}) : connection(frame,healthy));
+        }
+        return result;
+    });
+    auto* retry=panel.findChild<QTimer*>();QVERIFY(retry);QCOMPARE(retry->interval(),2000);
+    panel.enableAutomaticOutput();QTRY_VERIFY(state(panel,"Running"));QTRY_VERIFY(state(panel,"Running",peer.endpoint));
+    present->store(false);QTRY_VERIFY(state(panel,"Faulted"));
+    QCOMPARE(authorizations.value(identity().path),1);QVERIFY(state(panel,"Running",peer.endpoint));
+    present->store(true);QTRY_VERIFY_WITH_TIMEOUT(state(panel,"Running"),4000);
+    QCOMPARE(authorizations.value(identity().path),2);QCOMPARE(authorizations.value(peer.endpoint),1);QCOMPARE(closes(healthy),0);
+    QCOMPARE(authorizations.value(unavailable.endpoint),1); // Recovery does not broaden to a saved endpoint that never connected.
+    const int before=healthy->writes();window.findChild<QDoubleSpinBox*>("previewTime")->setValue(1);QTRY_VERIFY(healthy->writes()>before);
+
+    auto* endpoints=panel.findChild<QTreeWidget*>("outputEndpoints");
+    for(int i=0;i<endpoints->topLevelItemCount();++i)if(endpoints->topLevelItem(i)->data(0,Qt::UserRole).toString()==identity().path)endpoints->setCurrentItem(endpoints->topLevelItem(i));
+    panel.findChild<QPushButton*>("stopOutput")->click();QVERIFY(state(panel,"Stopped"));
+    present->store(false);QTRY_VERIFY(closes(ram)>=2);present->store(true);
+    // A later hardware fault must not turn an explicit channel pause into a background resume.
+    QTest::qWait(retry->interval()+100);QCOMPARE(authorizations.value(identity().path),2);QVERIFY(state(panel,"Stopped"));
+    QVERIFY(state(panel,"Running",peer.endpoint));QCOMPARE(closes(healthy),0);
+    panel.findChild<QPushButton*>("startOutput")->click();QTRY_VERIFY(state(panel,"Running"));QCOMPARE(authorizations.value(identity().path),3);
+    panel.stopOutput();QVERIFY(!retry->isActive());window.document().history()->setClean();
+} catch(const std::exception& error) { QFAIL(error.what()); }
+
+void OutputUiTest::delayedDiscoveryStartsMissingOutput()
+{
+    bool discovered=false;
+    LightingWindow window({},[&] { discovered=true;return QVector<ProfileCandidate>{}; },nullptr,{profile()},false);
+    configure(window.document());
+    auto peer=window.document().state().assignments[0];peer.id=QUuid::createUuid();peer.endpoint="healthy-peer";
+    peer.placements={window.document().addComponent("test")};window.document().assignChannel(peer);
+    auto delayed=std::make_shared<Record>(),healthy=std::make_shared<Record>();
+    QMap<QString,int> authorizations;
+    OutputPanel panel(window,[&](QWidget*,const QVector<OutputFrame>& frames) {
+        QVector<OutputConnection> result;
+        for(const auto& frame:frames) {
+            ++authorizations[frame.endpoint];
+            if(frame.endpoint==identity().path && !discovered)continue;
+            result.append(connection(frame,frame.endpoint==identity().path ? delayed : healthy));
+        }
+        return result;
+    });
+    panel.enableAutomaticOutput();QTRY_VERIFY(state(panel,"Running",peer.endpoint));QVERIFY(state(panel,"Stopped"));
+    // Startup probes finish after automatic output has already connected a healthy HID peer.
+    window.findChild<QPushButton*>("refreshHeaders")->click();
+    QTRY_VERIFY(state(panel,"Running"));QCOMPARE(authorizations.value(peer.endpoint),1);
+    QCOMPARE(authorizations.value(identity().path),2);
+    panel.stopOutput();const auto before=authorizations;
+    window.findChild<QPushButton*>("refreshHeaders")->click();QCoreApplication::processEvents();
+    QCOMPARE(authorizations,before); // Explicit Stop also suppresses discovery-triggered starts.
+    window.document().history()->setClean();
 }
 
 void OutputUiTest::applicationDevicePage()

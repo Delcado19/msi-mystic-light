@@ -1,3 +1,704 @@
+## Reliability and layer-design work (2026-11-11; current)
+
+Current work record: docs/COLLABORATION_FIXES.md. Layer proposal:
+docs/LAYER_MODEL_PLAN.md (plan only; no layer-schema/creation-rule change).
+Codex and Claude reviewed bounded individual decisions. Healthy service output
+workers now survive offline endpoints; recovery scheduling is bounded during
+continuous edits; the complete header image is fitted without crop/fade.
+The portable startup dialog has a separate fixed-name SignalRGB administrator
+stop action using the actual SCM installation path and system sc.exe. It does
+not disable tasks/startup, force-kill the service or elevate the editor.
+Full Release build passes. The full CTest run passed 21/22 gates; the startup
+test double had an invalid pending-plus-error combination. After correcting the
+fake, that gate passes too (47.66s). All 22 gates therefore have passing results;
+there was no second full-suite run. Full editor gate: 77.84s. Native header and
+three startup-state checks: 8 QtTest results, zero skips. Header also passes at
+150%/200% scaling. The complete logo is visible in the inspected native screenshot
+docs/images/reliability-header.png. Graphify AST updated with existing-style parser
+and stale-label warnings; no LLM relabeling was run.
+Local package: build/dist/LightingStudio-ReliabilityFix/msi_mystic_light.exe (GS-06-R1).
+Archive: build/dist/LightingStudio-ReliabilityFix-windows-x64.zip.
+ZIP SHA256: f5b0a2cbb4d3ed16f8ad5791636f294aa8f03b9412c051f0c25460abe15d4b73.
+Archive CRC, extracted editor/host equality and SDK-free packaged --inspect pass.
+No installed service/editor was updated. Source commit/push does not change that
+installation state or qualify the untested real UAC/hardware behavior.
+No live RGB output or real SignalRGB stop has been performed in this work.
+
+## Hardware migration inventory created (2026-10-30)
+
+See docs/hardware-inventory/README.md and FAMILIES.md. The pinned Git-object
+inventory contains 198 OpenRGB controller directories (188 without coverage,
+nine partial source-family overlaps, one excluded DebugController), 2183 detector
+registrations / 1975 model labels, 440 SignalRGB JS files and 218 components.
+186 JS files have candidate USB-pair overlaps; 154 have unresolved identity/name
+exports. These counts do not establish unique device models or future DLL count.
+Priorities: active Roccat/Razer/SteelSeries first; motherboard HID and owner AGON
+next; broader transports later. Metadata index includes 489 SteelSeries descriptor
+files, three Roccat module candidates and one Razer/G-Menu ASAR each.
+
+The SignalRGB clone was sparse and missing promisor objects; fetched the pinned
+9511979fa21a0a00a35a236d0aac8c438179094f objects before complete extraction.
+HP Omen 30L still has no match in that full pinned public plugin tree. Do not
+interpret working-tree file absence as absence from a source snapshot.
+Manufacturer catalogs/capabilities remain undecoded. REA reported Razer unpacked
+companion integrity disagreement and an initial G-Menu timeout. Follow-up analyses
+produced no usable result before caller termination; no capability claims follow.
+No application, device, audio setting or driver installation was changed.
+
+Reproduce reference JSON/CSV: python scripts/inventory_hardware.py.
+Validation: all 13 docs/tooling tests pass, including five inventory parser/data
+consistency cases; git diff --check passes. Graphify refreshed with existing
+parser/label-staleness warnings. No product code or shipped binaries changed.
+Inventory tests: python -m unittest discover -s tests/docs -p test_hardware_inventory.py.
+
+## Independent driver migration started (2026-10-30)
+
+Owner authorized migration after the discussion-only strategy. First increment:
+HP Omen 30L, independent hp.omen30l API-2 output-report module, separate profile,
+seven single-color zones, Canvas output and seven native modes. Reference and
+SignalRGB snapshot search are pinned in docs/HP_OMEN_MIGRATION.md. No matching
+SignalRGB implementation was found in the available snapshot; this is not a
+claim about all releases. Hardware is explicitly unverified in the profile name.
+Existing hardware profiles and project schema remain unchanged. No hardware I/O.
+
+Installer/module delivery correction: align the six-module portable catalog,
+installer copy/hash lists and protected service allowlist. Installer is validated
+with WhatIf only; no installed service was changed. Existing installed trees need
+the matching host/modules/installer update together.
+
+Validation: Release 21/21 non-editor gates plus editor 1/1 (64.85 seconds),
+Debug HP module 1/1, package/inventory tests 5/5. Archive CRC, extracted bytes,
+Release editor/host/module equality, SDK-free --inspect and authenticated simulated
+host smoke pass. Physical HP output and Linux compilation remain unverified.
+Local archive: build/dist/LightingStudio-HardwareMigration01-windows-x64.zip
+SHA256: b52a04fa1f7dc925ca06b9fa7595c8445c560a9e2787faa35d8b135fc1ef7575
+Portable folder: build/dist/LightingStudio-HardwareMigration01
+Start-Lighting.cmd remains on the previously selected startup hotfix; this new
+migration package is explicit and does not silently replace an installed editor.
+
+## Hardware strategy recorded (2026-10-30; discussion only)
+
+The owner selected independent hardware modules using OpenRGB and SignalRGB as
+reference sources, without requiring either application at runtime. For an exact
+model supported by both, inspect both implementations and document differences.
+Research also covers installed Roccat/Razer/SteelSeries software for additional
+models and the full settings surface, beyond RGB. See
+docs/HARDWARE_SUPPORT_STRATEGY.md for scope, evidence and qualification rules.
+Additional owner-reported source: AGON monitor utility G-Menu at C:\G-Menu,
+including its limited LED presets and other exposed monitor settings. Exact model,
+transport and capabilities remain to be investigated.
+Exact Roccat Swarm, Razer App Engine/Synapse and SteelSeries GG entry points and
+arguments are now recorded in HARDWARE_SUPPORT_STRATEGY.md. The owner also wants
+THX Spatial Audio to work; investigate the installed audio path and integration
+options separately from hardware lighting modules before promising support.
+This supersedes treating an OpenRGB SDK server as the default Linux strategy.
+No new implementation, vendor analysis or hardware access was started by this
+documentation decision.
+
+## GS-06 startup hotfix (2026-10-30; supersedes previous readiness claim)
+
+The owner reported no GUI. Windows recorded c0000005 in Qt6Widgets.dll during
+initial toolbar layout. The owner's sanitized geometry/state fixture reproduced
+the startup failure without loading a project or discovering/writing hardware.
+Deferred toolbar moves avoided the crash but left the artwork unmanaged; those
+attempts were discarded. AppSession now writes/restores window-state version 5,
+rejecting older dock/toolbar layouts once. Geometry, explicit panel visibility and
+project/recovery data remain independently restored. No personal settings or
+project files were edited. Current version-5 arrangements persist normally.
+
+Tests cover the recorded startup, first run and old toolbar state. The recorded
+case asserts visible full-width artwork after exposure, not merely process survival.
+The package whitelist also includes ASRock/Lenovo modules required by the current
+profile catalog; missing modules caused the initial archive --inspect smoke to fail.
+Corrected delivery: build/dist/LightingStudio-IceRefined-StartupFix/msi_mystic_light.exe
+Archive: build/dist/LightingStudio-IceRefined-StartupFix-windows-x64.zip
+Final hotfix validation:
+- Recorded-state, first-run and legacy-toolbar startup: 5/5 native, zero skips.
+- Full native editor: 147/147, zero skips, 67.951 seconds; screenshot reviewed.
+- Release CTest: 21/21, 106.57 seconds; Debug: 21/21, 312.89 seconds.
+- Package tests: 4/4. ZIP CRC, extracted bytes and tested editor/host equality pass.
+- Packaged --inspect and owner-authenticated simulation host pass without Qt SDK.
+- Direct packaged GUI launch reaches Restore failed with deliberately empty device
+  profiles. Automated acknowledgement did not dismiss that modal; full main-window
+  exposure in that exact executable smoke remains unverified. The sanitized native
+  AppSession test does expose and capture the corrected window. No hardware writes.
+- The original crashed PID 15156 was absent outside the sandbox. Its stale lock was
+  moved into build/crashed-15156.application.lock; personal project/settings untouched.
+- Graphify AST refresh completed with existing parser/label-staleness warnings.
+ZIP SHA256: 42cb13e78fc67fc4b6a4cfd21f1a4bc541bd27d9c47d305d5a5e2146bc0e3a09
+msi_mystic_light.exe SHA256: 07c3db614f758dbd0cfcfa3a82043cc25a2f6c27b6c24a307a0bd959035c3d50
+lighting_service_host.exe SHA256: 07fd309706826a9e869a9c1ccd6ea1d3faca8cb7f2766ab5a3880cba4455f59a
+
+## GS-06 Ice refinement completed and packaged (2026-10-29)
+
+The owner requested completion after the cleanup/compact interruption. GS-06 is
+now locally qualified and packaged, including the larger faded artwork, continuous
+effect/mask gesture preview, one Layers row marker, Plasma/Kaleidoscope spatial
+controls, independent DNA Wave width, wider Visor band and authorized natural
+Lightning/Fireworks renderer refinement. The previous RAM startup fix is retained.
+No remaining work is required for this authorized refinement/package scope.
+
+Final gate results:
+- Release CTest: 19/19, 98.78 seconds; offscreen editor body 64.31 seconds.
+- Debug CTest: 19/19, 298.06 seconds; offscreen editor body 256.54 seconds.
+- Full native Windows editor: 145/145, zero skips, 62.998 seconds.
+- Native scaling 1.5x and 2x: 6/6 each, including live drag and legacy layout.
+- Final settled native captures: 7/7, with wide/compact, new spatial controls,
+  About, restored legacy toolbar geometry and matched natural-effect renders.
+- Archive CRC, every extracted byte, editor/host equality with tested Release,
+  personal-project exclusion, SDK-free --inspect and authenticated simulation-host
+  smoke passed. git diff --check passed. No physical hardware output was written.
+
+Completion found and corrected one real compatibility issue: restoring a pre-banner
+Qt window state could place the unknown artwork toolbar beside existing controls.
+restoreWorkspacePanelPreferences now repositions artwork onto its own full-width
+row while retaining other saved dock preferences. legacyArtworkToolbarRestore
+reproduced the failure before the fix and passes native/offscreen/scaling checks.
+The offscreen drag fixture now fits the camera and asserts a real gesture starts,
+avoiding transparent particle centers or navigation interactions as false proof.
+
+The expanded editor suite genuinely exceeded its prior 60-second Release and
+240-second Debug limits. Bounded timeouts are now 120/360 seconds, respectively;
+complete runs pass within them. Initial timed-out runs are not counted as passes.
+Existing offscreen font/plugin warnings and the non-failing invalid-image libpng
+diagnostic remain visible in logs; native screenshots use real Windows fonts.
+
+Ready editor:
+  build/dist/LightingStudio-IceRefined/msi_mystic_light.exe
+Ready archive:
+  build/dist/LightingStudio-IceRefined-windows-x64.zip
+ZIP SHA256: e54fcd35ea2132deeaf7c5bcb5c067f40ec8d72307a0ef88ed876b11abe28ad7
+Editor SHA256: 2188698804c1d332fea0532b5cac35fae29828d0bef04218b3579f33dfa325d8
+Host SHA256: 8a50971e9135a45c1430f07c0e5c3497f6a544732cd8e728e0472b25fed10e11
+
+Start-Lighting.cmd prefers an installed service editor, then the qualified GS-06
+folder, retaining GS-05 as fallback. Use the explicit GS-06 path if an older
+installed editor wins. Editor and host must be updated together for schema 22;
+this finish did not install/update any service. Older project files retain neutral
+spatial defaults; no personal project was rewritten. Keep older file copies for
+older application versions, which cannot read newly saved schema-22 files.
+
+Evidence: build/refinement-full-native.log;
+build/{next,multi}/Testing/Temporary/LastTest.log;
+build/refinement-scale-{1.5,2}.log; build/refinement-final-captures.log;
+build/refinement-legacy.log. New native images were inspected and promoted into
+docs/images, including natural-effects-before/after.png. Design/research notes,
+README, portable notes and code comments are synchronized. Graphify AST refreshed
+with its existing partial-parser limitations; no paid semantic labeling was run.
+
+No commit, push, service installation, user-process termination or physical device
+write. Real lighting output, screen-reader runtime and Windows contrast themes
+remain unqualified. Earlier unreproduced Rotation disappearance and the separate
+split-region/unified-selection workflow remain outside this completed refinement.
+
+## Historical handoff before requested build cleanup / compact (superseded, 2026-10-29)
+
+Owner requested build-folder cleanup, then context compact, while GS-06 refinement
+was in progress. Preserve all local uncommitted work; do not restart from master.
+Latest fully qualified portable is GS-05 at build/dist/LightingStudio-Ice; GS-06
+exists in build/next/Release but is NOT finally qualified or packaged yet.
+
+Authorized scope already implemented locally:
+- Larger artwork toolbar (180 DIP desktop / 100 DIP compact or short windows),
+  native lower alpha fade, plain navigation underneath, full image still in About.
+- One selection marker per Layers row instead of repeated cyan Source/Mask seams.
+- Removed the shared automatic pause for effect/mask gestures. Canvas pointer math
+  captures gestureSeconds_ while live preview advances; explicit Stop remains.
+- Schema 22 adds patternFrequency, patternContrast, patternWarp, patternWavelength
+  with neutral old-file defaults. Plasma/Kaleidoscope expose the first three;
+  DNA exposes horizontal Wave width independently of amplitude (now up to 45%);
+  Visor Band width now reaches 50%. Existing bounds/validation remain intact.
+- Owner explicitly authorized Lightning/Fireworks renderer changes after research.
+  Lightning: bounded 36-segment growing channels, primary/secondary branches,
+  bright core/halo and two return-stroke envelopes. Fireworks: spherical projection,
+  drag/gravity, ten tapered trail samples, heads/halos, coherent burst color.
+  New Fireworks defaults to 320 particles; UI maximum 400; saved counts unchanged.
+- New artwork reduced visible inspector height: primary particle fields were moved
+  above palette details, and switching Source/Motion/Mask returns scroll to top.
+
+Evidence and current gates:
+- build/effect-reference-before.log passed 3/3. Original matching render sheet is
+  build/research/effect-references/app-before.png.
+- build/verify-refinement.cmd passed 8/8 after the continuous-drag fixture used
+  actual particle corner grips (transparent particle centers are not painted hits).
+  This covers continuous preview on Ripples plus seven other effects, explicit
+  Stop/cancel, new controls, save/load, old schema defaults, visuals and patterns.
+- First full native run (build/refinement-full-native.log) failed five cases:
+  three obsolete eraser-pause expectations, old Fireworks default 120, and primary
+  particle controls below the visible area. All were addressed; the actual UI
+  fix moves particle fields above the palette rather than weakening visibility.
+- Latest build/refinement-affected.cmd passed 9/9, including every affected eraser
+  row, extended effects/reset and advancedControls. Latest product build is this
+  corrected build. git diff --check passed before this handoff.
+- Full Debug run was deliberately interrupted because it used the pre-correction
+  test binary. It is NOT a passing current Debug gate. No user process was killed.
+- Required next: run build/verify-refinement-full.cmd (full native, then Release
+  CTest); run build/verify-refinement-debug.cmd (Debug build + CTest). Inspect and
+  resolve actual failures; old expectations may need contract updates only when
+  justified. Do not bypass behavior checks or claim final success before gates.
+- Still needed: final 1.5x/2x native checks; verify the new artwork remains its own
+  row after restoring legacy saved toolbar state; inspect wide/compact UI again.
+  Source screenshots taken immediately after dynamic control changes looked
+  compressed, but allowing the Qt layout event cycle produced correct scrollable
+  controls. Final captures must follow settled layout.
+
+Research already completed:
+- Inspected NWS/Marcelo Saba 4000-fps sequence (public GIF 285x255), publisher
+  branching figure 675x921, David Russell Lightning photo 6000x3081 (20 s exposure,
+  CC0), and Berit fireworks 4320x3240 (2 s, CC BY 2.0). Actual downloads and sampled
+  GIF frames stay under build/research/effect-references.
+- docs/EFFECT_VISUAL_REVIEW.md has sources, comparison and honesty boundaries.
+  Its images/natural-effects-before.png and -after.png still need promotion from
+  the matching native sheets after final renderer checks. Research photographs
+  are NOT application assets and must not be bundled without attribution.
+- Native screenshots already inspected: refined-banner.png, refined-plasma.png,
+  refined-kaleidoscope.png, refined-dna.png and lightning-fireworks-reference.png
+  under build/next/editor-artifacts/windows. Promote final reviewed captures only.
+
+Remaining finish work after tests:
+- Update docs/design/README.md and docs/EDITOR_UX_REVIEW.md to current GS-06;
+  current README, LIGHTING_EDITOR, PORTABLE_README and asset provenance already
+  have GS-06 text. Recheck it against final behavior; do not preserve stale claims.
+- Update Start-Lighting.cmd only after preparing a separately named qualified
+  GS-06 package, e.g. LightingStudio-IceRefined. README already names that intended
+  path, so it must be made real before completion or corrected.
+- Package editor AND host together (schema 22), verify CRC/extracted bytes and
+  binary equality, run the existing SDK-free inspection/simulation-host smoke.
+- Refresh Graphify AST (known partial-parser warnings; no paid semantic labeling).
+- Record final results/hashes here. No commit/push/service install or hardware
+  write authorized. Do not edit default.lighting.json. Earlier Rotation and
+  split-region/unified-selection work remain separate.
+
+Cleanup completed: removed 39 obsolete dist entries, freed 671.5 MiB, zero
+failures. Manifest: build/cleanup-2026-10-29.json. GS-05 ZIP SHA256 still matches
+its checksum file; current Release/Debug binaries, Qt plugin inputs and reference
+research remain present.
+
+Cleanup scope: remove obsolete portable dist folders/archives, retaining GS-05
+Ice, its preceding Stealth-Hotfix, and the original 0.1.0 release archive. Keep
+build/next, build/multi, Qt WebP build inputs, tests/logs/captures/research and
+current helper scripts. Older package paths in historical entries may cease to
+exist intentionally; do not treat those entries as current launch instructions.
+
+## Ice image palette and expanded pattern limits (GS-05, 2026-10-29)
+
+Owner supplied a new ice-mountain/aurora Lighting Studio panorama and explicitly
+requested its colors/image plus larger Ripples limits and a check of other effects.
+The image is copied byte-for-byte into assets/branding/lighting-studio-ice-banner.png
+and embedded in branding.qrc. Header/inline preview use its mountain panorama under
+a navy scrim; About shows the full image. The compact LS identity stays readable.
+Theme roles now use deep navy, ice-white text and cyan focus/selection. Preview
+Play/Stop and hardware status keep semantic colors; effect/output colors are not
+themed. Current build identity is GS-05. No image generation or new dependency.
+
+All creatable native patterns had UI speed caps below the supported renderer range;
+Ripples was limited to 30 cycles/min and 8 repetitions. The shared UI now exposes
+-600..600 cycles/min (-10..10 internally) and 1..64 repetitions across applicable
+effects. Defaults, zero/reverse behavior, renderer validation and file schema are
+unchanged. Other parameters were reviewed and their bounded practical ranges are
+retained; no new particle/site/grid workload limits were introduced. High pattern
+speed and repetitions are already accepted by current persistence. Regression
+coverage checks every creatable pattern, undo/redo, save/load, actual high-limit
+Ripples rendering and values outside the existing validation bounds.
+
+Design-taste-frontend app direction: data-terminal, seed 1783922600, with existing
+layout/system font and the explicit owner palette retained. docs/design/README.md
+records the native adaptation, critique and contrast. Browser HTML inspection is
+not applicable to Qt widgets; native captures/pixel checks are the evidence. Full
+wide, compact, inline, About and Ripples-control captures were inspected and copied
+to docs/images. No stock imagery or invented data was introduced.
+
+Validation: Release CTest 19/19 (84.87 s), full native editor 141/141 with no skips,
+focused final Release 8/8, targeted Debug chrome/limits 4/4 and full Debug output UI
+16/16. Final 1.5x/2x native chrome/color/workspace checks each passed 5/5. Full
+Debug CTest was not rerun for this change. Capture-only fixture additions were
+rechecked by the final focused Release runs. Logs: build/ice-full-native.log,
+build/ice-focused.log, build/ice-debug-{editor,output}.log,
+build/ice-scale-{1.5,2}.log and build/ice-captures.log. Existing libpng Read Error
+diagnostic remains non-failing; no claim is made about its origin.
+
+Prepared editor: build/dist/LightingStudio-Ice/msi_mystic_light.exe
+Archive: build/dist/LightingStudio-Ice-windows-x64.zip
+ZIP SHA256: 7c679f1c70beabf14ac1ea4d76227e91530301719fab10866565c58515f40cfb
+Editor SHA256: 0767e2dc69ae5fb7eb284f885a9e4971ab7416e1bf56910819939367f284c304
+Host SHA256: 2350c7299382434f1719ef24fbc76360aef3446c3622c8692baeece56f43f6ed
+CRC, extracted bytes, tested-binary equality, user-project exclusion, SDK-free
+inspection and authenticated simulation-host smoke pass. Start-Lighting.cmd
+prefers an installed service editor, then Ice, preserving the earlier hotfix and
+all prior fallbacks. Launch the explicit Ice path if an older installation wins.
+The deferred-RAM-start fix is retained. No service install, physical output write,
+user-project edit, commit or push. Hardware output, screen reader and Windows
+contrast themes remain outside the validation. Separate selection/Rotation work
+listed below remains open.
+
+## Inline header and delayed RAM startup hotfix (2026-10-29)
+
+Owner reported a truncated red header rule in Layers and PawnIO RAM stopped on
+startup even when elevated; manual Resume starts the RAM. Both mechanisms were
+reproduced before editing: stealthStudioChrome failed its inline-rule check and
+delayedDiscoveryStartsMissingOutput failed to reach Running with a healthy peer.
+
+Qt saved layouts can join Preview to History. Preview now uses shared header
+painting only while on the History row, continuing the panorama and red rule;
+its separate-row compact appearance is retained. Native inline and split captures
+were inspected, including the new docs/images/stealth-inline-header.png.
+
+GUI output starts before the queued active RAM scan. Passive authorization skips
+unverified RAM while HID connects. The old hardwareDiscovered handler only
+refreshed labels, and mixed recovery only retried scopes that already connected.
+Completed discovery now starts missing configured endpoints while automatic output
+is enabled. Healthy workers are retained; paused channels and global Stop remain
+respected. No PawnIO protocol, mutex permissions or privilege requirement changed.
+The new test reproduces delayed discovery, checks the peer is not reauthorized,
+and verifies discovery does not resume output after global Stop. Existing mixed
+recovery tests continue to cover per-channel pause and fault retry behavior.
+
+Verification: native Windows editor 140/140; focused header at 1.5x and 2x each
+3/3; Debug header 3/3 and complete Debug output UI suite 16/16, all without skips.
+Logs: build/header-regression-before.log, build/ram-start-before.log,
+build/header-regression-after.log, build/ram-start-after.log,
+build/header-ram-full-native.log, build/header-scale-{1.5,2}.log,
+build/header-ram-debug-{editor,output}.log. Release CTest passed 19/19 in 66.36 seconds; git diff --check passed.
+Graphify AST was refreshed with its existing partial-parser warnings; no semantic
+labeling was run.
+
+Prepared editor: build/dist/LightingStudio-Stealth-Hotfix/msi_mystic_light.exe
+Archive: build/dist/LightingStudio-Stealth-Hotfix-windows-x64.zip
+ZIP SHA256: aa47e2dbe8c8f3fb491d9a5fcc9d5c38e297539c5202ee2f22b90d346b57fd58
+Editor SHA256: 8beeae434e1c22e3bbda9c0ae45682bbcebb14895ee98c3fc764441a1d9dfb92
+Host SHA256: 29d702e0eec17b0143f4b123107f78bc83c95a7725758b7dfe7452c14a4b8712
+CRC, extracted bytes, tested-binary equality, personal-project exclusion,
+SDK-free inspection and isolated simulation-host smoke all pass. Starter prefers
+installed service editor, then this hotfix, retaining previous portable packages.
+No user process was terminated, service installed, personal project changed,
+commit or push made, or real-device output written. Live process inventory via
+CIM was denied; physical RAM auto-start remains for owner validation. The service
+path already reconnects after its scan and was not changed by this GUI fix.
+
+## Stealth redesign completion (GS-04, 2026-10-29)
+
+The owner explicitly selected the latest Stealth implementation over the earlier
+Glacier reference. The interrupted code already contained graphite/red theme roles
+and a focused stealthStudioChrome regression; the old handoff, package and design
+documents still described cyan GS-03. This section supersedes those theme claims.
+
+Completed the local finish: GS-04 build identity in window titles and tests,
+Stealth documentation, inspected native wide/compact and aligned-color captures,
+and a separately named portable package. Retained the shared semantic theme,
+responsive panels, keyboard access, exact numeric values, independent palette/hue
+controls and preview/output separation. Existing comments describe theme/output
+separation and shared panorama coordinates; no new behavior guard was needed.
+Two stale pixel expectations for the scrollbar and canvas header were updated to
+the selected colors. Initial native run had 138 passes and those two failures;
+the corrected native run passed 140/140 without skips. The obsolete local Glacier
+runner also named a removed test; final checks use stealthStudioChrome instead.
+
+Prepared editor: build/dist/LightingStudio-Stealth/msi_mystic_light.exe
+Archive: build/dist/LightingStudio-Stealth-windows-x64.zip
+ZIP SHA256: 4b8f534668c07d0921b7f1c84e7d201e8fb09c271744d7986561ca9ced69bf04
+Editor SHA256: 0f13332f9551d8f7aa6eae1947148534ac88f5a38ec34d82b9ec7d8bd83f60c1
+Host SHA256: d085029d1d983901a411b7cf241aac15c92c20960155776b3c957112d1c7aedc
+Archive CRC, every extracted byte, editor/host equality with the Release build,
+and absence of personal projects were verified. SDK-free packaged --inspect and
+owner-authenticated simulation-host status passed without hardware access.
+Start-Lighting.cmd prefers the installed service editor, then Stealth, retaining
+GamingStudio and older fallbacks. Launch the explicit Stealth path if an older
+installed editor takes precedence. Earlier packages are preserved.
+
+Native evidence: build/gaming-studio-full-native.log (140/140),
+build/stealth-scale-1.5.log and build/stealth-scale-2.log (6/6 each),
+build/stealth-captures.log (4/4). Tests cover chrome pixels, alignment, panel focus,
+compact behavior, rendered-output invariance, geometry and document revision.
+The native suite emitted a libpng Read Error diagnostic but completed without
+failed cases; its precise origin was not investigated in this finish.
+Release CTest passed 19/19 in 66.11 seconds; Debug CTest passed 19/19
+in 180.69 seconds (editor body 142.33 seconds). Full gate logs are
+build/next/Testing/Temporary/LastTest.log and
+build/multi/Testing/Temporary/LastTest.log. git diff --check passed.
+Graphify AST was refreshed; 11 files retain partial-parser warnings and
+semantic community labels remain stale. No paid labeling was run.
+
+No commit, push, service installation, physical hardware write or user-project
+change. The split-region/unified-selection workflow and the unreproduced
+project-specific Rotation disappearance remain separate open work. Screen-reader
+runtime, Windows contrast themes and physical output are not qualified here.
+
+## Editor UX, Pan crash and four sources (2026-10-28)
+
+User reported a crash and rejected the Hand text button and palette snap controls.
+Windows events 1000/1001 recorded portable editor c0000005 in VCRUNTIME140.dll at
+19:57:01. Minidump exists under LocalAppData/CrashDumps; stack was not decoded.
+Independent pre-fix Debug reproduction (build/pan-crash-debug-before.log) confirms
+Pan plus document/property refresh indexed an eight-entry hint list as tool 8.
+The original Release test returned an invalid hint; Debug aborted in QList::at.
+Pan now has an explicit bounded hint, exclusive icon state, hidden drawing fields,
+menu shortcut H, focus-loss Space reset and minimap priority. This is a proven
+mechanism; exact attribution of every possible crash remains outside that evidence.
+
+All snapping is under Align / Snap; the duplicate per-palette control is removed.
+Native UI audit drove source descriptions/key controls first, inline opacity,
+clearer panel menus, smaller strokes, navigator label space, and palette Ctrl-arrow
+editing. A hidden startup screen anchor was also found visually to send sources
+outside the view; startup fits until visible, later mode switches retain the
+captured anchor. See docs/EDITOR_UX_REVIEW.md for before/after evidence and scope.
+
+Aurora, Lava Lamp, Checkerboard, Kaleidoscope append schema-19 IDs with deterministic
+native rendering and contextual controls/categories. Descriptions/reset defaults
+share source metadata. No upstream code/assets or new dependencies. Existing
+projects remain readable; no personal project, service or hardware was changed.
+Final design review also found hidden-panel preferences lost after restoreState.
+AppSession persists window/panels separately from temporary dock visibility;
+LightingWindow restores editing preferences, preserving compact-mode intent.
+Legacy sessions fall back to saved Qt visibility. Native and offscreen restore/
+mode-switch regressions pass. The offscreen test explicitly requests wide mode
+because Qt restoreGeometry otherwise clamps to its tiny virtual monitor.
+The expanded fifteen-source Debug suite takes about three minutes; its timeout
+is now 240 seconds (Release remains 60), avoiding the former 180-second cliff.
+Final native Windows editor passed 136/136 with no skips. Release CTest passed
+all 19 tests across the full run and corrected offscreen wide-mode rerun. The
+expanded Debug editor passed in 187.87 seconds under its 240-second budget; the
+full Debug CTest passed 19/19. A QT_SCALE_FACTOR=1.5 native run passed
+Pan/design/Hue checks (Windows constrained oversized test geometry to its monitor).
+Primary/compact editor, centralized snapping and fifteen-pattern gallery captures
+were inspected and copied into docs/images. Both portable binaries match tested
+Release. SDK-free --inspect and authenticated simulation-host smoke passed without
+hardware access. ZIP SHA256:
+ca0c80b84055fd849c1b14115bec293313c75286e6749df38fbe61043ed87623.
+Original pre-update EXEs, including the crashed portable editor, remain as
+.before-ux-polish backups. No service install, hardware writes, user-project
+changes, process termination, commit or push. Prior uncommitted work is preserved.
+
+## Authoring controls, pan and two patterns (2026-10-28)
+
+Hex editing now preserves modified focused text during preview refresh and commits
+on Return. Regression covers the overwritten-edit trigger. The existing source
+replacement selector lives in a labeled collapsed disclosure. Source menus group
+organic/noise and scenes separately. Color stop snapping is renamed and explained.
+Voronoi speed now -30..30; Radar labels/tooltips explain signed clockwise sweep
+revolutions. Flame detail extends to 16, height to 200; Fireplace fades its source
+footprint to transparency independently of the final palette color.
+Hand (H) supports left-drag camera pan in both contexts; workspace margin pan is
+also available. Smaller drawn grips/gradient guides retain usable hit targets.
+Plasma and Ripples are native deterministic patterns reusing palette/geometry/masks.
+Schema 18 adds source IDs; older source/parameter defaults stay compatible.
+Earlier rotation disappearance remains unresolved without a reproducing project.
+Release CTest passed 19/19; full native Windows editor passed 133/133 with no
+skips. The camera-switch regression initially exposed dock-width relayout drift;
+camera transfer now preserves the captured screen anchor after layout settles.
+Native eleven-pattern gallery and soft Fireplace output were inspected. Portable
+editor/host hashes match Release; SDK-free inspection and simulation-host smoke
+checks passed. Prior EXEs are retained as .before-authoring-controls. ZIP SHA256:
+c79d4b48e6c2aa24b36e31c9812f3dc3f41ead865c7657024943a6a2aba186fc.
+Debug initially hit its existing 120-second timeout after the new cases passed.
+Only the Debug editor timeout was raised to 180 seconds; Release stays at 60.
+The failed editor test reran successfully in 126.92 seconds; all 19 Debug tests
+are now green across the full run and focused rerun. No hardware writes, service
+install or process termination.
+
+## Hue spectrum fix and extended effects (2026-10-28)
+
+Reproduced the user-reported Hue track corruption with a native pixel test: at
+359, a sampled track pixel changed from #caff00 to inherited slider fill #55deff.
+ColorPicker now overrides both sub-page/add-page backgrounds with transparency;
+the full rainbow remains visible and HSV output approaches red (#ff0004 at 359).
+Picker numeric suffixes are removed, matching the requested plain values. Existing
+live apply/cancel/history behavior remains covered.
+
+Added independent native Voronoi, Fireplace, Radar and Fireworks sources. Voronoi
+uses bounded seeded sites with Euclidean/Manhattan/Chebyshev distance. Fireplace
+uses coherent seeded noise with detail and height controls and a warm default
+palette. Radar starts circular with a moving trail, rings and crosshair. Fireworks
+uses four staggered launchers, ballistic sparks, fading and tails through the
+existing particle controls. All evaluate from absolute time; no script runtime,
+new dependency or upstream effect source was imported. Warm Release renders in
+focused tests were approximately 3..13 ms each, not a multi-effect FPS guarantee.
+
+Multizone is an explicit four-region template with ordinary child sources and
+linked quadrant masks. One atomic edit creates all five records; a slot-limit
+failure preserves state/history. Region names describe position independently
+from the selected effect. Source editing, palettes, masks, geometry, save/load and
+undo use the normal editor path. Initial splits are fixed; no dedicated split
+sliders or upstream scene/contact-blip parity is claimed.
+
+Schema 17 adds the five new procedural parameters. Metadata retains minimum
+schema versions, so real schema-16 files without the new keys load with original
+defaults. Source creation and Reset to default share effect-specific rate/count
+metadata. Editor and host must be updated together. The task did not alter any
+personal project or install a service; the earlier Rotation report remains open.
+
+Focused native tests pass for spectrum rendering, RGB output, history, sources,
+metrics/seeds, freeze, save/load, invalid inputs, legacy schemas, zone isolation,
+capacity rejection and per-effect Reset. Full native editor: 132/132, no skips.
+Final Release and Debug CTest each passed 19/19; the Debug editor body took
+113.47 seconds under its existing 120-second limit. Both prepared portable EXEs
+match the tested Release binaries; SDK-free editor inspection and authenticated
+simulation-host smoke checks passed without hardware access. The EditorControls
+ZIP was regenerated; prior EXEs remain as .before-extended-effects backups.
+No service was installed and no process was terminated.
+
+## Pattern authoring and practical ranges follow-up (2026-10-28)
+
+User reported typed-only repetitions, periodic wave color seams, unclear Stop snap,
+rotation disappearance, implicit child sources and excessive generic speed limits.
+Repetitions now reuses the standard slider/numeric control. Sine Wave/DNA palettes
+close at each period. Color point step explains its percentage snapping, enabled
+only with the grid and bypassed by Alt. Native pattern creation uses independent
+roots; existing hierarchies and masks are not migrated.
+
+Pattern rate display limits: Pinwheel -60..60; Spiral/Visor/Sine Wave/DNA -30..30;
+Pixel Fill -20..20. Other effect controls use practical widths, amplitude, grid,
+frequency, motion and particle ranges documented in LIGHTING_EDITOR.md. Suffixes
+and range rows are removed from effect controls. Separate slider bounds preserve
+saved extreme values and exact project precision until the user edits them.
+The toolbar no longer assumes a removed parameterLimits label exists.
+
+Regression tests cover periodic palette boundaries, all rotation angles, direct
+Motion rate editing with visible output, root creation beneath a hidden/masked
+selection, slider editing and undo, practical limits and preserving legacy high
+values. Native source/control/motion screenshots were inspected.
+
+Rotation disappearance remains unresolved: isolated native Motion edits and full
+rotations retain the effect. The available recovery snapshot initially contained
+only an empty parent and Pixel Fill; it later ceased to exist. No Sine Wave/DNA
+project reproducing the report was available, and no user project was modified.
+Do not describe that report as fixed based only on the passing isolated tests.
+
+Release and Debug CTest passed 19/19 each. Full native Windows editor passed
+130/130 with no skips. Portable editor/host hashes match the tested Release
+binaries; SDK-free inspection and simulation-host smoke checks passed. Both EXEs
+and the prepared ZIP were updated. Previous EXEs remain as
+.before-pattern-controls backups. No app was terminated or service installed.
+
+## Native procedural effect batch (2026-10-28)
+
+Implemented six independent native sources: Gradient Pinwheel, Spiral, Visor,
+Sine Wave, DNA and Pixel Fill. They reuse gradient palettes, masks, blending,
+geometry, source menus and the shared editor/service renderer. Pattern rate uses
+loops/minute with zero and reverse; only applicable controls are visible. Pixel
+Fill supports Rows/Snake/Spiral order and square grids, while wave sources expose
+width/amplitude/frequency. Pinwheel/Spiral close the palette and center their
+existing gradient grips correctly. No upstream effect scripts were imported.
+
+Project schema 16 persists the five pattern parameters. Metadata records their
+minimum schema, preserving actual schema 1..15 projects without the new keys.
+Older schemas reject the new effect IDs rather than reinterpret them. The
+installation owner must update both editor and service together; no service was
+installed or hardware written during this work. Personal default.lighting.json
+and prior uncommitted work remain untouched.
+
+Completed candidates are struck through in docs/EFFECT_BACKLOG.md. Remaining
+noise, full fireworks, Voronoi, screen/audio/sensor and topology-specific sources
+remain listed. The supported subset and its limits are documented there and in
+docs/LIGHTING_EDITOR.md. Native screenshots were inspected; the contact sheet is
+docs/images/native-patterns.png. Tests cover motion/freeze/reverse, the three
+fill orders, controls/undo, persistence, invalid input and old-schema defaults.
+Release CTest passed 19/19; full Windows-native editor passed 129/129 with no skips.
+Debug CTest passed 19/19. Both portable EXEs match the tested Release binaries;
+SDK-free editor inspection and authenticated simulation-host smoke checks pass.
+Start-Lighting.cmd resolves the updated EditorControls package (no installed
+service was present). Previous EXEs are retained beside it with a
+.before-native-patterns suffix. No running application was terminated.
+
+## Active-layer picking, canvas labels and transport controls (2026-10-28)
+
+Local follow-up to the fullscreen changes below; no new commit/push was requested.
+The service baseline remains 0de3946 on origin/master. Preserve the personal
+untracked default.lighting.json and all previous local fullscreen fixes.
+
+Layers already had an activeLayer_ maintained by the navigator, but hitsAt and
+marquee ignored it. Both now restrict new picks to that root, so a covering source
+in another layer cannot steal selection. Empty clicks keep the active root.
+Cross-layer changes remain available explicitly through the navigator. Existing
+same-layer overlap menus, covered-selection drags, locks and multi-selection remain.
+
+setShowLabels reached both canvases, but paintComponents skipped captions in
+Effects context. Composite now draws the same component captions in world space;
+caption clipping stays inside the viewport, including labels outside the effect
+raster. Label toggles do not move the camera, edit the document or affect output.
+The shared persisted action is named Labels. It now drives canvas header buttons
+at top-right, beside fullscreen in Components. Both positions ignore scrollbar
+gutters. The View action and temporary L reveal remain; Line uses I.
+
+Preview retains one checkable QPushButton, now icon-only green Play / red Stop.
+Accessible names and tooltips expose the current action. Stop freezes time without
+resetting it or stopping hardware connections. The fullscreen transport mirrors
+both the state and colored icon. UI status says Preview: stopped instead of paused.
+ServicePanel still uses the unchanged playPreview object/isChecked contract.
+
+Added activeLayerPickingAndCanvasControls: actual navigator-root selection through
+covering objects, empty-click persistence, active-root marquee, selecting another
+root, a pixel-region difference proving composite captions were painted, shared
+label preference, header anchoring, icon colors/accessibility and stopped time.
+Updated old text assertions for the new transport. Release CTest 19/19 (13.44 s),
+Debug CTest 19/19 (44.59 s), full native editor 127/127 (15.73 s), no skipped cases.
+Native focused cases pass 6/6 each at 125/150/200% (base125%, factors1/1.2/1.6).
+Logs: build/editor-controls-{release,debug}.log,
+editor-controls-native-full.log and editor-controls-dpi{125,150,200}.log.
+An initial focused invocation named a nonexistent holdComponentLabels test; it
+was corrected to the actual labelRevealControls name, which passes. No test was
+bypassed. Native screenshots of both modes, composite labels and fullscreen were
+reviewed; docs/images contains native captures, not offscreen placeholders.
+
+Prepared build: build/dist/LightingStudio-EditorControls/msi_mystic_light.exe.
+Start-Lighting.cmd prefers installed editor then this folder, preserving all old
+package fallbacks. No live app/service was replaced or installed. Archive:
+build/dist/LightingStudio-EditorControls-windows-x64.zip
+ZIP SHA256: 30cd5853960bc616b44d9a141b355bb287c44d0f26a608edc34331d8d42f3c88
+Editor SHA256: da9f07c252c61f71dce88a2ca46459c988e336fc621a27c6ec243828f54cd489
+Host SHA256: acc812a754ee5dccca81b6f4ec6146f409d3ef30d35c9c873268dd1eacf28c9f
+Archive CRC, every extracted byte and tested-binary equality verified. Packaged
+--inspect and a packaged owner-authenticated simulation pipe pass without Qt SDK
+environment. No physical hardware writes; only owned simulation children stopped.
+Personal project SHA256 remains
+9cc3be379525f95e26d75b9bc27977cac9b3bdb3a6c126ce55fe836473a812a5.
+Graphify AST refreshed (known partial-parser limitations); no paid semantic labels.
+These GUI checks do not qualify physical output or the earlier service's UAC,
+SYSTEM device access, cold boot or standby behavior.
+
+## Components fullscreen and edit-mode visibility fix (2026-10-28)
+
+Owner reported a jumping fullscreen button when canvas scrollbars appear, broken
+fullscreen rendering, and inconspicuous Components/Layers controls. This follow-up
+is local; no new commit/push was requested. Prior service implementation is committed
+and pushed as 0de3946. Do not stage personal default.lighting.json.
+
+Root causes were reproduced in native Windows screenshots: syncScrollbars moved
+an otherwise fixed header button by the vertical gutter width; the fullscreen
+QVBoxLayout gave its status-header layout roughly half the monitor height because
+neither header nor canvas had positive stretch. Move positioning now belongs only
+to resizeEvent, and the canvas receives stretch=1. The header stays compact.
+Qt 6.8 QBoxLayout addWidget stretch behavior was verified through Context7:
+https://doc.qt.io/qt-6.8/qboxlayout.html.
+
+The existing QTabBar editorTarget remains the API/keyboard control, wrapped in a
+labeled EDIT MODE group. Icons, stronger selected background/border and tooltips
+make Components/Layers prominent. Canvas views and disabled targets retain their
+existing behavior; no new editing mode or hardware behavior was added.
+
+Regression assertions cover identical fullscreen-button position before/after
+scrollbars, canvas occupying >80% of the fullscreen host, compact status/playback
+geometry, restored canvas parent on Escape, and visible labeled/icon mode controls.
+Release CTest 19/19 passes (13.38 s). Targeted native Windows cases pass 12/12;
+focused fullscreen/mode/scroll tests pass 6/6 each at 125%, 150%, 200% (machine
+base scale 125%, factors 1, 1.2, 1.6). Native fullscreen and both target screenshots
+were visually reviewed; docs/images includes the reviewed native images only.
+Debug CTest also passes 19/19 (42.62 s), recorded in build/fullscreen-debug-ctest.log.
+Graphify AST refreshed with its known partial-parser limitations; no semantic LLM
+labeling was run. No physical hardware writes or real controller termination.
+
+Prepared build: build/dist/LightingStudio-Fullscreen/msi_mystic_light.exe.
+Start-Lighting.cmd prefers an installed editor, then this new portable folder,
+retaining Service/Unified/older fallbacks. The existing service install is not
+modified automatically. Archive: build/dist/LightingStudio-Fullscreen-windows-x64.zip
+ZIP SHA256: 0788053b8dc20a2f6852837764147c742fc0b286ac762d7e1bdd719d621c7d75
+Editor SHA256: b1cce135e0ecbe9680d54d507edb41ca5f66df189a7af56e06a5f30c80738a73
+Host SHA256: 7f00a8f7496044947593e66ba92f3b0ea47cb92415e2286665756670dc6b9f96
+Archive CRC, every extracted byte and binary equality to tested Release checked.
+Packaged --inspect exits 0 without Qt SDK environment. Personal project SHA256
+remains 9cc3be379525f95e26d75b9bc27977cac9b3bdb3a6c126ce55fe836473a812a5.
+Remaining limits: no physical RGB validation or live service installation; this
+fix does not qualify the prior service's cold-boot/SYSTEM hardware behavior.
+
 ## Windows service implementation (2026-10-28)
 
 Owner authorized implementation, commit and push. Source entry points:
@@ -1813,6 +2514,12 @@ backend; Lumen has concrete conflict-process detection. No dependency installed.
   candidate selection and startup process-conflict handling before connection.
 
 ## Completed: startup conflict gate (2026-10-23)
+
+Color animation stop-position correction (2026-10-28): cycle palettes now use
+editable positions rather than color reordering. Schema 15 stores optional cycle
+positions; older documents keep legacy equal timing. Rendering reserves the
+closing transition, and motion copy includes positions. Regression coverage checks
+existing/new points, document refresh, undo, save/load, timing and invalid stops.
 
 - Added exact-name Windows process snapshots with PID, accessible path and reason.
   Normal startup opens the conflict dialog before loading driver modules. Empty

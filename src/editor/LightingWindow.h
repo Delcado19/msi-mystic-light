@@ -30,6 +30,8 @@ public:
         std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {}, bool automaticDiscovery = true);
     ~LightingWindow() override;
     LightingDocument& document() { return document_; }
+    QVariantMap workspacePanelPreferences() const;
+    void restoreWorkspacePanelPreferences(const QVariantMap& panels);
     double previewSeconds() const;
     QVector<ComponentPlacement> previewPlacements() const { return layoutCanvas_->previewPlacements(); }
     const QVector<ProfileCandidate>& discoveredHardware() const { return discovered_; }
@@ -66,6 +68,7 @@ private:
     void refreshPlacement();
     void syncSelectionTrees();
     void updateWorkspacePanels();
+    void cyclePanelFocus(bool backwards);
     void moveSelectedLayer(int direction);
     void setLabelsHeld(bool held);
     void removeSelectedComponents();
@@ -85,7 +88,6 @@ private:
     QTabWidget* inspectorTabs_;
     QLabel* inspectorTitle_;
     QComboBox *catalog_, *blend_;
-    QComboBox* effectType_;
     QComboBox* previewChannel_;
     QCheckBox* allChannels_;
     QListWidget* channelTargets_;
@@ -94,7 +96,7 @@ private:
     QWidget* geometryControls_;
     QVector<QDoubleSpinBox*> geometry_;
     QVector<QDoubleSpinBox*> placementControls_;
-    QSpinBox* repetitions_;
+    QDoubleSpinBox* repetitions_;
     QSlider* transparency_;
     ColorEditor* color_;
     QColor foreground_=Qt::white;
@@ -113,7 +115,6 @@ private:
     double playbackStart_ = 0;
     QUuid selectedLayer_, activeLayer_;
     bool editingMask_ = false;
-    std::optional<bool> resumePreview_;
     bool labelsHeld_=false;
     bool compactWorkspace_=false, navigatorShown_=true, inspectorShown_=true, inspectorBeforeCompact_=true, adjustingPanels_=false;
     QString fileName_;

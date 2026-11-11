@@ -131,16 +131,52 @@ QImage LightingDocument::whiteMask()
     return mask;
 }
 
-QUuid LightingDocument::addLayer(EffectKind effect, const QUuid& parent)
+static EffectLayer makeSource(EffectKind effect,const QUuid& parent={})
 {
     EffectLayer layer;
     layer.parentId=parent;
     layer.effect = effect;
-    layer.name = effectDefinition(effect).label;
-    if (isGradient(effect)) layer.extent = canvasSize();
-    layer.mask = whiteMask();
+    const auto& definition=effectDefinition(effect);
+    layer.name = definition.label;layer.patternSpeed=definition.patternSpeed;layer.particleCount=definition.particleCount;layer.patternSites=definition.patternSites;
+    if (isGradient(effect) || effect==EffectKind::Fireworks || effect==EffectKind::Lightning || effect==EffectKind::Starfield) layer.extent = LightingDocument::canvasSize();
+    if(isPattern(effect)) { layer.gradientColors={QColor("#42d9ff"),QColor("#c65cff"),QColor("#050810")}; layer.secondaryColor=layer.gradientColors.last(); }
+    if(effect==EffectKind::Aurora) layer.gradientColors={QColor("#30ffc2"),QColor("#715cff"),QColor("#020515")};
+    if(effect==EffectKind::LavaLamp) layer.gradientColors={QColor("#100822"),QColor("#d83980"),QColor("#ffc474")};
+    if(effect==EffectKind::Checkerboard) layer.gradientColors={QColor("#080a0e"),QColor("#dce7f0")};
+    if(effect==EffectKind::Fireplace) {layer.gradientColors={QColor("#0d0200"),QColor("#dc2305"),QColor("#ffac20"),QColor("#fff1ad")};}
+    if(effect==EffectKind::Radar) {layer.extent={400,400};layer.gradientColors={QColor("#75ff95"),QColor("#139347"),QColor("#020d06")};}
+    if(effect==EffectKind::Burst) {layer.color=QColor("#ffe078");layer.secondaryColor=QColor("#ff527f");}
+    if(effect==EffectKind::Lightning) {layer.color=QColor("#7e9dff");layer.secondaryColor=Qt::white;}
+    if(effect==EffectKind::Starfield) {layer.color=QColor("#e5f0ff");layer.secondaryColor=QColor("#6b8fd9");}
+    if(effect==EffectKind::Fireworks) {layer.color=QColor("#ffd36b");layer.secondaryColor=QColor("#ff4f70");}
+    layer.mask = LightingDocument::whiteMask();
+    return layer;
+}
+QUuid LightingDocument::addLayer(EffectKind effect, const QUuid& parent)
+{
+    const auto layer=makeSource(effect,parent);
     edit("Add effect layer", [&](LightingState& state) { state.layers.append(layer); });
     return layer.id;
+}
+
+QUuid LightingDocument::addMultizoneLayer()
+{
+    auto root=makeSource(EffectKind::Paint);root.container=true;root.name="Multizone";root.extent=canvasSize();
+    const QVector<EffectKind> kinds{EffectKind::Pinwheel,EffectKind::Spiral,EffectKind::Voronoi,EffectKind::Fireplace};
+    const QStringList names{"Top left","Top right","Bottom left","Bottom right"};
+    edit("Add Multizone",[&](auto& state) {
+        if(state.layers.size()>59) throw std::invalid_argument("Multizone needs five available layer/object slots");
+        state.layers.append(root);
+        for(int i=0;i<4;++i) {
+            auto zone=makeSource(kinds[i],root.id);zone.name=names[i];
+            const QRect bounds((i%2)*320,(i/2)*200,320,200);
+            zone.center={bounds.x()+160.,bounds.y()+100.};zone.extent=bounds.size();
+            // Each zone is an ordinary source with its own linked mask, not an opaque full-canvas overlay.
+            zone.mask.fill(0);{QPainter painter(&zone.mask);painter.fillRect(bounds,Qt::white);}zone.maskLinked=true;
+            state.layers.append(zone);
+        }
+    });
+    return root.id;
 }
 
 QUuid LightingDocument::addPaintLayer(const QUuid& parent)
@@ -388,6 +424,8 @@ void LightingDocument::save(const QString& fileName, bool markClean)
         for (const auto& parameter : advancedParameters()) advanced.insert(parameter.id, layer.*(parameter.member));
         QJsonArray cycle;
         for (const auto& color : layer.colorCycle) cycle.append(color.name(QColor::HexArgb));
+        QJsonArray cyclePositions; for(double position:layer.colorCyclePositions) cyclePositions.append(position);
+        if(!cyclePositions.isEmpty()) advanced.insert("colorCyclePositions",cyclePositions);
         advanced.insert("colorCycle", cycle); advanced.insert("maskLinked", layer.maskLinked);
         advanced.insert("crop", QJsonArray{layer.crop.x(), layer.crop.y(), layer.crop.width(), layer.crop.height()});
         QJsonArray positions; for(double position:layer.gradientPositions) positions.append(position);
@@ -413,7 +451,11 @@ void LightingDocument::save(const QString& fileName, bool markClean)
             {"x", placement.origin.x()}, {"y", placement.origin.y()},
             {"scaleX", placement.scale.width()}, {"scaleY", placement.scale.height()}, {"rotation", placement.rotation}});
     // Version 14 persists editing locks; older readers must reject rather than silently unlock content.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 14}, {"width", 640}, {"height", 400},
+    // Version 15 adds cycle stop timing; older readers must not silently discard those positions.
+    // Version 16 adds native patterns and their controls; earlier parameter defaults remain readable.
+    // Version 20 adds branching Lightning and perspective Starfield sources.
+    // Version 22 adds procedural spatial controls; old files retain their original defaults.
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 22}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -433,7 +475,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -511,6 +553,8 @@ void LightingDocument::load(const QString& fileName)
             for (const auto& key : {"centerX", "centerY", "width", "height", "rotation", "repetitions"})
                 if (!effect.value(key).isDouble()) throw std::invalid_argument("Missing numeric effect parameter");
             layer.effect = effectDefinition(effect.value("type").toString()).kind;
+            // Advanced values arrive later; early geometry validation needs kind-specific defaults.
+            layer.particleCount=effectDefinition(layer.effect).particleCount;
             layer.secondaryColor = QColor(effect.value("secondaryColor").toString());
             layer.center = {effect.value("centerX").toDouble(), effect.value("centerY").toDouble()};
             layer.extent = {effect.value("width").toDouble(), effect.value("height").toDouble()};
@@ -530,6 +574,11 @@ void LightingDocument::load(const QString& fileName)
             layer.gradientFill=true; layer.gradientStart={points[0].toDouble(),points[1].toDouble()}; layer.gradientEnd={points[2].toDouble(),points[3].toDouble()};
             validateEffect(layer);
         }
+        if(schema<20 && (layer.effect==EffectKind::Lightning || layer.effect==EffectKind::Starfield)) throw std::invalid_argument("Lightning and Starfield require schema 20");
+        if(schema<19 && layer.effect>=EffectKind::Aurora && layer.effect<=EffectKind::Kaleidoscope) throw std::invalid_argument("Additional procedural sources require schema 19");
+        if(schema<18 && (layer.effect==EffectKind::Plasma || layer.effect==EffectKind::Ripples)) throw std::invalid_argument("Plasma and Ripples require schema 18");
+        if(schema<17 && (layer.effect>=EffectKind::Voronoi && layer.effect<=EffectKind::Fireworks)) throw std::invalid_argument("Extended effects require schema 17");
+        if(schema<16 && isPattern(layer.effect)) throw std::invalid_argument("Native patterns require schema 16");
         if(schema<13 && layer.effect==EffectKind::Rectangle)throw std::invalid_argument("Editable rectangles require schema 13");
         if(schema<11 && layer.effect==EffectKind::Paint) throw std::invalid_argument("Paint layers require schema 11");
         if (schema < 3 && (layer.effect == EffectKind::Image || json.contains("imagePng")))
@@ -567,6 +616,7 @@ void LightingDocument::load(const QString& fileName)
         if (schema >= 5) {
             const auto advanced = json.value("advanced").toObject();
             for (const auto& parameter : advancedParameters()) {
+                if(schema<parameter.schemaVersion) continue;
                 if (!advanced.value(parameter.id).isDouble()) throw std::invalid_argument("Missing advanced parameter");
                 layer.*(parameter.member) = advanced.value(parameter.id).toDouble();
             }
@@ -576,6 +626,13 @@ void LightingDocument::load(const QString& fileName)
             const auto cycle = advanced.value("colorCycle").toArray();
             if (cycle.size() < 2 || cycle.size() > 16) throw std::invalid_argument("Invalid color cycle size");
             for (const auto& color : cycle) layer.colorCycle.append(QColor(color.toString()));
+            if(advanced.contains("colorCyclePositions")) {
+                if(schema<15 || !advanced.value("colorCyclePositions").isArray()) throw std::invalid_argument("Cycle positions require schema 15");
+                for(const auto& value:advanced.value("colorCyclePositions").toArray()) {
+                    if(!value.isDouble()) throw std::invalid_argument("Invalid cycle position");
+                    layer.colorCyclePositions.append(value.toDouble());
+                }
+            }
             const auto crop = advanced.value("crop").toArray();
             if (crop.size() != 4) throw std::invalid_argument("Invalid image crop");
             for (const auto& value : crop) if (!value.isDouble()) throw std::invalid_argument("Invalid crop coordinate");

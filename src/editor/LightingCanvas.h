@@ -7,6 +7,8 @@
 #include <QSet>
 
 class QPushButton;
+class QToolButton;
+class QAction;
 class QPainter;
 class QScrollBar;
 class QTimer;
@@ -14,19 +16,20 @@ class LightingCanvas : public QWidget {
     Q_OBJECT
 public:
     enum class Context { Layout, Effects };
-    enum class Tool { Move, Pencil, Line, Rectangle, Ellipse, Gradient, Fill, Eraser };
+    enum class Tool { Move, Pencil, Line, Rectangle, Ellipse, Gradient, Fill, Eraser, Pan };
     Tool tool() const { return drawingTool_; }
-    void setTool(Tool tool) { cancelGesture(); drawingTool_=tool; setCursor(tool==Tool::Move ? Qt::ArrowCursor : Qt::CrossCursor); }
+    void setTool(Tool tool) { cancelGesture(); drawingTool_=tool; setCursor(tool==Tool::Pan ? Qt::OpenHandCursor : tool==Tool::Move ? Qt::ArrowCursor : Qt::CrossCursor); }
     void setGradientStops(QVector<QColor> colors,QVector<double> positions) { gradientColors_=std::move(colors); gradientPositions_=std::move(positions); }
     void setDrawing(QColor color,double width,bool filled) { drawColor_=color; drawWidth_=width; filled_=filled; }
     void setPreviewOnly();
     void setShowLabels(bool show) { showLabels_=show; update(); }
     bool showLabels() const { return showLabels_; }
+    void setLabelsAction(QAction* action);
     enum class MaskTool { Brush, Gradient };
     LightingCanvas(LightingDocument& document, Context context, QWidget* parent = nullptr);
     Context context() const { return context_; }
     void setEditorView(bool effects, bool components);
-    void copyCamera(const LightingCanvas& source);
+    void copyCamera(const LightingCanvas& source, std::optional<QPoint> globalAnchor = {});
     QUuid selection() const { return selected_; }
     void select(const QUuid& id);
     void selectMany(const QSet<QUuid>& ids, const QUuid& primary = {});
@@ -72,6 +75,7 @@ protected:
     void keyPressEvent(QKeyEvent*) override;
     void keyReleaseEvent(QKeyEvent*) override;
     void hideEvent(QHideEvent*) override;
+    void focusOutEvent(QFocusEvent*) override;
 private:
     bool selectedPlacement(const QUuid& id) const;
     bool visibleChain(const ChannelAssignment& assignment) const;
@@ -102,6 +106,8 @@ private:
     QImage rendered_, workingMask_;
     QPushButton* emptyAction_;
     QPushButton* fullscreen_;
+    QToolButton* labelsButton_ = nullptr;
+    void positionHeaderControls();
     QScrollBar *horizontalScroll_, *verticalScroll_;
     void syncScrollbars();
     QSizeF scrollUnits_{1,1};
@@ -137,7 +143,7 @@ private:
     MaskTool tool_ = MaskTool::Brush;
     QPointF start_, last_, origin_, pan_;
     double zoom_ = 1, radius_ = 30, hardness_ = 0.3, opacity_ = 1;
-    double seconds_ = 0;
+    double seconds_ = 0, gestureSeconds_ = 0;
     bool cropTool_ = false;
     int handle_ = 0;
     QRectF layoutBounds_;

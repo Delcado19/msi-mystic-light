@@ -20,6 +20,7 @@
 #include "ComponentEditor.h"
 #include "ChannelEditor.h"
 #include "StudioWidgets.h"
+#include "StudioTheme.h"
 #include <QButtonGroup>
 #include <QHBoxLayout>
 #include <QToolButton>
@@ -46,6 +47,7 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSlider>
 #include <QRandomGenerator>
 #include <QSpinBox>
@@ -63,9 +65,37 @@
 #include <QListWidget>
 #include <QTreeWidget>
 #include <QTreeView>
+#include <QWidgetAction>
 #include <QVBoxLayout>
 
 namespace {
+constexpr auto studioBuildId="GS-06-R1";
+void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
+{
+    // Keep legacy values visible without rewriting projects; sliders use only the practical range.
+    field->setProperty("sliderMinimum",minimum);field->setProperty("sliderMaximum",maximum);
+    field->setRange(std::min(minimum,current),std::max(maximum,current));field->setValue(current);
+}
+QPair<double,double> practicalEffectRange(const EffectParameter& parameter,EffectKind kind)
+{
+    const auto& id=parameter.id;
+    // Expose the renderer's supported rate for every pattern; the former UI caps hid valid fast motion.
+    if(id=="patternSpeed") return {parameter.minimum,parameter.maximum};
+    if(id=="patternWidth") return {.01,kind==EffectKind::Visor ? .5 : .25};
+    if(id=="patternAmplitude") return {0,kind==EffectKind::Dna ? .45 : .4};
+    if(id=="patternCells") return {2,32};
+    if(id=="patternSites") return {4,24};
+    if(id=="patternDetail") return {1,16};
+    if(id=="particleCount" && kind==EffectKind::Lightning) return {1,12};
+    if(id=="particleCount" && kind==EffectKind::Fireworks) return {1,400};
+    if(id=="particleSpeed" && kind==EffectKind::Fireworks) return {0,120};
+    if(id=="driftX" || id=="driftY") return {-500,500};
+    if(id=="zoom" || id=="warp" || id=="warpY") return {0,50};
+    if(id=="breathe" || id=="cycleRate" || id=="trails") return {0,1};
+    if(id=="particleCount" || id=="particleSpeed") return {parameter.minimum,200};
+    if(id=="particleSize") return {1,20};
+    return {parameter.minimum,parameter.maximum};
+}
 class PreviewDivider final : public QSplitterHandle {
 public:
     explicit PreviewDivider(QSplitter* parent):QSplitterHandle(Qt::Vertical,parent) {
@@ -118,6 +148,8 @@ public:
         const auto eye=style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator,&item,widget).adjusted(-2,-2,2,2);
         item.features &= ~QStyleOptionViewItem::HasCheckIndicator;
         style->drawControl(QStyle::CE_ItemViewItem,&item,painter,widget);
+        // One row marker avoids cyan seams at every Source/Mask cell boundary.
+        if(item.state & QStyle::State_Selected)painter->fillRect(QRect(item.rect.left(),item.rect.top(),2,item.rect.height()),studioThemeColor("@accent"));
         static const auto visible=studioToolIcon("eye"), hidden=studioToolIcon("eye-off");
         (index.data(Qt::CheckStateRole).toInt()==Qt::Checked ? visible : hidden).paint(painter,eye);
         painter->save(); auto font=item.font; font.setBold(true); painter->setFont(font);
@@ -159,6 +191,13 @@ QPushButton* button(QVBoxLayout* layout, const QString& label, std::function<voi
     QObject::connect(result, &QPushButton::clicked, result, std::move(action));
     return result;
 }
+void updatePlaybackButton(QPushButton* button,bool playing)
+{
+    button->setText({});button->setFixedSize(40,36);button->setIconSize({24,24});
+    button->setIcon(studioToolIcon(playing ? "preview-stop" : "preview-play"));
+    button->setAccessibleName(playing ? "Stop preview" : "Play preview");
+    button->setToolTip(playing ? "Stop preview animation; keep the current frame" : "Play preview animation");
+}
 QIcon colorIcon(QColor color)
 {
     QPixmap pixmap(32, 24);
@@ -192,7 +231,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     auto* help=menuBar()->addMenu("Help");
     auto* about=help->addAction("About Lighting Studio");about->setObjectName("aboutLightingStudio");
-    connect(about,&QAction::triggered,this,[this]{QDialog dialog(this);dialog.setWindowTitle("Lighting Studio");auto* stack=new QVBoxLayout(&dialog);stack->addWidget(studioBanner(&dialog,210));auto* description=new QLabel("Lighting Studio - RGB layout, effects and hardware control.\nBanner artwork depicts a conceptual interface.");description->setWordWrap(true);stack->addWidget(description);auto* close=new QDialogButtonBox(QDialogButtonBox::Close);stack->addWidget(close);connect(close,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);dialog.resize(800,300);dialog.exec();});
+    connect(about,&QAction::triggered,this,[this]{QDialog dialog(this);dialog.setWindowTitle("Lighting Studio");auto* stack=new QVBoxLayout(&dialog);stack->addWidget(studioBanner(&dialog,210));auto* description=new QLabel(QString("Lighting Studio — build %1\nRGB layout, effects and hardware control.\nBanner artwork depicts a conceptual interface.").arg(studioBuildId));description->setWordWrap(true);stack->addWidget(description);auto* executable=new QLabel(QCoreApplication::applicationFilePath());executable->setObjectName("runningExecutablePath");executable->setWordWrap(true);executable->setTextFormat(Qt::PlainText);executable->setTextInteractionFlags(Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard);stack->addWidget(executable);auto* close=new QDialogButtonBox(QDialogButtonBox::Close);stack->addWidget(close);connect(close,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);dialog.resize(800,300);dialog.exec();});
     auto* artworkCredits=help->addAction("Artwork credits");artworkCredits->setObjectName("artworkCredits");
     connect(artworkCredits,&QAction::triggered,this,[this] {
         QMessageBox::about(this,"Artwork credits",
@@ -209,9 +248,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* redo = document_.history()->createRedoAction(this, "Redo");
     redo->setShortcuts({QKeySequence::Redo, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)});
     editMenu->addAction(redo);
-    auto* toolbar = addToolBar("History"); toolbar->setObjectName("historyToolbar");
+    auto* toolbar = studioHeaderToolbar("History",this);addToolBar(toolbar); toolbar->setObjectName("historyToolbar");
     toolbar->setMovable(false);
-    auto* brand=new QLabel;brand->setObjectName("studioBrand");brand->setAccessibleName("Lighting Studio");brand->setPixmap(QPixmap(":/branding/lighting-studio-header.png").scaled(210,52,Qt::KeepAspectRatio,Qt::SmoothTransformation));toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    auto* brand=new QLabel;brand->setObjectName("studioBrand");brand->setAccessibleName("Lighting Studio");brand->setPixmap(QPixmap(":/branding/lighting-studio-header.png").scaled(176,44,Qt::KeepAspectRatio,Qt::SmoothTransformation));toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
     open->setIcon(studioToolIcon("open")); save->setIcon(studioToolIcon("save"));
     undo->setIcon(studioToolIcon("undo")); redo->setIcon(studioToolIcon("redo"));
     toolbar->addAction(open); toolbar->addAction(save);
@@ -243,16 +282,18 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             // Some Windows taskbars remain above fullscreen dialogs; keep controls inside the usable monitor area.
             full->setContentsMargins(std::max(0,available.left()-screenBounds.left()),std::max(8,available.top()-screenBounds.top()),
                 std::max(0,screenBounds.right()-available.right()),std::max(8,screenBounds.bottom()-available.bottom()));
-            auto* playback=new QPushButton(playing_->text(),host);playback->setObjectName("fullscreenCanvasPlayback");
-            playback->setCheckable(true);playback->setChecked(playing_->isChecked());playback->setStyleSheet(playing_->styleSheet());
+            auto* playback=new QPushButton(host);playback->setObjectName("fullscreenCanvasPlayback");
+            playback->setCheckable(true);playback->setChecked(playing_->isChecked());updatePlaybackButton(playback,playing_->isChecked());
             auto* header=new QHBoxLayout;header->addWidget(playback);
             auto* outputState=new QLabel(findChild<QLabel*>("toolbarOutputStatus")->text());outputState->setObjectName("fullscreenOutputStatus");outputState->setProperty("statusBadge",true);
             outputState->setProperty("outputState",findChild<QLabel*>("toolbarOutputStatus")->property("outputState"));
             outputState->setTextInteractionFlags(Qt::LinksAccessibleByMouse|Qt::LinksAccessibleByKeyboard);
             connect(outputState,&QLabel::linkActivated,this,[this,host]{host->reject();emit outputRequested();});
-            outputState->setAccessibleName("Device output status");header->addWidget(outputState);header->addStretch();full->addLayout(header);full->addWidget(canvas);
+            outputState->setAccessibleName("Device output status");header->addWidget(outputState);header->addStretch();full->addLayout(header);
+            // Only the canvas receives spare height; a stretchable status label must not expand the header.
+            full->addWidget(canvas,1);
             connect(playback,&QPushButton::toggled,playing_,&QPushButton::setChecked);
-            connect(playing_,&QPushButton::toggled,playback,[playback](bool running){playback->setChecked(running);playback->setText(running ? "Pause preview" : "Play preview");});
+            connect(playing_,&QPushButton::toggled,playback,[playback](bool running){playback->setChecked(running);updatePlaybackButton(playback,running);});
             connect(host,&QDialog::finished,this,[canvas,layout] {layout->addWidget(canvas);canvas->show();canvas->fitToView();});
             host->showFullScreen();canvas->fitToView();
         });
@@ -269,19 +310,19 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     applicationPages_->addWidget(tabs_); setCentralWidget(applicationPages_);
     connect(this,&LightingWindow::outputRequested,this,[this] { findChild<QAction*>("workspaceHardware")->trigger(); });
 
-    auto* dock = new QDockWidget("Inspector", this); dock->setObjectName("propertiesDock");
+    auto* dock = new QDockWidget("INSPECTOR", this); dock->setObjectName("propertiesDock");
     dock->setFeatures(QDockWidget::DockWidgetClosable);
     auto* contexts = new QStackedWidget;
-    auto* sidebarDock=new QDockWidget("Navigator",this); sidebarDock->setObjectName("layersDock");
+    auto* sidebarDock=new QDockWidget("NAVIGATOR",this); sidebarDock->setObjectName("layersDock");
     sidebarDock->setFeatures(QDockWidget::DockWidgetClosable);
     sidebarDock->setMinimumWidth(220); sidebarDock->setMaximumWidth(330);
     auto* sidebarContexts=new QStackedWidget; sidebarDock->setWidget(sidebarContexts);
     addDockWidget(Qt::LeftDockWidgetArea,sidebarDock);
     auto* componentPanel=new QWidget; auto* componentStack=new QVBoxLayout(componentPanel);
-    componentStack->setContentsMargins(12,12,12,12); componentStack->setSpacing(10);
+    componentStack->setContentsMargins(8,8,8,8); componentStack->setSpacing(6);
     sidebarContexts->addWidget(componentPanel);
     auto* layersPanel=new QWidget; auto* layerStack=new QVBoxLayout(layersPanel);
-    layerStack->setContentsMargins(12,12,12,12); layerStack->setSpacing(10);
+    layerStack->setContentsMargins(8,8,8,8); layerStack->setSpacing(6);
     sidebarContexts->addWidget(layersPanel);
     dock->setWidget(contexts);
     auto addPanel = [contexts](QWidget* panel) {
@@ -296,7 +337,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     dock->setMinimumWidth(300); dock->setMaximumWidth(440);
     auto* layoutPanel = new QWidget;
     auto* layoutControls = new QVBoxLayout(layoutPanel);
-    layoutControls->setContentsMargins(14,12,14,12); layoutControls->setSpacing(10);
+    layoutControls->setContentsMargins(8,8,8,8); layoutControls->setSpacing(6);
     addPanel(layoutPanel);
     layoutControls->addWidget(new QLabel("Components"));
     catalog_ = new QComboBox;
@@ -493,10 +534,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     if(automaticDiscovery)QTimer::singleShot(0,this,[this] { scanHeaders(); });
 
     addToolBarBreak(Qt::TopToolBarArea);
-    auto* previewToolbar = addToolBar("Preview"); previewToolbar->setObjectName("previewToolbar");
-    playing_ = new QPushButton("Play preview"); playing_->setCheckable(true); playing_->setObjectName("playPreview");
-    playing_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay)); playing_->setAccessibleName("Play or pause animation preview");
-    playing_->setToolTip("Play or pause animation time. Device output has a separate status and can retain the paused frame.");
+    auto* previewToolbar = studioHeaderToolbar("Preview",this,true);addToolBar(previewToolbar); previewToolbar->setObjectName("previewToolbar");
+    playing_ = new QPushButton; playing_->setCheckable(true); playing_->setObjectName("playPreview");
+    updatePlaybackButton(playing_,false);
     previewTime_ = new QDoubleSpinBox(this); previewTime_->setObjectName("previewTime");
     previewTime_->setRange(0, 86400); previewTime_->setDecimals(2); previewTime_->setSuffix(" s");
     previewTime_->setKeyboardTracking(false); previewTime_->setAccessibleName("Preview time in seconds");
@@ -514,24 +554,23 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         auto* action=previewToolbar->addAction(studioToolIcon(zoom.second<1 ? "zoom-out" : "zoom-in"),zoom.first); action->setObjectName(zoom.second<1 ? "zoomOut" : "zoomIn"); action->setToolTip(zoom.first+" (mouse wheel also zooms)");
         connect(action,&QAction::triggered,this,[this,factor=zoom.second] { (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->zoomBy(factor); });
     }
-    auto* snap=previewToolbar->addAction("Snap to grid"); snap->setObjectName("snapToGrid");
+    auto* snap=new QAction("Snap to grid",this);addAction(snap); snap->setObjectName("snapToGrid");
     snap->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));snap->setShortcutContext(Qt::ApplicationShortcut);
     snap->setCheckable(true);snap->setChecked(SnapGrid::load().enabled);
     snap->setToolTip("Snap positions and resize handles to the world grid; rotation uses 15 degrees. Hold Alt to move freely. Ctrl+Shift+G toggles snapping, including fullscreen.");
-    auto* gridSize=new QSpinBox;gridSize->setObjectName("gridSpacing");gridSize->setRange(1,100);gridSize->setSuffix(" px");
+    auto* gridSize=new QSpinBox;gridSize->setObjectName("gridSpacing");gridSize->setRange(1,100);gridSize->setSuffix({});
     gridSize->setValue(int(SnapGrid::load().spacing));gridSize->setKeyboardTracking(false);
     gridSize->setAccessibleName("Snap grid spacing");gridSize->setToolTip("Spatial grid spacing in canvas pixels. Palette snapping has its own percentage step.");
-    previewToolbar->addWidget(gridSize);
+
     auto updateGrid=[this,snap,gridSize] {
         SnapGrid{snap->isChecked(),double(gridSize->value())}.save();
-        layoutCanvas_->gridChanged();effectsCanvas_->gridChanged();update();
+        layoutCanvas_->gridChanged();effectsCanvas_->gridChanged();for(auto* bar:findChildren<QWidget*>("colorStopBar"))bar->update();update();
     };
     connect(snap,&QAction::toggled,this,updateGrid);connect(gridSize,&QSpinBox::valueChanged,this,updateGrid);
-    auto* labels=previewToolbar->addAction(studioToolIcon("eye"),"Show labels");labels->setObjectName("showComponentLabels");labels->setCheckable(true);
-    qobject_cast<QToolButton*>(previewToolbar->widgetForAction(labels))->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    auto* labels=new QAction(studioToolIcon("eye"),"Labels",this);addAction(labels);labels->setObjectName("showComponentLabels");labels->setCheckable(true);
     labels->setChecked(QSettings().value("editor/showComponentLabels",false).toBool());
     labels->setToolTip("Show component labels. Hold L in the editor to reveal them temporarily. Full names remain available on hover.");
-    previewToolbar->widgetForAction(labels)->setAccessibleName("Show component labels");
+    layoutCanvas_->setLabelsAction(labels);effectsCanvas_->setLabelsAction(labels);
     connect(labels,&QAction::toggled,this,[this,labels](bool checked) {
         labels->setIcon(studioToolIcon(checked ? "eye" : "eye-off"));QSettings().setValue("editor/showComponentLabels",checked);setLabelsHeld(labelsHeld_);
     });
@@ -544,13 +583,13 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(outputStatus,&QLabel::linkActivated,this,[this]{tabs_->setCurrentIndex(2);}); outputStatus->setObjectName("toolbarOutputStatus");
     outputStatus->setProperty("statusBadge",true);
     outputStatus->setAccessibleName("Device output status");statusBar()->addPermanentWidget(outputStatus);
-    auto* previewStatus=new QLabel("Preview: paused");previewStatus->setObjectName("previewPlaybackStatus");statusBar()->insertPermanentWidget(0,previewStatus);
+    auto* previewStatus=new QLabel("Preview: stopped");previewStatus->setObjectName("previewPlaybackStatus");statusBar()->insertPermanentWidget(0,previewStatus);
     connect(previewChannel_,&QComboBox::currentIndexChanged,this,&LightingWindow::updatePreview);
     connect(layoutCanvas_,&LightingCanvas::layoutPreviewChanged,this,[this] { emit previewFrameChanged(previewFrame_); });
     auto* timer = new QTimer(this); timer->setTimerType(Qt::PreciseTimer); timer->setInterval(16);
     connect(playing_, &QPushButton::toggled, this, [this, timer](bool play) {
-        playing_->setText(play ? "Pause preview" : "Play preview"); playing_->setIcon(style()->standardIcon(play ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
-        findChild<QLabel*>("previewPlaybackStatus")->setText(play ? "Preview: playing" : "Preview: paused");
+        updatePlaybackButton(playing_,play);
+        findChild<QLabel*>("previewPlaybackStatus")->setText(play ? "Preview: playing" : "Preview: stopped");
         if (play) { playbackStart_ = previewTime_->value(); previewClock_.restart(); timer->start(); }
         else timer->stop();
     });
@@ -562,14 +601,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(previewTime_, &QDoubleSpinBox::valueChanged, this, [this] { updatePreview(); });
     auto* effectPanel = new QWidget;
     auto* effectControls = new QVBoxLayout(effectPanel);
-    effectControls->setContentsMargins(14,12,14,12); effectControls->setSpacing(10);
+    effectControls->setContentsMargins(8,8,8,8); effectControls->setSpacing(6);
     inspectorTitle_=new QLabel("Select a layer"); inspectorTitle_->setProperty("heading",true); inspectorTitle_->setWordWrap(true); effectControls->addWidget(inspectorTitle_);
     auto* editingContext=new QLabel("Editing: effect");editingContext->setObjectName("layerEditingContext");editingContext->setProperty("modeBadge",true);effectControls->addWidget(editingContext);
     inspectorTabs_=new QTabWidget; inspectorTabs_->setObjectName("layerInspectorTabs");
     effectControls->addWidget(inspectorTabs_);
-    auto* appearance=new QWidget; auto* appearanceControls=new QVBoxLayout(appearance); appearanceControls->setContentsMargins(0,12,0,0); appearanceControls->setSpacing(12);
-    auto* motion=new QWidget; auto* motionControls=new QVBoxLayout(motion); motionControls->setContentsMargins(0,12,0,0);
-    auto* maskProperties=new QWidget; auto* maskControls=new QVBoxLayout(maskProperties); maskControls->setContentsMargins(0,12,0,0); maskControls->setSpacing(10);
+    auto* appearance=new QWidget; auto* appearanceControls=new QVBoxLayout(appearance); appearanceControls->setContentsMargins(0,8,0,0); appearanceControls->setSpacing(8);
+    auto* motion=new QWidget; auto* motionControls=new QVBoxLayout(motion); motionControls->setContentsMargins(0,8,0,0); motionControls->setSpacing(6);
+    auto* maskProperties=new QWidget; auto* maskControls=new QVBoxLayout(maskProperties); maskControls->setContentsMargins(0,8,0,0); maskControls->setSpacing(6);
     inspectorTabs_->addTab(appearance,"Source"); inspectorTabs_->addTab(motion,"Motion"); inspectorTabs_->addTab(maskProperties,"Mask");
     connect(inspectorTabs_,&QTabWidget::currentChanged,this,[this](int page) {
         if(page==2) {
@@ -579,6 +618,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         }
         editingMask_=page==2; if(page!=2) { effectsCanvas_->setCropTool(false); findChild<QCheckBox*>("cropTool")->setChecked(false); }
         refreshProperties();
+        // Each task opens at its primary controls; Motion's scroll offset can hide Source after a banner resize.
+        for(auto* parent=inspectorTabs_->parentWidget();parent;parent=parent->parentWidget())
+            if(auto* scroll=qobject_cast<QScrollArea*>(parent)){scroll->verticalScrollBar()->setValue(0);break;}
+
     });
     addPanel(effectPanel);
     button(layerStack, "New layer", [this] {
@@ -593,12 +636,26 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         catch (const std::exception& error) { QMessageBox::warning(this, "Import failed", QString::fromUtf8(error.what())); }
     });
     auto* addMenu=new QMenu("Add layer",layersPanel);addMenu->setObjectName("addLayerMenu");
+    editMenu->addMenu(addMenu);
     auto* paintAction=addMenu->addAction("Paint layer");connect(paintAction,&QAction::triggered,this,[this]{findChild<QPushButton*>("newLayer")->click();});
-    auto* patterns=addMenu->addMenu("Gradients and patterns");auto* shapes=addMenu->addMenu("Shapes");auto* particlesMenu=addMenu->addMenu("Particles");
-    for(const auto& definition:effectDefinitions())if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Image) {
-        auto* target=isParticle(definition.kind) ? particlesMenu : isShape(definition.kind) ? shapes : patterns;
-        auto* entry=target->addAction(definition.label);entry->setObjectName("create_"+definition.id);connect(entry,&QAction::triggered,this,[this,kind=definition.kind]{if(document_.state().layers.size()>=64){statusBar()->showMessage("Document limit: 64 layers and objects.",6000);return;}selectedLayer_=document_.addLayer(kind,document_.layerRoot(selectedLayer_).isNull() ? activeLayer_ : document_.layerRoot(selectedLayer_));editingMask_=false;effectsCanvas_->setCropTool(false);findChild<QCheckBox*>("cropTool")->setChecked(false);effectsCanvas_->setTool(LightingCanvas::Tool::Move);effectTarget_->setChecked(true);inspectorTabs_->setCurrentIndex(0);refresh();});
+    auto* patterns=addMenu->addMenu("Gradients and patterns");auto* shapes=addMenu->addMenu("Shapes");auto* particlesMenu=addMenu->addMenu("Particles");auto* organic=addMenu->addMenu("Organic and noise");auto* scenes=addMenu->addMenu("Scenes");
+    for(const auto& definition:effectDefinitions())if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Image && canCreateEffect(definition.kind)) {
+        auto* target=definition.kind==EffectKind::Lightning ? organic : isParticle(definition.kind) ? particlesMenu : isShape(definition.kind) ? shapes : (definition.kind==EffectKind::Voronoi || definition.kind==EffectKind::Fireplace || definition.kind==EffectKind::Plasma || definition.kind==EffectKind::Aurora || definition.kind==EffectKind::LavaLamp) ? organic : patterns;
+        auto* entry=target->addAction(definition.label);entry->setObjectName("create_"+definition.id);entry->setToolTip(definition.description);entry->setStatusTip(definition.description);
+        connect(entry,&QAction::triggered,this,[this,kind=definition.kind] {
+            if(document_.state().layers.size()>=64){statusBar()->showMessage("Document limit: 64 layers and objects.",6000);return;}
+            // Native patterns start independently; a selected source must not silently become their masking parent.
+            const auto parent=isPattern(kind) || kind==EffectKind::Fireworks || kind==EffectKind::Lightning || kind==EffectKind::Starfield ? QUuid{} : (document_.layerRoot(selectedLayer_).isNull() ? activeLayer_ : document_.layerRoot(selectedLayer_));
+            selectedLayer_=document_.addLayer(kind,parent);editingMask_=false;effectsCanvas_->setCropTool(false);
+            findChild<QCheckBox*>("cropTool")->setChecked(false);effectsCanvas_->setTool(LightingCanvas::Tool::Move);
+            effectTarget_->setChecked(true);inspectorTabs_->setCurrentIndex(0);refresh();
+        });
     }
+    auto* multizone=scenes->addAction("Multizone (four editable regions)");multizone->setObjectName("create_multizone");
+    connect(multizone,&QAction::triggered,this,[this] {
+        try {selectedLayer_=document_.addMultizoneLayer();editingMask_=false;effectsCanvas_->setTool(LightingCanvas::Tool::Move);inspectorTabs_->setCurrentIndex(0);refresh();}
+        catch(const std::exception& error){statusBar()->showMessage(QString::fromUtf8(error.what()),6000);}
+    });
     auto* imageAction=addMenu->addAction("Import image...");connect(imageAction,&QAction::triggered,this,[layersPanel]{for(auto* button:layersPanel->findChildren<QPushButton*>())if(button->text()=="Import image..."){button->click();break;}});
     auto* addButton=new QToolButton;addButton->setText("New layer");addButton->setObjectName("addLayer");connect(addButton,&QToolButton::clicked,this,[this]{findChild<QPushButton*>("newLayer")->click();});layerStack->insertWidget(0,addButton);
     findChild<QPushButton*>("newLayer")->hide();for(auto* button:layersPanel->findChildren<QPushButton*>())if(button->text()=="Import image...")button->hide();
@@ -614,12 +671,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     layers_->setSelectionBehavior(QAbstractItemView::SelectRows);
     layers_->setDragDropMode(QAbstractItemView::InternalMove);
     layers_->setDefaultDropAction(Qt::MoveAction);
-    layers_->setIconSize({44, 32});
+    layers_->setIconSize({36, 26});layers_->setIndentation(14);
     layers_->header()->setStretchLastSection(false);
     layers_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     layers_->header()->setSectionResizeMode(1, QHeaderView::Fixed);
     layers_->header()->setSectionResizeMode(2, QHeaderView::Fixed);
-    layers_->setColumnWidth(1, 52); layers_->setColumnWidth(2, 52);
+    layers_->setColumnWidth(1, 52); layers_->setColumnWidth(2, 44);
     layerStack->addWidget(layers_,1);
     connect(layers_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int column) {
         selectedLayer_ = item->data(0, Qt::UserRole).toUuid();
@@ -684,11 +741,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     transparency_->setRange(0, 100);
     transparency_->setObjectName("layerTransparency");
     transparency_->setAccessibleName("Layer opacity percent");
-    auto* transparencyValue = new QLabel("100%");
+    auto* transparencyValue = new QSpinBox;transparencyValue->setRange(0,100);transparencyValue->setValue(100);transparencyValue->setKeyboardTracking(false);transparencyValue->setAccessibleName("Layer opacity");
     transparencyValue->setObjectName("transparencyValue");
-    form->addRow("Opacity", transparency_); form->addRow("", transparencyValue);
+    auto* opacityRow=new QWidget;auto* opacityLayout=new QHBoxLayout(opacityRow);opacityLayout->setContentsMargins(0,0,0,0);opacityLayout->addWidget(transparency_,1);opacityLayout->addWidget(transparencyValue);form->addRow("Opacity",opacityRow);
+    connect(transparencyValue,&QSpinBox::valueChanged,transparency_,&QSlider::setValue);
     connect(transparency_, &QSlider::valueChanged, this, [this, transparencyValue](int value) {
-        transparencyValue->setText(QString::number(value) + "%");
+        {const QSignalBlocker block(transparencyValue);transparencyValue->setValue(value);}
         updateLayer("Layer transparency", [value](auto& layer) { layer.transparency = 100-value; });
     });
     // Live feedback while dragging, with a single undo step for the whole gesture.
@@ -734,26 +792,15 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(sourceColor_,&ColorEditor::colorChanged,this,[this](QColor c){updateLayer("Source color",[=](auto& layer){layer.color=c;});});
     secondaryColor_=new ColorEditor; secondaryColor_->setObjectName("secondaryEffectColor"); appearanceControls->addWidget(secondaryColor_);
     connect(secondaryColor_,&ColorEditor::colorChanged,this,[this](QColor color) { updateLayer("Secondary color",[color](auto& layer) { layer.secondaryColor=color; }); });
+    auto* paletteLabel=new QLabel("Particle colors");paletteLabel->setObjectName("particlePaletteLabel");appearanceControls->addWidget(paletteLabel);
     gradientColors_=new ColorListEditor(2,16); gradientColors_->setGradientMode(); gradientColors_->setObjectName("gradientColors"); appearanceControls->addWidget(gradientColors_);
     connect(gradientColors_,&ColorListEditor::stopsChanged,this,[this] {
         const auto colors=gradientColors_->colors(); const auto positions=gradientColors_->positions();
-        updateLayer("Gradient stops",[colors,positions](auto& layer) { layer.gradientColors=colors; layer.gradientPositions=positions; layer.color=colors.first(); layer.secondaryColor=colors.last(); });
+        updateLayer("Source color stops",[colors,positions](auto& layer) { layer.gradientColors=colors; layer.gradientPositions=positions; layer.color=colors.first(); layer.secondaryColor=colors.last(); });
     });
-    connect(gradientColors_,&ColorListEditor::gestureStarted,this,[this] { document_.history()->beginMacro("Gradient stop"); });
+    connect(gradientColors_,&ColorListEditor::gestureStarted,this,[this] { document_.history()->beginMacro("Source color stop"); });
     connect(gradientColors_,&ColorListEditor::gestureFinished,this,[this] { document_.history()->endMacro(); });
-    effectType_ = new QComboBox;
-    effectType_->setObjectName("selectedEffectType");
-    for (const auto& definition : effectDefinitions())
-        if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Image)
-            effectType_->addItem(isParticle(definition.kind) ? QString(definition.label).replace("Particle ","") : definition.label, static_cast<int>(definition.kind));
-    appearanceControls->addWidget(effectType_);
-    connect(effectType_, &QComboBox::currentIndexChanged, this, [this](int) {
-        const auto kind = static_cast<EffectKind>(effectType_->currentData().toInt());
-        updateLayer("Change effect type", [kind](auto& layer) {
-            if (layer.name == effectDefinition(layer.effect).label) layer.name = effectDefinition(kind).label;
-            layer.effect = kind;
-        });
-    });
+    auto* description=new QLabel;description->setObjectName("effectDescription");description->setWordWrap(true);description->setProperty("muted",true);appearanceControls->insertWidget(0,description);
     auto* intensity=new QWidget;auto* intensityForm=new QFormLayout(intensity);intensityForm->setContentsMargins(0,0,0,0);
     auto* intensityMode=new QComboBox;intensityMode->setObjectName("intensityMode");intensityMode->addItems({"Off","Pulse","Breathe","Combined"});intensityForm->addRow("Mode",intensityMode);
     connect(intensityMode,&QComboBox::currentIndexChanged,this,[this](int mode){updateMotion("Intensity modulation",[=](auto& layer){layer.pulse=(mode==1 || mode==3) ? (layer.pulse>0 ? layer.pulse : .5) : 0;layer.breathe=(mode==2 || mode==3) ? (layer.breathe>0 ? layer.breathe : .5) : 0;});});
@@ -761,7 +808,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     animationControls_ = new QWidget;
     auto* animationForm = new QFormLayout(animationControls_);
     animationForm->setContentsMargins(0, 0, 0, 0);
-    const QStringList animationLabels{"Rotation", "Pulse rate", "Hue rotation"};
+    const QStringList animationLabels{"Object rotation", "Pulse rate", "Hue rotation"};
     for (int i = 0; i < 3; ++i) {
         auto* value = new ParameterSpinBox;
         value->setObjectName("animationRate" + QString::number(i));
@@ -779,51 +826,73 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* applyMotion=new QPushButton("Apply motion to all visible objects");applyMotion->setObjectName("applyMotionToAll");motionControls->addWidget(applyMotion);
     connect(applyMotion,&QPushButton::clicked,this,[this]{
         const auto found=std::find_if(document_.state().layers.begin(),document_.state().layers.end(),[this](const auto& layer){return layer.id==selectedLayer_;});if(found==document_.state().layers.end())return;const auto source=*found;
-        document_.edit("Copy motion to visible layers",[=](auto& state){for(auto& layer:state.layers)if(layer.visible && !layer.container && layer.id!=source.id){layer.spin=source.spin;layer.pulse=source.pulse;layer.breathe=source.breathe;layer.hueShift=source.hueShift;layer.driftX=source.driftX;layer.driftY=source.driftY;layer.zoom=source.zoom;layer.warp=source.warp;layer.trails=source.trails;layer.cycleRate=source.cycleRate;layer.colorCycle=source.colorCycle;}});
+        document_.edit("Copy motion to visible layers",[=](auto& state){for(auto& layer:state.layers)if(layer.visible && !layer.container && layer.id!=source.id){layer.spin=source.spin;layer.pulse=source.pulse;layer.breathe=source.breathe;layer.hueShift=source.hueShift;layer.driftX=source.driftX;layer.driftY=source.driftY;layer.zoom=source.zoom;layer.warp=source.warp;layer.warpY=source.warpY;layer.trails=source.trails;layer.cycleRate=source.cycleRate;layer.colorCycle=source.colorCycle;layer.colorCyclePositions=source.colorCyclePositions;layer.patternSpeed=source.patternSpeed;}});
     });
     disclosure(motionControls,"Intensity modulation",intensity);
     auto* particles=new QWidget; particles->setObjectName("particleParameters"); auto* particleForm=new QFormLayout(particles); particleForm->setContentsMargins(0,0,0,0);
-    appearanceControls->addWidget(particles);
+    // Keep particle rate/count/size above palette details when artwork reduces inspector height.
+    appearanceControls->insertWidget(1,particles);
+    auto* patternControls=new QWidget; patternControls->setObjectName("patternParameters"); auto* patternForm=new QFormLayout(patternControls); patternForm->setContentsMargins(0,0,0,0);
+    appearanceControls->insertWidget(1,patternControls);
     auto* advancedContent=new QWidget; auto* advancedForm=new QFormLayout(advancedContent); advancedForm->setContentsMargins(0,0,0,0);
     for(const auto& parameter:advancedParameters()) {
         auto* value=new ParameterSpinBox; value->setObjectName(parameter.id); value->setRange(parameter.minimum,parameter.maximum);
          value->setKeyboardTracking(false); advanced_.append(value);
         const auto id=parameter.id;value->setProperty("defaultValue",EffectLayer{}.*parameter.member);
-        value->setDisplayUnit(id=="trails" ? 1000 : id=="breathe" || id=="cycleRate" ? 60 : id=="particleSpeed" ? .3 : 1,
-            id=="trails" ? " ms" : id=="breathe" || id=="cycleRate" || id=="particleSpeed" ? " /min" : id=="driftX" || id=="driftY" ? " px/s" : id=="zoom" ? " %" : id=="warp" || id=="particleSize" ? " px" : "");
+        value->setDisplayUnit(id=="trails" ? 1000 : id=="breathe" || id=="cycleRate" || id=="patternSpeed" ? 60 : id=="particleSpeed" ? .3 : 1,
+            id=="trails" ? " ms" : id=="breathe" || id=="cycleRate" || id=="particleSpeed" || id=="patternSpeed" ? " /min" : id=="driftX" || id=="driftY" ? " px/s" : id=="zoom" ? " %" : id=="warp" || id=="particleSize" ? " px" : "");
         if(parameter.id=="breathe" || parameter.id=="cycleRate")value->setProperty("slowRange",true);
         const bool primary=parameter.id=="particleCount" || parameter.id=="particleSpeed" || parameter.id=="particleSize";
-        if(parameter.id=="breathe") {auto* row=sliderField(value);intensityForm->addRow("Breathe rate",row);value->setProperty("visibilityContainer",QVariant::fromValue(static_cast<QObject*>(row)));}
+        if(id.startsWith("pattern") || id=="fillOrder") {
+            auto* label=new QLabel(parameter.label); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label)));
+            if(id=="patternWidth" || id=="patternAmplitude" || id=="patternHeight" || id=="patternWarp" || id=="patternWavelength" || id=="patternFrequency" || id=="patternContrast") value->setDisplayUnit(100," %");
+            QWidget* field=nullptr;
+            if(id=="fillOrder" || id=="patternDistance") {
+                auto* order=new QComboBox;order->setObjectName(id=="fillOrder" ? "patternFillOrder" : "patternDistanceMode");
+                order->addItems(id=="fillOrder" ? QStringList{"Rows","Snake","Spiral"} : QStringList{"Euclidean (straight-line)","Manhattan (diamond)","Chebyshev (square)"});
+                // Keep the shared parameter/history path while exposing a named order selector.
+                value->setParent(patternControls);value->hide();
+                connect(order,&QComboBox::currentIndexChanged,value,[value](int n){value->setValue(n);});
+                connect(value,&QDoubleSpinBox::valueChanged,order,[order](double n){const QSignalBlocker block(order);order->setCurrentIndex(int(n));});
+                field=order;
+            } else if(id=="patternSeed") {
+                field=new QWidget;auto* row=new QHBoxLayout(field);row->setContentsMargins(0,0,0,0);
+                value->setDecimals(0);row->addWidget(value);auto* random=new QPushButton("Randomize");random->setObjectName("randomizePatternSeed");row->addWidget(random);
+                connect(random,&QPushButton::clicked,value,[value]{value->setValue(QRandomGenerator::global()->bounded(1000001));});
+            } else {
+                if(id=="patternCells" || id=="patternSites") {value->setDecimals(0);value->setSingleStep(1);}
+                field=sliderField(value);
+            }
+            value->setProperty("visibilityContainer",QVariant::fromValue(static_cast<QObject*>(field))); patternForm->addRow(label,field);
+        }
+        else if(parameter.id=="breathe") {auto* row=sliderField(value);intensityForm->addRow("Breathe rate",row);value->setProperty("visibilityContainer",QVariant::fromValue(static_cast<QObject*>(row)));}
         else if(parameter.id=="particleSeed") {auto* row=new QWidget;auto* layout=new QHBoxLayout(row);layout->setContentsMargins(0,0,0,0);layout->addWidget(value);auto* random=new QPushButton("Randomize");random->setObjectName("randomizeParticleSeed");layout->addWidget(random);connect(random,&QPushButton::clicked,this,[value]{value->setValue(QRandomGenerator::global()->bounded(1000001));});particleForm->addRow("Random pattern",row);value->setProperty("visibilityContainer",QVariant::fromValue(static_cast<QObject*>(row)));}
         else if(primary) {
             auto* field=sliderField(value); value->setProperty("visibilityContainer",QVariant::fromValue(static_cast<QObject*>(field)));
             auto* label=new QLabel(parameter.label); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label))); particleForm->addRow(label,field);
         } else if(parameter.id!="cycleRate") {
-            auto* label=new QLabel(parameter.label); label->setWordWrap(true); value->setMinimumWidth(96); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label)));
+            auto* label=new QLabel(parameter.label); label->setWordWrap(true); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label)));
             auto* field=sliderField(value); value->setProperty("visibilityContainer",QVariant::fromValue(static_cast<QObject*>(field)));
             advancedForm->addRow(label,field);
         }
-        connect(value,&QDoubleSpinBox::valueChanged,this,[this,member=parameter.member](double number) { updateMotion("Effect parameter",[=](auto& layer) { layer.*member=number; }); });
+        connect(value,&QDoubleSpinBox::valueChanged,this,[this,id,member=parameter.member](double number) { updateMotion("Effect parameter",[=](auto& layer) { layer.*member=number; });if(id=="cycleRate" && number>0 && !editingMask_)playing_->setChecked(true); });
     }
     auto* details=disclosure(motionControls,"More animation settings",advancedContent); details->setObjectName("advancedMotion");
     colorCycle_=new ColorListEditor(2,16); colorCycle_->setObjectName("colorCycle");
-    auto* cycleContent=new QWidget; auto* cycleControls=new QVBoxLayout(cycleContent);cycleControls->addWidget(hueGroup);
-    auto* enableCycle=new QCheckBox("Enable color animation"); enableCycle->setObjectName("enableColorCycle"); cycleControls->addWidget(enableCycle);
-    connect(enableCycle,&QCheckBox::toggled,this,[this](bool on) {
-        updateMotion("Enable color animation",[=](auto& layer) { layer.cycleRate=on ? (layer.cycleRate>0 ? layer.cycleRate : .25) : 0; });
-        if(on && !editingMask_) playing_->setChecked(true);
-    });
-    auto* cycleHint=new QLabel("Palette cycles per minute. Zero keeps the source colors.");
+    colorCycle_->setGradientMode();
+    auto* cycleContent=new QWidget;cycleContent->setObjectName("colorAnimationControls");auto* cycleControls=new QVBoxLayout(cycleContent);cycleControls->setContentsMargins(0,0,0,0);cycleControls->setSpacing(6);cycleControls->addWidget(hueGroup);
+    auto* cycleHint=new QLabel("Palette rate: 0 = off. Hue rotation is independent.");
     cycleHint->setWordWrap(true); cycleControls->addWidget(cycleHint);
     auto* cycleForm=new QFormLayout; cycleControls->addLayout(cycleForm);
     for(auto* value:advanced_) if(value->objectName()=="cycleRate") cycleForm->addRow("Palette rate",sliderField(value));
     cycleControls->addWidget(colorCycle_);
-    disclosure(motionControls,"Color animation",cycleContent);
-    connect(colorCycle_,&ColorListEditor::colorsChanged,this,[this](const QVector<QColor>& colors) { updateMotion("Cycle colors",[colors](auto& layer) { layer.colorCycle=colors; }); });
+    disclosure(motionControls,"Color animation",cycleContent)->setObjectName("colorAnimationSection");
+    connect(colorCycle_,&ColorListEditor::stopsChanged,this,[this] {
+        const auto colors=colorCycle_->colors(); const auto positions=colorCycle_->positions();
+        updateMotion("Cycle stops",[colors,positions](auto& layer) { layer.colorCycle=colors; layer.colorCyclePositions=positions; });
+    });
     connect(colorCycle_,&ColorListEditor::gestureStarted,this,[this] { document_.history()->beginMacro("Cycle color"); });
     connect(colorCycle_,&ColorListEditor::gestureFinished,this,[this] { document_.history()->endMacro(); });
-    effectType_->setProperty("appearanceContainer",QVariant::fromValue(static_cast<QObject*>(appearance)));
-    effectType_->setProperty("motionContainer",QVariant::fromValue(static_cast<QObject*>(appearance)));
     motionControls->addStretch();
     maskLinked_ = new QCheckBox("Link mask to effect"); maskLinked_->setObjectName("maskLinked");
     maskControls->addWidget(maskLinked_);
@@ -836,7 +905,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     for (int i=0;i<4;++i) {
         auto* value = new ParameterSpinBox; value->setObjectName("imageCrop"+QString::number(i));
         value->setRange(i<2 ? 0 : 0.001,1);  value->setKeyboardTracking(false);
-        crop_.append(value); value->setMinimumWidth(96);
+        crop_.append(value);
         auto* label=new QLabel(cropLabels[i]); label->setWordWrap(true); value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label)));
         cropForm->addWidget(label,i/2,(i%2)*2); cropForm->addWidget(value,i/2,(i%2)*2+1);
         connect(value,&QDoubleSpinBox::valueChanged,this,[this,i](double number) {
@@ -868,7 +937,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         value->setKeyboardTracking(false);
         value->setRange(i < 2 ? -10000 : i == 4 ? -360 : 1, i == 4 ? 360 : 10000);
         geometry_.append(value);
-        value->setMinimumWidth(96); auto* label=new QLabel(geometryLabels[i]); label->setWordWrap(true);
+        auto* label=new QLabel(geometryLabels[i]); label->setWordWrap(true);
         value->setProperty("parameterLabel",QVariant::fromValue(static_cast<QObject*>(label)));
         geometryForm->addWidget(label,i/2,(i%2)*2); geometryForm->addWidget(value,i/2,(i%2)*2+1);
         connect(value,&QDoubleSpinBox::valueChanged,this,[this,i](double number) {
@@ -878,67 +947,67 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* geometrySection=disclosure(appearanceControls,"Position and size (optional)",geometryControls_);
     geometrySection->setObjectName("geometrySection");
     geometrySection->findChild<QToolButton*>()->setChecked(false);
-    repetitions_ = new QSpinBox;
+    repetitions_ = new ParameterSpinBox;
     repetitions_->setObjectName("effectRepetitions");
     repetitions_->setRange(1, 64);
-    repetitions_->setPrefix("Repetitions: ");
-    appearanceControls->addWidget(repetitions_);
-    connect(repetitions_, &QSpinBox::valueChanged, this, [this](int value) {
-        updateLayer("Effect repetitions", [value](auto& layer) { layer.repetitions = value; });
+    repetitions_->setDecimals(0);repetitions_->setSingleStep(1);repetitions_->setAccessibleName("Repetitions");
+    repetitions_->setProperty("defaultValue",4);
+    auto* repetitionControls=new QWidget;repetitionControls->setObjectName("effectRepetitionControls");
+    auto* repetitionForm=new QFormLayout(repetitionControls);repetitionForm->setContentsMargins(0,0,0,0);
+    repetitionForm->addRow("Repetitions",sliderField(repetitions_));appearanceControls->addWidget(repetitionControls);
+    connect(repetitions_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        updateLayer("Effect repetitions", [value](auto& layer) { layer.repetitions = int(value); });
     });
     auto* shapeFillMode=new QComboBox;shapeFillMode->setObjectName("shapeFillMode");shapeFillMode->addItems({"Solid fill","Gradient fill"});
     shapeFillMode->setAccessibleName("Shape fill");appearanceControls->insertWidget(0,shapeFillMode);
     connect(shapeFillMode,&QComboBox::currentIndexChanged,this,[this](int index){updateLayer("Shape fill",[index](auto& layer){if(isShape(layer.effect))layer.gradientFill=index==1;});});
     auto* tools=new QToolBar("Drawing tools",this); tools->setObjectName("effectTools"); tools->setMovable(false);
     tools->setAllowedAreas(Qt::LeftToolBarArea); addToolBar(Qt::LeftToolBarArea,tools);
-    auto* toolGroup=new QButtonGroup(this); toolGroup->setExclusive(true);
+    auto* toolGroup=new QButtonGroup(this); toolGroup->setExclusive(true);toolGroup->setObjectName("drawingToolGroup");
     const QStringList toolNames{"Move", "Pencil", "Line", "Rectangle", "Ellipse", "Gradient", "Fill", "Eraser"};
     const QList<int> keys{Qt::Key_V,Qt::Key_B,Qt::Key_I,Qt::Key_U,Qt::Key_O,Qt::Key_G,Qt::Key_F,Qt::Key_E};
     for(int index=0;index<toolNames.size();++index) {
-        auto* tool=new QPushButton; tool->setObjectName(index==0 ? "moveEffectTool" : toolNames[index].toLower()+"Tool"); tool->setFixedSize(36,36);
+        auto* tool=new QPushButton; tool->setObjectName(index==0 ? "moveEffectTool" : toolNames[index].toLower()+"Tool"); tool->setFixedSize(32,32);
         tool->setIcon(studioToolIcon(toolNames[index].toLower())); tool->setCheckable(true); tool->setShortcut(QKeySequence(keys[index]));
         const QStringList descriptions{"Move the selected object. Drag corners to resize and the round handle to rotate.","Draw on the active paint object. Other sources receive a new paint object in the active layer.","Drag from the start to the end of a straight line.","Drag a rectangle. Use Filled shapes for a solid shape.","Drag an ellipse. Use Filled shapes for a solid shape.","Drag to set a gradient. Afterwards drag either arrow endpoint to change its length and direction.","Fill a connected area with the foreground color. On a procedural or image source, place that region on a paint object in the active layer.","Erase paint pixels. On a procedural effect, erase its mask so the effect stays editable."};
         tool->setToolTip(toolNames[index]+" ("+QChar(keys[index])+")\n"+descriptions[index]); tool->setAccessibleName(toolNames[index]); tools->addWidget(tool); toolGroup->addButton(tool,index);
         if(index==0) { effectTarget_=tool; tool->setChecked(true); }
-        connect(tool,&QPushButton::clicked,this,[this,index] { if(tabs_->currentIndex()==0){layoutCanvas_->setFocus();return;}effectsCanvas_->setCropTool(false); findChild<QCheckBox*>("cropTool")->setChecked(false); effectsCanvas_->setTool(static_cast<LightingCanvas::Tool>(index)); refreshProperties(); });
+        connect(tool,&QPushButton::clicked,this,[this,index] { layoutCanvas_->setTool(LightingCanvas::Tool::Move);if(tabs_->currentIndex()==0){layoutCanvas_->setFocus();refreshToolOptions();return;}effectsCanvas_->setCropTool(false); findChild<QCheckBox*>("cropTool")->setChecked(false); effectsCanvas_->setTool(static_cast<LightingCanvas::Tool>(index)); refreshProperties(); });
     }
-    auto* sources=new QToolButton;sources->setObjectName("sourcesTool");sources->setIcon(studioToolIcon("sources"));sources->setAccessibleName("Add generator or image");sources->setToolTip("Add a color, gradient, pattern or image object to the active layer");sources->setFixedSize(36,36);sources->setPopupMode(QToolButton::InstantPopup);
+    auto* hand=new QToolButton;hand->setObjectName("panCanvasTool");hand->setIcon(studioToolIcon("pan"));hand->setFixedSize(32,32);hand->setCheckable(true);toolGroup->addButton(hand,int(LightingCanvas::Tool::Pan));hand->setAccessibleName("Pan canvas");hand->setToolTip("Pan canvas: drag with left mouse button (H). Space + drag or middle drag works with any tool.");
+    connect(hand,&QToolButton::clicked,this,[this]{effectsCanvas_->setTool(LightingCanvas::Tool::Pan);layoutCanvas_->setTool(LightingCanvas::Tool::Pan);refreshProperties();});tools->addWidget(hand);
+    auto* panAction=new QAction("Pan canvas",this);panAction->setObjectName("panCanvasAction");panAction->setShortcut(QKeySequence(Qt::Key_H));addAction(panAction);connect(panAction,&QAction::triggered,hand,&QToolButton::click);
+    auto* sources=new QToolButton;sources->setObjectName("sourcesTool");sources->setIcon(studioToolIcon("sources"));sources->setAccessibleName("Add generator or image");sources->setToolTip("Add a color, gradient, pattern or image object to the active layer");sources->setFixedSize(32,32);sources->setPopupMode(QToolButton::InstantPopup);
     auto* sourceMenu=new QMenu(sources);sources->setMenu(sourceMenu);
-    for(const auto& definition:effectDefinitions())if(definition.kind==EffectKind::StaticColor || isGradient(definition.kind))sourceMenu->addAction(findChild<QAction*>("create_"+definition.id));
+    for(auto* category:{patterns,organic,scenes}) sourceMenu->addMenu(category);
     sourceMenu->addSeparator();sourceMenu->addAction(imageAction);tools->addWidget(sources);
     for(const auto& family:QStringList{"Shapes","Particles"}) {
         auto* flyout=new QToolButton; flyout->setObjectName(family.toLower()+"Tool"); flyout->setIcon(studioToolIcon(family.toLower()));
-        flyout->setAccessibleName(family); flyout->setToolTip(family+": choose an object to add to the active layer"); flyout->setFixedSize(36,36); flyout->setPopupMode(QToolButton::InstantPopup);
+        flyout->setAccessibleName(family); flyout->setToolTip(family+": choose an object to add to the active layer"); flyout->setFixedSize(32,32); flyout->setPopupMode(QToolButton::InstantPopup);
         auto* menu=new QMenu(family,flyout); flyout->setMenu(menu);
-        for(const auto& definition:effectDefinitions()) if(family=="Shapes" ? isShape(definition.kind) : isParticle(definition.kind)) {
+        for(const auto& definition:effectDefinitions()) if(canCreateEffect(definition.kind) && (family=="Shapes" ? isShape(definition.kind) : (isParticle(definition.kind) && definition.kind!=EffectKind::Lightning))) {
             menu->addAction(findChild<QAction*>("create_"+definition.id));
         }
         tools->addWidget(flyout);
     }
+    for(auto* control:tools->findChildren<QAbstractButton*>()){control->setFocusPolicy(Qt::StrongFocus);control->setIconSize({20,20});}
     auto* cropTool=new QCheckBox; cropTool->setObjectName("cropTool"); cropTool->setParent(this); cropTool->hide();
-    auto* cropButton=new QToolButton; cropButton->setIcon(studioToolIcon("crop")); cropButton->setCheckable(true); cropButton->setFixedSize(36,36); cropButton->setObjectName("cropImageTool");
+    auto* cropButton=new QToolButton; cropButton->setIcon(studioToolIcon("crop")); cropButton->setCheckable(true); cropButton->setFixedSize(32,32); cropButton->setObjectName("cropImageTool");
     cropButton->setToolTip("Crop imported image (C)"); cropButton->setAccessibleName("Crop image"); cropButton->setShortcut(QKeySequence(Qt::Key_C)); tools->addWidget(cropButton);
     connect(cropButton,&QToolButton::toggled,cropTool,&QCheckBox::setChecked); connect(cropTool,&QCheckBox::toggled,cropButton,&QToolButton::setChecked);
     connect(cropTool,&QCheckBox::toggled,this,[this](bool crop) { if(crop) { editingMask_=false; effectsCanvas_->setTool(LightingCanvas::Tool::Move); } effectsCanvas_->setCropTool(crop); });
-    connect(effectsCanvas_,&LightingCanvas::effectGestureStarted,this,[this] {
-        if(!resumePreview_)resumePreview_=playing_->isChecked(); playing_->setChecked(false);
-        // Editing must retain the inspected channel; changing scope here can reveal unrelated layers over the selection.
-        // Transform the frame under the pointer; resetting animated geometry makes visible shapes unclickable.
-        // Keep the visible animation time while editing; new objects have their own base geometry.
-    });
     connect(effectsCanvas_,&LightingCanvas::maskEditingRequested,this,[this] { inspectorTabs_->setCurrentIndex(2); });
     connect(effectsCanvas_,&LightingCanvas::editingError,this,[this](const QString& message) { statusBar()->showMessage(message,8000); });
-    connect(effectsCanvas_,&LightingCanvas::gestureEnded,this,[this] { const auto resume=resumePreview_;resumePreview_.reset();if(resume && *resume) playing_->setChecked(true); });
     connect(effectsCanvas_,&LightingCanvas::selectionChanged,this,[this] {
         if(selectedLayer_!=effectsCanvas_->selection()) { selectedLayer_=effectsCanvas_->selection(); refresh(); }
         syncSelectionTrees();
     });
-    auto* toolOptions=new QToolBar("Tool options",this); toolOptions->setObjectName("drawingOptions"); toolOptions->setFixedHeight(46);toolOptions->setMovable(false); addToolBarBreak(); addToolBar(toolOptions);
+    auto* toolOptions=new QToolBar("Tool options",this); toolOptions->setObjectName("drawingOptions"); toolOptions->setMinimumHeight(34);toolOptions->setMovable(false); addToolBarBreak(); addToolBar(toolOptions);
     appearanceControls->removeWidget(color_); color_->setMaximumWidth(190); toolOptions->addWidget(color_)->setObjectName("foregroundColorAction");
     auto* shapeFill=new QCheckBox("Filled shapes"); shapeFill->setObjectName("shapeFill"); shapeFill->setChecked(true); toolOptions->addWidget(shapeFill)->setObjectName("shapeFillAction");
     tools->hide(); toolOptions->hide();
     connect(tabs_,&QTabWidget::currentChanged,this,[this,tools](int index) { tools->setVisible(index<2);
-        for(auto* action:tools->actions()){auto* widget=tools->widgetForAction(action);action->setVisible(index==1 || (widget && widget->objectName()=="moveEffectTool"));}
+        for(auto* action:tools->actions()){auto* widget=tools->widgetForAction(action);action->setVisible(index==1 || (widget && (widget->objectName()=="moveEffectTool" || widget->objectName()=="panCanvasTool")));}
         refreshToolOptions(); });
     maskEnabled_ = new QCheckBox("Enable mask");
     maskControls->addWidget(maskEnabled_);
@@ -954,14 +1023,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         auto* control = new ParameterSpinBox;  control->setRange(low, high); control->setValue(value); control->setAccessibleName(name);
         brushForm->addRow(name, sliderField(control)); return control;
     };
-    auto* size=new ParameterSpinBox; size->setAccessibleName("Brush diameter"); size->setObjectName("brushDiameter"); size->setRange(1,320); size->setValue(6); size->setSuffix(" px"); size->setFixedWidth(90);
+    auto* size=new ParameterSpinBox; size->setAccessibleName("Brush diameter"); size->setObjectName("brushDiameter"); size->setRange(1,320); size->setValue(6); size->setSuffix(" px");
     auto* stroke=sliderField(size); stroke->setMinimumWidth(180); stroke->setMaximumWidth(250);
-    stroke->findChild<QSlider*>()->setObjectName("brushSizeSlider");stroke->findChild<QLabel*>("parameterLimits")->hide();
+    stroke->findChild<QSlider*>()->setObjectName("brushSizeSlider");
     toolOptions->addWidget(new QLabel("  Stroke "))->setObjectName("strokeLabelAction"); toolOptions->addWidget(stroke)->setObjectName("strokeSizeAction");
     const auto syncDrawing=[this,size,shapeFill] { effectsCanvas_->setDrawing(color_->color(),size->value(),shapeFill->isChecked()); };
     connect(color_,&ColorEditor::colorChanged,this,[syncDrawing] { syncDrawing(); }); connect(size,&QDoubleSpinBox::valueChanged,this,[syncDrawing] { syncDrawing(); }); connect(shapeFill,&QCheckBox::toggled,this,[syncDrawing] { syncDrawing(); });
     syncDrawing();
-    auto* toolHint=new QLabel; toolHint->setObjectName("toolHint"); toolHint->setProperty("muted",true); toolOptions->addWidget(toolHint);
+    auto* toolHint=new QLabel; toolHint->setMinimumWidth(240); toolHint->setMaximumWidth(460); toolHint->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Preferred); toolHint->setObjectName("toolHint"); toolHint->setProperty("muted",true); toolOptions->addWidget(toolHint);
     auto* hardness = spin("Hardness %", 0, 100, 30);
     auto* brushOpacity = spin("Brush opacity %", 0, 100, 100);
     auto* gray = spin("Reveal %", 0, 255, 0);static_cast<ParameterSpinBox*>(gray)->setDisplayUnit(100./255," %");
@@ -993,14 +1062,16 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(layoutCanvas_,&LightingCanvas::addRequested,this,[this] { addHeaderComponents(); });
     connect(&document_, &LightingDocument::changed, this, &LightingWindow::refresh);
     connect(document_.history(), &QUndoStack::cleanChanged, this, [this](bool clean) { setWindowModified(!clean); });
-    setWindowTitle("Lighting Studio[*] — MSI Mystic Light Standalone");
+    setWindowTitle(QString("Lighting Studio [%1][*] — RGB Lighting Editor").arg(studioBuildId));
     statusBar()->showMessage("Lighting Studio - Create effects and arrange components; canvas output is automatic.");
     auto* viewMenu=menuBar()->addMenu("View"); viewMenu->setObjectName("workspaceViewMenu");
-    viewMenu->addAction(labels);
+    auto* canvasMenu=viewMenu->addMenu("Canvas");canvasMenu->addAction(fit);canvasMenu->addAction(findChild<QAction*>("zoomOut"));canvasMenu->addAction(findChild<QAction*>("zoomIn"));
+    viewMenu->addAction(labels);viewMenu->addAction(panAction);
+    auto* panelsMenu=new QMenu("Panels",this);
     for(auto* panel:{sidebarDock,dock}) {
         auto* toggle=panel->toggleViewAction();toggle->setObjectName(panel==sidebarDock ? "toggleNavigator" : "toggleInspector");
         toggle->setText(panel==sidebarDock ? "Navigator" : "Inspector");
-        toggle->setShortcut(QKeySequence(panel==sidebarDock ? "Ctrl+Shift+L" : "Ctrl+Shift+P"));viewMenu->addAction(toggle);
+        toggle->setShortcut(QKeySequence(panel==sidebarDock ? "Ctrl+Shift+L" : "Ctrl+Shift+P"));viewMenu->addAction(toggle);panelsMenu->addAction(toggle);
         connect(panel,&QDockWidget::visibilityChanged,this,[this,panel,sidebarDock](bool visible) {
             // Parent-window hiding and workspace switches must not overwrite the user's panel choices.
             if(adjustingPanels_ || !isVisible())return;
@@ -1009,19 +1080,58 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         });
     }
     auto* panelsButton=new QToolButton;panelsButton->setText("Panels");panelsButton->setObjectName("workspacePanels");
-    panelsButton->setPopupMode(QToolButton::InstantPopup);panelsButton->setMenu(viewMenu);menuBar()->setCornerWidget(panelsButton,Qt::TopRightCorner);
+    panelsButton->setPopupMode(QToolButton::InstantPopup);panelsButton->setMenu(panelsMenu);menuBar()->setCornerWidget(panelsButton,Qt::TopRightCorner);
+    auto* nextPanel=viewMenu->addAction("Focus next panel");nextPanel->setObjectName("focusNextPanel");nextPanel->setShortcut(QKeySequence(Qt::Key_F6));
+    auto* previousPanel=viewMenu->addAction("Focus previous panel");previousPanel->setObjectName("focusPreviousPanel");previousPanel->setShortcut(QKeySequence(Qt::SHIFT|Qt::Key_F6));
+    connect(nextPanel,&QAction::triggered,this,[this]{cyclePanelFocus(false);});
+    connect(previousPanel,&QAction::triggered,this,[this]{cyclePanelFocus(true);});
+    connect(tabs_,&QTabWidget::currentChanged,this,[nextPanel,previousPanel](int index){nextPanel->setEnabled(index<2);previousPanel->setEnabled(index<2);});
+    auto* toolsMenu=menuBar()->addMenu("Tools");toolsMenu->setObjectName("drawingToolsMenu");
+    auto* toolActions=new QActionGroup(toolsMenu);toolActions->setExclusive(true);
+    for(auto* control:toolGroup->buttons()) {
+        auto* action=toolsMenu->addAction(control->icon(),control->accessibleName());
+        action->setObjectName("choose_"+control->objectName());action->setCheckable(true);toolActions->addAction(action);action->setChecked(control->isChecked());
+        if(!control->shortcut().isEmpty())action->setText(action->text()+"\t"+control->shortcut().toString());
+        connect(action,&QAction::triggered,control,&QAbstractButton::click);
+        connect(control,&QAbstractButton::toggled,action,&QAction::setChecked);
+        const auto sync=[this,control,action]{action->setEnabled(tabs_->currentIndex()<2 && control->isVisible() && control->isEnabled());};
+        connect(toolsMenu,&QMenu::aboutToShow,action,sync);
+        connect(tabs_,&QTabWidget::currentChanged,action,[sync](int){sync();});
+    }
+    toolsMenu->addSeparator();toolsMenu->addMenu(addMenu);
     auto* reduceMotion=viewMenu->addAction("Reduce UI motion");reduceMotion->setCheckable(true);reduceMotion->setChecked(!studioMotionEnabled());connect(reduceMotion,&QAction::toggled,this,[](bool on){QSettings().setValue("editor/reduceMotion",on);});
-    auto* resetWorkspace=viewMenu->addAction("Reset workspace"); resetWorkspace->setObjectName("resetWorkspace");
+    auto* resetWorkspace=viewMenu->addAction("Reset workspace"); resetWorkspace->setObjectName("resetWorkspace");panelsMenu->addSeparator();panelsMenu->addAction(resetWorkspace);
     connect(resetWorkspace,&QAction::triggered,this,[this,sidebarDock,dock] {
-        navigatorShown_=inspectorShown_=inspectorBeforeCompact_=true;updateWorkspacePanels();resizeDocks({sidebarDock,dock},{250,340},Qt::Horizontal);
+        navigatorShown_=inspectorShown_=inspectorBeforeCompact_=true;updateWorkspacePanels();resizeDocks({sidebarDock,dock},{280,340},Qt::Horizontal);
         layoutCanvas_->fitToView(); effectsCanvas_->fitToView();
     });
-    auto* navigation=addToolBar("Workspace"); navigation->setObjectName("workspaceNavigation"); navigation->setMovable(false);
+    auto* navigation=studioHeaderToolbar("Workspace",this);addToolBar(navigation); navigation->setObjectName("workspaceNavigation"); navigation->setMovable(false);
     insertToolBar(toolbar,navigation);navigation->addWidget(brand);
-    auto* editorAction=navigation->addAction("Editor");editorAction->setObjectName("workspaceEditor");editorAction->setCheckable(true);
-    auto* hardwareAction=navigation->addAction("Hardware");hardwareAction->setObjectName("workspaceHardware");hardwareAction->setCheckable(true);
-    auto* targetTabs=new QTabBar;targetTabs->setObjectName("editorTarget");targetTabs->addTab("Components");targetTabs->addTab("Layers");
-    targetTabs->setAccessibleName("Editor selection target");previewToolbar->insertWidget(previewToolbar->actions().first(),targetTabs);
+    auto* artworkToolbar=new QToolBar("Brand artwork",this);artworkToolbar->setObjectName("artworkToolbar");artworkToolbar->setMovable(false);
+    auto* artwork=studioBanner(artworkToolbar,180);artwork->setObjectName("studioArtworkBanner");artworkToolbar->addWidget(artwork);
+    insertToolBar(navigation,artworkToolbar);insertToolBarBreak(navigation);
+
+    auto* editorAction=navigation->addAction("Design");editorAction->setObjectName("workspaceEditor");editorAction->setCheckable(true);
+    auto* hardwareAction=navigation->addAction("Devices");hardwareAction->setObjectName("workspaceHardware");hardwareAction->setCheckable(true);
+    auto* workspaceMenu=viewMenu->addMenu("Workspace");workspaceMenu->addAction(editorAction);workspaceMenu->addAction(hardwareAction);
+    auto* previewMenu=menuBar()->addMenu("Preview");previewMenu->setObjectName("previewMenu");
+    auto* togglePreview=previewMenu->addAction("Stop preview");togglePreview->setObjectName("togglePreviewPlayback");
+    connect(togglePreview,&QAction::triggered,playing_,&QPushButton::click);
+    connect(playing_,&QPushButton::toggled,togglePreview,[togglePreview](bool running){togglePreview->setText(running ? "Stop preview" : "Play preview");});
+    auto* scopeMenu=previewMenu->addMenu("Preview output");scopeMenu->setObjectName("previewOutputMenu");
+    connect(scopeMenu,&QMenu::aboutToShow,this,[this,scopeMenu]{
+        scopeMenu->clear();
+        for(int i=0;i<previewChannel_->count();++i){auto* action=scopeMenu->addAction(previewChannel_->itemText(i));action->setCheckable(true);action->setChecked(i==previewChannel_->currentIndex());connect(action,&QAction::triggered,previewChannel_,[this,i]{previewChannel_->setCurrentIndex(i);});}
+    });
+    auto* targetGroup=new QWidget;targetGroup->setObjectName("editorTargetGroup");
+    auto* targetLayout=new QHBoxLayout(targetGroup);targetLayout->setContentsMargins(4,2,4,2);targetLayout->setSpacing(6);
+    auto* targetLabel=new QLabel("EDIT MODE");targetLabel->setObjectName("editorTargetLabel");targetLayout->addWidget(targetLabel);
+    auto* targetTabs=new QTabBar;targetTabs->setObjectName("editorTarget");targetTabs->setExpanding(false);targetTabs->setDrawBase(false);
+    targetTabs->addTab(studioToolIcon("move"),"Components");targetTabs->addTab(studioToolIcon("layers"),"Layers");
+    targetTabs->setTabToolTip(0,"Arrange, rotate and align lighting components");
+    targetTabs->setTabToolTip(1,"Select, draw and edit effects and layer objects");
+    targetTabs->setAccessibleName("Editor selection target");targetLabel->setBuddy(targetTabs);targetLayout->addWidget(targetTabs);
+    previewToolbar->insertWidget(previewToolbar->actions().first(),targetGroup);
     // Internal canvas pages preserve existing integrations; users stay in one Editor workspace.
     for(int index=0;index<2;++index) {
         auto* action=new QAction(index==0 ? "Components" : "Layers",this);action->setObjectName(index==0 ? "workspaceLayout" : "workspaceEffects");addAction(action);
@@ -1029,18 +1139,31 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     }
     connect(targetTabs,&QTabBar::currentChanged,this,[this](int index){
         auto* before=tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_;
+        const bool preserveCamera=isVisible() && before->isVisible();
+        const auto point=before==layoutCanvas_ ? document_.layoutBounds().topLeft() : QPointF();
+        const auto anchor=before->mapToGlobal(before->viewportPoint(point).toPoint());
         tabs_->setCurrentIndex(index);auto* after=index==0 ? layoutCanvas_ : effectsCanvas_;
-        after->copyCamera(*before);after->setFocus();
+        // A hidden startup page has no valid screen anchor; let its first resize fit the canvas.
+        if(preserveCamera)after->copyCamera(*before,anchor);else after->fitToView();after->setFocus();
+        // Inspector rows can resize the dock after the tab signal; copy again once layout settles.
+        if(preserveCamera)QTimer::singleShot(0,after,[this,before,after,index,anchor]{if(tabs_->currentIndex()==index)after->copyCamera(*before,anchor);});
     });
     connect(editorAction,&QAction::triggered,this,[this,targetTabs]{tabs_->setCurrentIndex(targetTabs->currentIndex());});
     connect(hardwareAction,&QAction::triggered,this,[this]{tabs_->setCurrentIndex(2);});
-    auto* align=new QToolButton;align->setObjectName("alignSelection");align->setText("Align");align->setAccessibleName("Align and distribute selection");
+    auto* align=new QToolButton;align->setObjectName("alignSelection");align->setText("Align / Snap");align->setAccessibleName("Align and distribute selection");
     align->setToolTip("Align to selection bounds; distribute centers with at least three selected objects");align->setPopupMode(QToolButton::InstantPopup);
     auto* alignMenu=new QMenu(align);align->setMenu(alignMenu);previewToolbar->addWidget(align);
+    alignMenu->addSection("Align selection");
     for(const auto& key:QStringList{"left","center","right","top","middle","bottom","distribute-horizontal","distribute-vertical"}) {
-        auto* action=alignMenu->addAction(QString(key).replace('-', ' '));action->setObjectName("align_"+key);
+        auto* action=alignMenu->addAction(key.startsWith("distribute") ? QString(key).replace('-', ' ').replace("distribute","Distribute") : "Align "+key);action->setObjectName("align_"+key);
         connect(action,&QAction::triggered,this,[this,key]{(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->alignSelection(key);});
     }
+    alignMenu->addSection("Snapping");alignMenu->addAction(snap);
+    auto* snapSettings=new QWidget;auto* snapForm=new QFormLayout(snapSettings);snapForm->setContentsMargins(12,4,12,8);snapForm->addRow("Canvas grid",gridSize);
+    auto* paletteStep=new QSpinBox;paletteStep->setObjectName("paletteSnapPercent");paletteStep->setRange(1,100);paletteStep->setValue(QSettings().value("editor/paletteSnapPercent",1).toInt());paletteStep->setKeyboardTracking(false);paletteStep->setAccessibleName("Color stop snap step");
+    paletteStep->setToolTip("Color point spacing as a percentage of the color bar. 1 divides the bar into 100 steps. Used only while Snap to grid is enabled; hold Alt to bypass.");snapForm->addRow("Color stop step",paletteStep);
+    connect(paletteStep,&QSpinBox::valueChanged,this,[this](int value){QSettings().setValue("editor/paletteSnapPercent",value);for(auto* bar:findChildren<QWidget*>("colorStopBar"))bar->update();});
+    auto* snapAction=new QWidgetAction(alignMenu);snapAction->setDefaultWidget(snapSettings);alignMenu->addAction(snapAction);
     auto* guides=alignMenu->addAction("Smart guides");guides->setObjectName("smartGuides");guides->setCheckable(true);guides->setChecked(true);
     layoutCanvas_->setSmartGuides(true);effectsCanvas_->setSmartGuides(true);
     connect(guides,&QAction::toggled,this,[this](bool on){layoutCanvas_->setSmartGuides(on);effectsCanvas_->setSmartGuides(on);});
@@ -1054,7 +1177,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* canvasViews=viewMenu->addMenu("Canvas view");auto* viewGroup=new QActionGroup(this);viewGroup->setExclusive(true);
     // Toolbar widget actions may overflow at the minimum window width; menus keep every view reachable.
     for(int index=0;index<viewMode->count();++index){auto* action=canvasViews->addAction(viewMode->itemText(index));action->setObjectName(QString("canvasView%1").arg(index));action->setCheckable(true);action->setChecked(index==0);viewGroup->addAction(action);connect(action,&QAction::triggered,this,[viewMode,index]{viewMode->setCurrentIndex(index);});connect(viewMode,&QComboBox::currentIndexChanged,action,[action,index](int current){action->setChecked(current==index);});}
-    alignMenu->setTitle("Align and distribute");viewMenu->addMenu(alignMenu);viewMenu->addAction(snap);
+    alignMenu->setTitle("Align / Snap");viewMenu->addMenu(alignMenu);
     const auto updateView=[this,viewMode,targetTabs] {
         const int view=viewMode->currentIndex();layoutCanvas_->setEditorView(view!=2,view!=1);effectsCanvas_->setEditorView(view!=2,view!=1);
         targetTabs->setTabEnabled(0,view!=1);targetTabs->setTabEnabled(1,view!=2);
@@ -1069,7 +1192,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     tabs_->tabBar()->hide();
     tabs_->setCurrentIndex(1);tabs_->setCurrentIndex(0);editorAction->setChecked(true);
-    resizeDocks({sidebarDock,dock},{250,340},Qt::Horizontal);
+    menuBar()->removeAction(help->menuAction());menuBar()->addMenu(help);
+    resizeDocks({sidebarDock,dock},{280,340},Qt::Horizontal);
     for(auto* field:findChildren<ColorEditor*>()) {
         connect(field,&ColorEditor::gestureStarted,&document_,&LightingDocument::beginColorPreview);
         connect(field,&ColorEditor::gestureFinished,&document_,&LightingDocument::finishColorPreview);
@@ -1078,6 +1202,23 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         connect(slider,&QSlider::sliderPressed,this,[this]{document_.history()->beginMacro("Parameter drag");});
         connect(slider,&QSlider::sliderReleased,this,[this]{document_.history()->endMacro();});
     }
+    for(auto* field:findChildren<QAbstractSpinBox*>())styleStudioNumericField(field);
+    for(auto* form:findChildren<QFormLayout*>()) {
+        form->setVerticalSpacing(6);form->setHorizontalSpacing(8);form->setLabelAlignment(Qt::AlignLeft|Qt::AlignVCenter);
+        for(int row=0;row<form->rowCount();++row) {
+            auto* labelItem=form->itemAt(row,QFormLayout::LabelRole);auto* fieldItem=form->itemAt(row,QFormLayout::FieldRole);
+            auto* label=labelItem ? qobject_cast<QLabel*>(labelItem->widget()) : nullptr;auto* field=fieldItem ? fieldItem->widget() : nullptr;
+            if(!label || !field)continue;
+            auto* number=qobject_cast<QAbstractSpinBox*>(field);if(!number)number=field->findChild<QAbstractSpinBox*>();
+            if(number){label->setBuddy(number);if(number->accessibleName().isEmpty())number->setAccessibleName(label->text());}
+        }
+    }
+    QVector<QLabel*> motionLabels;int motionLabelWidth=0;
+    for(auto* form:motion->findChildren<QFormLayout*>())for(int row=0;row<form->rowCount();++row) {
+        auto* item=form->itemAt(row,QFormLayout::LabelRole);auto* label=item ? qobject_cast<QLabel*>(item->widget()) : nullptr;
+        if(label){motionLabels.append(label);motionLabelWidth=std::max(motionLabelWidth,label->fontMetrics().horizontalAdvance(label->text()));}
+    }
+    for(auto* label:motionLabels)label->setMinimumWidth(motionLabelWidth+8);
     installParameterTooltips(this);
     refresh();
     qApp->installEventFilter(this);
@@ -1093,6 +1234,20 @@ void LightingWindow::setLabelsHeld(bool held)
     effectsCanvas_->setShowLabels(held || findChild<QAction*>("showComponentLabels")->isChecked());
 }
 
+QVariantMap LightingWindow::workspacePanelPreferences() const
+{
+    // Hardware/compact mode hides panels temporarily; persist the user's editing preference.
+    return {{"navigator",navigatorShown_},{"inspector",compactWorkspace_ ? inspectorBeforeCompact_ : inspectorShown_}};
+}
+void LightingWindow::restoreWorkspacePanelPreferences(const QVariantMap& panels)
+{
+    if(panels.isEmpty())return;
+    navigatorShown_=panels.value("navigator",true).toBool();
+    inspectorBeforeCompact_=panels.value("inspector",true).toBool();
+    inspectorShown_=!compactWorkspace_ && inspectorBeforeCompact_;
+    updateWorkspacePanels();
+}
+
 void LightingWindow::updateWorkspacePanels()
 {
     auto* navigator=findChild<QDockWidget*>("layersDock");auto* inspector=findChild<QDockWidget*>("propertiesDock");
@@ -1105,6 +1260,7 @@ void LightingWindow::updateWorkspacePanels()
 void LightingWindow::resizeEvent(QResizeEvent* event)
 {
     QMainWindow::resizeEvent(event);
+    if(auto* artwork=findChild<QWidget*>("studioArtworkBanner"))artwork->setFixedHeight(width()<1180 || height()<850 ? 100 : 180);
     if(!findChild<QDockWidget*>("propertiesDock"))return;
     const bool compact=width()<1180;
     if(compact==compactWorkspace_)return;
@@ -1113,6 +1269,28 @@ void LightingWindow::resizeEvent(QResizeEvent* event)
     if(compact) {inspectorBeforeCompact_=inspectorShown_;inspectorShown_=false;}
     else inspectorShown_=inspectorBeforeCompact_;
     updateWorkspacePanels();
+}
+
+void LightingWindow::cyclePanelFocus(bool backwards)
+{
+    if(tabs_->currentIndex()>1)return;
+    auto* canvas=tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_;
+    auto* navigator=findChild<QDockWidget*>("layersDock");
+    auto* inspector=findChild<QDockWidget*>("propertiesDock");
+    QVector<QWidget*> panels;
+    if(navigator->isVisible())panels.append(navigator);
+    panels.append(canvas);
+    if(inspector->isVisible())panels.append(inspector);
+    const auto* focus=QApplication::focusWidget();
+    int current=-1;
+    for(int i=0;i<panels.size();++i)if(panels[i]==focus || panels[i]->isAncestorOf(focus)){current=i;break;}
+    const int next=current<0 ? (backwards ? panels.size()-1 : 0) : (current+(backwards ? panels.size()-1 : 1))%panels.size();
+    auto* target=panels[next];
+    if(target==navigator)target=tabs_->currentIndex()==0 ? static_cast<QWidget*>(components_) : layers_;
+    else if(target==inspector) {
+        for(auto* field:inspector->findChildren<QWidget*>())if(field->isVisible() && field->isEnabled() && (field->focusPolicy()&Qt::TabFocus)) {target=field;break;}
+    }
+    target->setFocus(backwards ? Qt::BacktabFocusReason : Qt::TabFocusReason);
 }
 
 void LightingWindow::moveSelectedLayer(int direction)
@@ -1434,25 +1612,33 @@ void LightingWindow::refreshToolOptions()
     auto* options=findChild<QToolBar*>("drawingOptions"); if(!options) return;
     const EffectLayer* selected=nullptr;
     for(const auto& layer:document_.state().layers) if(layer.id==selectedLayer_) selected=&layer;
-    const auto tool=effectsCanvas_->tool();
+    const auto tool=tabs_->currentIndex()==0 ? layoutCanvas_->tool() : effectsCanvas_->tool();
+    if(auto* button=findChild<QButtonGroup*>("drawingToolGroup")->button(int(tool)))button->setChecked(true);
+    const bool panning=tool==LightingCanvas::Tool::Pan;
+    const int selectionCount=(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->selections().size();
+    for(auto* action:findChildren<QAction*>())if(action->objectName().startsWith("align_"))
+        action->setEnabled(selectionCount>=(action->objectName().contains("distribute") ? 3 : 2));
     const bool editing=tabs_->currentIndex()==1;
-    const bool drawing=editing && tool!=LightingCanvas::Tool::Move && tool!=LightingCanvas::Tool::Eraser && (tool!=LightingCanvas::Tool::Gradient || !selected || !isGradient(selected->effect));
+    const bool drawing=editing && !panning && tool!=LightingCanvas::Tool::Move && tool!=LightingCanvas::Tool::Eraser && (tool!=LightingCanvas::Tool::Gradient || !selected || !isGradient(selected->effect));
     const bool color=!editingMask_ && drawing;
-    const bool stroke=editing && (editingMask_ || tool!=LightingCanvas::Tool::Move) && tool!=LightingCanvas::Tool::Gradient && tool!=LightingCanvas::Tool::Fill;
+    const bool stroke=editing && !panning && (editingMask_ || tool!=LightingCanvas::Tool::Move) && tool!=LightingCanvas::Tool::Gradient && tool!=LightingCanvas::Tool::Fill;
     const bool shape=editing && (tool==LightingCanvas::Tool::Rectangle || tool==LightingCanvas::Tool::Ellipse);
     findChild<QAction*>("foregroundColorAction")->setVisible(color); color_->setVisible(color);
     findChild<QAction*>("shapeFillAction")->setVisible(shape);
     findChild<QAction*>("strokeLabelAction")->setVisible(stroke);
     findChild<QAction*>("strokeSizeAction")->setVisible(stroke);
-    const QStringList hints{"Move: select and drag an object", "Pencil: draw on the canvas", "Line (I): drag from start to end", "Rectangle: drag to draw", "Ellipse: drag to draw", "Gradient (G): drag to create; existing grips edit the selected gradient", "Fill: click a connected area", "Eraser: remove pixels or hide the source mask"};
-    findChild<QLabel*>("toolHint")->setText(editing ? "  "+hints[int(tool)] : "  Components: select and drag; Shift adds to selection; hold L for labels");
+    // Pan is a real tool: keep help and brush visibility aligned; bounds-check future tool additions.
+    const QStringList hints{"Move: select and drag an object", "Pencil: draw on the canvas", "Line (I): drag from start to end", "Rectangle: drag to draw", "Ellipse: drag to draw", "Gradient (G): drag to create; existing grips edit the selected gradient", "Fill: click a connected area", "Eraser: remove pixels or hide the source mask", "Pan (H): drag to move the canvas; Space temporarily pans from any tool"};
+    auto* toolHint=findChild<QLabel*>("toolHint");
+    const QString hint=editing || panning ? hints.value(int(tool),"Choose a tool") : "Components: select and drag; Shift adds to selection; hold L for labels";
+    toolHint->setText("  "+hint);toolHint->setToolTip(hint);
     // Photoshop-style options keep a stable row so switching tools never shifts the canvas under the pointer.
     options->setVisible(tabs_->currentIndex()<2);
 }
 
 void LightingWindow::refreshProperties()
 {
-    QSignalBlocker blockTransparency(transparency_), blockBlend(blend_), blockMask(maskEnabled_), blockType(effectType_), blockRepeat(repetitions_);
+    QSignalBlocker blockTransparency(transparency_), blockBlend(blend_), blockMask(maskEnabled_), blockRepeat(repetitions_);
     const EffectLayer* selected = nullptr;
     for (const auto& layer : document_.state().layers) if (layer.id == selectedLayer_) selected = &layer;
     {
@@ -1493,55 +1679,84 @@ void LightingWindow::refreshProperties()
     if ((!selected || selected->effect!=EffectKind::Image) && cropTool->isChecked()) cropTool->setChecked(false);
     cropTool->setEnabled(selected && !editingMask_ && selected->effect==EffectKind::Image && !selected->image.isNull());
     findChild<QToolButton*>("cropImageTool")->setEnabled(cropTool->isEnabled());
-    effectType_->setEnabled(selected && !editingMask_);
-    effectType_->setVisible(selected && !editingMask_ && (isParticle(selected->effect) || isGradient(selected->effect)));
-    if(selected && (isParticle(selected->effect) || isGradient(selected->effect))) {
-        auto* host=qobject_cast<QWidget*>(effectType_->property(isParticle(selected->effect) ? "motionContainer" : "appearanceContainer").value<QObject*>());
-        if(effectType_->parentWidget()!=host) qobject_cast<QVBoxLayout*>(host->layout())->insertWidget(0,effectType_);
-        effectType_->clear();
-        for(const auto& definition:effectDefinitions()) if(isParticle(selected->effect) ? isParticle(definition.kind) : isGradient(definition.kind))
-            effectType_->addItem(QString(definition.label).replace("Particle ",""),static_cast<int>(definition.kind));
-    }
-    sourceColor_->setVisible(!editingMask_ && selected && selected->effect!=EffectKind::Paint && selected->effect!=EffectKind::Image && !isGradient(selected->effect));
-    gradientColors_->setVisible(selected && !editingMask_ && (isGradient(selected->effect) || selected->gradientFill || effectsCanvas_->tool()==LightingCanvas::Tool::Gradient));
+    findChild<QWidget*>("patternParameters")->setVisible(selected && !editingMask_ && isPattern(selected->effect));
+    findChild<QLabel*>("effectDescription")->setVisible(selected && !editingMask_);
+    sourceColor_->setVisible(!editingMask_ && selected && selected->effect!=EffectKind::Paint && selected->effect!=EffectKind::Image && !isGradient(selected->effect) && !isParticle(selected->effect));
+    gradientColors_->setVisible(selected && !editingMask_ && (isGradient(selected->effect) || isParticle(selected->effect) || selected->gradientFill || effectsCanvas_->tool()==LightingCanvas::Tool::Gradient));
     auto* shapeFillMode=findChild<QComboBox*>("shapeFillMode");
     shapeFillMode->setVisible(selected && !editingMask_ && isShape(selected->effect));
     {const QSignalBlocker block(shapeFillMode);shapeFillMode->setCurrentIndex(selected && selected->gradientFill ? 1 : 0);}
     imageFit_->setVisible(selected && !editingMask_ && selected->effect == EffectKind::Image);
-    secondaryColor_->setVisible(selected && !editingMask_ && isParticle(selected->effect));
+    secondaryColor_->hide();
+    findChild<QLabel*>("particlePaletteLabel")->setVisible(selected && !editingMask_ && isParticle(selected->effect));
     findChild<QWidget*>("geometrySection")->setVisible(selected && !selected->container && !editingMask_ && selected->effect != EffectKind::StaticColor);
-    repetitions_->setVisible(selected && !editingMask_ && (selected->effect == EffectKind::Stripes || selected->effect == EffectKind::Waves));
+    findChild<QWidget*>("effectRepetitionControls")->setVisible(selected && !editingMask_ && (selected->effect==EffectKind::Stripes || selected->effect==EffectKind::Waves || selected->effect==EffectKind::Pinwheel || selected->effect==EffectKind::Spiral || selected->effect==EffectKind::SineWave || selected->effect==EffectKind::Dna || (selected->effect==EffectKind::Radar || selected->effect==EffectKind::Ripples || selected->effect==EffectKind::Kaleidoscope)));
     if (selected) {
+        findChild<QLabel*>("effectDescription")->setText(effectDefinition(selected->effect).description);
         transparency_->setValue(100-selected->transparency);
-        findChild<QLabel*>("transparencyValue")->setText(QString::number(100-selected->transparency) + "%");
+        {auto* value=findChild<QSpinBox*>("transparencyValue");const QSignalBlocker block(value);value->setValue(100-selected->transparency);}
         transparency_->setToolTip(QString::number(100-selected->transparency) + "% opaque. 100% is fully visible; 0% is hidden. The mask additionally controls local coverage.");
         blend_->setCurrentIndex(static_cast<int>(selected->blend));
         const double rates[]{selected->spin, selected->pulse, selected->hueShift};
         for (int i = 0; i < 3; ++i) {
-            const QSignalBlocker block(animation_[i]); animation_[i]->setValue(rates[i]);
+            const QSignalBlocker block(animation_[i]);
+            setEffectControlRange(animation_[i],i==1 ? 0 : -90,i==1 ? 1 : 90,rates[i]);
         }
         {const QSignalBlocker block(findChild<QComboBox*>("intensityMode"));findChild<QComboBox*>("intensityMode")->setCurrentIndex(selected->pulse>0 ? (selected->breathe>0 ? 3 : 1) : selected->breathe>0 ? 2 : 0);}
         animation_[0]->setEnabled(selected->effect != EffectKind::StaticColor);
         animation_[2]->setEnabled(selected->effect!=EffectKind::Image && selected->effect!=EffectKind::Paint);
         const QSignalBlocker blockLink(maskLinked_), blockCycle(colorCycle_);
         maskLinked_->setChecked(selected->maskLinked);
-        colorCycle_->setColors(selected->colorCycle);
+        colorCycle_->setStops(selected->colorCycle,selected->colorCyclePositions);
         const auto stops=selected->gradientColors.isEmpty() ? QVector<QColor>{selected->color,selected->secondaryColor} : selected->gradientColors;
         gradientColors_->setStops(stops,selected->gradientPositions); effectsCanvas_->setGradientStops(stops,selected->gradientPositions);
         colorCycle_->setEnabled(selected->effect != EffectKind::Image);
-        findChild<QCheckBox*>("enableColorCycle")->setEnabled(selected->effect != EffectKind::Image);
-        { const QSignalBlocker block(findChild<QCheckBox*>("enableColorCycle")); findChild<QCheckBox*>("enableColorCycle")->setChecked(selected->cycleRate>0); }
         const auto& parameters = advancedParameters();
         for (int i=0;i<advanced_.size();++i) {
-            const QSignalBlocker block(advanced_[i]); advanced_[i]->setValue(selected->*(parameters[i].member));
+            const QSignalBlocker block(advanced_[i]);
+            const auto range=practicalEffectRange(parameters[i],selected->effect);
+            setEffectControlRange(advanced_[i],range.first,range.second,selected->*(parameters[i].member));
             const bool particle = parameters[i].id.startsWith("particle");
-            const bool show = !particle || isParticle(selected->effect);
-            advanced_[i]->setVisible(show);
+            const auto id=parameters[i].id;
+            const auto& defaults=effectDefinition(selected->effect);
+            if(id=="patternSpeed") {
+                const bool radar=selected->effect==EffectKind::Radar,voronoi=selected->effect==EffectKind::Voronoi,fire=selected->effect==EffectKind::Fireplace;
+                const QString label=radar ? "Rotation speed" : voronoi ? "Cell motion speed" : fire ? "Flame motion speed" : "Pattern speed";
+                const QString help=radar ? "Revolutions per minute. Positive: clockwise; negative: counterclockwise; zero: still." : voronoi ? "Cell movement cycles per minute. Negative reverses movement; zero freezes cells." : fire ? "Flame motion cycles per minute. Negative reverses the flow; zero freezes flames." : "Pattern cycles per minute. Negative reverses motion; zero freezes it.";
+                advanced_[i]->setToolTip(help);
+                if(auto* field=qobject_cast<QWidget*>(advanced_[i]->property("visibilityContainer").value<QObject*>())) {field->setToolTip(help);for(auto* slider:field->findChildren<QSlider*>())slider->setToolTip(help);}
+                if(auto* labelWidget=qobject_cast<QLabel*>(advanced_[i]->property("parameterLabel").value<QObject*>())) {labelWidget->setText(label);labelWidget->setToolTip(help);}
+            }
+            advanced_[i]->setProperty("defaultValue",id=="patternSpeed" ? defaults.patternSpeed : id=="particleCount" ? defaults.particleCount : id=="patternSites" ? defaults.patternSites : EffectLayer{}.*(parameters[i].member));
+            if(id=="particleCount" || id=="particleSpeed" || id=="particleSize") {
+                const QString label=selected->effect==EffectKind::Lightning ? (id=="particleCount" ? "Bolt count" : id=="particleSpeed" ? "Flash rate" : "Bolt width") : parameters[i].label;
+                if(auto* widget=qobject_cast<QLabel*>(advanced_[i]->property("parameterLabel").value<QObject*>()))widget->setText(label);
+            }
+            if(id=="patternDetail" || id=="patternSites") {
+                const QString text=id=="patternSites" ? (selected->effect==EffectKind::LavaLamp ? "Blob count" : "Sites") : (selected->effect==EffectKind::Aurora ? "Texture scale" : "Flame detail");
+                const QString help=id=="patternSites" ? (selected->effect==EffectKind::LavaLamp ? "Number of merging blobs. Higher counts fill more of the source." : "Number of moving Voronoi sites. More sites produce smaller cells.") : (selected->effect==EffectKind::Aurora ? "Noise texture scale along the light curtain. Higher values create finer folds." : "Flame texture density, 1 to 16. Higher values create more, smaller tongues; this does not increase height.");
+                advanced_[i]->setToolTip(help);
+                if(auto* label=qobject_cast<QLabel*>(advanced_[i]->property("parameterLabel").value<QObject*>())){label->setText(text);label->setToolTip(help);}
+                if(auto* field=qobject_cast<QWidget*>(advanced_[i]->property("visibilityContainer").value<QObject*>())){field->setToolTip(help);for(auto* slider:field->findChildren<QSlider*>())slider->setToolTip(help);}
+            }
+            bool show = !particle || isParticle(selected->effect);
+            if(id.startsWith("pattern") || id=="fillOrder") {
+                const bool wave=selected->effect==EffectKind::SineWave || selected->effect==EffectKind::Dna;
+                const bool voronoi=selected->effect==EffectKind::Voronoi,fire=selected->effect==EffectKind::Fireplace;
+                const bool aurora=selected->effect==EffectKind::Aurora,lava=selected->effect==EffectKind::LavaLamp,checker=selected->effect==EffectKind::Checkerboard;
+                show=isPattern(selected->effect) && (id=="patternSpeed" || (id=="patternWidth" && (wave || aurora || selected->effect==EffectKind::Visor || selected->effect==EffectKind::Radar)) ||
+                    (id=="patternAmplitude" && (wave || aurora)) || (id=="patternWavelength" && selected->effect==EffectKind::Dna) || ((id=="patternFrequency" || id=="patternContrast" || id=="patternWarp") && (selected->effect==EffectKind::Plasma || selected->effect==EffectKind::Kaleidoscope)) || ((id=="patternCells" && checker) || ((id=="patternCells" || id=="fillOrder") && selected->effect==EffectKind::PixelFill)) ||
+                    (id=="patternSeed" && (voronoi || fire || aurora || lava)) || ((id=="patternSites" && lava) || ((id=="patternSites" || id=="patternDistance") && voronoi)) ||
+                    ((id=="patternDetail" && aurora) || ((id=="patternDetail" || id=="patternHeight") && fire)));
+            }
+            advanced_[i]->setVisible(show && id!="fillOrder" && id!="patternDistance");
             if(auto* field=qobject_cast<QWidget*>(advanced_[i]->property("visibilityContainer").value<QObject*>())) field->setVisible(show);
             if(auto* label=qobject_cast<QWidget*>(advanced_[i]->property("parameterLabel").value<QObject*>())) label->setVisible(show);
             advanced_[i]->setEnabled((!particle || isParticle(selected->effect)) &&
                 (parameters[i].id != "cycleRate" || selected->effect != EffectKind::Image));
         }
+        {auto* order=findChild<QComboBox*>("patternFillOrder");const QSignalBlocker block(order);order->setCurrentIndex(int(selected->fillOrder));}
+        {auto* metric=findChild<QComboBox*>("patternDistanceMode");const QSignalBlocker block(metric);metric->setCurrentIndex(int(selected->patternDistance));}
         const double crop[]{selected->crop.x(),selected->crop.y(),selected->crop.width(),selected->crop.height()};
         for (int i=0;i<4;++i) { const QSignalBlocker block(crop_[i]);
             static_cast<ParameterSpinBox*>(crop_[i])->setDisplayUnit(i%2==0 ? std::max(1,selected->image.width()) : std::max(1,selected->image.height())," px");crop_[i]->setValue(crop[i]); }
@@ -1551,9 +1766,10 @@ void LightingWindow::refreshProperties()
         color_->setColor(brush ? foreground_ : selected->color);
         effectsCanvas_->setDrawing(brush ? foreground_ : selected->color,findChild<QDoubleSpinBox*>("brushDiameter")->value(),findChild<QCheckBox*>("shapeFill")->isChecked());
         maskEnabled_->setChecked(selected->maskEnabled);
-        effectType_->setCurrentIndex(effectType_->findData(static_cast<int>(selected->effect)));
         sourceColor_->setColor(selected->color);secondaryColor_->setColor(selected->secondaryColor);
-        repetitions_->setValue(selected->repetitions);
+        // Repetitions share the persisted 1..64 contract across gradients and native patterns.
+        const int maximumRepeats=64;
+        setEffectControlRange(repetitions_,1,maximumRepeats,selected->repetitions);
         const QVector<double> values{selected->center.x(), selected->center.y(), selected->extent.width(), selected->extent.height(), selected->rotation};
         for (int i = 0; i < geometry_.size(); ++i) {
             const QSignalBlocker block(geometry_[i]);
@@ -1563,6 +1779,9 @@ void LightingWindow::refreshProperties()
             selected->effect != EffectKind::Stripes && selected->effect != EffectKind::Waves);
     }
     if(selected){animation_[1]->setEnabled(selected->pulse>0);for(auto* field:advanced_)if(field->objectName()=="breathe")field->setEnabled(selected->breathe>0);}
+    // Effect controls show plain numbers; scale conversion remains in the existing numeric contract.
+    for(auto* field:inspectorTabs_->findChildren<QDoubleSpinBox*>()) field->setSuffix({});
+    for(auto* field:inspectorTabs_->findChildren<QSpinBox*>()) field->setSuffix({});
     syncSliderFields(this);
     refreshToolOptions();
 }
@@ -1612,7 +1831,7 @@ void LightingWindow::refreshProjectName()
 {
     const auto name=fileName_.isEmpty() ? QString("Untitled") : QFileInfo(fileName_).fileName();
     auto* label=findChild<QLabel*>("currentProjectName"); label->setText(label->fontMetrics().elidedText(name,Qt::ElideMiddle,200)); label->setToolTip(fileName_);
-    setWindowTitle(name+"[*] — Lighting Studio");
+    setWindowTitle(name+QString("[*] — Lighting Studio [%1]").arg(studioBuildId));
 }
 
 void LightingWindow::removeSelectedComponents()

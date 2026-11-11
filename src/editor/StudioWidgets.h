@@ -4,9 +4,15 @@
 #include <QIcon>
 #include <QColor>
 class QDoubleSpinBox;
+class QAbstractSpinBox;
+// Uniform 64-DIP baseline, growing only with font metrics; safe to call repeatedly.
+void styleStudioNumericField(QAbstractSpinBox* field);
 class QVBoxLayout;
 class QSlider;
 void applyStudioStyle(QWidget* window);
+class QToolBar;
+QToolBar* studioHeaderToolbar(const QString& title,QWidget* parent,bool followHeaderRow=false);
+// The full branding image is fitted without cropping or fading its contents.
 QWidget* studioBanner(QWidget* parent,int height);
 QWidget* sliderField(QDoubleSpinBox* value);
 void syncSliderFields(QWidget* root);
@@ -57,8 +63,6 @@ private:
     bool gradient_=false;
     QWidget* rows_;
     ColorEditor* selectedColor_;
-    QVector<QSlider*> rgb_;
-    QVector<QLabel*> rgbValues_;
     QPushButton *add_, *remove_;
 };
 void installParameterTooltips(QWidget* root);
