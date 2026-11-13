@@ -1,5 +1,8 @@
 @echo off
 setlocal
+rem Prefer the current local GS-06-R2 editor before installed or older builds.
+set "APP=%~dp0build\aurora\Release\msi_mystic_light.exe"
+if exist "%APP%" goto launch
 set "APP=%~dp0build\dist\LightingStudio-ReliabilityFix\msi_mystic_light.exe"
 if exist "%ProgramFiles%\Lighting Studio\service.json" (
   set "APP=%ProgramFiles%\Lighting Studio\msi_mystic_light.exe"

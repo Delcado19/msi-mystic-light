@@ -147,8 +147,10 @@ void OutputUiTest::layoutDragOutput()
     const auto red=BuildReport0x51(MsiGen1AdvArea::JARGB1,{{255,0,0}});
     QTRY_VERIFY(received(red));
     QCOMPARE(canvas->previewPlacements()[0].origin,before);
-    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,from); QTest::mouseMove(canvas,to);
-    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,to);
+    // Cancellation preserves the camera after auto-scroll; resolve the next gesture in that camera.
+    const auto nextFrom=canvas->viewportPoint(before).toPoint(), nextTo=canvas->viewportPoint({300,80}).toPoint();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,nextFrom); QTest::mouseMove(canvas,nextTo);
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,nextTo);
     QCOMPARE(window.document().history()->index(),history+1);
     const auto origin=window.document().state().placements[0].origin;
     QVERIFY(QLineF(origin,QPointF(300,80)).length()<2);
@@ -350,7 +352,9 @@ void OutputUiTest::applicationDevicePage()
     window.findChild<QAction*>("workspaceHardware")->trigger();
     QCOMPARE(window.findChild<QStackedWidget*>("applicationPages")->currentIndex(),0); QVERIFY(panel->isVisible());
     QCoreApplication::processEvents();
-    QVERIFY(!window.findChild<QToolBar*>("previewToolbar")->isVisible());
+    QVERIFY(window.findChild<QToolBar*>("previewToolbar")->isVisible());
+    QVERIFY(window.findChild<QAction*>("workspaceHardware")->isVisible());
+    QVERIFY(!window.findChild<QWidget*>("editorTargetGroup")->isVisible());
     QVERIFY(!window.findChild<QDockWidget*>("hardwareOutputDock")); QVERIFY(!window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/application-devices.png"));
     panel->findChild<QPushButton*>("startOutput")->click(); QTRY_VERIFY(state(*panel,"Running")); QTRY_COMPARE(record->writes(),2);

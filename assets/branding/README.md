@@ -1,35 +1,20 @@
-# Lighting Studio branding
+# Branding assets
 
-The banner was supplied and selected by the project owner on 2026-10-26.
-Source filename: 188f3344-7326-440c-a8cf-6a91c69db4a4.png.
-It is preserved byte-for-byte and depicts a conceptual interface, not a product screenshot.
-SHA256: 35e04eb26c86d7215ad84b0f84ae4fd685118d5d5b80c33de2a85e7a899d5b2f
+Current GS-06-R2 assets are supplied by the owner and embedded without pixel edits.
 
-The earlier vector studies in docs/design are superseded by this selected identity.
+| Asset | Source | Dimensions | SHA256 |
+| --- | --- | --- | --- |
+| lighting-studio-header.png | Lightning Studio Turbinenlogo.png | 2172x724 RGBA | cc342c47cca3583e334a324ccbcf2e4aceb6068e290fa4b2126b0586ec15df40 |
+| lighting-studio-background.png | background.png | 3840x2160 RGBA | e0376d6d3b3ad55cee47107d63a71c26a2b6f7d484617305132a4c265aa6675f |
 
-The transparent `lighting-studio-header.png` is a compact imagegen adaptation of
-this approved banner, prepared on 2026-10-27. It retains the LS monogram and
-Lighting Studio wordmark without the scenery or tagline. The application toolbar
-uses this derivative. Earlier versions kept Hardware free of a banner; GS-06
-shows the larger artwork strip above every workspace. Earlier About versions retained the
-unchanged original. Both images are embedded resources, not external file paths.
+The logo is fitted proportionally to 360x120 DIP at the right of the branding
+row; its supplied transparency and full bounds are preserved. The photo covers
+the window with centered proportional cropping and a dark overlay. Scenery may
+crop as the aspect ratio changes; the separate logo does not.
 
-## Ice panorama (GS-05, 2026-10-29)
+branding.qrc also retains the earlier conceptual banners for About/history.
+They are not the window background or the command-row logo. dropdown-arrow.svg
+is a code-native UI chevron, not a replacement brand asset. Its QPixmap decoding
+requires the shipped Qt SVG image-format plugin.
 
-The owner supplied `2026-10-29_16-35-23.png` as the new visual reference.
-`lighting-studio-ice-banner.png` preserves that image byte-for-byte; it is embedded
-in the Qt resource bundle. The native toolbar uses its mountain/aurora panorama
-with a navy scrim for readable controls. About shows the full uncropped image.
-The existing compact LS wordmark remains in the toolbar. Original assets remain
-for historical provenance. No external image service, web font or dependency was
-added. The depicted monitor UI is conceptual artwork.
-
-SHA256: f0c7aa2fbcfed30e7201954348faa1f95b27cdd04bd63460b0b972d93bce77be
-
-## GS-06 presentation
-
-The same unchanged Ice asset has a responsive strip above navigation. As of the
-2026-11-11 correction, both the header and About fit the complete image without
-cropping or an overlay fade. Unused space uses the native background. No generated
-derivative was written. Navigation uses plain native chrome instead of repeating
-the panorama. Compact/short windows reduce banner height.
+See docs/HEADER_MASK_CLARITY.md for native captures and validation boundaries.

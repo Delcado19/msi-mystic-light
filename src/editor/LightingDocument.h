@@ -15,8 +15,8 @@
 enum class LayerBlend { Normal, Multiply, Screen, Overlay };
 struct EffectLayer {
     QUuid id = QUuid::createUuid();
-    QUuid parentId; // Null is a layer; children are independently editable objects in that layer.
-    bool container = false; // New empty layers have no implicit visual source.
+    QUuid parentId; // Null is a root source/group; children remain independently editable.
+    bool container = false; // Explicit groups have no visual source of their own.
     QString name = "Static Color";
     QColor color = Qt::white;
     EffectKind effect = EffectKind::StaticColor;
@@ -88,9 +88,11 @@ public:
     void finishColorPreview(bool accept);
     QUuid addLayer(EffectKind effect = EffectKind::StaticColor, const QUuid& parent = {});
     QUuid addPaintLayer(const QUuid& parent = {});
-    QUuid addEmptyLayer();
+    QUuid addEmptyLayer(); // Creates a group; API name retained for existing integrations.
     QUuid addMultizoneLayer(); // One undoable group with four independently editable, masked sources.
     QUuid layerRoot(const QUuid& object) const;
+    // Creation targets explicit groups; selecting a source never silently turns it into a group.
+    QUuid creationParent(const QUuid& selection) const;
     QUuid importImage(const QString& fileName, const QUuid& parent = {});
     void defineComponent(const ComponentDefinition& component, bool replace = false);
     // Isolates geometry for one placement; physical LED count and wire order stay unchanged.

@@ -158,7 +158,7 @@ void LightingCanvas::select(const QUuid& id)
     emit selectionChanged();
     update();
 }
-void LightingCanvas::setMaskTarget(bool enabled) { if(maskTarget_==enabled)return;cancelGesture(); maskTarget_ = enabled; setCursor(enabled ? Qt::CrossCursor : Qt::ArrowCursor); update(); }
+void LightingCanvas::setMaskTarget(bool enabled) { if(maskTarget_==enabled)return;cancelGesture(); maskTarget_ = enabled; updateCursor(); update(); }
 void LightingCanvas::setBrush(double radius, double hardness, double opacity, int gray)
 {
     radius_ = radius; hardness_ = hardness; opacity_ = opacity; gray_ = gray; update();
@@ -166,6 +166,7 @@ void LightingCanvas::setBrush(double radius, double hardness, double opacity, in
 void LightingCanvas::cancelGesture()
 {
     const bool ending=context_==Context::Effects && dragging_;
+    cropBase_.reset();cropDragging_=false;cropRect_={};
     pendingDrawing_=false;createdObject_=false;marquee_=false;deferredHit_=false;guides_.clear();
     autoScroll_->stop();
     const bool restore=context_==Context::Layout && dragging_;
@@ -175,7 +176,7 @@ void LightingCanvas::cancelGesture()
     workingMask_ = {}; originalEffect_.reset(); workingEffect_.reset(); handle_ = 0; layoutScale_=1; layoutRotation_=0;
     if(restore) emit layoutPreviewChanged();
     if(ending) emit gestureEnded();
-    update();
+    updateCursor();update();
 }
 
 QVector<QPointF> LightingCanvas::componentPoints(const ComponentPlacement& placement) const
@@ -187,7 +188,9 @@ void LightingCanvas::paintEvent(QPaintEvent*)
 {
     syncScrollbars();
     QPainter painter(this);
-    painter.fillRect(rect(),studioThemeColor("@surround"));
+    // Only the outer workplane reveals scenery; the document checkerboard below stays opaque.
+    const bool scenery=window()->property("studioBackground").toBool();
+    painter.fillRect(rect(),studioThemeColor("@surround",scenery && !previewOnly_ ? 140 : 255));
     // A quiet editor workplane only: this never enters the rendered effect/device frame.
     if(!previewOnly_) {painter.setPen(studioThemeColor("@separator"));for(int y=60;y<height();y+=24)for(int x=12;x<width();x+=24)painter.drawPoint(x,y);}
     painter.setPen(studioThemeColor("@secondary"));
@@ -256,10 +259,10 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             paintComponents(painter,frame,bounds);painter.restore();
         }
         SnapGrid::load().paint(painter,QRectF(0,0,640,400).intersected(QRectF(canvasPoint({0,0}),canvasPoint({double(width()),double(height())}))),zoom_);
-        if(maskTarget_ && tool_==MaskTool::Brush && underMouse()) {
+        if(underMouse() && !panning_ && !spaceHeld_ && !cropTool_ && (drawingTool_==Tool::Pencil || drawingTool_==Tool::Eraser)) {
             const auto cursor=canvasPoint(mapFromGlobal(QCursor::pos()));
-            painter.setPen(QPen(QColor("#172337"),3/zoom_)); painter.setBrush(Qt::NoBrush); painter.drawEllipse(cursor,radius_,radius_);
-            painter.setPen(QPen(QColor("#ebf2ff"),1/zoom_)); painter.drawEllipse(cursor,radius_,radius_);
+            painter.setPen(QPen(QColor("#172337"),3/zoom_)); painter.setBrush(Qt::NoBrush); painter.drawEllipse(cursor,maskTarget_ ? radius_ : drawWidth_/2,maskTarget_ ? radius_ : drawWidth_/2);
+            painter.setPen(QPen(QColor("#ebf2ff"),1/zoom_)); painter.drawEllipse(cursor,maskTarget_ ? radius_ : drawWidth_/2,maskTarget_ ? radius_ : drawWidth_/2);
         }
         if (dragging_ && maskTarget_ && tool_ == MaskTool::Gradient) {
             painter.setPen(QPen(QColor("#a9c2ff"), 1 / zoom_));
@@ -281,17 +284,24 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             for(const auto point:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight()})painter.drawRect(QRectF(point-QPointF(3/zoom_,3/zoom_),QSizeF(6/zoom_,6/zoom_)));
             const auto top=QPointF(bounds.center().x(),bounds.top());painter.drawLine(top,top-QPointF(0,24/zoom_));painter.drawEllipse(top-QPointF(0,24/zoom_),5/zoom_,5/zoom_);
         }
-        if (!maskTarget_ && drawingTool_==Tool::Move && selections().size()<=1) for (const auto& stored : document_.state().layers) if (stored.id==selected_ && stored.effect!=EffectKind::StaticColor) {
+        if (!maskTarget_ && selections().size()<=1) for (const auto& stored : document_.state().layers) if (stored.id==selected_ && !stored.container) {
             const auto& layer=workingEffect_ ? *workingEffect_ : stored;
             const auto transform=effectTransform(layer,seconds_);
             const QRectF bounds(-0.5,-0.5,1,1);
             painter.setPen(QPen(cropTool_ ? Qt::cyan : QColor("#a9c2ff"),1/zoom_)); painter.setBrush(Qt::NoBrush);
-            painter.drawPolygon(transform.map(QPolygonF(bounds)));
-            if (cropTool_ && dragging_) {
+            if(layer.effect==EffectKind::StaticColor)painter.drawRect(QRectF(0,0,640,400));
+            else painter.drawPolygon(transform.map(QPolygonF(bounds)));
+            if(cropTool_ && cropBase_) {
+                const auto cropTransform=effectTransform(*cropBase_,cropSeconds_);
+                painter.drawPolygon(cropTransform.map(QPolygonF(cropRect_)));
+                for(const auto corner:{cropRect_.topLeft(),cropRect_.topRight(),cropRect_.bottomRight(),cropRect_.bottomLeft()}) {
+                    const auto point=cropTransform.map(corner);painter.fillRect(QRectF(point-QPointF(4/zoom_,4/zoom_),QSizeF(8/zoom_,8/zoom_)),Qt::cyan);
+                }
+            } else if (cropTool_ && dragging_) {
                 const auto local=transform.inverted();
                 painter.drawPolygon(transform.map(QPolygonF(QRectF(local.map(start_),local.map(last_)).normalized())));
             }
-            else if (!cropTool_) {
+            else if (!cropTool_ && drawingTool_==Tool::Move && layer.effect!=EffectKind::StaticColor && editable(layer.id)) {
                 for (auto point : {bounds.topLeft(),bounds.topRight(),bounds.bottomRight(),bounds.bottomLeft()}) {
                     const auto handle=transform.map(point); painter.drawRect(QRectF(handle-QPointF(3/zoom_,3/zoom_),QSizeF(6/zoom_,6/zoom_)));
                 }
@@ -338,6 +348,13 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
         }
     }
     for (auto placement : document_.state().placements) {
+        painter.save();
+        bool dimmed=false;
+        if(!previewChannel_.isNull()) {
+            bool inScope=false;for(const auto& assignment:document_.state().assignments)if(assignment.id==previewChannel_ && assignment.placements.contains(placement.id))inScope=true;
+            dimmed=!inScope;
+            if(dimmed)painter.setOpacity(.18);
+        }
         placement=previewPlacement(placement);
         const auto points = componentPoints(placement);
         const auto& definition = document_.catalog()[placement.componentId];
@@ -347,6 +364,7 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
         painter.scale(20*placement.scale.width(),20*placement.scale.height());
         drawHardwareComponentArtwork(painter,definition);
         painter.restore();
+        painter.setOpacity(1); // LED markers must darken even over a same-color effect raster.
         const bool keyboard=hardwareCategory(definition)=="Keyboards" && definition.positions.size()-definition.nonPhysicalSlots.size()>20;
         const double ledRadius=keyboard ? 6. : hardwarePreviewLedRadius(definition,placement.scale);
         painter.setPen(QPen(selectedPlacement(placement.id) ? QColor("#a9c2ff") : Qt::white,
@@ -360,7 +378,8 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
             const auto point = points[i];
             if(keyboard) { const auto key=qMakePair(qRound(point.x()*10),qRound(point.y()*10)); if(drawnKeys.contains(key)) continue; drawnKeys.insert(key); }
             if (!world.adjusted(-20, -20, 20, 20).contains(point)) continue;
-            const QColor light=sampled[placement.id].value(definition.mapping[i],Qt::black);
+            auto light=sampled[placement.id].value(definition.mapping[i],Qt::black);
+            if(dimmed){light=light.darker(550);light.setAlpha(255);} // Display only; sampled output values stay unchanged.
             painter.setBrush(light);
             if(keyboard) {
                 painter.save();painter.translate(point);painter.rotate(placement.rotation);
@@ -376,6 +395,7 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
             }
 
         }
+        painter.restore();
     }
     // Paint labels and dashed groups after artwork, so filled housings cannot cover them.
     if(!previewOnly_ && context_==Context::Layout) for(const auto& assignment:document_.state().assignments) {
@@ -605,7 +625,8 @@ void LightingCanvas::beginDrawing(QPointF point)
     const auto reference=!maskTarget_ && found && drawingTool_==Tool::Fill && layer.effect!=EffectKind::Paint ? renderEffect(layer) : QImage{};
     if(!maskTarget_ && (gradient || !found || layer.container || (!layer.parentId.isNull() && (drawingTool_==Tool::Rectangle || drawingTool_==Tool::Ellipse || drawingTool_==Tool::Line)) || (gradient ? !isGradient(layer.effect) && layer.effect!=EffectKind::Paint && !solid : layer.effect!=EffectKind::Paint))) {
         if(document_.state().layers.size()>=64) { emit editingError("Layer limit reached. Select an existing paint layer or remove a layer first."); return; }
-        layer=EffectLayer{};layer.parentId=selected_.isNull() ? activeLayer_ : document_.layerRoot(selected_);layer.effect=gradient ? EffectKind::LinearGradient : EffectKind::Paint;
+        // An empty canvas click clears object selection, but drawing still belongs to the active group.
+        layer=EffectLayer{};layer.parentId=document_.creationParent(selected_.isNull() ? activeLayer_ : selected_);layer.effect=gradient ? EffectKind::LinearGradient : EffectKind::Paint;
         layer.name=gradient ? "Gradient" : "Paint";if(gradient){layer.gradientColors=gradientColors_;layer.gradientPositions=gradientPositions_;layer.color=drawColor_;layer.secondaryColor=Qt::black;}layer.mask=LightingDocument::whiteMask();layer.extent=LightingDocument::canvasSize();createdObject_=true;
     }
     if(createdObject_ && filled_ && (drawingTool_==Tool::Rectangle || drawingTool_==Tool::Ellipse)) {
@@ -735,30 +756,65 @@ bool LightingCanvas::selectedPlacement(const QUuid& id) const
     return false;
 }
 
+bool LightingCanvas::selectedHandleAt(QPointF point) const
+{
+    if(context_!=Context::Effects || maskTarget_ || cropTool_ || drawingTool_!=Tool::Move)return false;
+    const auto ids=selections();
+    if(ids.size()>1 || (!ids.isEmpty() && !ids.contains(selected_))){
+        QRectF bounds;for(const auto& layer:document_.state().layers)if(ids.contains(layer.id))bounds=bounds.united(effectBounds(layer));
+        for(const auto corner:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight(),QPointF(bounds.center().x(),bounds.top()-24/zoom_)})if(QLineF(point,corner).length()<12/zoom_)return true;
+    }
+    for(const auto& layer:document_.state().layers)if(layer.id==selected_ && editable(layer.id) && !layer.container && layer.effect!=EffectKind::StaticColor){
+        const auto transform=effectTransform(layer,seconds_);
+        for(const auto corner:{QPointF(-.5,-.5),QPointF(.5,-.5),QPointF(.5,.5),QPointF(-.5,.5),QPointF(0,-.5-24/(zoom_*layer.extent.height()))})if(QLineF(point,transform.map(corner)).length()<12/zoom_)return true;
+    }
+    return false;
+}
+
+void LightingCanvas::updateCursor(bool hover)
+{
+    if(previewOnly_){unsetCursor();return;}
+    if(panning_){setCursor(Qt::ClosedHandCursor);return;}
+    if(spaceHeld_ || drawingTool_==Tool::Pan){setCursor(Qt::OpenHandCursor);return;}
+    if(cropTool_ || maskTarget_ || drawingTool_!=Tool::Move){setCursor(Qt::CrossCursor);return;}
+    // Hide/focus-out can run after the owning window has destroyed its document member.
+    // Only a live mouse-move needs document-backed handle geometry.
+    if(!hover){setCursor(Qt::ArrowCursor);return;}
+    const auto point=canvasPoint(pointer_);
+    if(selectedHandleAt(point)){
+        const auto bounds=selectionBounds();const auto delta=point-bounds.center();
+        setCursor(delta.x()*delta.y()>=0 ? Qt::SizeFDiagCursor : Qt::SizeBDiagCursor);return;
+    }
+    setCursor(Qt::ArrowCursor);
+}
+
 void LightingCanvas::mousePressEvent(QMouseEvent* event)
 {
     if(previewOnly_ || (context_==Context::Layout ? !showComponents_ : !showEffects_)) return;
     setFocus();gestureSeconds_=seconds_;
     if(event->button()==Qt::LeftButton && minimapRect().contains(event->position())){cancelGesture();navigating_=true;navigateMinimap(event->position());return;}
-    if (event->button() == Qt::MiddleButton || (event->button()==Qt::LeftButton && (spaceHeld_ || drawingTool_==Tool::Pan))) { cancelGesture(); autoFit_=false; panning_ = true; last_ = event->position(); return; }
+    if (event->button() == Qt::MiddleButton || (event->button()==Qt::LeftButton && (spaceHeld_ || drawingTool_==Tool::Pan))) { cancelGesture(); autoFit_=false; panning_ = true; updateCursor();last_ = event->position(); return; }
     if(event->button()==Qt::RightButton) {
-        const auto hits=hitsAt(canvasPoint(event->position()));QMenu menu(this);
-        for(const auto& id:hits) {
-            QString name;
-            for(const auto& layer:document_.state().layers)if(layer.id==id)name=layer.name;
+        cancelGesture();const auto hits=hitsAt(canvasPoint(event->position()));
+        if(!hits.isEmpty() && !selectedIds_.contains(hits.first()))select(hits.first());
+        QMenu menu(this);menu.setObjectName("canvasContextMenu");
+        if(hits.size()>1){auto* pick=menu.addMenu("Select object");for(const auto& id:hits){
+            QString name;for(const auto& layer:document_.state().layers)if(layer.id==id)name=layer.name;
             for(const auto& item:document_.state().placements)if(item.id==id)name=document_.componentName(item);
-            auto* action=menu.addAction(name);connect(action,&QAction::triggered,this,[this,id]{selectMany({id},id);});
-        }
-        if(!hits.isEmpty())menu.exec(event->globalPosition().toPoint());return;
+            auto* action=pick->addAction(name);connect(action,&QAction::triggered,this,[this,id]{selectMany({id},id);});
+        }}
+        emit contextMenuRequested(&menu,!hits.isEmpty());
+        if(!menu.isEmpty())menu.exec(event->globalPosition().toPoint());return;
     }
     if (event->button() != Qt::LeftButton) return;
     if(!contentRect().contains(event->position())) return;
     pointer_=event->position(); pointerModifiers_=event->modifiers();
     start_ = last_ = canvasPoint(event->position());
+    if(cropTool_ && context_==Context::Effects && beginCrop(start_))return;
     snapGesture_=SnapGrid::load().enabled && !(event->modifiers() & Qt::AltModifier);
-    if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_)) {
+    if (context_==Context::Effects && !QRectF(QPointF(), LightingDocument::canvasSize()).contains(start_) && !selectedHandleAt(start_)) {
         // Dragging the workspace margin moves the camera, never the selected source.
-        autoFit_=false;panning_=true;last_=event->position();return;
+        autoFit_=false;panning_=true;updateCursor();last_=event->position();return;
     }
     if((event->modifiers() & Qt::ShiftModifier) && (context_==Context::Layout || (!maskTarget_ && drawingTool_==Tool::Move))) {
         const auto hits=hitsAt(start_);auto ids=selectedIds_;
@@ -788,13 +844,7 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
                 }
             }
         if(drawingTool_!=Tool::Move){pendingDrawing_=true;return;}
-        bool onHandle=false;
-        if(selections().size()>1){const auto bounds=selectionBounds();for(const auto point:{bounds.topLeft(),bounds.topRight(),bounds.bottomLeft(),bounds.bottomRight(),QPointF(bounds.center().x(),bounds.top()-24/zoom_)})onHandle|=QLineF(start_,point).length()<12/zoom_;}
-        for(const auto& layer:document_.state().layers)if(layer.id==selected_ && editable(layer.id) && !layer.container) {
-            const auto transform=effectTransform(layer,seconds_);
-            for(const auto corner:{QPointF(-.5,-.5),QPointF(.5,-.5),QPointF(.5,.5),QPointF(-.5,.5),QPointF(0,-.5-24/(zoom_*layer.extent.height()))})
-                onHandle|=QLineF(start_,transform.map(corner)).length()<12/zoom_;
-        }
+        const bool onHandle=selectedHandleAt(start_);
         if(!onHandle) {
             const auto hits=hitsAt(start_);
             // Drag a selection chosen in the tree without allowing a covering source to steal it.
@@ -886,6 +936,8 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
 
 void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
 {
+    pointer_=event->position();updateCursor(true);if(!dragging_)update();
+    if(cropDragging_){updateCrop(canvasPoint(event->position()));return;}
     if(deferredHit_) {
         if(QLineF(viewportPoint(start_),event->position()).length()<QApplication::startDragDistance())return;
         deferredHit_=false;
@@ -997,20 +1049,6 @@ void LightingCanvas::updateEffectGesture(QPointF point)
         changed.rotation=std::remainder(std::atan2(b.y()-a.y(),b.x()-a.x())*180/3.141592653589793-original.spin*gestureSeconds_,360.0);
         const double zoom=1+original.zoom/100*std::sin(2*3.141592653589793*gestureSeconds_);
         if(std::abs(zoom)>.001){changed.extent.setWidth(changed.extent.width()/zoom);if(centered)changed.extent.setHeight(changed.extent.width());}
-    } else if (cropTool_) {
-        workingEffect_=original;
-        const QSizeF source(original.image.width()*original.crop.width(),original.image.height()*original.crop.height());
-        const QSizeF size=source.scaled(original.extent,original.imageFill ? Qt::KeepAspectRatioByExpanding : Qt::KeepAspectRatio);
-        const QRectF target(-size.width()/original.extent.width()/2,-size.height()/original.extent.height()/2,
-            size.width()/original.extent.width(),size.height()/original.extent.height());
-        const auto selected=QRectF(transform.inverted().map(start_),transform.inverted().map(point)).normalized()
-            .intersected(QRectF(-0.5,-0.5,1,1)).intersected(target);
-        if (selected.width()<0.001 || selected.height()<0.001) return;
-        const QRectF relative((selected.x()-target.x())/target.width(),(selected.y()-target.y())/target.height(),
-            selected.width()/target.width(),selected.height()/target.height());
-        changed.crop={original.crop.x()+relative.x()*original.crop.width(),original.crop.y()+relative.y()*original.crop.height(),
-            relative.width()*original.crop.width(),relative.height()*original.crop.height()};
-        if (changed.crop.width()<0.001 || changed.crop.height()<0.001) return;
     } else if (handle_==6) {
         changed.center+=point-start_;
         if(snapGesture_) changed.center=SnapGrid::load().snap(changed.center);
@@ -1032,6 +1070,7 @@ void LightingCanvas::updateEffectGesture(QPointF point)
 
 void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
 {
+    if(cropDragging_ && event->button()==Qt::LeftButton){updateCrop(canvasPoint(event->position()));cropDragging_=false;update();return;}
     if(previewOnly_) return;
     if(deferredHit_ && event->button()==Qt::LeftButton && QLineF(viewportPoint(start_),event->position()).length()<QApplication::startDragDistance()) {
         const auto point=canvasPoint(event->position());cancelGesture();selectAt(point);return;
@@ -1048,7 +1087,7 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
         marquee_=false;selectMany(ids);return;
     }
     if(navigating_ && event->button()==Qt::LeftButton){navigating_=false;update();return;}
-    if (event->button() == Qt::MiddleButton || (panning_ && event->button()==Qt::LeftButton)) { panning_ = false; update(); return; }
+    if (event->button() == Qt::MiddleButton || (panning_ && event->button()==Qt::LeftButton)) { panning_ = false; updateCursor();update(); return; }
     if(pendingDrawing_ && event->button()==Qt::LeftButton){pendingDrawing_=false;selectAt(canvasPoint(event->position()));return;}
     if (event->button() != Qt::LeftButton) return;
     // Empty/unsupported drawing gestures still need to release the playback pause started on press.
@@ -1093,6 +1132,70 @@ void LightingCanvas::mouseReleaseEvent(QMouseEvent* event)
     cancelGesture();if(!created.isNull() && std::any_of(document_.state().layers.cbegin(),document_.state().layers.cend(),[&](const auto& layer){return layer.id==created;}))select(created); emit gestureEnded();
 }
 
+bool LightingCanvas::beginCrop(QPointF point)
+{
+    if(!cropBase_) {
+        for(const auto& layer:document_.state().layers)if(layer.id==selected_ && editable(layer.id) && layer.effect==EffectKind::Image && !layer.image.isNull())cropBase_=layer;
+        if(!cropBase_)return true;
+        cropSeconds_=seconds_;
+        const auto& layer=*cropBase_;
+        const QSizeF source(layer.image.width()*layer.crop.width(),layer.image.height()*layer.crop.height());
+        const auto size=source.scaled(layer.extent,layer.imageFill ? Qt::KeepAspectRatioByExpanding : Qt::KeepAspectRatio);
+        cropLimit_=QRectF(-size.width()/layer.extent.width()/2,-size.height()/layer.extent.height()/2,
+                         size.width()/layer.extent.width(),size.height()/layer.extent.height()).intersected(QRectF(-.5,-.5,1,1));
+    }
+    const auto transform=effectTransform(*cropBase_,cropSeconds_);
+    cropStart_=transform.inverted().map(point);cropDragRect_=cropRect_;cropGrip_=0;
+    const QVector<QPointF> corners{cropRect_.topLeft(),cropRect_.topRight(),cropRect_.bottomRight(),cropRect_.bottomLeft()};
+    if(!cropRect_.isEmpty())for(int i=0;i<4;++i)if(QLineF(viewportPoint(point),viewportPoint(transform.map(corners[i]))).length()<10)cropGrip_=i+1;
+    if(!cropGrip_ && cropRect_.contains(cropStart_))cropGrip_=5;
+    cropDragging_=true;updateCrop(point);return true;
+}
+
+void LightingCanvas::updateCrop(QPointF point)
+{
+    if(!cropBase_)return;
+    auto local=effectTransform(*cropBase_,cropSeconds_).inverted().map(point);
+    local.setX(std::clamp(local.x(),cropLimit_.left(),cropLimit_.right()));
+    local.setY(std::clamp(local.y(),cropLimit_.top(),cropLimit_.bottom()));
+    if(cropGrip_==5) {
+        const auto delta=local-cropStart_;
+        cropRect_=cropDragRect_.translated(std::clamp(delta.x(),cropLimit_.left()-cropDragRect_.left(),cropLimit_.right()-cropDragRect_.right()),
+                                         std::clamp(delta.y(),cropLimit_.top()-cropDragRect_.top(),cropLimit_.bottom()-cropDragRect_.bottom()));
+    } else {
+        const QVector<QPointF> opposite{cropDragRect_.bottomRight(),cropDragRect_.bottomLeft(),cropDragRect_.topLeft(),cropDragRect_.topRight()};
+        const auto anchor=cropGrip_ ? opposite[cropGrip_-1] : QPointF(std::clamp(cropStart_.x(),cropLimit_.left(),cropLimit_.right()),std::clamp(cropStart_.y(),cropLimit_.top(),cropLimit_.bottom()));
+        cropRect_=QRectF(anchor,local).normalized().intersected(cropLimit_);
+    }
+    update();
+}
+
+void LightingCanvas::applyCrop()
+{
+    if(!cropBase_ || cropRect_.width()<.001 || cropRect_.height()<.001)return;
+    const auto original=*cropBase_;auto changed=original;
+    const QSizeF source(original.image.width()*original.crop.width(),original.image.height()*original.crop.height());
+    const auto size=source.scaled(original.extent,original.imageFill ? Qt::KeepAspectRatioByExpanding : Qt::KeepAspectRatio);
+    const QRectF target(-size.width()/original.extent.width()/2,-size.height()/original.extent.height()/2,size.width()/original.extent.width(),size.height()/original.extent.height());
+    const QRectF relative((cropRect_.x()-target.x())/target.width(),(cropRect_.y()-target.y())/target.height(),cropRect_.width()/target.width(),cropRect_.height()/target.height());
+    changed.crop={original.crop.x()+relative.x()*original.crop.width(),original.crop.y()+relative.y()*original.crop.height(),relative.width()*original.crop.width(),relative.height()*original.crop.height()};
+    if(changed.crop.width()<.001 || changed.crop.height()<.001)return;
+    // Preserve the selected pixels' world placement, including rotation and the current animation transform.
+    const auto transform=effectTransform(original,cropSeconds_);
+    changed.center+=transform.map(cropRect_.center())-transform.map(QPointF());
+    changed.extent={original.extent.width()*cropRect_.width(),original.extent.height()*cropRect_.height()};
+    try {
+        document_.edit("Crop image",[&](auto& state){for(auto& layer:state.layers)if(layer.id==original.id)layer=changed;});
+        cancelGesture();
+    } catch(const std::exception& error){emit editingError(QString::fromUtf8(error.what()));}
+}
+
+void LightingCanvas::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    if(cropTool_ && cropBase_ && event->button()==Qt::LeftButton){applyCrop();event->accept();return;}
+    QWidget::mouseDoubleClickEvent(event);
+}
+
 void LightingCanvas::zoomBy(double factor)
 {
     if(!std::isfinite(factor) || factor<=0)return; // Reject invalid factors before they poison view/scroll coordinates.
@@ -1112,10 +1215,11 @@ void LightingCanvas::wheelEvent(QWheelEvent* event)
 
 void LightingCanvas::keyPressEvent(QKeyEvent* event)
 {
-    if(event->key()==Qt::Key_Space){spaceHeld_=true;event->accept();return;}
+    if(cropBase_ && (event->key()==Qt::Key_Return || event->key()==Qt::Key_Enter)){applyCrop();event->accept();return;}
+    if(event->key()==Qt::Key_Space){spaceHeld_=true;updateCursor();event->accept();return;}
     if (event->key() == Qt::Key_Escape) {
         // Canvas focus consumes Escape; allow returning from fullscreen once no edit needs cancelling.
-        if(!dragging_ && !panning_ && !navigating_ && window()->objectName()=="canvasFullscreen") {emit fullscreenRequested();return;}
+        if(!cropBase_ && !dragging_ && !panning_ && !navigating_ && window()->objectName()=="canvasFullscreen") {emit fullscreenRequested();return;}
         cancelGesture(); emit gestureEnded(); return;
     }
     if (!selected_.isNull()) {
@@ -1181,7 +1285,7 @@ void LightingCanvas::scrollAtEdge()
 
 void LightingCanvas::keyReleaseEvent(QKeyEvent* event)
 {
-    if(event->key()==Qt::Key_Space){spaceHeld_=false;event->accept();return;}
+    if(event->key()==Qt::Key_Space){spaceHeld_=false;updateCursor();event->accept();return;}
     QWidget::keyReleaseEvent(event);
 }
 

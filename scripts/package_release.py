@@ -7,7 +7,7 @@ import zipfile
 RUNTIME = (
     "msi_mystic_light.exe", "lighting_service_host.exe", "Qt6Network.dll", "hidapi.dll", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6Svg.dll",
     "platforms/qwindows.dll", "imageformats/qgif.dll", "imageformats/qjpeg.dll",
-    "imageformats/qwebp.dll", "modules/msi_gen1_module.dll",
+    "imageformats/qwebp.dll", "imageformats/qsvg.dll", "modules/msi_gen1_module.dll",
     "modules/peripherals_module.dll", "modules/auxiliary_module.dll",
     "modules/asrock_polychrome_module.dll", "modules/lenovo_motherboard_module.dll",
     "modules/hp_omen_module.dll",

@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794424846.5667956,
-    "seen": 1794425347.7449923,
-    "ast_hash": "0da8611c4ce03151aef8c45b65221979",
+    "mtime": 1794557506.090927,
+    "seen": 1794558055.3171048,
+    "ast_hash": "21fdd9deec64f2a62d3be631c804cef9",
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
@@ -90,21 +90,21 @@
     "semantic_hash": ""
   },
   "CMakeLists.txt": {
-    "mtime": 1794424276.4926665,
-    "seen": 1794425347.7449896,
-    "ast_hash": "b110eeebc2b38d53282b2e82fcd2cadb",
+    "mtime": 1794556515.5063412,
+    "seen": 1794558055.3171012,
+    "ast_hash": "65cc9b2c682cefc28249bbec8b8d99a3",
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794425147.6272721,
-    "seen": 1794425347.7449903,
-    "ast_hash": "4c0f667bab0b31fbce44f0bf7d309782",
+    "mtime": 1794558264.1592915,
+    "seen": 1794558503.6257334,
+    "ast_hash": "1ae1d19e490851cdfe2efecfcaa1a1b2",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
-    "mtime": 1794424444.9607515,
-    "seen": 1794425347.7474704,
-    "ast_hash": "64fd24e28ba6371dd4c06a8466c09552",
+    "mtime": 1794557192.646175,
+    "seen": 1794558055.3197498,
+    "ast_hash": "d45c0aab19d386687c3a1cfb38b16079",
     "semantic_hash": ""
   },
   "src/hid/HidApiDevice.cpp": {
@@ -318,51 +318,51 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1793291492.871382,
-    "seen": 1793293312.5438588,
-    "ast_hash": "f16355f3e6e601d02ec7ec3f6c42abf5",
+    "mtime": 1794556515.5083413,
+    "seen": 1794558055.3119266,
+    "ast_hash": "3a04bdec517b9d7ae054b581e5187f1e",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
-    "mtime": 1793291492.8703823,
-    "seen": 1793293312.5438595,
-    "ast_hash": "1e2cbdb7f5738f9ed0da012a0051ac86",
+    "mtime": 1794555916.4564092,
+    "seen": 1794558055.3119278,
+    "ast_hash": "2be616f16b0b632a14a951bf613297f1",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1793291582.0800965,
-    "seen": 1793293312.5438602,
-    "ast_hash": "5c08ed82d02cd759cfb50aa2bf57725e",
+    "mtime": 1794557972.4529793,
+    "seen": 1794558055.311929,
+    "ast_hash": "94e6ed0ca9d12d9389a158ac125c66fd",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1793291582.0790963,
-    "seen": 1793293312.543861,
-    "ast_hash": "a8222e9ef1d511e1bdf96013c4d3c523",
+    "mtime": 1794556882.4091756,
+    "seen": 1794558055.3119302,
+    "ast_hash": "1c43b074d5f7a804599919894bde2936",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1794424849.061757,
-    "seen": 1794425347.7401886,
-    "ast_hash": "bd42499c3b1dde598d06c922b2047f27",
+    "mtime": 1794556882.4111767,
+    "seen": 1794558055.311931,
+    "ast_hash": "400fce659c7f2581a725b48a710bd93e",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1793359924.924757,
-    "seen": 1793360016.605018,
-    "ast_hash": "9b798e8bcb9ea505b6db68a0b8671b8e",
+    "mtime": 1794485092.7102683,
+    "seen": 1794487304.8845935,
+    "ast_hash": "88842c999ce0f7e8b69a6318b8df228a",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1794425145.1980677,
-    "seen": 1794425347.7434745,
-    "ast_hash": "6fb7f854d13ae96a29af14d435249b7f",
+    "mtime": 1794557192.6451755,
+    "seen": 1794558055.315636,
+    "ast_hash": "299223d161af71f9c88cf389a7a953bb",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1794424916.9506273,
-    "seen": 1794425347.7455983,
-    "ast_hash": "0acd9bb4aa762c4d49990b7792ea592a",
+    "mtime": 1794557601.4047005,
+    "seen": 1794558055.3177938,
+    "ast_hash": "c2c0a01b5a2a2d32e4e1a2e4683ee813",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -534,27 +534,27 @@
     "semantic_hash": ""
   },
   "tests/output/test_output_ui.cpp": {
-    "mtime": 1793287321.1043687,
-    "seen": 1793287561.1346698,
-    "ast_hash": "d18b5659515c823ff5447ab74d20bb21",
+    "mtime": 1794554085.0294025,
+    "seen": 1794558055.3166103,
+    "ast_hash": "5ff079950b853d1ee26d02f8b15f59c1",
     "semantic_hash": ""
   },
   "PORTABLE_README.txt": {
-    "mtime": 1794424852.8368242,
-    "seen": 1794425347.7449913,
-    "ast_hash": "8b4d1d923494b46f56628cf337c0e4f9",
+    "mtime": 1794557506.0919268,
+    "seen": 1794558055.3171031,
+    "ast_hash": "da6de570b8636e5d5a2d7a5525ee41e4",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.cpp": {
-    "mtime": 1794424074.7346876,
-    "seen": 1794425347.740457,
-    "ast_hash": "3cc427d2d3b1f35148c1b2041b19dd3d",
+    "mtime": 1794558415.8416474,
+    "seen": 1794558503.620525,
+    "ast_hash": "dfaf0ad9f3c74cdae0870f6600c27498",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.h": {
-    "mtime": 1794424076.0898592,
-    "seen": 1794425347.7404583,
-    "ast_hash": "d9c04a119b048168284a765ee727d07c",
+    "mtime": 1794558415.8416474,
+    "seen": 1794558503.620526,
+    "ast_hash": "29bb6c9e88fa63cefa2798806851cf44",
     "semantic_hash": ""
   },
   "docs/EDITOR_DESIGN_REVIEW.md": {
@@ -882,9 +882,9 @@
     "semantic_hash": ""
   },
   "scripts/package_release.py": {
-    "mtime": 1793364121.0454342,
-    "seen": 1793364340.5889368,
-    "ast_hash": "c75730793eb32fa9fae81ace47a88bc7",
+    "mtime": 1794556515.5073407,
+    "seen": 1794558055.3096988,
+    "ast_hash": "453ba358f842a8e589525033634b29ac",
     "semantic_hash": ""
   },
   "scripts/update_doc_screenshots.py": {
@@ -894,9 +894,9 @@
     "semantic_hash": ""
   },
   "tests/docs/test_release_package.py": {
-    "mtime": 1793364382.93611,
-    "seen": 1793364448.3991847,
-    "ast_hash": "6eb43e84a04ab179960c65fc46053f31",
+    "mtime": 1794557192.647175,
+    "seen": 1794558055.3155673,
+    "ast_hash": "604d1cfb2a760054fb8ce1f1ebf4b235",
     "semantic_hash": ""
   },
   "tests/docs/test_screenshot_promotion.py": {
@@ -1026,9 +1026,9 @@
     "semantic_hash": ""
   },
   "src/editor/ColorPicker.cpp": {
-    "mtime": 1793265323.3467784,
-    "seen": 1793265363.9400609,
-    "ast_hash": "5f5eacf3695881526ab6b6d71d2e0c24",
+    "mtime": 1794553700.8260045,
+    "seen": 1794558055.311147,
+    "ast_hash": "0da828112dead7d1f8f0ca43626ec52c",
     "semantic_hash": ""
   },
   "src/editor/ParameterSpinBox.h": {
@@ -1038,9 +1038,9 @@
     "semantic_hash": ""
   },
   "assets/branding/README.md": {
-    "mtime": 1794424079.7151194,
-    "seen": 1794425347.7450638,
-    "ast_hash": "b61450209603f0b37e1f5f90894cd5b0",
+    "mtime": 1794557972.4539804,
+    "seen": 1794558055.3171804,
+    "ast_hash": "a6ee1211d0d86f74916c5e2d86818188",
     "semantic_hash": ""
   },
   "docs/design/GUI_AUDIT_2026-10-26.md": {
@@ -1074,9 +1074,9 @@
     "semantic_hash": ""
   },
   "assets/branding/lighting-studio-header.png": {
-    "mtime": 1793091374.31233,
-    "seen": 1793092935.1851919,
-    "ast_hash": "3242e65905a664195144503f8ae7da81",
+    "mtime": 1794549383.2002513,
+    "seen": 1794558055.3203804,
+    "ast_hash": "7f99216a7c09dd63e79fceb4402fb130",
     "semantic_hash": ""
   },
   "docs/design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md": {
@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "installer/Install-LightingStudio.ps1": {
-    "mtime": 1793364382.93457,
-    "seen": 1793364448.3990889,
-    "ast_hash": "baf6572f29e154b27cec50a70c711deb",
+    "mtime": 1794557192.646175,
+    "seen": 1794558055.3071296,
+    "ast_hash": "d31aa6e1d0a7b18f19362bd35bca244f",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.cpp": {
@@ -1164,9 +1164,9 @@
     "semantic_hash": ""
   },
   "tests/service/test_installer.ps1": {
-    "mtime": 1793364382.93457,
-    "seen": 1793364448.3992,
-    "ast_hash": "723897ccd94a8e78b7aa3e0c4cfd815b",
+    "mtime": 1794557601.4037,
+    "seen": 1794558055.3168182,
+    "ast_hash": "96316dd1a9e21a96b793e9ba4757837c",
     "semantic_hash": ""
   },
   "tests/service/test_service.cpp": {
@@ -1290,9 +1290,9 @@
     "semantic_hash": ""
   },
   "docs/design/README.md": {
-    "mtime": 1793360339.913133,
-    "seen": 1793364340.5890455,
-    "ast_hash": "fbbf69b2b43dc6e39af4c7097567922d",
+    "mtime": 1794557506.0919268,
+    "seen": 1794558055.3191612,
+    "ast_hash": "20992ef79f02937b80b6ef7b09ec8c20",
     "semantic_hash": ""
   },
   "docs/images/color-animation-aligned-GS03.png": {
@@ -1344,8 +1344,8 @@
     "semantic_hash": ""
   },
   "assets/branding/lighting-studio-ice-banner.png": {
-    "mtime": 1793288930.6127439,
-    "seen": 1793289306.6345916,
+    "mtime": 1794427130.3053281,
+    "seen": 1794427646.119893,
     "ast_hash": "c36a6510b557c135a6727671ea4a4c00",
     "semantic_hash": ""
   },
@@ -1614,15 +1614,63 @@
     "semantic_hash": ""
   },
   "docs/COLLABORATION_FIXES.md": {
-    "mtime": 1794425196.8777423,
-    "seen": 1794425347.745131,
-    "ast_hash": "e9637497776124740ed265630a8fc29d",
+    "mtime": 1794558415.8416474,
+    "seen": 1794558503.6260796,
+    "ast_hash": "f7c0af52c834738d4d58c8543916a98e",
     "semantic_hash": ""
   },
   "docs/LAYER_MODEL_PLAN.md": {
-    "mtime": 1794424918.1413708,
-    "seen": 1794425347.7455971,
-    "ast_hash": "9d8cd0375ff22eed0fa36296f35cee43",
+    "mtime": 1794557506.0919268,
+    "seen": 1794558055.3177927,
+    "ast_hash": "a0104a4f0325423a8cbc6d5e404ec745",
+    "semantic_hash": ""
+  },
+  "docs/HEADER_MASK_CLARITY.md": {
+    "mtime": 1794558264.1592915,
+    "seen": 1794558503.62649,
+    "ast_hash": "a749f27e3950933286d51eea8989aba4",
+    "semantic_hash": ""
+  },
+  "docs/images/mask-inspector-clear.png": {
+    "mtime": 1794557260.027946,
+    "seen": 1794558055.3233695,
+    "ast_hash": "cf14e105a270a8b0f73e52c74fd66675",
+    "semantic_hash": ""
+  },
+  "docs/images/reliability-header.png": {
+    "mtime": 1794425426.289161,
+    "seen": 1794427646.1238673,
+    "ast_hash": "65b5b94b76756ad5eab1ac085fb45ba3",
+    "semantic_hash": ""
+  },
+  "assets/branding/lighting-studio-background.png": {
+    "mtime": 1794484839.740667,
+    "seen": 1794487304.89273,
+    "ast_hash": "378f353105d7fe0eb75e1c4ad32273fd",
+    "semantic_hash": ""
+  },
+  "docs/images/aurora-background.png": {
+    "mtime": 1794557259.2132711,
+    "seen": 1794558055.3215365,
+    "ast_hash": "2515400d2558785282758ef3e5c54000",
+    "semantic_hash": ""
+  },
+  "docs/UI_UX_AUDIT_2026-11-13.md": {
+    "mtime": 1794557972.4539804,
+    "seen": 1794558055.3188663,
+    "ast_hash": "692680ea9eaa07ddf7a02b2b6410e0ed",
+    "semantic_hash": ""
+  },
+  "assets/branding/dropdown-arrow.svg": {
+    "mtime": 1794553700.8260045,
+    "seen": 1794558055.320244,
+    "ast_hash": "cbb820ca96091a7609b39f4315f6f0e4",
+    "semantic_hash": ""
+  },
+  "docs/images/panel-transparency.png": {
+    "mtime": 1794557250.8440669,
+    "seen": 1794558055.3236394,
+    "ast_hash": "7fe86aea468994095b7d2cc90ef9ecbb",
     "semantic_hash": ""
   }
 }

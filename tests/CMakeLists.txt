@@ -86,6 +86,11 @@ add_test(NAME lighting_editor COMMAND test_editor)
 set_tests_properties(lighting_editor PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,360,120>"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
 
+# Offscreen Qt has no Windows font engine; use real fonts instead of oversized placeholder glyphs.
+if(WIN32 AND EXISTS "$ENV{WINDIR}/Fonts")
+    set_property(TEST lighting_editor APPEND PROPERTY ENVIRONMENT "QT_QPA_FONTDIR=$ENV{WINDIR}/Fonts")
+endif()
+
 add_executable(test_output output/test_output.cpp)
 add_executable(test_scheduler output/test_scheduler.cpp)
 foreach(output_test IN ITEMS test_output test_scheduler)
@@ -123,7 +128,7 @@ endif()
 if(WIN32)
     add_custom_command(TARGET test_editor POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:test_editor>/imageformats"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin> "${WEBP_PLUGIN}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin> $<TARGET_FILE:Qt6::QSvgPlugin> "${WEBP_PLUGIN}"
             "$<TARGET_FILE_DIR:test_editor>/imageformats")
 endif()
 

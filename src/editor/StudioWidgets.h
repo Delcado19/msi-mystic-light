@@ -12,7 +12,7 @@ class QSlider;
 void applyStudioStyle(QWidget* window);
 class QToolBar;
 QToolBar* studioHeaderToolbar(const QString& title,QWidget* parent,bool followHeaderRow=false);
-// The full branding image is fitted without cropping or fading its contents.
+// Fits complete branding artwork in About without cropping.
 QWidget* studioBanner(QWidget* parent,int height);
 QWidget* sliderField(QDoubleSpinBox* value);
 void syncSliderFields(QWidget* root);

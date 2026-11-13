@@ -1,7 +1,8 @@
 # Reliability and layer-design work (2026-11-11)
 
-This is the current work record. Earlier entries in `CONTINUE.md` describe older
-builds and must not be read as validation of the current working tree.
+This records the GS-06-R1 reliability work. The later editor/background and mask
+clarity correction is recorded in [HEADER_MASK_CLARITY.md](HEADER_MASK_CLARITY.md).
+Results below apply to R1 and must not be read as validation of later code.
 
 ## Collaboration contract
 

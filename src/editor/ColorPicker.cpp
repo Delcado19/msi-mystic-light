@@ -67,7 +67,7 @@ class ScreenSampler : public QDialog {
 public:
     std::function<void(QColor)> picked;
     ScreenSampler(QWidget* owner,QScreen* screen,QImage image):QDialog(owner,Qt::Tool|Qt::FramelessWindowHint),image_(std::move(image)) {
-        setObjectName("screenColorDialog");setAttribute(Qt::WA_DeleteOnClose);setCursor(Qt::CrossCursor);setMouseTracking(true);
+        setObjectName("screenColorDialog");setAttribute(Qt::WA_DeleteOnClose);setCursor(QCursor(studioToolIcon("pipette").pixmap(24,24),4,23));setMouseTracking(true);
         setScreen(screen);setGeometry(screen->geometry());setFixedSize(screen->geometry().size());
         setAccessibleName("Pick a screen color. Click to accept, Escape to cancel.");
     }
@@ -170,8 +170,8 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
         swatch->setStyleSheet("background:"+color+";border:1px solid #afb4bd;");palette->addWidget(swatch);
         QObject::connect(swatch,&QPushButton::clicked,popup,[=]{(*update)(QColor(color));});
     }
-    auto* screen=new QPushButton("Screen eyedropper...");stack->addWidget(screen);
-    screen->setToolTip("Pick a color anywhere on your screens. Click to accept; Escape or right-click cancels.");
+    auto* screen=new QPushButton(studioToolIcon("pipette"),"Color Picker...");screen->setObjectName("screenColorPicker");stack->addWidget(screen);
+    screen->setToolTip("Sample a pixel anywhere on your desktop, including other applications. Click to use that color; Escape or right-click cancels.");
     QObject::connect(screen,&QPushButton::clicked,popup,[=] {
         // The native eyedropper is a sibling window, never a stack child of a popup
         // that Qt can dismiss while the dialog changes focus.

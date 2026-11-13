@@ -197,8 +197,19 @@ QUuid LightingDocument::layerRoot(const QUuid& object) const
 QUuid LightingDocument::addEmptyLayer()
 {
     EffectLayer layer;layer.container=true;layer.effect=EffectKind::Paint;layer.extent=canvasSize();layer.mask=whiteMask();
-    layer.name="Layer "+QString::number(state_.layers.size()+1);
-    edit("New empty layer",[&](auto& state){state.layers.append(layer);});return layer.id;
+    layer.name="Group "+QString::number(state_.layers.size()+1);
+    edit("New group",[&](auto& state){state.layers.append(layer);});return layer.id;
+}
+
+QUuid LightingDocument::creationParent(const QUuid& selection) const
+{
+    for(const auto& layer:state_.layers)if(layer.id==selection) {
+        // Existing source parents keep ownership; new sources join their children as siblings.
+        const bool ownsChildren=std::any_of(state_.layers.cbegin(),state_.layers.cend(),[&](const auto& child){return child.parentId==layer.id;});
+        const auto parent=layer.container || ownsChildren ? layer.id : layer.parentId;
+        for(const auto& root:state_.layers)if(root.id==parent)return parent;
+    }
+    return {};
 }
 
 QUuid LightingDocument::importImage(const QString& fileName, const QUuid& parent)

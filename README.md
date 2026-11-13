@@ -1,6 +1,5 @@
-> Current local package: `build/dist/LightingStudio-ReliabilityFix/msi_mystic_light.exe` (GS-06-R1).
-> See [current validation and remaining limits](docs/COLLABORATION_FIXES.md).
-> The [layer model proposal](docs/LAYER_MODEL_PLAN.md) is a plan, not an implemented redesign.
+> GS-06-R2 uses the owner-supplied turbine logo and 4K aurora background.
+> See [current UI validation](docs/HEADER_MASK_CLARITY.md) for the tested scope and limits.
 
 # MSI Mystic Light - Lighting Studio
 
@@ -23,13 +22,27 @@ research documents describe behavior and byte layouts in our own words.
 - [`docs/SIGNALRGB_REPOSITORY_RESEARCH.md`](docs/SIGNALRGB_REPOSITORY_RESEARCH.md) — pinned public-repository research on components, plugins, add-ons, and MSI discovery.
 
 The GS-06 Ice workspace uses deep navy surfaces with ice-blue/cyan interaction accents.
-The supplied artwork is fitted completely inside the responsive header, without cropping or a fade over the logo.
+The supplied 3840 x 2160 aurora fills the window behind dark translucent chrome.
+Scenery is cropped proportionally for the window shape; the complete logo remains separate in navigation.
+The outer editor workplane reveals the scenery; the actual document checkerboard stays opaque.
+The complete 360 x 120 DIP logo sits at the right. File/history, workspace,
+Edit Mode, Preview and Panels controls share the row below it; menus stay above.
+The filename stays in the window title; Fit is direct and Zoom groups its steps.
+New layer creates paint pixels; New group collects child effects. The plus button
+opens a searchable effect library. Right-click provides contextual editing actions.
+Tool-option slots stay fixed when tools change; Navigator and Inspector share the same translucency.
+Image crop uses a pending frame: Enter or double-click applies, Escape cancels.
+Preview scope dims other channels without changing hardware output.
 Panels can collapse for more canvas space; playback and device-output status remain separate.
-The current local build is `build/dist/LightingStudio-ReliabilityFix/msi_mystic_light.exe`.
-`Start-Lighting.cmd` prefers an installed service editor, then this portable build.
-Help > About shows the executable path; the GS-06-R1 window title identifies this correction build.
+The current local editor is `build/aurora/Release/msi_mystic_light.exe`.
+The verified portable archive is `build/dist/LightingStudio-Editor-R2-windows-x64.zip`; the older ReliabilityFix package remains an R1 artifact.
+`Start-Lighting.cmd` prefers the tested local aurora build, then an installed service editor and the older portable builds.
+Help > About shows the executable path. The tested source build is
+build/aurora/Release/msi_mystic_light.exe (GS-06-R2); the launcher now selects this build when present.
 
-![Native Windows startup with the complete header artwork; hardware-free test](docs/images/reliability-header.png)
+![Native Windows aurora background and separate navigation logo](docs/images/aurora-background.png)
+
+See [background and mask validation](docs/HEADER_MASK_CLARITY.md) for qualification status.
 
 ## Standalone app implementation
 
@@ -86,7 +99,7 @@ runs unelevated. Scans also run through the service. See [service installation,
 security and validation limits](docs/WINDOWS_SERVICE.md). Real SYSTEM hardware
 output and the clean-install UAC flow still need qualification.
 
-Start **`Start-Lighting.cmd`**. It prefers the installed application, then
+Start **`Start-Lighting.cmd`**. It prefers `build/aurora/Release/`, then the installed application and
 `build/dist/LightingStudio-ReliabilityFix/`, retaining older development fallbacks.
 Close an already running instance after saving before starting an updated build.
 The old `build/ninja/msi_mystic_light.exe` is not the supported entry point.

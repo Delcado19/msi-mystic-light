@@ -51,6 +51,7 @@ signals:
 protected:
     void closeEvent(QCloseEvent*) override;
     void resizeEvent(QResizeEvent*) override;
+    void paintEvent(QPaintEvent*) override;
     bool eventFilter(QObject*,QEvent*) override;
 private:
     void refresh();

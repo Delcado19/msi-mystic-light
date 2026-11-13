@@ -20,6 +20,7 @@ class ReleasePackageTest(unittest.TestCase):
         self.assertEqual(packaged, set(re.findall(r'"([a-z0-9_]+_module\.dll)"', expected)))
         installer = (ROOT / "installer/Install-LightingStudio.ps1").read_text()
         required = installer.split("$required = @(", 1)[1].split(")", 1)[0]
+        self.assertIn("imageformats/qsvg.dll", required)
         self.assertEqual(packaged, set(re.findall(r"'modules/([^']+\.dll)'", required)))
         hashed = installer.split("foreach ($name in @(", 1)[1].split(")", 1)[0]
         self.assertEqual(packaged, set(re.findall(r"'([^']+\.dll)'", hashed)))
@@ -54,6 +55,7 @@ class ReleasePackageTest(unittest.TestCase):
                 self.assertNotIn("LightingStudio/default.lighting.json", output.namelist())
                 self.assertNotIn("LightingStudio/profiles/stale.json", output.namelist())
                 self.assertEqual(output.read("LightingStudio/Qt6Svg.dll"), b"Qt6Svg.dll")
+                self.assertEqual(output.read("LightingStudio/imageformats/qsvg.dll"), b"imageformats/qsvg.dll")
                 self.assertEqual(output.read("LightingStudio/modules/auxiliary_module.dll"),
                                  b"modules/auxiliary_module.dll")
             self.assertEqual(archive.with_suffix(".zip.sha256").read_text(), f"{digest}  release.zip\n")

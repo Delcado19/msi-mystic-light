@@ -1,3 +1,9 @@
+> Historical proposal from 2026-11-11. The GS-06-R2 implementation now distinguishes
+> New layer (paint source) from New group (container), uses one selected-group/sibling
+> rule for all effect families, and preserves existing files. See LIGHTING_EDITOR.md
+> and UI_UX_AUDIT_2026-11-13.md for current behavior. The recommendations below are
+> design history, not a statement that every proposed feature is implemented.
+
 # Layer model proposal
 
 Status: design proposal, not implemented. Prepared by Codex with bounded Claude

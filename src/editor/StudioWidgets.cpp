@@ -73,18 +73,13 @@ public:
 protected:
     void paintEvent(QPaintEvent* event) override {
         QToolBar::paintEvent(event);
-        // Restored layouts can place preview controls beside History; continue its chrome only on that row.
+        // Saved layouts can place preview controls beside History; continue the accent on that row only.
         if(followHeaderRow_) {
             const auto* history=window()->findChild<QToolBar*>("historyToolbar");
             if(!history || mapTo(window(),QPoint{}).y()!=history->mapTo(window(),QPoint{}).y())return;
         }
-        static const QPixmap artwork(":/branding/lighting-studio-ice-banner.png");
-        QPainter painter(this);
-        // Adjacent navigation/history toolbars share one panorama, including after resizing.
-        const double scale=artwork.width()/double(std::max(1,window()->width()));
-        if(!window()->findChild<QWidget*>("studioArtworkBanner") && !artwork.isNull())painter.drawPixmap(QRectF(rect()),artwork,QRectF(mapTo(window(),QPoint{}).x()*scale,0,width()*scale,height()*scale));
-        painter.fillRect(rect(),studioThemeColor("@surround",205));
-        painter.setPen(studioThemeColor("@accent"));painter.drawLine(0,height()-1,width(),height()-1);
+        QPainter painter(this);painter.setPen(studioThemeColor("@accent"));
+        painter.drawLine(0,height()-1,width(),height()-1);
     }
 };
 class StudioSectionButton final : public QToolButton {
@@ -105,11 +100,12 @@ void applyStudioStyle(QWidget* window)
     static const bool resources=[] {Q_INIT_RESOURCE(branding);return true;}();Q_UNUSED(resources);
     auto font=window->font(); font.setPointSizeF(std::max(10.0,font.pointSizeF())); window->setFont(font);
     QString sheet=QString::fromUtf8(R"(
-        QWidget { color: @text; background: @panel; }
+        QWidget { color: @text; background: transparent; }
         QMainWindow, QDialog { background: @surround; }
-        QMenuBar, QToolBar, QStatusBar { background: @chrome; spacing: 6px; }
+        QStackedWidget#inspectorSurface, QStackedWidget#navigatorSurface { background: rgba(9, 22, 37, 180); }
+        QMenuBar, QToolBar, QStatusBar { background: rgba(9, 22, 37, 215); spacing: 6px; }
         QMenuBar { padding: 2px 4px; }
-        QMenu { padding: 4px; border: 1px solid @separator; }
+        QMenu { background: @panel; padding: 4px; border: 1px solid @separator; }
         QMenu::item { padding: 6px 24px 6px 12px; }
         QMenu::separator { height: 1px; background: @separator; margin: 4px 8px; }
         QStatusBar::item { border: 0; }
@@ -149,9 +145,16 @@ void applyStudioStyle(QWidget* window)
         QPushButton:disabled, QToolButton:disabled { color: @secondary; background: @panel; border-color: @separator; }
         QPushButton[primary="true"] { background: @selected; border-color: @accent; color: @text; font-weight: 600; }
         QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid @border; border-radius: 4px; background: @input; padding: 3px 4px; min-height: 1.3em; }
-        QComboBox { padding-right: 20px; }
+        QComboBox { padding-right: 24px; }
+        QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 20px; border: 0; border-top-right-radius: 4px; border-bottom-right-radius: 4px; background: transparent; }
+        QComboBox::down-arrow { image: url(:/branding/dropdown-arrow.svg); width: 10px; height: 6px; }
+        QToolButton::menu-indicator, QPushButton::menu-indicator { image: url(:/branding/dropdown-arrow.svg); subcontrol-origin: padding; subcontrol-position: right center; width: 10px; height: 6px; right: 3px; }
+        QToolBar[studioHeader="true"] QToolButton[popupMode="2"] { padding-right: 20px; }
+        QToolBar::separator { background: @separator; width: 1px; margin: 6px 3px; }
+        QComboBox QAbstractItemView { background: @panel; }
         QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { width: 0; }
         QTreeWidget, QTreeView, QListWidget { background: @chrome; border: 0; outline: 0; }
+        QStackedWidget#navigatorSurface QTreeWidget, QStackedWidget#navigatorSurface QTreeView, QStackedWidget#navigatorSurface QListWidget { background: transparent; }
         QTreeWidget::item, QTreeView::item, QListWidget::item { padding: 5px 4px; border-radius: 2px; border-left: 2px solid transparent; }
         QTreeWidget::item:selected, QTreeView::item:selected, QListWidget::item:selected { background: @selected; color: @text; border-left-color: @accent; }
         QTreeWidget#effectLayers::item:selected { border-left-color: transparent; }
@@ -329,6 +332,10 @@ QIcon studioToolIcon(const QString& name)
         painter.drawPolygon(QPolygonF{QPointF(12,3),QPointF(22,8),QPointF(12,13),QPointF(2,8)});
         for(int y:{12,16})painter.drawPolyline(QPolygonF{QPointF(2,y),QPointF(12,y+5),QPointF(22,y)});
     }
+    else if(name=="pipette") {
+        painter.drawLine(5,19,16,8);painter.drawLine(8,22,19,11);painter.drawLine(5,19,4,23);painter.drawLine(4,23,8,22);painter.drawLine(13,5,22,14);painter.drawEllipse(QRectF(16,2,6,6));
+    }
+    else if(name=="add") {painter.drawLine(12,4,12,20);painter.drawLine(4,12,20,12);}
     else if(name=="sources") { painter.drawRect(QRectF(3,6,12,14));painter.drawLine(6,3,18,3);painter.drawLine(18,3,18,11);painter.drawLine(15,15,23,15);painter.drawLine(19,11,19,19); }
     else if(name=="gradient") { QLinearGradient gradient(4,12,20,12); gradient.setColorAt(0,Qt::white); gradient.setColorAt(1,QColor("#414957")); painter.setBrush(gradient); painter.drawRect(QRectF(3,5,18,14)); }
     else if(name=="fill") { QPolygonF bucket; bucket<<QPointF(5,10)<<QPointF(12,3)<<QPointF(20,11)<<QPointF(12,19); painter.drawPolygon(bucket); painter.drawLine(4,10,14,10); painter.drawLine(19,15,21,20); }
@@ -564,12 +571,12 @@ bool studioMotionEnabled() { return !QSettings().value("editor/reduceMotion",!QA
 
 namespace {
 class StudioBanner : public QWidget {
-    QPixmap artwork_{":/branding/lighting-studio-ice-banner.png"};
+    QPixmap artwork_{":/branding/lighting-studio-banner.png"};
 public:
     StudioBanner(QWidget* parent,int height):QWidget(parent){setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed);setFixedHeight(height);setMinimumWidth(240);setAccessibleName("Lighting Studio banner");setToolTip("Lighting Studio - conceptual branding artwork");}
     void paintEvent(QPaintEvent*) override {
         QPainter painter(this);painter.fillRect(rect(),studioThemeColor("@surround"));
-        // Fit the complete owner-supplied logo; filling the header crops its sides or top/bottom.
+        // About must show the complete conceptual artwork without cropping the logo.
         const auto size=artwork_.size().scaled(this->size(),Qt::KeepAspectRatio);
         const QRect target(QPoint((width()-size.width())/2,(height()-size.height())/2),size);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);painter.drawPixmap(target,artwork_);

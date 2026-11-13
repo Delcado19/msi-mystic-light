@@ -157,10 +157,10 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QWindowsIntegrationPlugin>
             "$<TARGET_FILE_DIR:msi_mystic_light>/platforms"
         COMMAND_EXPAND_LISTS)
-    # PNG/BMP are built into QtGui; JPEG/GIF/WebP need matching runtime plugins.
+    # SVG stylesheet arrows also require an image plugin; linking QtSvg alone does not decode QPixmap assets.
     add_custom_command(TARGET msi_mystic_light POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin> "${WEBP_PLUGIN}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:Qt6::QJpegPlugin> $<TARGET_FILE:Qt6::QGifPlugin> $<TARGET_FILE:Qt6::QSvgPlugin> "${WEBP_PLUGIN}"
             "$<TARGET_FILE_DIR:msi_mystic_light>/imageformats"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/third_party/licenses"
             "$<TARGET_FILE_DIR:msi_mystic_light>/third_party/licenses"

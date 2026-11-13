@@ -1,6 +1,27 @@
+LIGHTING STUDIO GS-06-R2 - 2026-11-13
+
+The current source build is build/aurora/Release/msi_mystic_light.exe.
+Start-Lighting.cmd in the repository prefers that build, then the installed
+editor and earlier portable builds. Help > About shows the executable path.
+The supplied turbine logo remains complete at the right; the approved 3840x2160
+aurora photo fills the window behind translucent Navigator and Inspector panels.
+File/workspace/history, Edit Mode, Panels, Preview and view controls share one row.
+The filename is in the window title; Fit is direct and Zoom has a compact menu.
+New layer creates a paint source. New group collects independently editable
+children with a shared mask, opacity and blend mode. The plus button searches
+all effect families. Tool options keep fixed slots; irrelevant fields disable.
+Right-click offers contextual editing actions. Color Picker samples the desktop.
+Crop requires an editable image: drag/move/resize a pending frame, Enter or
+double-click applies, Escape cancels. Source pixels and undo remain available.
+Preview scope dims other channels without changing device output.
+SVG image-format support is required for dropdown arrows and included in runtime
+packaging. See docs/HEADER_MASK_CLARITY.md and CONTINUE.md for qualification.
+
+Earlier updates (historical):
+
 RELIABILITY UPDATE (GS-06-R1, 2026-11-11)
-Start-Lighting.cmd prefers an installed service editor, then the local
-build/dist/LightingStudio-ReliabilityFix/msi_mystic_light.exe package.
+Start-Lighting.cmd prefers build/aurora/Release/msi_mystic_light.exe, then an
+installed service editor and build/dist/LightingStudio-ReliabilityFix.
 Help > About displays the running executable path.
 The complete header artwork is fitted without cropping or fading the logo.
 Recovery writes use a two-second edit window instead of waiting indefinitely

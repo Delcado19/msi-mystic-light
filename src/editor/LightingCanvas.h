@@ -12,13 +12,14 @@ class QAction;
 class QPainter;
 class QScrollBar;
 class QTimer;
+class QMenu;
 class LightingCanvas : public QWidget {
     Q_OBJECT
 public:
     enum class Context { Layout, Effects };
     enum class Tool { Move, Pencil, Line, Rectangle, Ellipse, Gradient, Fill, Eraser, Pan };
     Tool tool() const { return drawingTool_; }
-    void setTool(Tool tool) { cancelGesture(); drawingTool_=tool; setCursor(tool==Tool::Pan ? Qt::OpenHandCursor : tool==Tool::Move ? Qt::ArrowCursor : Qt::CrossCursor); }
+    void setTool(Tool tool) { cancelGesture(); drawingTool_=tool; updateCursor(); update(); }
     void setGradientStops(QVector<QColor> colors,QVector<double> positions) { gradientColors_=std::move(colors); gradientPositions_=std::move(positions); }
     void setDrawing(QColor color,double width,bool filled) { drawColor_=color; drawWidth_=width; filled_=filled; }
     void setPreviewOnly();
@@ -45,7 +46,7 @@ public:
     void setMaskTool(MaskTool tool) { cancelGesture(); tool_ = tool; }
     void setBrush(double radius, double hardness, double opacity, int gray);
     void setShowMask(bool show) { showMask_ = show; update(); }
-    void setCropTool(bool enabled) { cancelGesture(); cropTool_ = enabled; update(); }
+    void setCropTool(bool enabled) { cancelGesture(); cropTool_ = enabled; updateCursor(); update(); }
     void setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel = {});
     void fitToView();
     // Non-finite/non-positive factors leave the view unchanged; valid zoom clamps to .001..4.
@@ -65,11 +66,13 @@ signals:
     void editingError(const QString& message);
     void addRequested();
     void fullscreenRequested();
+    void contextMenuRequested(QMenu* menu, bool onObject);
 protected:
     void resizeEvent(QResizeEvent*) override;
     void paintEvent(QPaintEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
     void mouseMoveEvent(QMouseEvent*) override;
+    void mouseDoubleClickEvent(QMouseEvent*) override;
     void mouseReleaseEvent(QMouseEvent*) override;
     void wheelEvent(QWheelEvent*) override;
     void keyPressEvent(QKeyEvent*) override;
@@ -89,6 +92,11 @@ private:
     QFont componentLabelFont() const;
     ComponentPlacement previewPlacement(ComponentPlacement placement) const;
     void cancelGesture();
+    bool selectedHandleAt(QPointF point) const;
+    void updateCursor(bool hover = false);
+    bool beginCrop(QPointF point);
+    void updateCrop(QPointF point);
+    void applyCrop();
     void beginDrawing(QPointF point);
     void selectAt(QPointF point);
     QVector<QUuid> hitsAt(QPointF point) const;
@@ -144,7 +152,12 @@ private:
     QPointF start_, last_, origin_, pan_;
     double zoom_ = 1, radius_ = 30, hardness_ = 0.3, opacity_ = 1;
     double seconds_ = 0, gestureSeconds_ = 0;
-    bool cropTool_ = false;
+    bool cropTool_ = false, cropDragging_=false;
+    std::optional<EffectLayer> cropBase_;
+    QRectF cropRect_, cropDragRect_, cropLimit_;
+    QPointF cropStart_;
+    int cropGrip_=0;
+    double cropSeconds_=0;
     int handle_ = 0;
     QRectF layoutBounds_;
     double layoutScale_=1, layoutRotation_=0;

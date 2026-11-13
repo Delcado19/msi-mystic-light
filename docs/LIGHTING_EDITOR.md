@@ -25,19 +25,23 @@ security and validation limits](WINDOWS_SERVICE.md).
 
 The app opens in the Design workspace (the Editor) with Components selected. Devices is the hardware workspace. Components and Layers choose the editing target inside one workspace; Hardware remains separate for discovery, attachment, channel configuration and output diagnostics. Composite shows effects with component artwork and sampled LEDs. Effect only and Components only hide the other content and disable its selection target. Camera, selection, preview channel and animation time survive target changes. View can enable the optional split hardware preview. The preview is software rendering, not physical device readback.
 
-The navigator and inspector follow the active target. Shift-click and marquee select multiple items; right-click offers overlapping objects. Align uses selection bounds, and distribution spaces centers. Smart guides are separate from grid snapping; Alt bypasses both. View provides Lock/Unlock selection. See [the unified editor contract](design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md).
+The navigator and inspector follow the active target. Shift-click and marquee select multiple items. Right-click offers applicable edit actions; overlapping objects are available under Select object. Align uses selection bounds, and distribution spaces centers. Smart guides are separate from grid snapping; Alt bypasses both. View provides Lock/Unlock selection. See [the unified editor contract](design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md).
 
-New layer creates an empty transparent layer that can contain multiple editable objects. There is
-no effect-selection dialog. Shapes and Particles have direct toolbar flyout menus;
-The redundant Other effects button/gallery is removed. Gradients are drawn with
-the gradient tool; Shapes and Particles retain their toolbar menus. Import image
-handles image files. Existing procedural effect layers still load and render.
-Particle motion patterns remain editable in the contextual inspector. Layers show source and mask thumbnails, effect
-type, visibility and name. Drag to reorder; double-click to rename.
+**New layer** creates a transparent paint layer with its own pixels. **New group**
+creates a source-free container for multiple editable effects. A selected group
+receives new library effects; selecting one of its children adds a sibling.
+Selecting a standalone source creates a separate root layer. This rule is the
+same for gradients, shapes and particles. Existing source parents with children
+retain their group behavior; saved documents are not reparented.
+
+The plus button opens a searchable effect library with flat category headings,
+including shapes, particles, patterns, scenes and image import. Type to filter;
+Down focuses the results and Enter adds the selected effect. An empty search
+result adds nothing. Group and source types are named in the Navigator.
 
 The left toolbar contains Move (V), Pencil (B), Line (I), Rectangle (U), Ellipse (O),
 Gradient (G, create a new object; existing grips edit), Fill (F), Eraser (E), and Crop (C). Shapes support filled/outlined drawing.
-Tool options show only applicable color, stroke and shape controls. A stroke or shape
+Tool-option slots retain their positions and height when tools change; irrelevant color, stroke and fill controls are disabled. A stroke or shape
 commits one pixel edit on release; Escape discards the draft. Fill floods connected
 pixels of the same color while preserving antialiased coverage, and erasing removes source alpha. On a procedural/image source, Eraser selects
 the existing mask and hides coverage instead of flattening the source. Drawing on a procedural
@@ -53,9 +57,7 @@ The Gradient tool draws black-to-white mask coverage. White reveals, black hides
 and gray supports smooth partial transparency. Pixel brushes and mask strokes remain
 independent of procedural source parameters.
 
-Preview starts playing automatically and can be paused. Source gestures temporarily
-pause/reset to base time, then resume previous playback after commit/cancel.
-Entering the mask inspector preserves playback; mask gestures pause only while drawing. Preview time never changes the saved document. It does
+Preview starts playing automatically and can be stopped. Geometry and mask editing preserve running playback; stopping holds the current frame. Escape cancels a pending gesture. Preview time never changes the saved document. It does
 not change hardware assignments. Configured hardware receives the current composition automatically. The effect, motion and mask inspectors expose the
 current task; numeric transforms and additional motion parameters are disclosures.
 Particle sources expose Count, Speed and Radius in Source. Seed is an integer field
@@ -136,13 +138,26 @@ a running output session still monitors endpoint presence independently.
 
 ## Layers and masks
 
-New layer creates a transparent container with an independent white grayscale mask.
+New layer is an ordinary transparent paint source; New group is a container without
+its own source. Both have an independent white grayscale mask. Children first
+compose within their parent; the parent mask, opacity and blend mode then apply
+to that combined result. This lets several effects share a cutout or opacity
+without editing every child. A root source instead blends independently with the
+layers below. There is one level of ownership; nested groups and cross-layer
+parameter modulation are not implemented. A group does not make one effect
+control another effect's speed or color.
+
+Canvas drawing keeps the active group as its destination after an empty click
+clears the object selection. The library uses the selected group or selected
+child's parent. Select the destination in the Navigator before adding a source.
+Existing projects retain IDs, hierarchy, masks and rendered appearance.
 The top panel row is the top composited layer. Rename by editing the name,
 toggle visibility, drag to reorder, duplicate or delete. Effect/mask thumbnails
 select the target. Drawing tools operate on the selected source or mask.
 Changing effect types preserves ID, mask, geometry, settings and embedded pixels.
 
-Transparency has its own slider: 0% fully visible, 100% fully transparent.
+Opacity has its own slider: 0% invisible, 100% fully visible. The saved project
+continues to store the inverse `transparency` value for compatibility.
 Blend modes are Normal, Multiply, Screen and Overlay against the layers below.
 RGBA is preserved, including a lone Multiply layer over transparent pixels.
 Mask coverage multiplies source alpha and inverse transparency before blending.
@@ -155,13 +170,20 @@ editable. A gradient runs black-to-white along the drag. Fill white/black,
 invert, bypass and grayscale preview are available. Escape or switching tabs
 cancels an unfinished gesture. Each completed gesture is one undo step.
 
-Masks default to canvas coordinates. Link mask to effect makes geometry edits
+The Mask inspector names the target and distinguishes an effect mask from the
+combined layer mask. **Apply mask to output** controls the result; **Preview
+grayscale (editor only)** changes only the editing view. Bypassed masks remain
+editable and show that their changes are saved without affecting output.
+**Paint visibility %** sets coverage: Hide brush selects Pencil at 0%, Reveal brush
+selects Pencil at 100%. Eraser always hides, regardless of that value. Whole-target
+Reveal/Hide and Invert actions are separate, undoable operations. White reveals
+existing source coverage, not new source pixels. A parent mask can still hide an
+effect even when its own mask is white.
+
+Masks default to canvas coordinates. **Mask follows target movement** makes geometry edits
 move/rotate/scale the mask, and animation follows drift/spin/zoom/warp. Geometry
 edits resample the linked mask; undo restores the prior pixels. Spatial motion
-is evaluated from original stored pixels during preview. For predictable brush
-coordinates, mask strokes edit stored mask pixels while gestures temporarily pause
-at base time. Between gestures the live composition retains normal linked projection
-and animation. No mask data is discarded.
+is evaluated from original stored pixels during preview. Mask strokes edit stored mask pixels while the live composition retains linked projection and animation. No mask data is discarded.
 
 ## Effects and direct tools
 
@@ -171,10 +193,7 @@ Image; Particle Rain, Particle Orbit, Fireflies and Particle Burst;
 Gradient Pinwheel, Spiral, Visor, Sine Wave, DNA, Pixel Fill, Voronoi, Fireplace,
 Radar, Fireworks, Plasma and Ripples. Multizone is a four-source editor template.
 
-The procedural patterns are in the Gradients and patterns menu and the source
-flyout. Each new native pattern or Fireworks source starts as an independent layer, even when another
-source or an empty layer is selected. Existing projects retain their hierarchy;
-manual navigator reordering can group sources deliberately. Patterns share movable
+The procedural patterns are in the searchable effect library and the Edit menu. Their creation follows the same selected-group/sibling rule as all other effect sources. Existing projects retain their hierarchy; manual Navigator reordering can group sources deliberately. Patterns share movable
 palette stops, masks, blending and geometry. Pattern
 rate uses plain displayed numbers: zero freezes, negative reverses. Hover explains the underlying timing. Repetitions controls
 pinwheel segments, spiral turns and wave frequency. Band width and wave amplitude
@@ -250,11 +269,22 @@ project. An empty Image layer is transparent.
 
 Fit whole image preserves aspect ratio with transparent margins. Fill and crop
 preserves aspect ratio and clips opposite edges equally. Enable Crop image in
-the left toolbar and drag a rectangle over the visible image to select a new
-source region; drag again to refine it. The normalized left/top/width/height
+the left toolbar with an editable image selected. Drag a pending rectangle over
+the visible image; move it or resize its corners. Enter or double-click applies
+one undoable crop; Escape discards the pending frame. Crop is disabled for other
+sources, masks and locked images. The normalized left/top/width/height
 fields provide precise crop coordinates. Reset image crop restores the whole
 source. All crop operations retain original pixels, and undo restores previous
 selections. Select Move to leave the crop tool and restore transform grips.
+
+The Color Picker button uses a pipette icon and samples a pixel anywhere on the
+desktop, including other applications. Click accepts; Escape or right-click
+cancels. Each monitor gets its own correctly positioned capture overlay. This
+is a color-sampling action inside the color dialog, not a canvas drawing tool.
+The hand moves the view rather than its contents: H selects it, Space temporarily
+pans, and the middle mouse button pans from another tool. Cursors distinguish
+crosshair drawing/crop, open/closed hand panning and resize handles; paint tools
+show their brush footprint.
 
 ## Motion and color
 
@@ -923,7 +953,11 @@ and local vector icons remain in use; no web fonts, decorative motion or new UI
 dependencies are required. Hover, focus, checked and disabled states remain
 distinct. Output errors retain text as well as a warning color.
 
-Navigation/history and preview/view controls occupy separate toolbar rows.
+The menu bar remains separate. Design/Devices, file/history commands, Edit Mode,
+playback, Preview scope, view controls and Panels share one command row.
+Buttons and dropdowns use a common height; narrower windows use the toolbar
+overflow menu. The complete 360 x 120 DIP logo is aligned at the right of the
+branding row.
 View > Navigator and Inspector (also under Panels) close/reopen the side panels;
 Ctrl+Shift+L and Ctrl+Shift+P are keyboard alternatives. F6/Shift+F6 cycle focus
 through the visible Navigator, active canvas and Inspector; hidden panels are
@@ -955,10 +989,9 @@ The GUI audit implementation uses graphite/cyan chrome and the owner-selected
 compact LS mark and wordmark in the application toolbar. Since GS-03, a darkened
 panoramic crop also appears behind the navigation/history row; the full uncropped
 banner stays in About, and its screens are conceptual artwork. The previous
-vector branding proposals are superseded. Panels recovery is pinned in the
-menu bar. Labels now lives in both editor canvas headers when components are visible.
+vector branding proposals are superseded. Panels recovery is beside Edit Mode in the shared command row. Labels now lives in both editor canvas headers when components are visible.
 
-New layer creates an empty layer. Toolbar flyouts add generators, shapes, particles and images to its object list. Source holds particle type/settings and
+New layer creates a paint source; New group creates a container. The searchable library adds generators, shapes, particles and images using the selected-group/sibling rule. Source holds particle type/settings and
 primary/secondary colors. Drawing toolbar colors are brush state. Motion groups
 rotation, intensity modulation, advanced transformations and color animation.
 Pulse/Breathe/Combined preserves legacy simultaneous intensity settings.
@@ -990,7 +1023,7 @@ Lighting playback is independent of this preference.
 
 ## Layer objects and interaction (2026-10-27)
 
-New layer creates an empty transparent container. Objects within it remain
+New group creates an empty transparent container. Objects within it remain
 individually selectable and editable. Layer targets, visibility, opacity, blend
 and mask govern the composed output. Shape gradients edit fills, preserving shape
 geometry. Click selects; shape drags create objects; G drags create gradients and existing grips edit them.
@@ -1125,12 +1158,13 @@ second; existing saved speeds retain their meaning (100 is not rescaled).
 
 ## Artwork, continuous gestures and spatial controls (GS-06)
 
-The owner image occupies a dedicated 180-DIP desktop strip (100 DIP in compact
-or shorter windows). The 2026-11-11 correction fits the complete image inside that
-strip without cropping or an overlay fade; unused space uses the window ground.
-The compact wordmark remains in the navigation row; the previous second panorama
-behind navigation is removed. About also shows the whole image.
-Saved preview/history arrangements retain their continuous cyan separator.
+GS-06-R2 removes the tall artwork toolbar. The owner-approved 3840 x 2160
+aurora photo fills the window behind dark translucent chrome. It scales
+proportionally with centered scenery cropping; the compact logo remains a
+separate navigation element. The outer editor workplane reveals the scenery; document checkerboard and
+mask pixels remain opaque. Standalone and preview-only workplanes remain opaque. About retains a complete-image fit of the original branding.
+See [background and mask validation](HEADER_MASK_CLARITY.md) for current proof
+and remaining limits.
 
 Effect gestures no longer toggle Play/Stop. The gesture's transform reference time
 is captured at press while live rendering advances normally; pointer movement
@@ -1164,3 +1198,22 @@ pre-artwork arrangement can crash before the first window appears. Geometry,
 explicit panel visibility and project/recovery data still restore independently.
 The old dock/toolbar arrangement resets once; new arrangements persist normally.
 The recorded-state fixture excludes all project and hardware data.
+
+### Image-editor crop and visible preview scope (2026-11-13)
+
+Select an imported image and activate Crop. Drag a rectangle, drag inside it to
+move it, or drag its corner handles to resize. Mouse release leaves a pending
+frame; Enter, keypad Enter or a double-click applies it. Escape cancels.
+Selection changes, focus loss and leaving Crop discard the pending frame.
+Applying creates one undo entry, retains the source image, composes with an
+existing crop, and adjusts center/extent so the selected pixels stay in place
+at the captured transform time, including rotation. The new center becomes the
+subsequent animation pivot; animated rotation/zoom need not follow the old pivot.
+Saved crops retain their existing renderer/schema interpretation. Zero-area or
+invalid selections do not create an edit.
+
+Preview scope affects the canvases and separate hardware preview only. Other
+channels' housings fade and their displayed LED markers darken directly, even
+over an equally colored raster. Canonical output frames, sampled channel values
+and the undo history do not change. Global effects can legitimately look identical
+on multiple channels; scope does not retarget layers or stop output.
