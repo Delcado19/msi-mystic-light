@@ -16,37 +16,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up MSVC x64 toolchain
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
       # Pinned to the version the local build (build/aurora-build.cmd) uses, so CI
-      # exercises the same Qt release as a developer machine.
+      # exercises the same Qt release as a developer machine. No 'arch' pin and no
+      # msvc-dev-cmd step: the default CMake generator on windows-latest is the
+      # Visual Studio toolset, which locates cl.exe itself.
+      # 'qtsvg' is NOT a valid --modules entry here: QtSvg ships as part of the
+      # Qt6 desktop essentials (unlike Qt5's addon), and aqt rejects it
+      # ("package not found while parsing XML") -- confirmed by this repo's own
+      # earlier CI history (commit c414db8). Only the WebP image-format plugin
+      # (CMakeLists.txt's fatal-error check for qwebp(d).dll) needs an addon.
       - name: Install Qt
         id: qt
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.8.3"
           arch: win64_msvc2022_64
-          # Svg and the WebP image-format plugin are optional Qt addons the
-          # project requires: see CMakeLists.txt's Svg component and its
-          # fatal-error check for qwebp(d).dll.
-          modules: "qtsvg qtimageformats"
+          modules: "qtimageformats"
 
       # hidapi has no pinned version here (classic vcpkg mode, no vcpkg.json);
       # windows-latest runners ship vcpkg pre-installed.
       - name: Install hidapi via vcpkg
+        shell: pwsh
         run: vcpkg install hidapi:x64-windows
 
+      # The vcpkg toolchain file adds the installed tree to CMake's search
+      # paths, which cmake/Findhidapi.cmake's plain find_path/find_library
+      # calls pick up too (no CONFIG mode needed).
       - name: Configure
+        shell: pwsh
         run: >
-          cmake -S . -B build -G "Ninja Multi-Config"
+          cmake -S . -B build
           -DCMAKE_PREFIX_PATH="${{ steps.qt.outputs.qtdir }}"
-          -Dhidapi_ROOT="$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows"
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build (Release)
+        shell: pwsh
         run: cmake --build build --config Release --parallel
 
       - name: Test (Release)
+        shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure --timeout 600
