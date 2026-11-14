@@ -69,8 +69,8 @@
 #include <QVBoxLayout>
 
 namespace {
-// R3: shared LED outputs (JARGB2 splitter routing) and their Header settings redesign.
-constexpr auto studioBuildId="GS-06-R3";
+// R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits.
+constexpr auto studioBuildId="GS-06-R4";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
