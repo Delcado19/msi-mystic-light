@@ -1,3 +1,10 @@
+## LEDKeeper2 stop - 2026-11-14
+
+Conflict dialog now stops `Mystic_Light_Service` (session only, start type unchanged) and then
+terminates LEDKeeper2; before, LEDKeeper2 was manual-stop only. Owner test as admin confirmed the
+service is what restarts LEDKeeper2. Needs the editor running as administrator. Dialog flow untested
+on hardware.
+
 ## Service pipe access list - 2026-11-14 (Windows only)
 
 `ServiceServer` creates its own named pipe instead of QLocalServer: DACL grants only SYSTEM,

@@ -40,7 +40,8 @@ bool requiresManualStop(const QString& executable)
 {
     const auto name = normalized(executable);
     // Service-owned helpers can restart immediately; do not kill their host.
-    return name == "lightingservice.exe" || name == "ledkeeper2.exe";
+    // LEDKeeper2 is handled: its monitor service is stopped first (see stopMysticLightService).
+    return name == "lightingservice.exe";
 }
 
 bool isSignalRgbService(const QString& executable)
@@ -209,6 +210,21 @@ public:
         return {};
     }
 };
+// Mystic_Light_Service restarts LEDKeeper2.exe through Task Scheduler (docs/ARCHITECTURE.md;
+// owner test 2026-11-14: after stopping the service a killed LEDKeeper2 stayed gone). Stop the
+// service for this session only; its start type is unchanged, so MSI Center returns after reboot.
+QString stopMysticLightService()
+{
+    ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    if (!manager) return winError("Cannot access service manager; run as administrator");
+    ScHandle service(OpenServiceW(manager.get(), L"Mystic_Light_Service", SERVICE_STOP | SERVICE_QUERY_STATUS));
+    if (!service) return GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST ? QString{} :
+        winError("Cannot stop Mystic_Light_Service; run as administrator");
+    SERVICE_STATUS status{};
+    if (!ControlService(service.get(), SERVICE_CONTROL_STOP, &status) && GetLastError() != ERROR_SERVICE_NOT_ACTIVE)
+        return winError("Mystic_Light_Service stop failed; it would restart LEDKeeper2");
+    return {};
+}
 BOOL CALLBACK closeWindow(HWND window, LPARAM pid)
 {
     DWORD owner = 0;
@@ -342,6 +358,7 @@ QString SystemConflictProcesses::stop(const ConflictProcess& process, bool force
         NativeServices services;
         return stopSignalRgbService(process, force, services);
     }
+    if (normalized(process.executable) == "ledkeeper2.exe" && !force) return stopMysticLightService();
     if (force) {
         // The checked handle, not a fresh PID lookup, is the termination target.
         if (!TerminateProcess(handle.get(), 1)) return winError("Cannot terminate process");

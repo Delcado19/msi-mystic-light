@@ -99,7 +99,7 @@ private slots:
         QVERIFY(!conflictReason("LEDKeeper2.exe").isEmpty());
         QVERIFY(conflictReason("SomeMSIUpdater.exe").isEmpty());
         QVERIFY(conflictReason("signalrgblauncher.exe").isEmpty());
-        QVERIFY(requiresManualStop("LightingService.exe"));
+        QVERIFY(requiresManualStop("LightingService.exe"));QVERIFY(!requiresManualStop("LEDKeeper2.exe"));
         QVERIFY(!conflictReason("SignalRgbService.exe").isEmpty());QVERIFY(!requiresManualStop("SignalRgbService.exe"));
         QVERIFY(conflictReason("SignalRgbServiceUpdater.exe").isEmpty());
         SystemConflictProcesses system;
