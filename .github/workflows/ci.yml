@@ -1,0 +1,52 @@
+name: CI
+
+# Builds the Windows app and runs the hardware-free CTest suite.
+# Physical-device qualification (CONTINUE.md) stays a separate, manual step.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSVC x64 toolchain
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # Pinned to the version the local build (build/aurora-build.cmd) uses, so CI
+      # exercises the same Qt release as a developer machine.
+      - name: Install Qt
+        id: qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          arch: win64_msvc2022_64
+          # Svg and the WebP image-format plugin are optional Qt addons the
+          # project requires: see CMakeLists.txt's Svg component and its
+          # fatal-error check for qwebp(d).dll.
+          modules: "qtsvg qtimageformats"
+
+      # hidapi has no pinned version here (classic vcpkg mode, no vcpkg.json);
+      # windows-latest runners ship vcpkg pre-installed.
+      - name: Install hidapi via vcpkg
+        run: vcpkg install hidapi:x64-windows
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G "Ninja Multi-Config"
+          -DCMAKE_PREFIX_PATH="${{ steps.qt.outputs.qtdir }}"
+          -Dhidapi_ROOT="$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows"
+
+      - name: Build (Release)
+        run: cmake --build build --config Release --parallel
+
+      - name: Test (Release)
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 600
