@@ -349,7 +349,7 @@ stay at schema 22.
 
 Some headers drive several components from the same addresses, for example fans
 mirrored on one ARGB header (measured case: `docs/JARGB2_TOPOLOGY_TEST.md`).
-In **Configure channel**, select a chain item and set **Position** to the
+In Hardware, select the header, open **Header settings** with Output mode **Software canvas**, select a chain item and set **Position** to the
 one-based output position where that component starts. The default places it
 directly after the previous item, which is the ordinary serial chain.
 Components whose ranges overlap share those outputs: the item higher in the

@@ -117,7 +117,7 @@ No service startup configuration or scheduled task configuration was changed.
 ## Software status - 2026-11-14
 
 Implemented: a chain item can carry an explicit one-based start position
-(Configure channel > Position), so the four fans can all start at 1 and the
+(Hardware > select the header > Header settings > Position), so the four fans can all start at 1 and the
 strip at 1 as measured. Conflict policy: for an overlapping address the item
 higher in the chain supplies the color; the other components preview that same
 color. Uncovered positions are sent black. Serial chains and their saved files
