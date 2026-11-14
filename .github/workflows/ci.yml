@@ -14,7 +14,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Pinned to the version the local build (build/aurora-build.cmd) uses, so CI
       # exercises the same Qt release as a developer machine. No 'arch' pin and no

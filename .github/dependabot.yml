@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Opens a PR whenever a referenced GitHub Action (e.g. actions/checkout,
+  # jurplel/install-qt-action) has a newer release, including major bumps.
+  # Catches upstream runtime changes (such as checkout's node20 -> node24)
+  # without anyone having to check manually.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
