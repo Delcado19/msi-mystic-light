@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794681068.7849507,
-    "seen": 1794681075.5314786,
-    "ast_hash": "ee7983f17def462e957cd633c05634d6",
+    "mtime": 1794685544.6389961,
+    "seen": 1794685550.0303972,
+    "ast_hash": "b5bccec074fff55ea692c2ea080e74e1",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -1146,15 +1146,15 @@
     "semantic_hash": ""
   },
   "src/service/ServiceServer.cpp": {
-    "mtime": 1793116983.113448,
-    "seen": 1793159390.3539488,
-    "ast_hash": "1bc7e8012001af2b4c6fb7e9596d0fc7",
+    "mtime": 1794685248.3284938,
+    "seen": 1794685550.0277946,
+    "ast_hash": "63836958cbba6c9aa89e77c05b75cf17",
     "semantic_hash": ""
   },
   "src/service/ServiceServer.h": {
-    "mtime": 1793116681.216305,
-    "seen": 1793159390.3539495,
-    "ast_hash": "36e4bf6bcbfed5e618dbcb41375e7e31",
+    "mtime": 1794685248.3289924,
+    "seen": 1794685550.0277975,
+    "ast_hash": "8d8ddd8e14463e4e70ba527fc97baff8",
     "semantic_hash": ""
   },
   "src/service/main.cpp": {
@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "tests/service/test_service.cpp": {
-    "mtime": 1794425014.0646,
-    "seen": 1794425347.7448404,
-    "ast_hash": "3394afa27830079d04ee08c73fa8a8b2",
+    "mtime": 1794685316.628432,
+    "seen": 1794685550.0298932,
+    "ast_hash": "552ae69af687959491cbfd5242c90819",
     "semantic_hash": ""
   },
   "docs/PAWNIO_SERVICE_RESEARCH_2026-10-27.md": {

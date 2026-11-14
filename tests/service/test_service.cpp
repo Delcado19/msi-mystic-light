@@ -19,6 +19,12 @@
 #include <atomic>
 #include <future>
 #include <memory>
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+#include <aclapi.h>
+#include <sddl.h>
+#endif
 namespace {
 QJsonObject cmd(const QString& op) {return {{"version",1},{"op",op}};}
 QJsonObject project(const DeviceProfile& profile, bool secondEndpoint=false) {
@@ -131,6 +137,21 @@ void ServiceTest::authenticatedPipe(){
     QLocalSocket malformed;malformed.connectToServer(pipe);QVERIFY(malformed.waitForConnected(1500));
     QByteArray oversized(4,0);qToBigEndian<quint32>(StudioService::maximumMessage+1,oversized.data());malformed.write(oversized);malformed.waitForBytesWritten(1500);QVERIFY(malformed.waitForDisconnected(1500));
     QVERIFY(StudioService::request(cmd("status"),SERVICE_HOST_PATH,true,pipe).value("ok").toBool());
+    {
+        // The pipe DACL admits only SYSTEM, the server account and the owner: no Everyone/Users entries.
+        QLocalSocket probe;probe.connectToServer(pipe);QVERIFY(probe.waitForConnected(1500));
+        PACL dacl=nullptr;PSECURITY_DESCRIPTOR descriptor=nullptr;
+        QCOMPARE(GetSecurityInfo(reinterpret_cast<HANDLE>(probe.socketDescriptor()),SE_KERNEL_OBJECT,DACL_SECURITY_INFORMATION,nullptr,nullptr,&dacl,nullptr,&descriptor),DWORD(ERROR_SUCCESS));
+        LPWSTR text=nullptr;QVERIFY(ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor,SDDL_REVISION_1,DACL_SECURITY_INFORMATION,&text,nullptr));
+        const auto sddl=QString::fromWCharArray(text);LocalFree(text);LocalFree(descriptor);
+        QVERIFY2(sddl.startsWith("D:P"),qPrintable(sddl));
+        for(const auto* broad:{";;;WD)",";;;AU)",";;;BU)",";;;AN)"})QVERIFY2(!sddl.contains(broad),qPrintable(sddl));
+        QVERIFY2(sddl.contains(StudioService::currentUserSid()),qPrintable(sddl));
+        // A second host cannot take over a pipe name that is already served (pipe squatting).
+        Child squatter;squatter.process.setProgram(SERVICE_HOST_PATH);squatter.process.setArguments({"--simulate","--state-dir",folder.path()+"/squat","--pipe",pipe});
+        squatter.process.start();QVERIFY(squatter.process.waitForFinished(10000));QVERIFY(squatter.process.exitCode()!=0);
+        QVERIFY2(squatter.process.readAllStandardError().contains("Cannot bind service pipe"),"squatter failed for another reason");
+    }
     Child unauthorized;const auto other=pipe+".denied";unauthorized.process.setProgram(SERVICE_HOST_PATH);unauthorized.process.setArguments({"--simulate","--state-dir",folder.path()+"/other","--pipe",other,"--owner","S-1-5-21-1-2-3-9999"});unauthorized.process.start();QVERIFY(unauthorized.process.waitForStarted());QTest::qWait(400);
     QVERIFY_EXCEPTION_THROWN(StudioService::request(cmd("status"),SERVICE_HOST_PATH,true,other),std::runtime_error);
 #else

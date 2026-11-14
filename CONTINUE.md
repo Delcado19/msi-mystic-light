@@ -1,3 +1,12 @@
+## Service pipe access list - 2026-11-14 (Windows only)
+
+`ServiceServer` creates its own named pipe instead of QLocalServer: DACL grants only SYSTEM,
+the server account and the configured owner (no Everyone), remote clients rejected, first-instance
+flag makes a pre-created pipe name fail the bind. Impersonation check stays as second layer.
+Tested in simulation (DACL read back, squatting host fails); other Windows accounts untested.
+The installed service keeps the old pipe until it is reinstalled. Linux: QLocalServer unchanged,
+SO_PEERCRED owner check deferred until Linux is targeted (owner decision).
+
 ## Editor fixes and small audit fixes - 2026-11-14 (GS-06-R7, build/r4)
 
 Branch `feat/jargb2-shared-routing`, launcher prefers build/r4. Editor: Header settings
