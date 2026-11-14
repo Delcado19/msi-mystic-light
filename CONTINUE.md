@@ -1,3 +1,20 @@
+## JARGB2 topology follow-up - updated 2026-11-14
+
+See docs/JARGB2_TOPOLOGY_TEST.md for packets, observations and limitations.
+Owner observed synchronized positions1..6 across all four fans, each zone
+comprising two vertically mirrored LEDs; the strip shares that initial range.
+The explicit 16-yellow/17-magenta blink confirmed yellow as the last visible
+strip position. Working mapping: four overlapping fan ranges1..6 and strip1..16.
+Not all intermediate strip positions were individually qualified.
+Production sampling still concatenates component colors; shared routing and
+its source/conflict policy are not implemented. Personal layout is unchanged.
+SignalRGB stopping was explicitly authorized for follow-up tests; startup
+configuration was not changed. Sleep/resume cause remains unresolved.
+The continuous 16-yellow/17-magenta blink is still running at this handoff
+(session99522, apply-blink16-17.py). Stop it before any other hardware writer;
+do not automatically send black merely because the owner provides feedback.
+Earlier R2 no-write statements refer to software qualification before testing.
+
 ## GS-06-R2 UI correction - 2026-11-13
 
 Full Release build passes. One complete CTest run passes 22/22 groups in 160.14s
