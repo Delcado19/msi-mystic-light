@@ -1,5 +1,6 @@
 #include "LightingDocument.h"
 #include "HardwareIdentity.h"
+#include "HardwareArtwork.h"
 #include <QPainter>
 #include <QTransform>
 #include <QUndoCommand>
@@ -321,7 +322,17 @@ QRectF LightingDocument::layoutBounds(const QVector<ComponentPlacement>* placeme
             const double margin=std::max(12.0,std::max(std::abs(points[i].x()),std::abs(points[i].y()))*1e-12);
             bounds=bounds.united(QRectF(points[i]-QPointF(margin,margin),QSizeF(2*margin,2*margin)));
         }
+        // Housings are part of the component too; they must not stick out of the effect area.
+        QTransform body;body.translate(placement.origin.x(),placement.origin.y());body.rotate(placement.rotation);
+        body.scale(20*placement.scale.width(),20*placement.scale.height());
+        const auto housing=body.mapRect(hardwareBodyBounds(definition));
+        if(housing.isValid() && std::isfinite(housing.width()) && std::isfinite(housing.height()))bounds=bounds.united(housing);
     }
+    // Keep the raster's 640:400 aspect: growing in one direction pads the other instead of
+    // stretching or squashing the effect (owner report 2026-11-14).
+    const double aspect=640.0/400.0;
+    if(bounds.width()>bounds.height()*aspect){const double pad=(bounds.width()/aspect-bounds.height())/2;bounds.adjust(0,-pad,0,pad);}
+    else if(bounds.width()<bounds.height()*aspect){const double pad=(bounds.height()*aspect-bounds.width())/2;bounds.adjust(-pad,0,pad,0);}
     return bounds;
 }
 

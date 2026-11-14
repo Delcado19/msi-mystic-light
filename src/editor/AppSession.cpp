@@ -30,7 +30,7 @@ AppSession::AppSession(LightingWindow& window,QSettings& settings,QString recove
 void AppSession::persist()
 {
     settings_.setValue("window/geometry",window_.saveGeometry());
-    settings_.setValue("window/state",window_.saveState(5));
+    settings_.setValue("window/state",window_.saveState(6));
     settings_.setValue("window/panels",window_.workspacePanelPreferences());
     settings_.setValue("project/path",window_.projectFile()); settings_.sync();
 }
@@ -48,9 +48,10 @@ bool AppSession::writeRecovery()
 void AppSession::restore(const std::function<bool()>& recover)
 {
     window_.restoreGeometry(settings_.value("window/geometry").toByteArray());
-    // Version 5 rejects pre-artwork Qt toolbar layouts that can crash during the first show.
-    // Geometry, explicit panel visibility and project recovery are restored independently.
-    const bool restored=window_.restoreState(settings_.value("window/state").toByteArray(),5);
+    // Version 5 rejected pre-artwork Qt toolbar layouts that can crash during the first show.
+    // Version 6 rejects layouts saved before GS-06-R4, which restored the logo row with the logo on
+    // the left (owner report 2026-11-14). Geometry, panel visibility and recovery restore independently.
+    const bool restored=window_.restoreState(settings_.value("window/state").toByteArray(),6);
     auto panels=settings_.value("window/panels").toMap();
     // Older sessions only have Qt dock state; hidden parents make isVisible() unsuitable here.
     if(panels.isEmpty() && restored)panels={{"navigator",!window_.findChild<QDockWidget*>("layersDock")->isHidden()},

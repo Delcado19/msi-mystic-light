@@ -154,6 +154,7 @@ private slots:
     void fixedDeviceSettings();
     void sharedOutputsLayout();
     void layoutAutoFitKeepsComponentsVisible();
+    void savedLayoutKeepsLogoRightAndEffectAspect();
     void fixedDeviceRejectsChain();
     void scrollbarAppearance();
     void effectPreviewDivider();
@@ -2508,20 +2509,21 @@ void EditorTest::expandingLayoutAndFullscreen()
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()});
     const auto id=window.document().addComponent("test.strip");
     window.document().edit("Expanded layout",[](auto& state){state.placements[0].origin={-200,500};});
-    // Independently calculated: LED centers -200,-180,-160 at y=500, with 12px margin.
-    QCOMPARE(window.document().layoutBounds(),QRectF(-212,0,852,512));
-    const QRectF bounds(-212,0,852,512);
+    // Independently calculated: LED centers -200,-180,-160 at y=500, with 12px margin -> -212,0 852x512,
+    // then padded to the 640:400 raster aspect: height 852/1.6=532.5, 10.25 above and below.
+    QCOMPARE(window.document().layoutBounds(),QRectF(-212,-10.25,852,532.5));
+    const QRectF bounds(-212,-10.25,852,532.5);
     QImage frame(LightingDocument::canvasSize(),QImage::Format_ARGB32);frame.fill(Qt::black);
-    frame.setPixelColor(9,390,Qt::red);frame.setPixelColor(24,390,Qt::green);frame.setPixelColor(39,390,Qt::blue);
+    frame.setPixelColor(9,383,Qt::red);frame.setPixelColor(24,383,Qt::green);frame.setPixelColor(39,383,Qt::blue); // y=(500+10.25)/532.5*400
     const QVector<QColor> expected{Qt::blue,Qt::green,Qt::red}; // Wire order 2,1,0.
     QCOMPARE(window.document().sampleComponents(frame)[id],expected);
     ChannelAssignment assignment;assignment.endpoint="test";assignment.profileId="test.device";assignment.channelId="Direct";assignment.software=true;assignment.placements={id};
     window.document().assignChannel(assignment);
     QCOMPARE(window.document().sampleChannels(frame)[assignment.id],expected);
     auto preview=window.document().state().placements;preview[0].origin={900,-100};
-    QCOMPARE(window.document().layoutBounds(&preview),QRectF(0,-112,952,512));
+    QCOMPARE(window.document().layoutBounds(&preview),QRectF(0,-153.5,952,595)); // 0,-112 952x512 padded to height 952/1.6
     QImage draftFrame(frame.size(),frame.format());draftFrame.fill(Qt::black);
-    draftFrame.setPixelColor(605,9,Qt::red);draftFrame.setPixelColor(618,9,Qt::green);draftFrame.setPixelColor(631,9,Qt::blue);
+    draftFrame.setPixelColor(605,35,Qt::red);draftFrame.setPixelColor(618,35,Qt::green);draftFrame.setPixelColor(631,35,Qt::blue); // y=(-100+153.5)/595*400
     QCOMPARE(window.document().sampleChannels(draftFrame,0,&preview)[assignment.id],expected);
     QImage white(frame.size(),frame.format());white.fill(Qt::white);
     const auto previewColors=window.document().sampleComponents(white,&preview).value(id);
@@ -2575,7 +2577,8 @@ void EditorTest::canvasScrollbars()
     // The body starts at 1790; text needs its measured width and 12px label padding.
     auto captionFont=canvas->font();captionFont.setPointSizeF(std::max(7.,captionFont.pointSizeF()*.75));const QFontMetrics captionMetrics(captionFont);
     const auto abbreviated=captionMetrics.elidedText("Generic Test strip",Qt::ElideRight,100);
-    const double rightEdge=std::max(1852.,1790.+captionMetrics.horizontalAdvance(abbreviated)+8.);
+    // The effect area keeps the 640:400 aspect, so its padded right edge can lie beyond the LEDs.
+    const double rightEdge=std::max(window.document().layoutBounds().right(),1790.+captionMetrics.horizontalAdvance(abbreviated)+8.);
     QVERIFY(qAbs(canvas->viewportPoint({rightEdge,400}).x()-(canvas->width()-16-vertical->width()))<=1.0);
     canvas->select(window.document().state().placements[0].id);canvas->repaint();horizontal->setValue(horizontal->maximum());canvas->repaint();
     const double fullRightEdge=rightEdge; // Selection never changes the caption size or anchor.
@@ -2585,7 +2588,9 @@ void EditorTest::canvasScrollbars()
         qPrintable(QString("bottom=%1 viewport=%2 hbar=%3 v=%4/%5 units/world=%6")
         .arg(canvas->viewportPoint({1852,400}).y()).arg(canvas->height()).arg(horizontal->height()).arg(vertical->value()).arg(vertical->maximum()).arg(window.document().layoutBounds().height())));
     horizontal->setValue(horizontal->minimum());vertical->setValue(vertical->minimum());canvas->repaint();
-    QVERIFY(qAbs(canvas->viewportPoint({0,-1212}).x()-16)<=1.0);QVERIFY(qAbs(canvas->viewportPoint({0,-1212}).y()-48)<=1.0);
+    // Scrolled to the start: the padded effect area's top-left sits at the content corner.
+    const auto topLeft=window.document().layoutBounds().topLeft();
+    QVERIFY(qAbs(canvas->viewportPoint(topLeft).x()-16)<=1.0);QVERIFY(qAbs(canvas->viewportPoint(topLeft).y()-48)<=1.0);
     vertical->setValue(vertical->maximum()/2);canvas->repaint();
     const auto old=canvas->canvasPoint(QPointF(100,100));
     horizontal->setValue(horizontal->maximum());vertical->setValue(vertical->minimum());canvas->repaint();
@@ -3853,6 +3858,32 @@ void EditorTest::fixedDeviceSettings_data()
     QTest::newRow("gpu")<<QString("gigabyte-aero-5080.json")<<QString("GigabyteAero5080");
     QTest::newRow("integrated-zone")<<QString("msi-mpg-b850-edge-ti-wifi.json")<<QString("IOShield");
 }
+void EditorTest::savedLayoutKeepsLogoRightAndEffectAspect()
+{
+    // Owner report 2026-11-14: a restored window layout kept the logo on the left.
+    QTemporaryDir dir;QSettings settings(dir.filePath("saved.ini"),QSettings::IniFormat);
+    const auto logoAtRight=[](LightingWindow& window) {
+        auto* logo=window.findChild<QLabel*>("studioBrand");auto* row=window.findChild<QToolBar*>("workspaceNavigation");
+        return logo->isVisible() && logo->mapTo(row,QPoint(logo->width(),0)).x()>row->width()-80;
+    };
+    {
+        LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+        AppSession session(window,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+        window.resize(1440,900);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTRY_VERIFY(logoAtRight(window));
+        settings.setValue("window/state",window.saveState(6));settings.setValue("window/geometry",window.saveGeometry());settings.sync();
+    }
+    LightingWindow restored(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    AppSession session(restored,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+    restored.show();QVERIFY(QTest::qWaitForWindowExposed(&restored));QTRY_VERIFY(logoAtRight(restored));
+    // The effect area keeps the 640:400 aspect and covers every housing, however components are placed.
+    LightingDocument document(catalog());const auto far=document.addComponent("test.strip");
+    document.edit("Far",[&](LightingState& state){for(auto& placement:state.placements)if(placement.id==far){placement.origin={1500,90};placement.scale={4,4};}});
+    const auto bounds=document.layoutBounds();QVERIFY(qAbs(bounds.width()/bounds.height()-1.6)<1e-9);
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);
+    for(const auto& placement:document.state().placements) for(const auto& point:document.componentPoints(placement)) QVERIFY(bounds.contains(point));
+    restored.document().history()->setClean();
+}
+
 void EditorTest::layoutAutoFitKeepsComponentsVisible()
 {
     // Owner report 2026-11-14: with automatic fit active, components extended past the canvas edge.

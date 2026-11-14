@@ -385,8 +385,10 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
                     painter.save();painter.resetTransform();painter.setRenderHint(QPainter::Antialiasing,false);
                     painter.fillRect(QRectF(QPointF(pixel)/dpr,QSizeF(1/dpr,1/dpr)),light);painter.restore();
                 }
-                const double screenRadius=ledRadius*zoom_;
-                // Every LED shows its number once it is large enough to read; same number = same output.
+            }
+            {
+                // Every LED and keyboard key shows its number once it is large enough to read; same number = same output.
+                const double screenRadius=keyboard ? std::min(keySize.width(),keySize.height())*zoom_/2 : ledRadius*zoom_;
                 if(!previewOnly_ && screenRadius>=6) {
                     // Drawn in screen pixels so numbers stay readable at every zoom level.
                     painter.save();const auto center=viewportPoint(point);painter.resetTransform();
