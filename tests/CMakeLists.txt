@@ -83,7 +83,9 @@ target_compile_definitions(test_editor PRIVATE TEST_COMPONENT_DIR="${PROJECT_SOU
 add_test(NAME lighting_editor COMMAND test_editor)
 # Debug raster/particle rendering is substantially slower than the optimized build.
 # Procedural controls, live gestures and galleries exceed the former 60s Release / 240s Debug budgets.
-set_tests_properties(lighting_editor PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,360,120>"
+# GitHub Actions' windows-latest runner (shared vCPUs, no GPU) timed out at the
+# prior 120s Release budget partway through; raised to 240s for that environment.
+set_tests_properties(lighting_editor PROPERTIES TIMEOUT "$<IF:$<CONFIG:Debug>,360,240>"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>;QT_FORCE_STDERR_LOGGING=1")
 
 # Offscreen Qt has no Windows font engine; use real fonts instead of oversized placeholder glyphs.
