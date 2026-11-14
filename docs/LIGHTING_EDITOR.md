@@ -339,8 +339,24 @@ Save/Open uses `.lighting.json` schema 22, including editing locks, layer contai
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
 and advanced persistence. Schemas 1..19 remain readable with their original
-semantics; missing newer settings get disabled/default values. Saves always use
+semantics; missing newer settings get disabled/default values. Saves use
 schema 22; older versions reject it instead of silently losing effects.
+A project that sets a chain start position (below) is saved as schema 23, which
+editors and service hosts older than that feature reject; projects without one
+stay at schema 22.
+
+### Shared output positions
+
+Some headers drive several components from the same addresses, for example fans
+mirrored on one ARGB header (measured case: `docs/JARGB2_TOPOLOGY_TEST.md`).
+In **Configure channel**, select a chain item and set **Position** to the
+one-based output position where that component starts. The default places it
+directly after the previous item, which is the ordinary serial chain.
+Components whose ranges overlap share those outputs: the item higher in the
+list supplies the colors and the others display the same colors in Layout,
+because that is what the hardware shows. Positions that no component covers are
+sent as black. The occupied range, not the sum of the components, must fit the
+channel capacity.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect

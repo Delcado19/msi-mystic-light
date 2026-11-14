@@ -23,7 +23,16 @@ private slots:
         channel.maxLeds = 4;
         QCOMPARE(channelMapping(channel, {"test", "test"}, catalog), (QVector<int>{1, 0, 3, 2}));
         QVERIFY(channelMapping(channel, {}, catalog).isEmpty());
+        // Explicit one-based positions may share addresses; 0 continues after the previous component.
+        QCOMPARE(channelMapping(channel, {"test", "test"}, catalog, {1, 1}), (QVector<int>{1, 0, 1, 0}));
+        QCOMPARE(channelMapping(channel, {"test", "test"}, catalog, {3, 1}), (QVector<int>{3, 2, 1, 0}));
+        QCOMPARE(chainOffsets({2, 2, 2}, {0, 1, 0}), (QVector<int>{0, 0, 2}));
+        QVERIFY_EXCEPTION_THROWN(channelMapping(channel, {"test", "test"}, catalog, {4, 0}), std::invalid_argument);
+        QVERIFY_EXCEPTION_THROWN(channelMapping(channel, {"test", "test"}, catalog, {1}), std::invalid_argument);
+        QVERIFY_EXCEPTION_THROWN(chainOffsets({2}, {-1}), std::invalid_argument);
         channel.fixedLeds = 4;
+        // A fixed count is the occupied address range, so two mirrored components do not fill it.
+        QVERIFY_EXCEPTION_THROWN(channelMapping(channel, {"test", "test"}, catalog, {1, 1}), std::invalid_argument);
         QCOMPARE(channelMapping(channel, {"test", "test"}, catalog).size(), 4);
         QVERIFY_EXCEPTION_THROWN(channelMapping(channel, {"test"}, catalog), std::invalid_argument);
         channel.fixedLeds = 0;

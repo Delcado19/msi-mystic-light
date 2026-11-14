@@ -1,3 +1,15 @@
+## JARGB2 shared routing - 2026-11-14
+
+Branch `feat/jargb2-shared-routing`: chain items accept an explicit one-based
+start position (`ChannelAssignment::starts`, Configure channel > Position);
+`sampleChannels` resolves overlaps (earlier chain item wins) and the Layout
+preview mirrors the resolved colors. Projects using it save as schema 23, others
+stay at 22. See docs/LIGHTING_EDITOR.md "Shared output positions" and the status
+section of docs/JARGB2_TOPOLOGY_TEST.md for what is not done (16-LED strip
+definition, personal layout, Hardware LED summary, hardware confirmation).
+The installed service host must be updated together with the editor before a
+schema-23 project is sent to it.
+
 ## JARGB2 topology follow-up - updated 2026-11-14
 
 See docs/JARGB2_TOPOLOGY_TEST.md for packets, observations and limitations.

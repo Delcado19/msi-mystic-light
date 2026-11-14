@@ -13,6 +13,7 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QSignalBlocker>
 #include <QDoubleSpinBox>
 #include <QVBoxLayout>
 #include <stdexcept>
@@ -65,9 +66,26 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
             return document.componentName(placement);
         return QString("Missing instance ") + id.toString();
     };
+    // Item roles: UserRole = placement id, +1 = explicit one-based start (0 = serial), +2 = plain name.
+    auto describe = [](QListWidgetItem* item) {
+        const int start=item->data(Qt::UserRole+1).toInt();
+        item->setText(item->data(Qt::UserRole+2).toString()+(start ? QString("  (from position %1)").arg(start) : QString()));
+    };
     for (const auto& id : initial_.placements) {
-        auto* item = new QListWidgetItem(label(id), chain); item->setData(Qt::UserRole,id);
+        auto* item = new QListWidgetItem(chain); item->setData(Qt::UserRole,id);
+        item->setData(Qt::UserRole+1,initial_.starts.value(id,0)); item->setData(Qt::UserRole+2,label(id)); describe(item);
     }
+    auto* start = new QSpinBox; start->setObjectName("chainStart"); start->setRange(0,channel.maxLeds);
+    start->setSpecialValueText("Position: directly after the previous component"); start->setPrefix("Position: starts at output ");
+    start->setAccessibleName("Start position of the selected component");
+    start->setToolTip("First output position of the selected chain item. Components that share positions, such as fans mirrored on one header, show the same colors; the item higher in the list supplies them.");
+    start->setEnabled(false); layout->addWidget(start);
+    connect(chain,&QListWidget::currentItemChanged,this,[start](QListWidgetItem* item) {
+        const QSignalBlocker blocker(start); start->setEnabled(item); start->setValue(item ? item->data(Qt::UserRole+1).toInt() : 0);
+    });
+    connect(start,&QSpinBox::valueChanged,this,[chain,describe](int value) {
+        if(auto* item=chain->currentItem()) { item->setData(Qt::UserRole+1,value); describe(item); }
+    });
     auto* available = new QComboBox; available->setObjectName("availableInstances");
     available->setEnabled(!fixedComponent_);
     for (const auto& placement : document.state().placements) available->addItem(label(placement.id), placement.id);
@@ -81,6 +99,7 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     action("Append", "appendInstance", [chain,available] {
         if (available->currentIndex() < 0) return;
         auto* item = new QListWidgetItem(available->currentText(), chain); item->setData(Qt::UserRole,available->currentData());
+        item->setData(Qt::UserRole+2,available->currentText());
         chain->setCurrentItem(item);
     });
     action("Remove", "removeInstance", [chain] { delete chain->takeItem(chain->currentRow()); });
@@ -92,10 +111,10 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
         const int row=chain->currentRow(); if(row<0 || row>=chain->count()-1) return;
         auto* item=chain->takeItem(row); chain->insertItem(row+1,item); chain->setCurrentItem(item);
     });
-    auto visibility=[this,mode,native,chain,available,actions,clock,clockSection,chainCaption] {
+    auto visibility=[this,mode,native,chain,available,actions,clock,clockSection,chainCaption,start] {
         const bool software=mode->currentData().toBool(); native->setVisible(!software);
         const bool editableChain=software && !fixedComponent_;
-        chain->setVisible(editableChain); available->setVisible(editableChain); clock->setEnabled(software);
+        chain->setVisible(editableChain); start->setVisible(editableChain); available->setVisible(editableChain); clock->setEnabled(software);
         clockSection->setVisible(software); chainCaption->setVisible(editableChain);
         for(int i=0;i<actions->count();++i) if(auto* widget=actions->itemAt(i)->widget()) widget->setVisible(editableChain);
     };
@@ -132,7 +151,11 @@ ChannelAssignment ChannelEditor::assignment() const
     // Preserve the device identity even if a hidden widget is modified programmatically.
     if(!fixedComponent_) {
         result.placements.clear(); const auto* chain=findChild<QListWidget*>("channelChain");
-        for(int row=0;row<chain->count();++row) result.placements.append(chain->item(row)->data(Qt::UserRole).toUuid());
+        result.starts.clear();
+        for(int row=0;row<chain->count();++row) {
+            result.placements.append(chain->item(row)->data(Qt::UserRole).toUuid());
+            if(const int start=chain->item(row)->data(Qt::UserRole+1).toInt()) result.starts.insert(result.placements.last(),start);
+        }
     }
     return result;
 }

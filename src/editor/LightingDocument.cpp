@@ -378,10 +378,26 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
     for (const auto& assignment : state_.assignments) if (assignment.software) {
         const auto raster=(restricted || assignment.timeScale!=1 || assignment.timeOffset!=0)
             ? renderForChannel(assignment.id,seconds) : rgb;
-        QVector<QColor> chain;
+        QVector<QVector<QColor>> sampled;
+        QVector<int> counts;
         for (const auto& id : assignment.placements)
-            for (const auto& placement : placements ? *placements : state_.placements) if (placement.id == id)
-                chain.append(sampleComponent(placement, raster, bounds));
+            for (const auto& placement : placements ? *placements : state_.placements) if (placement.id == id) {
+                sampled.append(sampleComponent(placement, raster, bounds)); counts.append(int(sampled.last().size()));
+            }
+        // A preview subset may omit placements; positions then fall back to the serial order.
+        const auto starts = counts.size() == assignment.placements.size() ? chainStarts(assignment) : QVector<int>{};
+        const auto offsets = chainOffsets(counts, starts);
+        QVector<QColor> chain;
+        QVector<bool> owned;
+        // Shared output positions have one physical color: the earlier chain item supplies it,
+        // later components mirror it. Unaddressed gaps stay black.
+        for (qsizetype index = 0; index < sampled.size(); ++index) {
+            const auto end = offsets[index] + counts[index];
+            if (chain.size() < end) { chain.resize(end, QColor(Qt::black)); owned.resize(end, false); }
+            for (int led = 0; led < counts[index]; ++led) if (!owned[offsets[index] + led]) {
+                chain[offsets[index] + led] = sampled[index][led]; owned[offsets[index] + led] = true;
+            }
+        }
         result.insert(assignment.id, chain);
     }
     return result; // Native channels are deliberately absent, never overwritten with sampled colors.
@@ -466,7 +482,11 @@ void LightingDocument::save(const QString& fileName, bool markClean)
     // Version 16 adds native patterns and their controls; earlier parameter defaults remain readable.
     // Version 20 adds branching Lightning and perspective Starfield sources.
     // Version 22 adds procedural spatial controls; old files retain their original defaults.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 22}, {"width", 640}, {"height", 400},
+    // Version 23 adds shared chain positions. Files without them stay at 22 so an
+    // installed service host that predates this change keeps loading existing projects.
+    const bool sharedPositions = std::any_of(saved.assignments.cbegin(), saved.assignments.cend(),
+        [](const auto& assignment) { return !chainStarts(assignment).isEmpty(); });
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", sharedPositions ? 23 : 22}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -486,7 +506,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22 && schema != 23) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();

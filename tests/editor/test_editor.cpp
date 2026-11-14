@@ -939,6 +939,24 @@ void EditorTest::channelAssignments()
     auto reversed=direct; reversed.placements={first,second}; document.assignChannel(reversed);
     QCOMPARE(document.sampleChannels(frame)[direct.id][0],QColor(Qt::blue));
     document.history()->undo(); QCOMPARE(document.sampleChannels(frame),samples);
+    // Shared positions (docs/JARGB2_TOPOLOGY_TEST.md): the earlier chain item supplies overlapping outputs.
+    auto shared=direct; shared.starts={{second,1},{first,1}}; document.assignChannel(shared);
+    QCOMPARE(document.sampleChannels(frame)[direct.id],samples[direct.id].mid(0,3));
+    {
+        QTemporaryDir sharedDirectory; const auto sharedPath=sharedDirectory.filePath("shared.lighting.json"); document.save(sharedPath,false);
+        QFile sharedFile(sharedPath); QVERIFY(sharedFile.open(QIODevice::ReadOnly));
+        QCOMPARE(QJsonDocument::fromJson(sharedFile.readAll()).object().value("schemaVersion").toInt(),23); sharedFile.close();
+        LightingDocument reloaded({},nullptr,{profile}); reloaded.load(sharedPath);
+        QCOMPARE(reloaded.sampleChannels(frame),document.sampleChannels(frame));
+    }
+    // An explicit position equal to the serial one, and a stale entry for a removed placement, change nothing.
+    shared.starts={{first,4},{QUuid::createUuid(),2}}; document.assignChannel(shared);
+    QCOMPARE(document.sampleChannels(frame),samples);
+    // Positions before an explicit start are unaddressed and stay black.
+    shared.placements={second}; shared.starts={{second,3}}; document.assignChannel(shared);
+    QCOMPARE(document.sampleChannels(frame)[direct.id],QVector<QColor>({Qt::black,Qt::black})+samples[direct.id].mid(0,3));
+    for(int i=0;i<3;++i) document.history()->undo();
+    QCOMPARE(document.sampleChannels(frame),samples);
     const int before=document.history()->index();
     auto reject=[&](ChannelAssignment invalid) {
         QVERIFY_EXCEPTION_THROWN(document.assignChannel(invalid),std::invalid_argument);
@@ -955,6 +973,7 @@ void EditorTest::channelAssignments()
     invalid=native; invalid.native.speed=3; reject(invalid);
     invalid=native; invalid.native.colors.clear(); reject(invalid);
     invalid=direct; invalid.endpoint.clear(); reject(invalid);
+    invalid=direct; invalid.starts={{first,5}}; reject(invalid); // 5..7 exceeds the six-LED channel.
     QVERIFY_EXCEPTION_THROWN(document.edit("Delete assigned instance",[&](LightingState& state) {
         state.placements.removeIf([&](const auto& item){return item.id==first;});
     }),std::invalid_argument);
@@ -973,6 +992,7 @@ void EditorTest::channelAssignments()
     QVERIFY_EXCEPTION_THROWN(unavailable.load(path),std::invalid_argument); QCOMPARE(unavailable.history()->index(),unchanged);
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     const auto original=QJsonDocument::fromJson(file.readAll()).object(); file.close();
+    QCOMPARE(original.value("schemaVersion").toInt(),22); // Serial chains remain readable by schema-22 hosts.
     auto write=[&](QJsonObject root) { QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(root).toJson()); file.close(); };
     auto root=original; auto assignments=root.value("assignments").toArray();
     auto malformed=assignments[0].toObject(); malformed.insert("software","true"); assignments[0]=malformed;
@@ -988,6 +1008,9 @@ void EditorTest::channelAssignments()
     QVERIFY_EXCEPTION_THROWN(fixed.assignChannel(configured),std::invalid_argument);
     const auto two=fixed.addComponent("test.strip"); configured.placements.append(two); fixed.assignChannel(configured);
     QCOMPARE(fixed.sampleChannels(frame)[configured.id].size(),6);
+    auto positioned=direct; positioned.starts={{first,1}}; const auto positionedJson=channelAssignmentJson(positioned);
+    QCOMPARE(parseChannelAssignment(positionedJson,23).starts,positioned.starts);
+    QVERIFY_EXCEPTION_THROWN(parseChannelAssignment(positionedJson,22),std::invalid_argument);
     auto bad=channelAssignmentJson(native); auto badNative=bad.value("native").toObject();
     badNative.insert("colors",QJsonArray{QJsonArray{1.5,0,0}}); bad.insert("native",badNative);
     QVERIFY_EXCEPTION_THROWN(parseChannelAssignment(bad),std::invalid_argument);
@@ -1012,6 +1035,9 @@ void EditorTest::channelControls()
     editor.findChild<QComboBox*>("availableInstances")->setCurrentIndex(1); append->click();
     editor.findChild<QPushButton*>("instanceUp")->click();
     QCOMPARE(editor.assignment().placements,QVector<QUuid>({second,first}));
+    auto* start=editor.findChild<QSpinBox*>("chainStart"); QVERIFY(start->isEnabled()); start->setValue(1);
+    QCOMPARE(editor.assignment().starts,(QMap<QUuid,int>{{second,1}}));
+    start->setValue(0); QVERIFY(editor.assignment().starts.isEmpty());
     QVERIFY(editor.grab().save(artifactDirectory()+"/editor-channel.png"));
     buttons->button(QDialogButtonBox::Ok)->click(); QCOMPARE(editor.result(),int(QDialog::Accepted));
     window.document().assignChannel(editor.assignment());

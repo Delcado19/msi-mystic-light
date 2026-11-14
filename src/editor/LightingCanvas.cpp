@@ -334,11 +334,15 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
     auto sampled=document_.sampleComponents(frame,&placements);
     const auto channels=document_.sampleChannels(frame,seconds_,&placements);
     for(const auto& assignment:document_.state().assignments) {
-        int index=0;
+        // Same offsets as sampleChannels: components sharing positions preview the color hardware shows.
+        QVector<int> counts;for(const auto& id:assignment.placements)counts.append(int(sampled[id].size()));
+        const bool positioned=assignment.software && !counts.contains(0);
+        const auto offsets=positioned ? chainOffsets(counts,chainStarts(assignment)) : QVector<int>{};
+        int index=0,serial=0;
         for(const auto& id:assignment.placements) {
             if(assignment.software) {
                 const auto count=sampled[id].size();const auto colors=channels.value(assignment.id);
-                sampled[id]=colors.mid(index,count);index+=count;
+                sampled[id]=colors.mid(positioned ? offsets[index] : serial,count);++index;serial+=count;
             }
             else {
                 QColor color=Qt::black;

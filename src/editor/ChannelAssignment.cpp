@@ -19,6 +19,13 @@ bool channelHasFixedComponent(const ChannelProfile& channel)
 {
     return !channel.address.value("componentId").toString().isEmpty();
 }
+QVector<int> chainStarts(const ChannelAssignment& assignment)
+{
+    QVector<int> starts;
+    bool any = false;
+    for (const auto& id : assignment.placements) { starts.append(assignment.starts.value(id, 0)); any = any || starts.last(); }
+    return any ? starts : QVector<int>{};
+}
 void validateChannelAssignments(const LightingState& state, const QVector<DeviceProfile>& profiles)
 {
     if (state.assignments.size() > 256) throw std::invalid_argument("Limit: 256 channel assignments");
@@ -63,7 +70,7 @@ void validateChannelAssignments(const LightingState& state, const QVector<Device
                 throw std::invalid_argument("Invalid assigned component geometry");
         }
         // Native channels may have no geometry; an explicit chain must satisfy the physical capacity.
-        if (!components.isEmpty() || assignment.software) channelMapping(channel, components, state.components);
+        if (!components.isEmpty() || assignment.software) channelMapping(channel, components, state.components, chainStarts(assignment));
     }
     for (const auto& layer : state.layers) {
         if (layer.allChannels && !layer.channelTargets.isEmpty()) throw std::invalid_argument("Global layer cannot also list channel targets");
@@ -81,12 +88,16 @@ QJsonObject channelAssignmentJson(const ChannelAssignment& assignment)
     QJsonArray placements, colors;
     for (const auto& id : assignment.placements) placements.append(id.toString());
     for (const auto& color : assignment.native.colors) colors.append(QJsonArray{color.r, color.g, color.b});
-    return {{"id", assignment.id.toString()}, {"endpoint", assignment.endpoint},
+    QJsonObject json{{"id", assignment.id.toString()}, {"endpoint", assignment.endpoint},
         {"profileId", assignment.profileId}, {"channelId", assignment.channelId},
         {"software", assignment.software}, {"placements", placements},
         {"timeScale", assignment.timeScale}, {"timeOffset", assignment.timeOffset},
         {"native", QJsonObject{{"id", assignment.native.id}, {"colors", colors},
             {"brightness", assignment.native.brightness}, {"speed", assignment.native.speed}, {"inward", assignment.native.inward}}}};
+    // Serial chains keep the previous file shape; only explicit positions add the schema-23 key.
+    const auto starts = chainStarts(assignment);
+    if (!starts.isEmpty()) { QJsonArray array; for (const int start : starts) array.append(start); json.insert("starts", array); }
+    return json;
 }
 ChannelAssignment parseChannelAssignment(const QJsonObject& json, int schema)
 {
@@ -107,6 +118,18 @@ ChannelAssignment parseChannelAssignment(const QJsonObject& json, int schema)
     for (const auto& entry : placements) {
         if (!entry.isString()) throw std::invalid_argument("Invalid assigned placement ID");
         result.placements.append(QUuid(entry.toString()));
+    }
+    if (json.contains("starts")) {
+        if (schema < 23) throw std::invalid_argument("Chain positions require schema 23");
+        const auto starts = json.value("starts").toArray();
+        if (!json.value("starts").isArray() || starts.size() != result.placements.size())
+            throw std::invalid_argument("Chain positions do not match the component chain");
+        for (qsizetype i = 0; i < starts.size(); ++i) {
+            const double start = starts[i].toDouble(-1);
+            if (!starts[i].isDouble() || start < 0 || start > 65535 || std::floor(start) != start)
+                throw std::invalid_argument("Invalid chain position");
+            if (start > 0) result.starts.insert(result.placements[i], int(start));
+        }
     }
     const auto native = json.value("native").toObject();
     if (!native.value("id").isString() || !native.value("inward").isBool() || !native.value("colors").isArray())

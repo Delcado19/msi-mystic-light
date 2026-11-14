@@ -114,8 +114,18 @@ and blocked one test before HID writes. On a later authorized retry, remaining
 SignalRGB processes were stopped and the test passed its process guard.
 No service startup configuration or scheduled task configuration was changed.
 
-Required software work remains unimplemented: explicit shared address ranges
-per component, a 16-position strip instance, a defined source/conflict policy
-for overlapping addresses, matching preview/help, backward-compatible saved
-layout handling, and tests for bounds, overlap and unchanged serial layouts.
-The current personal layout and production code remain unchanged.
+## Software status - 2026-11-14
+
+Implemented: a chain item can carry an explicit one-based start position
+(Configure channel > Position), so the four fans can all start at 1 and the
+strip at 1 as measured. Conflict policy: for an overlapping address the item
+higher in the chain supplies the color; the other components preview that same
+color. Uncovered positions are sent black. Serial chains and their saved files
+are unchanged (schema 22); a project with an explicit position saves as schema
+23. Tests cover bounds, overlap, gaps, stale entries and unchanged serial output.
+
+Not done: no 16-position strip definition was added and the personal layout was
+not edited, so the owner still has to set the positions and use a 16-LED strip
+component. The Hardware summary still adds up component LED counts and therefore
+overstates the number of occupied addresses for shared chains. The new routing
+has only been exercised by software tests, not on the JARGB2 hardware.
