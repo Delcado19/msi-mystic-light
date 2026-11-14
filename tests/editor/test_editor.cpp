@@ -824,8 +824,11 @@ void EditorTest::windowBackgroundResizes()
         window.resize(size);QCoreApplication::processEvents();
         auto* logo=window.findChild<QLabel*>("studioBrand");QVERIFY(logo && logo->isVisible());
         QVERIFY(logo->width()>=logo->pixmap().width());
-        QCOMPARE(logo->pixmap().size(),QSize(360,120));
-        QVERIFY(logo->height()>=120);
+        QCOMPARE(logo->pixmap().size(),QSize(450,150));
+        QVERIFY(logo->height()>=150);
+        // The logo sits at the right end of its row.
+        auto* row=window.findChild<QToolBar*>("workspaceNavigation");
+        QVERIFY(logo->mapTo(row,QPoint(logo->width(),0)).x()>row->width()-80);
         // Render the window itself without children to exercise cover cropping and overlay.
         QPixmap actual(window.size());actual.fill(Qt::magenta);
         window.render(&actual,QPoint(),QRegion(),QWidget::DrawWindowBackground);
@@ -3921,7 +3924,7 @@ void EditorTest::integerDisplayRoundTrip()
 {
     ParameterSpinBox field;field.setRange(0,10);field.setDisplayUnit(60," /min");field.setValue(.25);
     QCOMPARE(field.text(),QString("15 /min"));QCOMPARE(field.value(),.25);
-    field.setValue(.123456789);const auto exact=field.value();QVERIFY(field.text().contains(QChar(0x2248)));
+    field.setValue(.123456789);const auto exact=field.value();QCOMPARE(field.text(),QString("7 /min"));
     field.show();field.setFocus();QTest::keyClick(&field,Qt::Key_Tab);QCOMPARE(field.value(),exact);
     field.setFocus();QTest::keyClick(&field,Qt::Key_A,Qt::ControlModifier);QTest::keyClicks(&field,"30");QTest::keyClick(&field,Qt::Key_Return);QCOMPARE(field.value(),.5);
     field.setDisplayUnit(1000," ms");field.setValue(.375);QCOMPARE(field.text(),QString("375 ms"));
@@ -3948,7 +3951,7 @@ void EditorTest::integerDisplayRoundTrip()
     seed.ensurePolished();QCOMPARE(seed.width(),numericWidth);QCOMPARE(numericWidth,64);
     QCOMPARE(seed.text(),QString("7654321"));
     seed.setValue(-500);QCOMPARE(seed.width(),numericWidth);QCOMPARE(seed.text(),QString("-500"));
-    seed.setValue(.12345678901234567);QVERIFY(seed.text().contains(QChar(0x2248)));
+    seed.setValue(.12345678901234567);QCOMPARE(seed.text(),QString("0"));
     QCOMPARE(seed.value(),.12345678901234567);QCOMPARE(seed.width(),numericWidth);
     QSpinBox integer;styleStudioNumericField(&integer);integer.ensurePolished();QCOMPARE(integer.width(),numericWidth);
     auto larger=seed.font();larger.setPointSizeF(16);seed.setFont(larger);integer.setFont(larger);

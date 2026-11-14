@@ -77,6 +77,7 @@ protected:
     void wheelEvent(QWheelEvent*) override;
     void keyPressEvent(QKeyEvent*) override;
     void keyReleaseEvent(QKeyEvent*) override;
+    void enterEvent(QEnterEvent*) override;
     void hideEvent(QHideEvent*) override;
     void focusOutEvent(QFocusEvent*) override;
 private:

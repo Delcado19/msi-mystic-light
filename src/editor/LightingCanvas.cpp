@@ -14,6 +14,10 @@
 #include <QToolButton>
 #include <QAction>
 #include <QResizeEvent>
+#include <QLineEdit>
+#include <QTextEdit>
+#include <QAbstractSpinBox>
+#include <QEnterEvent>
 #include <QLineF>
 #include <QPolygonF>
 #include <algorithm>
@@ -334,11 +338,6 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
     // Layout shows what the hardware shows, including components that share LED outputs.
     auto sampled=document_.previewComponentColors(frame,seconds_,&placements);
     const auto shared=(!previewOnly_ && context_==Context::Layout) ? document_.sharedColorNotes() : QMap<QUuid,QString>{};
-    QSet<QUuid> numbered; // Components on a shared header show LED numbers: same number = same color.
-    for(const auto& assignment:document_.state().assignments) {
-        bool sharing=false;for(const auto& id:assignment.placements)sharing=sharing || shared.contains(id);
-        if(sharing)for(const auto& id:assignment.placements)numbered.insert(id);
-    }
     for (auto placement : document_.state().placements) {
         painter.save();
         bool dimmed=false;
@@ -385,7 +384,8 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
                     painter.fillRect(QRectF(QPointF(pixel)/dpr,QSizeF(1/dpr,1/dpr)),light);painter.restore();
                 }
                 const double screenRadius=ledRadius*zoom_;
-                if(numbered.contains(placement.id) && screenRadius>=6) {
+                // Every LED shows its number once it is large enough to read; same number = same output.
+                if(!previewOnly_ && screenRadius>=6) {
                     // Drawn in screen pixels so numbers stay readable at every zoom level.
                     painter.save();const auto center=viewportPoint(point);painter.resetTransform();
                     auto numberFont=font();numberFont.setPixelSize(int(std::clamp(screenRadius*1.05,8.,14.)));numberFont.setBold(true);painter.setFont(numberFont);
@@ -1294,9 +1294,19 @@ void LightingCanvas::scrollAtEdge()
     mouseMoveEvent(&move);
 }
 
+void LightingCanvas::enterEvent(QEnterEvent* event)
+{
+    // Space and tool shortcuts reach the canvas under the pointer, unless the user is typing elsewhere.
+    auto* focused=QApplication::focusWidget();
+    if(focusPolicy()!=Qt::NoFocus && isActiveWindow() && !qobject_cast<QLineEdit*>(focused) && !qobject_cast<QAbstractSpinBox*>(focused) && !qobject_cast<QTextEdit*>(focused))
+        setFocus(Qt::MouseFocusReason);
+    QWidget::enterEvent(event);
+}
+
 void LightingCanvas::keyReleaseEvent(QKeyEvent* event)
 {
-    if(event->key()==Qt::Key_Space){spaceHeld_=false;updateCursor();event->accept();return;}
+    // Holding Space sends auto-repeated release/press pairs; only the real release ends panning.
+    if(event->key()==Qt::Key_Space){if(!event->isAutoRepeat()){spaceHeld_=false;updateCursor();}event->accept();return;}
     QWidget::keyReleaseEvent(event);
 }
 

@@ -127,23 +127,27 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
         for(int row=0;row<chain->count();++row) detach(chain->item(row));
         for(int row=0;row<chain->count();++row) {
             auto* item=chain->item(row);
-            auto* widget=new QWidget; auto* line=new QHBoxLayout(widget); line->setContentsMargins(6,3,6,3);
-            auto* name=new QLabel(item->data(Qt::UserRole+2).toString()); name->setMinimumWidth(150); line->addWidget(name,1);
-            auto* count=new QLabel(QString("%1 LEDs").arg(item->data(Qt::UserRole+3).toInt())); count->setProperty("muted",true); line->addWidget(count);
-            line->addSpacing(8); line->addWidget(new QLabel("Starts at LED"));
-            auto* down=new QToolButton; down->setObjectName("chainStartDown"); down->setText("-"); down->setAccessibleName("Start one LED earlier");
+            auto* widget=new QWidget; widget->setFixedHeight(40); auto* line=new QHBoxLayout(widget); line->setContentsMargins(6,0,6,0);
+            // Fixed column widths: rows are separate widgets, so only equal widths keep the columns aligned.
+            const auto fullName=item->data(Qt::UserRole+2).toString();
+            auto* name=new QLabel; name->setFixedWidth(230); name->setText(name->fontMetrics().elidedText(fullName,Qt::ElideRight,226)); name->setToolTip(fullName); line->addWidget(name);
+            auto* count=new QLabel(QString("%1 LEDs").arg(item->data(Qt::UserRole+3).toInt())); count->setProperty("muted",true);
+            count->setFixedWidth(64); count->setAlignment(Qt::AlignRight|Qt::AlignVCenter); line->addWidget(count);
+            line->addSpacing(12); auto* caption=new QLabel("Starts at LED"); caption->setFixedWidth(caption->fontMetrics().horizontalAdvance(caption->text())+24); line->addWidget(caption);
+            auto* down=new QToolButton; down->setObjectName("chainStartDown"); down->setText(QString(QChar(0x2212))); down->setAccessibleName("Start one LED earlier");
             auto* start=new QSpinBox; start->setObjectName("chainStart"); start->setRange(0,maximum); start->setSpecialValueText("Auto");
             start->setToolTip("Auto: directly after the device above. A number: this device starts at that LED, so devices with the same start show the same colors.");
             start->setAccessibleName("Starts at LED for "+item->data(Qt::UserRole+2).toString());
             styleStudioNumericField(start); start->setValue(item->data(Qt::UserRole+1).toInt());
             auto* up=new QToolButton; up->setObjectName("chainStartUp"); up->setText("+"); up->setAccessibleName("Start one LED later");
-            for(auto* button:{down,up}) button->setFixedWidth(26);
+            for(auto* button:{down,up}) { button->setFixedSize(28,28); button->setStyleSheet("padding:0; font-size:15px;"); }
+            start->setFixedHeight(28);
             line->addWidget(down); line->addWidget(start); line->addWidget(up);
-            auto* result=new QLabel; result->setObjectName("chainResult"); result->setProperty("muted",true); result->setMinimumWidth(220); line->addWidget(result);
+            auto* result=new QLabel; result->setObjectName("chainResult"); result->setProperty("muted",true); result->setMinimumWidth(220); line->addSpacing(8); line->addWidget(result,1);
             connect(down,&QToolButton::clicked,start,&QSpinBox::stepDown); connect(up,&QToolButton::clicked,start,&QSpinBox::stepUp);
             connect(start,&QSpinBox::valueChanged,this,[item,updateTexts](int value) { item->setData(Qt::UserRole+1,value); updateTexts(); });
             // Size after the studio style is applied, otherwise the styled buttons are clipped.
-            item->setText({}); chain->setItemWidget(item,widget); widget->ensurePolished(); item->setSizeHint(QSize(widget->sizeHint().width(),qMax(widget->sizeHint().height(),40)));
+            item->setText({}); chain->setItemWidget(item,widget); widget->ensurePolished(); item->setSizeHint(QSize(widget->sizeHint().width(),44));
         }
         updateTexts();
     };

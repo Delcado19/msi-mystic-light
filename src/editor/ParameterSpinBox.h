@@ -5,8 +5,9 @@
 #include <QEvent>
 #include <algorithm>
 
-// Integer UI units never quantize the document on refresh. The approximation mark
-// keeps off-grid legacy values intact when a field merely gains or loses focus.
+// Integer UI units never quantize the document on refresh. Text that still equals the
+// displayed rounding of the stored value maps back to that exact value, so off-grid legacy
+// values stay intact when a field merely gains or loses focus; only a typed change rounds.
 class ParameterSpinBox : public QDoubleSpinBox {
 public:
     explicit ParameterSpinBox(QWidget* parent=nullptr) : QDoubleSpinBox(parent) {
@@ -21,22 +22,21 @@ protected:
     bool event(QEvent* event) override {
         if(event->type()==QEvent::ToolTip) {
             if(!property("baseDescription").isValid())setProperty("baseDescription",toolTip());
-            setToolTip(property("baseDescription").toString()+"\nExact value: "+QString::number(value()*scale_,'g',17)+suffix()+". An approximation mark means the saved value is preserved until edited. Alt+R resets the default.");
+            setToolTip(property("baseDescription").toString()+"\nExact value: "+QString::number(value()*scale_,'g',17)+suffix()+". The saved value is kept until you type a new one. Alt+R resets the default.");
         }
         return QDoubleSpinBox::event(event);
     }
     QString textFromValue(double number) const override {
         const double shown=number*scale_;
-        return (std::abs(shown-std::round(shown))>1e-7 ? QString::fromUtf8("\xE2\x89\x88 ") : QString{})+QString::number(qRound64(shown));
+        return QString::number(qRound64(shown));
     }
     double valueFromText(const QString& text) const override {
-        if(text.contains(QChar(0x2248)))return value();
+        if(text==textFromValue(value())+suffix() || text==prefix()+textFromValue(value())+suffix())return value();
         QString number=text;number.remove(suffix());number.remove(prefix());
         bool ok=false;const double result=locale().toDouble(number.trimmed(),&ok);
         return ok ? result/scale_ : value();
     }
     QValidator::State validate(QString& text,int&) const override {
-        if(text.contains(QChar(0x2248)))return QValidator::Acceptable;
         QString number=text;number.remove(suffix());number.remove(prefix());number=number.trimmed();
         if(number.isEmpty() || number=="-" || number=="+")return QValidator::Intermediate;
         bool ok=false;const auto result=locale().toLongLong(number,&ok);

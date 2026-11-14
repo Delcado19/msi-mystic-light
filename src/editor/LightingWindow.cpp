@@ -252,7 +252,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     editMenu->addAction(redo);
     auto* toolbar = studioHeaderToolbar("History",this);addToolBar(toolbar); toolbar->setObjectName("historyToolbar");
     toolbar->setMovable(false);
-    auto* brand=new QLabel;brand->setObjectName("studioBrand");brand->setAccessibleName("Lighting Studio");brand->setPixmap(QPixmap(":/branding/lighting-studio-header.png").scaled(360,120,Qt::KeepAspectRatio,Qt::SmoothTransformation));toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    auto* brand=new QLabel;brand->setObjectName("studioBrand");brand->setAccessibleName("Lighting Studio");brand->setPixmap(QPixmap(":/branding/lighting-studio-header.png").scaled(450,150,Qt::KeepAspectRatio,Qt::SmoothTransformation));toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
     open->setIcon(studioToolIcon("open")); save->setIcon(studioToolIcon("save"));
     undo->setIcon(studioToolIcon("undo")); redo->setIcon(studioToolIcon("redo"));
     toolbar->addAction(open); toolbar->addAction(save);
@@ -1044,7 +1044,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* toolOptions=new QToolBar("Tool options",this); toolOptions->setObjectName("drawingOptions"); toolOptions->setMinimumHeight(34);toolOptions->setMovable(false); addToolBarBreak(); addToolBar(toolOptions);
     appearanceControls->removeWidget(color_); color_->setMaximumWidth(190); auto* colorSlot=new QWidget;auto* colorLayout=new QHBoxLayout(colorSlot);colorLayout->setContentsMargins(0,0,0,0);colorSlot->setFixedWidth(190);color_->setFixedWidth(190);auto colorPolicy=color_->sizePolicy();colorPolicy.setRetainSizeWhenHidden(true);color_->setSizePolicy(colorPolicy);colorLayout->addWidget(color_);
     toolOptions->addWidget(colorSlot)->setObjectName("foregroundColorAction");
-    auto* shapeFill=new QCheckBox("Filled shapes"); shapeFill->setObjectName("shapeFill"); shapeFill->setChecked(true); toolOptions->addWidget(shapeFill)->setObjectName("shapeFillAction");
+    auto* shapeFill=new QCheckBox("Fill rectangle/ellipse"); shapeFill->setObjectName("shapeFill"); shapeFill->setChecked(true); toolOptions->addWidget(shapeFill)->setObjectName("shapeFillAction");
     tools->hide(); toolOptions->hide();
     connect(tabs_,&QTabWidget::currentChanged,this,[this,tools](int index) { tools->setVisible(index<2);
         for(auto* action:tools->actions()){auto* widget=tools->widgetForAction(action);action->setVisible(index==1 || (widget && (widget->objectName()=="moveEffectTool" || widget->objectName()=="panCanvasTool")));}
@@ -1263,7 +1263,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         if(index<2){const QSignalBlocker block(targetTabs);targetTabs->setCurrentIndex(index);}
     });
     // Keep branding separate; every workspace command lives in the shared Edit Mode row.
-    const auto brandAction=navigation->actions().first();
+    // Find the logo's own action: the first action is a workspace button that moves away below,
+    // and a spacer inserted before a removed action ended up after the logo (logo on the left).
+    QAction* brandAction=nullptr;for(auto* action:navigation->actions())if(navigation->widgetForAction(action)==brand)brandAction=action;
     const auto firstEdit=previewToolbar->actions().first();
     for(auto* action:{editorAction,hardwareAction}) {navigation->removeAction(action);previewToolbar->insertAction(firstEdit,action);}
     previewToolbar->insertSeparator(firstEdit);
@@ -1744,6 +1746,9 @@ void LightingWindow::refreshToolOptions()
     const bool stroke=editing && !panning && (editingMask_ || tool!=LightingCanvas::Tool::Move) && tool!=LightingCanvas::Tool::Gradient && tool!=LightingCanvas::Tool::Fill;
     const bool shape=editing && (tool==LightingCanvas::Tool::Rectangle || tool==LightingCanvas::Tool::Ellipse);
     color_->setVisible(true);color_->setEnabled(color);
+    // Color, fill and stroke only paint in Layers; Components and Devices never use them.
+    for(const auto* name:{"foregroundColorAction","shapeFillAction","strokeLabelAction","strokeSizeAction"})
+        if(auto* action=findChild<QAction*>(name))action->setVisible(editing);
     findChild<QAction*>("shapeFillAction")->setEnabled(shape);
     findChild<QAction*>("strokeLabelAction")->setEnabled(stroke);
     findChild<QAction*>("strokeSizeAction")->setEnabled(stroke);
