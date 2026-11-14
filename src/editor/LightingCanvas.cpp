@@ -72,7 +72,9 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
     setAccessibleName(context == Context::Layout ? "Component layout canvas" : "Effect and layer mask canvas");
     connect(&document_, &LightingDocument::changed, this, [this] {
         cancelGesture();
-        if(previewOnly_ || (context_==Context::Effects && autoFit_)) fitToView();
+        // Automatic fit must follow content changes in Layout too, otherwise moved, added or grown
+        // components end up outside the visible area (owner report 2026-11-14). Manual zoom/pan clears autoFit_.
+        if(previewOnly_ || autoFit_) fitToView();
         rendered_ = previewChannel_.isNull() ? document_.render(seconds_) : LightingDocument::render(document_.state(),seconds_,previewChannel_);
         emptyAction_->setVisible(!previewOnly_ && (context_==Context::Effects ? document_.state().layers.isEmpty() : document_.state().placements.isEmpty()));
         update();

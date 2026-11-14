@@ -153,6 +153,7 @@ private slots:
     void fixedDeviceSettings_data();
     void fixedDeviceSettings();
     void sharedOutputsLayout();
+    void layoutAutoFitKeepsComponentsVisible();
     void fixedDeviceRejectsChain();
     void scrollbarAppearance();
     void effectPreviewDivider();
@@ -2566,6 +2567,7 @@ void EditorTest::canvasScrollbars()
     auto* horizontal=canvas->findChild<QScrollBar*>("canvasHorizontalScroll");
     auto* vertical=canvas->findChild<QScrollBar*>("canvasVerticalScroll");
     canvas->repaint();QVERIFY(!horizontal->isVisible());QVERIFY(!vertical->isVisible());
+    canvas->zoomBy(1); // A manual camera stops automatic fit, so content can overflow into scrollbars.
     window.document().edit("Move outside canvas",[](auto& state){state.placements[0].origin={1800,-1200};});
     canvas->repaint();QVERIFY(horizontal->isVisible());QVERIFY(vertical->isVisible());
     horizontal->setValue(horizontal->maximum());vertical->setValue(vertical->maximum());canvas->repaint();
@@ -2651,7 +2653,7 @@ void EditorTest::scrollbarMouseInteraction()
 {
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });window.document().addComponent("test.strip");
     window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
-    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->fitToView();
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->fitToView();canvas->zoomBy(1);
     window.document().edit("Overflow on both axes",[](auto& state){state.placements[0].origin={1800,-1200};});canvas->repaint();
     for(auto* bar:canvas->findChildren<QScrollBar*>()) {
         QVERIFY(bar->isVisible());QVERIFY(bar->isEnabled());
@@ -3851,6 +3853,29 @@ void EditorTest::fixedDeviceSettings_data()
     QTest::newRow("gpu")<<QString("gigabyte-aero-5080.json")<<QString("GigabyteAero5080");
     QTest::newRow("integrated-zone")<<QString("msi-mpg-b850-edge-ti-wifi.json")<<QString("IOShield");
 }
+void EditorTest::layoutAutoFitKeepsComponentsVisible()
+{
+    // Owner report 2026-11-14: with automatic fit active, components extended past the canvas edge.
+    LightingDocument document(catalog());const auto near=document.addComponent("test.strip");
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);applyStudioStyle(&canvas);canvas.resize(900,560);canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();QCoreApplication::processEvents();
+    const auto inside=[&](const QString& step) {
+        const auto content=canvas.contentRect();
+        for(const auto& placement:document.state().placements) for(const auto& point:document.componentPoints(placement)) {
+            const auto view=canvas.viewportPoint(point);
+            QVERIFY2(content.contains(view),qPrintable(QString("%1: LED at %2,%3 outside %4,%5 %6x%7").arg(step).arg(view.x()).arg(view.y())
+                .arg(content.x()).arg(content.y()).arg(content.width()).arg(content.height())));
+        }
+    };
+    inside("initial fit");
+    // Content grows beyond the previous fit (a component moved far right, another added far below).
+    document.edit("Move far",[&](LightingState& state){state.placements[0].origin={1800,90};});QCoreApplication::processEvents();inside("moved");
+    const auto far=document.addComponent("test.strip");
+    document.edit("Place far",[&](LightingState& state){for(auto& placement:state.placements)if(placement.id==far)placement.origin={120,1300};});
+    QCoreApplication::processEvents();inside("added");Q_UNUSED(near);
+    document.history()->setClean();
+}
+
 void EditorTest::sharedOutputsLayout()
 {
     // docs/JARGB2_TOPOLOGY_TEST.md: four six-zone fans and a 15-LED strip all start at LED 1.

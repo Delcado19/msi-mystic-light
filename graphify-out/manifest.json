@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1794675542.7150118,
-    "seen": 1794675932.599219,
-    "ast_hash": "96ed27a2608299a62dc5e4079fa3b8ae",
+    "mtime": 1794676319.5216744,
+    "seen": 1794676643.6053944,
+    "ast_hash": "ef208fdb7408755357a6acc4992db405",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
@@ -354,9 +354,9 @@
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1794675542.7452028,
-    "seen": 1794675932.60272,
-    "ast_hash": "bf339acbb35ed41d6bb2480279f644c1",
+    "mtime": 1794676449.079186,
+    "seen": 1794676643.6093385,
+    "ast_hash": "a8beb0bb83753f21a6cddc3142b20b6b",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
