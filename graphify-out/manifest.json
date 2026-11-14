@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "src/main.cpp": {
-    "mtime": 1793158620.3093488,
-    "seen": 1793159390.3539271,
-    "ast_hash": "25bcacef9e21939befa35c9e2bee9735",
+    "mtime": 1794680414.0057554,
+    "seen": 1794681075.5262215,
+    "ast_hash": "08f78d430a679c0b817dec128e2ca598",
     "semantic_hash": ""
   },
   "src/protocol/MsiProtocol.cpp": {
@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794665710.8933887,
-    "seen": 1794665885.4445388,
-    "ast_hash": "c7ce7fef2710a437dbc2e1bbcaad2e18",
+    "mtime": 1794681068.7849507,
+    "seen": 1794681075.5314786,
+    "ast_hash": "ee7983f17def462e957cd633c05634d6",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -108,9 +108,9 @@
     "semantic_hash": ""
   },
   "src/hid/HidApiDevice.cpp": {
-    "mtime": 1793302506.9557815,
-    "seen": 1793302918.6748674,
-    "ast_hash": "9505f2c66616672d84f466750b70ca53",
+    "mtime": 1794680413.9665976,
+    "seen": 1794681075.526063,
+    "ast_hash": "13f61bb06b0c8840164af445f53610ee",
     "semantic_hash": ""
   },
   "src/hid/HidApiDevice.h": {
@@ -132,9 +132,9 @@
     "semantic_hash": ""
   },
   "tests/hid/test_hid_backend.cpp": {
-    "mtime": 1793302588.5898654,
-    "seen": 1793302918.6749003,
-    "ast_hash": "0d0278460498393ecc35672c59961202",
+    "mtime": 1794680413.967602,
+    "seen": 1794681075.5296676,
+    "ast_hash": "87893518ad693e29d549975711b7ab9a",
     "semantic_hash": ""
   },
   "modules/msi-gen1/MsiModule.cpp": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1794679945.6924043,
-    "seen": 1794680217.6302953,
-    "ast_hash": "d8a8effeb7a901176e4e08e6585d6924",
+    "mtime": 1794680485.492629,
+    "seen": 1794681075.525528,
+    "ast_hash": "aecbafaec93e04fe58edca478130321d",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
@@ -522,15 +522,15 @@
     "semantic_hash": ""
   },
   "src/output/OutputPanel.cpp": {
-    "mtime": 1793287385.0834448,
-    "seen": 1793287561.1346366,
-    "ast_hash": "e41ef6a36844908c807b094c00a18201",
+    "mtime": 1794680413.9977446,
+    "seen": 1794681075.526761,
+    "ast_hash": "f03ed4097977f91646b1431446b05e22",
     "semantic_hash": ""
   },
   "src/output/OutputPanel.h": {
-    "mtime": 1793217517.6237373,
-    "seen": 1793264483.298063,
-    "ast_hash": "822bf53335d271d85ea2c3f032312fd5",
+    "mtime": 1794680413.9972377,
+    "seen": 1794681075.5267622,
+    "ast_hash": "9031da273d9e6dcf00362c283481c89e",
     "semantic_hash": ""
   },
   "tests/output/test_output_ui.cpp": {
@@ -630,9 +630,9 @@
     "semantic_hash": ""
   },
   "modules/peripherals/PeripheralModule.cpp": {
-    "mtime": 1792787596.0397234,
-    "seen": 1792788271.9330437,
-    "ast_hash": "d8af760b52c92d2cd87aa18c7eb6e891",
+    "mtime": 1794680413.967602,
+    "seen": 1794681075.5209038,
+    "ast_hash": "5eefb649cdfaef82333113396acadfe2",
     "semantic_hash": ""
   },
   "modules/peripherals/module.json": {
@@ -738,9 +738,9 @@
     "semantic_hash": ""
   },
   "tests/output/test_peripherals.cpp": {
-    "mtime": 1792788114.4863942,
-    "seen": 1792788271.933117,
-    "ast_hash": "9f4b9874ed5a2e28d9c5536bbf3ba70c",
+    "mtime": 1794680874.136227,
+    "seen": 1794681075.5307064,
+    "ast_hash": "bc4394f4305124d3938236493130403e",
     "semantic_hash": ""
   },
   "docs/images/hardware-picker.png": {
@@ -846,9 +846,9 @@
     "semantic_hash": ""
   },
   "src/backends/PawnIoRam.cpp": {
-    "mtime": 1793217813.6161356,
-    "seen": 1793264483.2980218,
-    "ast_hash": "6858021418746f89b103a22fec0509ce",
+    "mtime": 1794680413.9660983,
+    "seen": 1794681075.5233436,
+    "ast_hash": "dfd4586ff872168464471666caf1e368",
     "semantic_hash": ""
   },
   "src/backends/PawnIoRam.h": {
@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "installer/Install-LightingStudio.ps1": {
-    "mtime": 1794557192.646175,
-    "seen": 1794558055.3071296,
-    "ast_hash": "d31aa6e1d0a7b18f19362bd35bca244f",
+    "mtime": 1794680466.9700925,
+    "seen": 1794681075.519934,
+    "ast_hash": "574c320532c3512c863ed87151c8e672",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.cpp": {
@@ -1134,9 +1134,9 @@
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.cpp": {
-    "mtime": 1794423336.7361724,
-    "seen": 1794425347.7428782,
-    "ast_hash": "eb13dee55f2169139796e60c1ef75393",
+    "mtime": 1794680413.9962332,
+    "seen": 1794681075.5282543,
+    "ast_hash": "09db405f106358223cf1fed6fc2fd8d1",
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.h": {

@@ -109,6 +109,12 @@ void OutputPanel::enableAutomaticOutput()
     pausedChannels_.clear(); automatic_->start();
     if(!window_.document().state().assignments.isEmpty()) start();
 }
+void OutputPanel::reconnectAfterResume()
+{
+    if(!automatic_->isActive()) return;
+    stop("Reconnecting after Windows resumed.");
+    start(true);
+}
 void OutputPanel::stopOutput() { automatic_->stop(); stop("Output stopped. Devices retain their last applied state."); }
 bool OutputPanel::active() const
 {

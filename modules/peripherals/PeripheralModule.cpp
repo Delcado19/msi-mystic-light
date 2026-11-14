@@ -21,7 +21,11 @@ public:
             initialized_=true; return feature(BuildKoneColorsReport(rgb));
         }
         if(protocol=="basilisk") return feature(BuildBasiliskColorsReport(rgb)) && feature(BuildBasiliskModeCustomReport());
-        if(protocol=="apex3") return output(BuildApex3BrightnessPacket(100)) && output(BuildApex3ColorsPacket(rgb));
+        if(protocol=="apex3") {
+            // Brightness is device state; sending it with every frame doubled the writes (audit 2026-11-14).
+            if(!initialized_ && !output(BuildApex3BrightnessPacket(100))) return false;
+            initialized_=true; return output(BuildApex3ColorsPacket(rgb));
+        }
         if(protocol=="vulcan") {
             // Paired transport routes feature reports to control, output reports to the exact LED endpoint.
             if(!initialized_ && !feature(BuildVulcanEnableDirectReport(true))) return false;

@@ -1,6 +1,7 @@
 #include "modules/ModuleRegistry.h"
 #include "output/HardwareOutput.h"
 #include <QtTest>
+#include "../hid/FakeHidDevice.h"
 
 class PeripheralTest : public QObject {
     Q_OBJECT
@@ -30,7 +31,14 @@ private slots:
             const auto reports=previewOutputReports(modules,proof);
             QCOMPARE(reports.size(),model.startsWith("vulcan") ? 8 : 2);
             if(model.startsWith("vulcan")) { QCOMPARE(reports[0],QByteArray::fromHex("150001")); QCOMPARE(reports[1].size(),65); }
-            if(model.startsWith("apex")) { QCOMPARE(reports[0].size(),33); QCOMPARE(quint8(reports[0][3]),100); QCOMPARE(reports[1].mid(3,3),QByteArray::fromHex("0c2238")); }
+            if(model.startsWith("apex")) {
+                QCOMPARE(reports[0].size(),33); QCOMPARE(quint8(reports[0][3]),100); QCOMPARE(reports[1].mid(3,3),QByteArray::fromHex("0c2238"));
+                // Brightness only once per session; later frames send colors only (audit 2026-11-14).
+                FakeHidDevice device; QVERIFY(device.open(0,0)); // proof.profile: the loop's profile.match[...] reads above inserted null keys into profile.
+                auto driver=modules.create(proof.identity,proof.profile,device,&error); QVERIFY2(driver,qPrintable(error));
+                QVERIFY(driver->driver().pushColors(channel.channelId,channel.colors)); QVERIFY(driver->driver().pushColors(channel.channelId,channel.colors));
+                QCOMPARE(device.sentReports.size(),std::size_t(3)); QCOMPARE(int(device.sentReports[2][1]),0x0B);
+            }
             if(model.startsWith("basilisk")) { QCOMPARE(reports[0].size(),91); QCOMPARE(reports[0].mid(14,3),QByteArray::fromHex("0c2238")); }
             if(model.startsWith("kone")) { QCOMPARE(reports[0].size(),6); QCOMPARE(reports[1].size(),46); }
             profile.channels[0].fixedLeds=1; QVERIFY(!modules.acceptsProfile(profile,&error));

@@ -157,7 +157,8 @@ private slots:
         QVERIFY(device.writeOutputReport(report,sizeof(report)));
         QVERIFY(!device.writeOutputReport(nullptr,sizeof(report)));
         sendResult=2; QVERIFY(!device.writeOutputReport(report,sizeof(report)));
-        QCOMPARE(sendCalls,7);
+        sendResult=65; QVERIFY(device.writeOutputReport(report,sizeof(report))); // Padded by hidapi.
+        QCOMPARE(sendCalls,8);
     }
 
     void reads()

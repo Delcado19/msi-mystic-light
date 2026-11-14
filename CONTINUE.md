@@ -1,3 +1,20 @@
+## Editor fixes and small audit fixes - 2026-11-14 (GS-06-R7, build/r4)
+
+Branch `feat/jargb2-shared-routing`, launcher prefers build/r4. Editor: Header settings
+rows aligned, Space panning, drawing options only in Layers, logo right and trimmed
+(window state version 6 discards older toolbar layouts), auto-fit follows Layout edits,
+effect area covers housings and keeps the 640:400 aspect (changes LED sampling for
+layouts outside 640x400), all LEDs/keys numbered, lock moved to Edit with padlock,
+one wheel notch = one unit on sliders, Help > Keyboard shortcuts.
+Audit fixes: PawnIO DLL path from the Windows known folder; padded hid_write accepted;
+Apex 3 brightness once per session; SMBus port restore retried once; service skips
+rendering without connections and lists status from a black frame; portable editor
+reconnects 3 s after Windows resume; installer quotes root paths and runs the PawnIO
+setup from an administrators-only copy. Not done (needs a decision): lower-privilege
+service account or separate project processing, pipe ownership check before accept.
+Only software tests (22/22) and offscreen screenshots; no hardware, resume or real
+installer run was performed.
+
 ## JARGB2 shared routing - 2026-11-14
 
 Branch `feat/jargb2-shared-routing`: chain items accept an explicit one-based

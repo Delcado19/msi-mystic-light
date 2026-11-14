@@ -21,6 +21,9 @@ public:
     OutputPanel(LightingWindow& window, Authorize authorize, QWidget* parent = nullptr);
     void stopOutput();
     void enableAutomaticOutput();
+    // After Windows resumes, devices may have dropped Direct mode (JARGB2 read mode 0, see
+    // docs/JARGB2_TOPOLOGY_TEST.md); fresh sessions re-arm them. No-op while output is stopped.
+    void reconnectAfterResume();
 signals:
     void outputStateChanged(const QString& state);
 private:
