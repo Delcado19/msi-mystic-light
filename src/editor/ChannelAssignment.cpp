@@ -26,6 +26,19 @@ QVector<int> chainStarts(const ChannelAssignment& assignment)
     for (const auto& id : assignment.placements) { starts.append(assignment.starts.value(id, 0)); any = any || starts.last(); }
     return any ? starts : QVector<int>{};
 }
+QString sharedColorNote(const QVector<SharedRun>& runs, int item, const QStringList& names, bool compact)
+{
+    const auto family = [](const QString& name) { const int hash = name.lastIndexOf(" #"); return hash > 0 ? name.left(hash) : QString(); };
+    QStringList parts;
+    for (const auto& run : runs) if (run.source != item) {
+        auto source = names.value(run.source);
+        if (!family(source).isEmpty() && family(source) == family(names.value(item))) source = source.mid(family(source).size() + 1);
+        if (runs.size() == 1) return QString(compact ? "Same as " : "Same colors as ") + source;
+        parts.append(QString("LED%1 %2 same as %3").arg(run.firstLed == run.lastLed ? "" : "s")
+            .arg(run.firstLed == run.lastLed ? QString::number(run.firstLed) : QString("%1-%2").arg(run.firstLed).arg(run.lastLed)).arg(source));
+    }
+    return parts.join(", ");
+}
 void validateChannelAssignments(const LightingState& state, const QVector<DeviceProfile>& profiles)
 {
     if (state.assignments.size() > 256) throw std::invalid_argument("Limit: 256 channel assignments");

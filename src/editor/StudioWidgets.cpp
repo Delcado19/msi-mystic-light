@@ -167,6 +167,8 @@ void applyStudioStyle(QWidget* window)
         QCheckBox { spacing: 8px; padding: 4px 0; }
         QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid @border; border-radius: 3px; background: @panel; }
         QCheckBox::indicator:checked { background: @accent; border-color: @text; }
+        QRadioButton::indicator { width: 13px; height: 13px; border: 1px solid @border; border-radius: 7px; background: @panel; }
+        QRadioButton::indicator:checked { background: @accent; border-color: @text; }
         QLabel { background: transparent; }
         QLabel[muted="true"] { color: @secondary; }
         QLabel[heading="true"] { font-size: 16px; font-weight: 600; padding: 6px 0; }

@@ -349,14 +349,24 @@ stay at schema 22.
 
 Some headers drive several components from the same addresses, for example fans
 mirrored on one ARGB header (measured case: `docs/JARGB2_TOPOLOGY_TEST.md`).
-In Hardware, select the header, open **Header settings** with Output mode **Software canvas**, select a chain item and set **Position** to the
-one-based output position where that component starts. The default places it
-directly after the previous item, which is the ordinary serial chain.
-Components whose ranges overlap share those outputs: the item higher in the
-list supplies the colors and the others display the same colors in Layout,
-because that is what the hardware shows. Positions that no component covers are
-sent as black. The occupied range, not the sum of the components, must fit the
-channel capacity.
+In Hardware, select the header and open **Header settings** with Output mode
+**Software canvas**. The dialog asks how the devices are plugged in:
+**One after another** (each device gets its own LEDs, the default) or
+**Splitter cable** (all devices start at LED 1 and show the same colors).
+Every device row also has its own **Starts at LED** field with - and + buttons;
+**Auto** means directly after the device above. Changing a single row turns the
+choice into **Custom**. Next to each row the dialog states the result in plain
+words, for example "LED 1-6: decides the shared colors" or
+"Same colors as #2", and below the list how many LEDs of the connector are used.
+
+Devices whose LEDs overlap share those outputs: the device higher in the list
+supplies the colors, because the hardware can show only one color per LED.
+Layout shows the same: devices on a shared header display their LED numbers
+(same number = same color), the supplying device is labelled **Color source**
+and the others **Same as #2** or, for a partial overlap, **LEDs 1-6 same as ...**.
+Moving a device that only repeats colors therefore does not change its colors.
+LEDs that no device covers are sent as black. The used range, not the sum of the
+devices, must fit the connector capacity.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect

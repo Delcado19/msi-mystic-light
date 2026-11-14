@@ -331,25 +331,13 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
 {
     painter.setRenderHint(QPainter::Antialiasing);
     const auto placements=previewPlacements();
-    auto sampled=document_.sampleComponents(frame,&placements);
-    const auto channels=document_.sampleChannels(frame,seconds_,&placements);
+    // Layout shows what the hardware shows, including components that share LED outputs.
+    auto sampled=document_.previewComponentColors(frame,seconds_,&placements);
+    const auto shared=(!previewOnly_ && context_==Context::Layout) ? document_.sharedColorNotes() : QMap<QUuid,QString>{};
+    QSet<QUuid> numbered; // Components on a shared header show LED numbers: same number = same color.
     for(const auto& assignment:document_.state().assignments) {
-        // Same offsets as sampleChannels: components sharing positions preview the color hardware shows.
-        QVector<int> counts;for(const auto& id:assignment.placements)counts.append(int(sampled[id].size()));
-        const bool positioned=assignment.software && !counts.contains(0);
-        const auto offsets=positioned ? chainOffsets(counts,chainStarts(assignment)) : QVector<int>{};
-        int index=0,serial=0;
-        for(const auto& id:assignment.placements) {
-            if(assignment.software) {
-                const auto count=sampled[id].size();const auto colors=channels.value(assignment.id);
-                sampled[id]=colors.mid(positioned ? offsets[index] : serial,count);++index;serial+=count;
-            }
-            else {
-                QColor color=Qt::black;
-                if(assignment.native.id!="off" && !assignment.native.colors.isEmpty()) { const auto rgb=assignment.native.colors.first(); color=QColor(rgb.r,rgb.g,rgb.b); }
-                if(sampled.contains(id)) sampled[id].fill(color);
-            }
-        }
+        bool sharing=false;for(const auto& id:assignment.placements)sharing=sharing || shared.contains(id);
+        if(sharing)for(const auto& id:assignment.placements)numbered.insert(id);
     }
     for (auto placement : document_.state().placements) {
         painter.save();
@@ -396,6 +384,15 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
                     painter.save();painter.resetTransform();painter.setRenderHint(QPainter::Antialiasing,false);
                     painter.fillRect(QRectF(QPointF(pixel)/dpr,QSizeF(1/dpr,1/dpr)),light);painter.restore();
                 }
+                const double screenRadius=ledRadius*zoom_;
+                if(numbered.contains(placement.id) && screenRadius>=6) {
+                    // Drawn in screen pixels so numbers stay readable at every zoom level.
+                    painter.save();const auto center=viewportPoint(point);painter.resetTransform();
+                    auto numberFont=font();numberFont.setPixelSize(int(std::clamp(screenRadius*1.05,8.,14.)));numberFont.setBold(true);painter.setFont(numberFont);
+                    painter.setPen(light.lightnessF()>.55 ? QColor("#0b1220") : QColor("#f4f8ff"));
+                    painter.drawText(QRectF(center-QPointF(screenRadius,screenRadius),QSizeF(2*screenRadius,2*screenRadius)),Qt::AlignCenter,QString::number(definition.mapping[i]+1));
+                    painter.restore();
+                }
             }
 
         }
@@ -417,6 +414,16 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
         if(context_==Context::Layout && !chained) {
             painter.setBrush(Qt::NoBrush);painter.setPen(QPen(QColor("#8196b8"),1/zoom_,Qt::DashLine));
             painter.drawRoundedRect(componentBounds(placement).adjusted(-8,-8,8,8),8,8);
+        }
+        if(shared.contains(placement.id)) {
+            // Plain-language badge: this component cannot have its own colors, it repeats another one.
+            painter.save();painter.setFont(componentLabelFont());const QFontMetrics metrics(componentLabelFont());
+            const auto body=componentBounds(placement);
+            const auto text=metrics.elidedText(shared.value(placement.id),Qt::ElideRight,int(std::max(60.,body.width()+6)));
+            const double below=showLabels_ ? componentLabel(placement).height()+4 : 0, width=metrics.horizontalAdvance(text)+10.;
+            const QRectF badge(body.center().x()-width/2,body.bottom()+8+below,width,metrics.height()+2.);
+            painter.setPen(Qt::NoPen);painter.setBrush(QColor(32,39,53,235));painter.drawRoundedRect(badge,4,4);
+            painter.setPen(QColor("#7fe3ff"));painter.drawText(badge,Qt::AlignCenter,text);painter.restore();
         }
         if(showLabels_) {
             const auto label=componentLabel(placement);

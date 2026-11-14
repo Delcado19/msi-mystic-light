@@ -403,6 +403,58 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
     return result; // Native channels are deliberately absent, never overwritten with sampled colors.
 }
 
+QMap<QUuid, QVector<QColor>> LightingDocument::previewComponentColors(const QImage& frame, double seconds, const QVector<ComponentPlacement>* placements) const
+{
+    auto sampled = sampleComponents(frame, placements);
+    const auto channels = sampleChannels(frame, seconds, placements);
+    for (const auto& assignment : state_.assignments) {
+        if (!assignment.software) {
+            QColor color = Qt::black;
+            if (assignment.native.id != "off" && !assignment.native.colors.isEmpty()) {
+                const auto rgb = assignment.native.colors.first(); color = QColor(rgb.r, rgb.g, rgb.b);
+            }
+            for (const auto& id : assignment.placements) if (sampled.contains(id)) sampled[id].fill(color);
+            continue;
+        }
+        // Same offsets as sampleChannels; a preview subset falls back to serial order there too.
+        QVector<int> counts;
+        for (const auto& id : assignment.placements) if (sampled.contains(id)) counts.append(int(sampled[id].size()));
+        const bool complete = counts.size() == assignment.placements.size();
+        const auto offsets = chainOffsets(counts, complete ? chainStarts(assignment) : QVector<int>{});
+        const auto colors = channels.value(assignment.id);
+        int index = 0;
+        for (const auto& id : assignment.placements) if (sampled.contains(id)) {
+            sampled[id] = colors.mid(offsets[index], counts[index]); ++index;
+        }
+    }
+    return sampled;
+}
+
+QMap<QUuid, QString> LightingDocument::sharedColorNotes() const
+{
+    QMap<QUuid, QString> result;
+    for (const auto& assignment : state_.assignments) {
+        const auto starts = chainStarts(assignment);
+        if (!assignment.software || starts.isEmpty()) continue;
+        QVector<int> counts; QStringList names;
+        for (const auto& id : assignment.placements)
+            for (const auto& placement : state_.placements) if (placement.id == id) {
+                counts.append(int(catalog()[placement.componentId].mapping.size())); names.append(componentName(placement));
+            }
+        if (counts.size() != assignment.placements.size() || counts.contains(0)) continue;
+        const auto sharing = chainSharing(counts, starts);
+        for (int item = 0; item < sharing.size(); ++item) {
+            const auto note = sharedColorNote(sharing[item], item, names, true);
+            if (!note.isEmpty()) result.insert(assignment.placements[item], note);
+        }
+        for (int item = 0; item < sharing.size(); ++item)
+            for (const auto& run : sharing[item])
+                if (run.source != item && !result.contains(assignment.placements[run.source]))
+                    result.insert(assignment.placements[run.source], "Color source");
+    }
+    return result;
+}
+
 double LightingDocument::channelTime(const QUuid& id, double seconds) const
 {
     if (!std::isfinite(seconds) || seconds<0 || seconds>86400) throw std::invalid_argument("Invalid global channel time");

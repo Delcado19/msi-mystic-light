@@ -1,9 +1,11 @@
 ## JARGB2 shared routing - 2026-11-14
 
 Branch `feat/jargb2-shared-routing`: chain items accept an explicit one-based
-start position (`ChannelAssignment::starts`, Hardware > Header settings > Position);
-`sampleChannels` resolves overlaps (earlier chain item wins) and the Layout
-preview mirrors the resolved colors. Projects using it save as schema 23, others
+start position (`ChannelAssignment::starts`, Hardware > Header settings: wiring
+choice One after another / Splitter cable plus a Starts at LED field per row);
+`sampleChannels` resolves overlaps (earlier chain item wins). Layout uses
+`LightingDocument::previewComponentColors`, shows LED numbers on shared headers
+and Color source / Same as #n badges. Window build ID is GS-06-R3. Projects using it save as schema 23, others
 stay at 22. See docs/LIGHTING_EDITOR.md "Shared output positions" and the status
 section of docs/JARGB2_TOPOLOGY_TEST.md for what is not done (16-LED strip
 definition, personal layout, Hardware LED summary, hardware confirmation).

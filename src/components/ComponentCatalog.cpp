@@ -149,6 +149,26 @@ QVector<int> chainOffsets(const QVector<int>& counts, const QVector<int>& starts
     return offsets;
 }
 
+QVector<QVector<SharedRun>> chainSharing(const QVector<int>& counts, const QVector<int>& starts)
+{
+    const auto offsets = chainOffsets(counts, starts);
+    QVector<int> owner;
+    for (qsizetype item = 0; item < counts.size(); ++item) {
+        if (owner.size() < offsets[item] + counts[item]) owner.resize(offsets[item] + counts[item], -1);
+        for (int led = 0; led < counts[item]; ++led)
+            if (owner[offsets[item] + led] < 0) owner[offsets[item] + led] = int(item);
+    }
+    QVector<QVector<SharedRun>> result(counts.size());
+    for (qsizetype item = 0; item < counts.size(); ++item)
+        for (int led = 0; led < counts[item]; ++led) {
+            const int source = owner[offsets[item] + led];
+            auto& runs = result[item];
+            if (!runs.isEmpty() && runs.last().source == source) runs.last().lastLed = led + 1;
+            else runs.append({led + 1, led + 1, source});
+        }
+    return result;
+}
+
 QVector<int> channelMapping(const ChannelProfile& channel, const QStringList& componentIds,
                            const ComponentCatalog& catalog, const QVector<int>& starts)
 {

@@ -35,6 +35,7 @@
 #include <QPushButton>
 #include <QSlider>
 #include <QSpinBox>
+#include <QRadioButton>
 #include <QTabWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -151,6 +152,7 @@ private slots:
     void dedicatedDeviceIsNotAChain();
     void fixedDeviceSettings_data();
     void fixedDeviceSettings();
+    void sharedOutputsLayout();
     void fixedDeviceRejectsChain();
     void scrollbarAppearance();
     void effectPreviewDivider();
@@ -943,6 +945,17 @@ void EditorTest::channelAssignments()
     auto shared=direct; shared.starts={{second,1},{first,1}}; document.assignChannel(shared);
     QCOMPARE(document.sampleChannels(frame)[direct.id],samples[direct.id].mid(0,3));
     {
+        // Layout shows exactly what the hardware gets: both strips repeat the first one's colors.
+        const auto preview=document.previewComponentColors(frame);
+        QCOMPARE(preview[first],preview[second]); QCOMPARE(preview[second],document.sampleChannels(frame)[direct.id]);
+        QString secondName; for(const auto& placement:document.state().placements) if(placement.id==second) secondName=document.componentName(placement);
+        QCOMPARE(document.sharedColorNotes().value(first),"Same as "+secondName.mid(secondName.lastIndexOf('#')));
+        QCOMPARE(document.sharedColorNotes().value(second),QString("Color source"));
+        QCOMPARE(sharedColorNote(chainSharing({6,15},{1,1})[1],1,{"Fan","Strip"}),QString("LEDs 1-6 same as Fan"));
+        QCOMPARE(sharedColorNote(chainSharing({6,6},{1,1})[1],1,{"Fan #2","Fan #3"}),QString("Same colors as #2"));
+        QVERIFY(sharedColorNote(chainSharing({6,15},{})[1],1,{"Fan","Strip"}).isEmpty());
+    }
+    {
         QTemporaryDir sharedDirectory; const auto sharedPath=sharedDirectory.filePath("shared.lighting.json"); document.save(sharedPath,false);
         QFile sharedFile(sharedPath); QVERIFY(sharedFile.open(QIODevice::ReadOnly));
         QCOMPARE(QJsonDocument::fromJson(sharedFile.readAll()).object().value("schemaVersion").toInt(),23); sharedFile.close();
@@ -1035,9 +1048,26 @@ void EditorTest::channelControls()
     editor.findChild<QComboBox*>("availableInstances")->setCurrentIndex(1); append->click();
     editor.findChild<QPushButton*>("instanceUp")->click();
     QCOMPARE(editor.assignment().placements,QVector<QUuid>({second,first}));
-    auto* start=editor.findChild<QSpinBox*>("chainStart"); QVERIFY(start->isEnabled()); start->setValue(1);
+    // Every row shows its own visible start control; nothing depends on a hidden selection.
+    auto* chainList=editor.findChild<QListWidget*>("channelChain");
+    auto row=[chainList](int index) { return chainList->itemWidget(chainList->item(index)); };
+    QCOMPARE(row(0)->findChild<QSpinBox*>("chainStart")->text(),QString("Auto"));
+    QVERIFY(editor.findChild<QRadioButton*>("wiringSerial")->isChecked());
+    row(0)->findChild<QToolButton*>("chainStartUp")->click();
     QCOMPARE(editor.assignment().starts,(QMap<QUuid,int>{{second,1}}));
-    start->setValue(0); QVERIFY(editor.assignment().starts.isEmpty());
+    QVERIFY(editor.findChild<QLabel*>("wiringCustom")->isVisible());
+    editor.findChild<QRadioButton*>("wiringSplitter")->click();
+    QCOMPARE(editor.assignment().starts,(QMap<QUuid,int>{{second,1},{first,1}}));
+    const auto firstName=row(0)->findChildren<QLabel*>().first()->text();
+    QCOMPARE(row(1)->findChild<QLabel*>("chainResult")->text(),"Same colors as "+firstName.mid(firstName.lastIndexOf('#')));
+    int visibleRows=0; for(auto* spin:chainList->viewport()->findChildren<QSpinBox*>("chainStart")) visibleRows+=spin->isVisibleTo(chainList);
+    QCOMPARE(visibleRows,2); // No stale rows remain painted after add/remove/move.
+    QVERIFY(editor.findChild<QLabel*>("chainSummary")->text().startsWith("Uses LED 1-3 of 6 on Direct."));
+    QVERIFY(editor.grab().save(artifactDirectory()+"/editor-channel-shared.png"));
+    row(1)->findChild<QSpinBox*>("chainStart")->setValue(5);
+    QVERIFY(editor.findChild<QLabel*>("chainSummary")->text().startsWith("Too many LEDs"));
+    editor.findChild<QRadioButton*>("wiringSerial")->click(); QVERIFY(editor.assignment().starts.isEmpty());
+    QCOMPARE(row(1)->findChild<QLabel*>("chainResult")->text(),QString("LED 4-6"));
     QVERIFY(editor.grab().save(artifactDirectory()+"/editor-channel.png"));
     buttons->button(QDialogButtonBox::Ok)->click(); QCOMPARE(editor.result(),int(QDialog::Accepted));
     window.document().assignChannel(editor.assignment());
@@ -3818,6 +3848,37 @@ void EditorTest::fixedDeviceSettings_data()
     QTest::newRow("gpu")<<QString("gigabyte-aero-5080.json")<<QString("GigabyteAero5080");
     QTest::newRow("integrated-zone")<<QString("msi-mpg-b850-edge-ti-wifi.json")<<QString("IOShield");
 }
+void EditorTest::sharedOutputsLayout()
+{
+    // docs/JARGB2_TOPOLOGY_TEST.md: four six-zone fans and a 15-LED strip all start at LED 1.
+    ComponentDefinition fan; fan.id="test.fan"; fan.name="Test fan"; fan.category="Fans";
+    for(int i=0;i<6;++i){const double angle=i*3.14159265358979/3;fan.positions.append({1.27*std::sin(angle),-1.27*std::cos(angle)});fan.mapping.append(i);}
+    ComponentDefinition strip; strip.id="test.strip15"; strip.name="Test strip"; strip.category="Strips";
+    for(int i=0;i<15;++i){strip.positions.append({i*.29,0});strip.mapping.append(i);}
+    DeviceProfile profile=channelProfile(); profile.channels[0].maxLeds=120;
+    LightingDocument document({{fan.id,fan},{strip.id,strip}},nullptr,{profile});
+    QVector<QUuid> fans; for(int i=0;i<4;++i) fans.append(document.addComponent(fan.id));
+    const auto bar=document.addComponent(strip.id);
+    document.edit("Arrange",[&](LightingState& state) {
+        for(int i=0;i<4;++i){state.placements[i].origin={120.+i*80,260};state.placements[i].rotation=90;}
+        state.placements[4].origin={90,170};state.placements[4].scale={6,6};
+    });
+    ChannelAssignment assignment; assignment.endpoint="fake://one"; assignment.profileId=profile.id; assignment.channelId="Direct";
+    assignment.software=true; assignment.placements=fans; assignment.placements.append(bar);
+    for(const auto& id:assignment.placements) assignment.starts.insert(id,1);
+    document.assignChannel(assignment); document.addLayer(EffectKind::Ripples);
+    const auto frame=document.render(.4); const auto preview=document.previewComponentColors(frame,.4);
+    for(const auto& id:fans) QCOMPARE(preview[id],preview[fans[0]]);
+    QCOMPARE(preview[bar].mid(0,6),preview[fans[0]]); QCOMPARE(preview[bar].size(),15);
+    QCOMPARE(document.sampleChannels(frame,.4)[assignment.id],preview[bar]);
+    const auto notes=document.sharedColorNotes(); QCOMPARE(notes.value(fans[0]),QString("Color source"));
+    for(int i=1;i<4;++i) QCOMPARE(notes.value(fans[i]),QString("Same as #1"));
+    QVERIFY(notes.value(bar).startsWith("LEDs 1-6 same as "));
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);applyStudioStyle(&canvas);canvas.resize(1100,700);canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();QCoreApplication::processEvents();
+    QVERIFY(canvas.grab().save(artifactDirectory()+"/shared-outputs-layout.png"));document.history()->setClean();
+}
+
 void EditorTest::fixedDeviceSettings()
 {
     QFETCH(QString,profileFile);QFETCH(QString,channelId);

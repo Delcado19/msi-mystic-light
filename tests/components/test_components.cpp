@@ -27,6 +27,13 @@ private slots:
         QCOMPARE(channelMapping(channel, {"test", "test"}, catalog, {1, 1}), (QVector<int>{1, 0, 1, 0}));
         QCOMPARE(channelMapping(channel, {"test", "test"}, catalog, {3, 1}), (QVector<int>{3, 2, 1, 0}));
         QCOMPARE(chainOffsets({2, 2, 2}, {0, 1, 0}), (QVector<int>{0, 0, 2}));
+        // JARGB2 shape: two fans and a longer strip all starting at LED 1.
+        const auto sharing = chainSharing({6, 6, 15}, {1, 1, 1});
+        QCOMPARE(sharing[0].size(), 1); QCOMPARE(sharing[0][0].source, 0);
+        QCOMPARE(sharing[1].size(), 1); QCOMPARE(sharing[1][0].source, 0); QCOMPARE(sharing[1][0].lastLed, 6);
+        QCOMPARE(sharing[2].size(), 2); QCOMPARE(sharing[2][0].lastLed, 6); QCOMPARE(sharing[2][0].source, 0);
+        QCOMPARE(sharing[2][1].firstLed, 7); QCOMPARE(sharing[2][1].lastLed, 15); QCOMPARE(sharing[2][1].source, 2);
+        QCOMPARE(chainSharing({2, 2}, {})[1][0].source, 1);
         QVERIFY_EXCEPTION_THROWN(channelMapping(channel, {"test", "test"}, catalog, {4, 0}), std::invalid_argument);
         QVERIFY_EXCEPTION_THROWN(channelMapping(channel, {"test", "test"}, catalog, {1}), std::invalid_argument);
         QVERIFY_EXCEPTION_THROWN(chainOffsets({2}, {-1}), std::invalid_argument);
