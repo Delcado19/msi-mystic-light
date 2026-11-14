@@ -1,6 +1,8 @@
 @echo off
 setlocal
-rem Prefer the current local GS-06-R2 editor before installed or older builds.
+rem Prefer the shared-routing build (feat/jargb2-shared-routing, schema 23), then the GS-06-R2 editor.
+set "APP=%~dp0build\routing\Release\msi_mystic_light.exe"
+if exist "%APP%" goto launch
 set "APP=%~dp0build\aurora\Release\msi_mystic_light.exe"
 if exist "%APP%" goto launch
 set "APP=%~dp0build\dist\LightingStudio-ReliabilityFix\msi_mystic_light.exe"
