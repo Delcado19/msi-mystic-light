@@ -419,6 +419,13 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
             painter.setBrush(Qt::NoBrush);painter.setPen(QPen(QColor("#8196b8"),1/zoom_,Qt::DashLine));
             painter.drawRoundedRect(componentBounds(placement).adjusted(-8,-8,8,8),8,8);
         }
+        if(placement.locked) {
+            // Padlock: explains why a component cannot be dragged.
+            painter.save();const auto corner=viewportPoint(componentBounds(placement).topRight());painter.resetTransform();
+            const QRectF body(corner.x()-15,corner.y()+4,11,8);painter.setRenderHint(QPainter::Antialiasing);
+            painter.setPen(QPen(QColor("#dce7ff"),1.6));painter.setBrush(Qt::NoBrush);painter.drawArc(QRectF(body.left()+2,body.top()-6,7,9),0,180*16);
+            painter.setPen(Qt::NoPen);painter.setBrush(QColor("#dce7ff"));painter.drawRoundedRect(body,1.5,1.5);painter.restore();
+        }
         if(shared.contains(placement.id)) {
             // Plain-language badge: this component cannot have its own colors, it repeats another one.
             painter.save();painter.setFont(componentLabelFont());const QFontMetrics metrics(componentLabelFont());

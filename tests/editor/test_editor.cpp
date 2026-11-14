@@ -35,6 +35,7 @@
 #include <QPushButton>
 #include <QSlider>
 #include <QSpinBox>
+#include <QWheelEvent>
 #include <QRadioButton>
 #include <QTabWidget>
 #include <QTreeWidget>
@@ -154,6 +155,7 @@ private slots:
     void fixedDeviceSettings();
     void sharedOutputsLayout();
     void layoutAutoFitKeepsComponentsVisible();
+    void sliderWheelStepsOneUnit();
     void savedLayoutKeepsLogoRightAndEffectAspect();
     void fixedDeviceRejectsChain();
     void scrollbarAppearance();
@@ -826,8 +828,8 @@ void EditorTest::windowBackgroundResizes()
         window.resize(size);QCoreApplication::processEvents();
         auto* logo=window.findChild<QLabel*>("studioBrand");QVERIFY(logo && logo->isVisible());
         QVERIFY(logo->width()>=logo->pixmap().width());
-        QCOMPARE(logo->pixmap().size(),QSize(450,150));
-        QVERIFY(logo->height()>=150);
+        QCOMPARE(logo->pixmap().height(),140); // Transparent margins trimmed, visible logo fills its row.
+        QVERIFY(logo->height()>=140);
         // The logo sits at the right end of its row.
         auto* row=window.findChild<QToolBar*>("workspaceNavigation");
         QVERIFY(logo->mapTo(row,QPoint(logo->width(),0)).x()>row->width()-80);
@@ -3882,6 +3884,21 @@ void EditorTest::savedLayoutKeepsLogoRightAndEffectAspect()
     LightingCanvas canvas(document,LightingCanvas::Context::Layout);
     for(const auto& placement:document.state().placements) for(const auto& point:document.componentPoints(placement)) QVERIFY(bounds.contains(point));
     restored.document().history()->setClean();
+}
+
+void EditorTest::sliderWheelStepsOneUnit()
+{
+    // Owner report 2026-11-14: one wheel notch on a slider jumped 3-4 units.
+    auto* field=new ParameterSpinBox;field->setRange(-500,500);field->setValue(10);auto* row=sliderField(field);row->show(); // row owns field
+    auto& value=*field;
+    auto* slider=row->findChild<QSlider*>();QVERIFY(slider);
+    const auto wheel=[slider](int delta) {
+        QWheelEvent event(QPointF(5,5),slider->mapToGlobal(QPointF(5,5)),QPoint(),QPoint(0,delta),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
+        QApplication::sendEvent(slider,&event);
+    };
+    wheel(120);QCOMPARE(value.value(),11.);wheel(-120);wheel(-120);QCOMPARE(value.value(),9.);
+    wheel(60);QCOMPARE(value.value(),9.);wheel(60);QCOMPARE(value.value(),10.); // High-resolution wheels accumulate.
+    delete row;
 }
 
 void EditorTest::layoutAutoFitKeepsComponentsVisible()

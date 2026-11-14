@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1794677436.0303545,
-    "seen": 1794678123.894465,
-    "ast_hash": "65e79508fad69527265c5a0fd258707a",
+    "mtime": 1794679916.5397,
+    "seen": 1794680217.6301026,
+    "ast_hash": "6fdbbf802452b12f1ae0180bef7b8887",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1794678092.6647792,
-    "seen": 1794678123.894592,
-    "ast_hash": "8e51f9d096ac972d08c91d1993126235",
+    "mtime": 1794679945.6924043,
+    "seen": 1794680217.6302953,
+    "ast_hash": "d8a8effeb7a901176e4e08e6585d6924",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
@@ -354,9 +354,9 @@
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1794678052.8970025,
-    "seen": 1794678123.898228,
-    "ast_hash": "4a964f1aa4a760ad8eb3445cfaaa2d94",
+    "mtime": 1794679945.2795162,
+    "seen": 1794680217.6354384,
+    "ast_hash": "5b6efee5bd1292ed714ab9d29c99ca9c",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
@@ -546,9 +546,9 @@
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.cpp": {
-    "mtime": 1794665618.1134088,
-    "seen": 1794665885.439818,
-    "ast_hash": "26ffc961a0112f34d126c93161f48245",
+    "mtime": 1794679916.5597086,
+    "seen": 1794680217.6305945,
+    "ast_hash": "23f04009254c4cb91216554d71190616",
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.h": {

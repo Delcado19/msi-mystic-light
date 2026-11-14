@@ -32,6 +32,7 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QWheelEvent>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <cmath>
@@ -216,11 +217,28 @@ int sliderPosition(QDoubleSpinBox* value) {
     return qRound(fraction*1000);
 }
 }
+namespace {
+class SliderWheelStep final : public QObject {
+    QDoubleSpinBox* value_; int remainder_=0;
+public:
+    SliderWheelStep(QSlider* slider,QDoubleSpinBox* value):QObject(slider),value_(value) {}
+    bool eventFilter(QObject*,QEvent* event) override {
+        if(event->type()!=QEvent::Wheel)return false;
+        auto* wheel=static_cast<QWheelEvent*>(event);
+        // Accumulate high-resolution wheels; every full 120-unit notch moves the field by one displayed unit.
+        remainder_+=wheel->angleDelta().y()!=0 ? wheel->angleDelta().y() : wheel->angleDelta().x();
+        const int notches=remainder_/120;remainder_-=notches*120;
+        if(notches && value_->isEnabled())value_->stepBy(notches);
+        wheel->accept();return true;
+    }
+};
+}
 QWidget* sliderField(QDoubleSpinBox* value)
 {
     auto* row=new QWidget;auto* layout=new QVBoxLayout(row);layout->setContentsMargins(0,0,0,0);layout->setSpacing(2);
     auto* top=new QHBoxLayout;top->setSpacing(6);top->addWidget(value);layout->addLayout(top);
     auto* slider=new QSlider(Qt::Horizontal);slider->setRange(0,1000);
+    slider->installEventFilter(new SliderWheelStep(slider,value));
     slider->setAccessibleName(value->accessibleName().isEmpty() ? value->objectName() : value->accessibleName());
     slider->setProperty("numericField",QVariant::fromValue(static_cast<QObject*>(value)));
     styleStudioNumericField(value);
