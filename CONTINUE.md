@@ -1,3 +1,9 @@
+## Branching and releases - 2026-11-15
+
+Single maintainer, so no `dev` branch. Every feature gets its own branch and reaches `master`
+through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
+release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
+
 ## GS-06-R9 - 2026-11-15
 
 Hardware view has an LEDs column: header rows show used / max output positions (shared outputs once),
