@@ -66,6 +66,7 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
     return
 }
 $problems = New-Object Collections.Generic.List[string]
+$self = [IO.File]::ReadAllText($PSCommandPath)
 function Invoke-Step([string]$Name, [scriptblock]$Action) {
     try { & $Action; Write-Host "Done: $Name" } catch { $problems.Add("$Name - $($_.Exception.Message)"); Write-Warning "$Name - $($_.Exception.Message)" }
 }
@@ -90,8 +91,14 @@ Invoke-Step 'Remove the Start menu shortcut' {
 }
 Invoke-Step "Delete $destination" { Remove-Tree $destination }
 Invoke-Step "Delete $state" { Remove-Tree $state }
-Invoke-Step 'Remove the Windows Apps entry' {
-    if (Test-Path -LiteralPath $uninstallKey) { Remove-Item -LiteralPath $uninstallKey -Recurse -Force }
+# A locked file can stop the folder removal after this script itself was deleted. The Apps entry then
+# stays and the script is put back, so the removal can be retried from Settings > Apps (CodeRabbit review 2026-11-15).
+if (Test-Path -LiteralPath $destination) {
+    Invoke-Step 'Keep the uninstaller for a retry' { [IO.File]::WriteAllText((Join-Path $destination 'Uninstall-LightingStudio.ps1'), $self) }
+} else {
+    Invoke-Step 'Remove the Windows Apps entry' {
+        if (Test-Path -LiteralPath $uninstallKey) { Remove-Item -LiteralPath $uninstallKey -Recurse -Force }
+    }
 }
 # The elevated child never touches the profile; its unelevated parent deletes user data afterwards.
 if ($RemoveUserData -and !$Elevated) { if (!(Remove-UserData)) { $problems.Add('Editor settings and recovery data were not deleted completely') } }
