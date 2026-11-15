@@ -4,7 +4,7 @@ Current GS-06-R2 assets are supplied by the owner and embedded without pixel edi
 
 | Asset | Source | Dimensions | SHA256 |
 | --- | --- | --- | --- |
-| lighting-studio-header.png | Lightning Studio Turbinenlogo.png | 2172x724 RGBA | cc342c47cca3583e334a324ccbcf2e4aceb6068e290fa4b2126b0586ec15df40 |
+| lighting-studio-header.png | Lighting-Studio-Logo.png (2026-11-15, corrected "Lighting" spelling) | 2172x724 RGBA | 8bd21d1934937c7ed6972c5e12c28e9a843c6ecf84e3ab822c81b647b2df64b4 |
 | lighting-studio-background.png | background.png | 3840x2160 RGBA | e0376d6d3b3ad55cee47107d63a71c26a2b6f7d484617305132a4c265aa6675f |
 
 The logo is fitted proportionally to 360x120 DIP at the right of the branding
