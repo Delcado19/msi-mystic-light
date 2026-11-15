@@ -1168,6 +1168,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     }
     toolsMenu->addSeparator();toolsMenu->addMenu(addMenu);
     auto* resetWorkspace=viewMenu->addAction("Reset workspace"); resetWorkspace->setObjectName("resetWorkspace");panelsMenu->addSeparator();panelsMenu->addAction(resetWorkspace);
+    // The default follows the Windows animation setting; this is the only in-app way to change a stored
+    // editor/reduceMotion value (restored after the R6 menu cleanup, CodeRabbit review 2026-11-15).
+    auto* reduceMotion=viewMenu->addAction("Reduce UI motion");reduceMotion->setObjectName("reduceMotion");reduceMotion->setCheckable(true);reduceMotion->setChecked(!studioMotionEnabled());
+    connect(reduceMotion,&QAction::toggled,this,[](bool on){QSettings().setValue("editor/reduceMotion",on);});
     connect(resetWorkspace,&QAction::triggered,this,[this,sidebarDock,dock] {
         navigatorShown_=inspectorShown_=inspectorBeforeCompact_=true;updateWorkspacePanels();resizeDocks({sidebarDock,dock},{280,340},Qt::Horizontal);
         layoutCanvas_->fitToView(); effectsCanvas_->fitToView();

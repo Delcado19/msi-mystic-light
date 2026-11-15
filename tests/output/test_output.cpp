@@ -209,6 +209,10 @@ void OutputTest::documentPreparation()
     QVERIFY(!prepared[0].channels[1].software); QVERIFY(prepared[0].channels[1].colors.isEmpty());
     QCOMPARE(prepared[1].endpoint,b.endpoint); QCOMPARE(prepared[1].channels[0].colors[0].g,quint8(255));
     QVERIFY_EXCEPTION_THROWN(prepareOutput(document,QImage()),std::invalid_argument);
+    // Status scope: same endpoints and channels as prepareOutput, no colors and no rendering.
+    const auto scope=outputScope(document); QCOMPARE(scope.size(),prepared.size());
+    for(int f=0;f<scope.size();++f){QCOMPARE(scope[f].endpoint,prepared[f].endpoint);QCOMPARE(scope[f].channels.size(),prepared[f].channels.size());
+        for(int c=0;c<scope[f].channels.size();++c){QCOMPARE(scope[f].channels[c].channelId,prepared[f].channels[c].channelId);QVERIFY(scope[f].channels[c].colors.isEmpty());}}
     document.addLayer();
     document.edit("Masked color",[](LightingState& state) {
         state.layers[0].color=QColor(200,100,50,128); state.layers[0].transparency=50;

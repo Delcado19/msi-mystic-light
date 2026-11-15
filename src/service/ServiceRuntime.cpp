@@ -11,10 +11,6 @@
 #include <stdexcept>
 namespace {
 QString key(const OutputFrame& frame,const ChannelOutput& channel) { return frame.endpoint+"\n"+frame.profileId+"\n"+channel.channelId; }
-const QImage& blankFrame() {
-    static const QImage frame=[]{QImage image(LightingDocument::canvasSize(),QImage::Format_ARGB32_Premultiplied);image.fill(Qt::black);return image;}();
-    return frame;
-}
 void writeFile(const QString& path,const QByteArray& bytes) {
     QSaveFile file(path);if(!file.open(QIODevice::WriteOnly) || file.write(bytes)!=bytes.size() || !file.commit())
         throw std::runtime_error("Cannot persist service project");
@@ -121,8 +117,8 @@ void ServiceRuntime::tick() {
 QJsonObject ServiceRuntime::status() const {
     QJsonArray devices,outputs;
     for(const auto& item:inventory_)devices.append(QJsonObject{{"profileId",item.profileId},{"path",item.device.path},{"transport",item.device.transport},{"vendorId",item.device.vendorId},{"productId",item.device.productId},{"interfaceNumber",item.device.interfaceNumber},{"usagePage",item.device.usagePage},{"usage",item.device.usage}});
-    // Status lists channels only; a black canvas avoids rendering the effect for every request.
-    const auto frames=prepareOutput(*document_,blankFrame(),seconds());
+    // Status lists channels only; outputScope neither renders nor samples.
+    const auto frames=outputScope(*document_);
     for(const auto& frame:frames) {
         QString state=enabled_?"Offline":"Stopped",error;
         for(int i=0;i<scopes_.size();++i)if(scopes_[i].endpoint==frame.endpoint) {
@@ -152,7 +148,7 @@ QJsonObject ServiceRuntime::command(const QJsonObject& request) {
             if(enabled_)reconnect();else stopConnections();
         } else if(op=="channels") {
             if(!request.value("keys").isArray() || !request.value("paused").isBool())throw std::invalid_argument("Invalid channel command");
-            QSet<QString> valid;for(const auto& f:prepareOutput(*document_,blankFrame()))for(const auto& c:f.channels)valid.insert(key(f,c));
+            QSet<QString> valid;for(const auto& f:outputScope(*document_))for(const auto& c:f.channels)valid.insert(key(f,c));
             auto next=paused_;for(const auto& id:request.value("keys").toArray()) {
                 if(!id.isString() || !valid.contains(id.toString()))throw std::invalid_argument("Unknown channel");
                 if(request.value("paused").toBool())next.insert(id.toString());else next.remove(id.toString());

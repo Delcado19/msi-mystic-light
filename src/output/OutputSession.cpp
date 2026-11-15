@@ -47,9 +47,10 @@ bool sameOutputScope(const OutputFrame& approved,const OutputFrame& candidate)
     return true;
 }
 
-QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds, const QVector<ComponentPlacement>* placements)
+namespace {
+// sampled == nullptr builds the channel scope only (no colors).
+QVector<OutputFrame> buildFrames(const LightingDocument& document, const QMap<QUuid, QVector<QColor>>* sampled)
 {
-    const auto sampled = document.sampleChannels(composed,seconds,placements);
     QVector<OutputFrame> result;
     for (const auto& assignment : document.state().assignments) {
         int index = 0;
@@ -57,13 +58,28 @@ QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImag
         if (index == result.size()) result.append({assignment.endpoint, assignment.profileId, {}});
         ChannelOutput channel; channel.channelId = assignment.channelId;
         channel.software = assignment.software; channel.native = assignment.native;
-        if (channel.software) {
-            for (const auto& color : sampled.value(assignment.id))
+        if (channel.software && sampled) {
+            for (const auto& color : sampled->value(assignment.id))
                 channel.colors.append({quint8(color.red()), quint8(color.green()), quint8(color.blue())});
         }
         result[index].channels.append(channel);
     }
     return result;
+}
+}
+
+QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds, const QVector<ComponentPlacement>* placements)
+{
+    const auto sampled = document.sampleChannels(composed,seconds,placements);
+    return buildFrames(document, &sampled);
+}
+
+QVector<OutputFrame> outputScope(const LightingDocument& document)
+{
+    // Status and channel commands only need keys; sampling a blank frame still rendered every clocked or
+    // restricted channel (CodeRabbit review 2026-11-15).
+    validateChannelAssignments(document.state(), document.profiles());
+    return buildFrames(document, nullptr);
 }
 
 OutputSession::~OutputSession() { release(); }
