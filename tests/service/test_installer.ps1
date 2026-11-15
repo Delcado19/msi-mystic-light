@@ -29,5 +29,5 @@ $uninstaller = Join-Path (Split-Path $Installer -Parent) 'Uninstall-LightingStud
 [Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$tokens,[ref]$errors) | Out-Null
 if ($errors.Count) { throw ($errors | Out-String) }
 if ((Get-Content -LiteralPath $uninstaller -Raw) -notmatch "-ArgumentList @\('-uninstall','-silent'\)") { throw 'PawnIO silent removal arguments differ from its registered QuietUninstallString' }
-& $uninstaller -OwnerSid 'S-1-5-21-1-2-3-1001' -WhatIf
+& $uninstaller -RemoveUserData -RemovePawnIO -Quiet -WhatIf
 Write-Host 'Installer and uninstaller parse; WhatIf validates a complete runtime without installing or removing.'

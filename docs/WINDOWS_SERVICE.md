@@ -133,7 +133,8 @@ Two things are removed only on request (prompt, or `-RemoveUserData` / `-RemoveP
 skips the prompts):
 
 - the owner's editor settings (`HKCU/Software/Delcado/MSI Mystic Light Standalone`) and recovery
-  data (`%LOCALAPPDATA%/Delcado/MSI Mystic Light Standalone`); a portable copy shares them;
+  data (`%LOCALAPPDATA%/Delcado/MSI Mystic Light Standalone`) of the user who starts the
+  uninstaller, deleted with that user's rights and not by the elevated step; a portable copy shares them;
 - the PawnIO driver, through PawnIO's own registered `uninstall.exe -uninstall -silent`. It is
   shared: OpenRGB, Fan Control, LibreHardwareMonitor and ZenTimings use it too.
 

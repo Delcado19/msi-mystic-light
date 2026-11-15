@@ -3,7 +3,6 @@ param(
     [switch]$RemovePawnIO,
     [switch]$RemoveUserData,
     [switch]$Quiet,
-    [string]$OwnerSid,
     [switch]$Elevated
 )
 # Removes everything Install-LightingStudio.ps1 created. The shared PawnIO driver and the owner's
@@ -13,12 +12,35 @@ $destination = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Lightin
 $state = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'LightingStudio'
 $uninstallKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\LightingStudio'
 $pawnIOKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO'
-# QSettings organization / application name set in src/main.cpp.
-$settingsPath = 'Software\Delcado\MSI Mystic Light Standalone'
-$dataPath = 'AppData\Local\Delcado\MSI Mystic Light Standalone'
-# Capture the interactive owner before elevation, including credential-based UAC.
-if (!$OwnerSid) { $OwnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value }
-if ($OwnerSid -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$') { throw 'Select a local or domain user SID, not a service account.' }
+# rd does not follow junctions inside the tree; Remove-Item -Recurse can delete a junction target's contents.
+function Remove-Tree([string]$Path) {
+    if (!(Test-Path -LiteralPath $Path)) { return }
+    & cmd.exe /d /c rd /s /q "$Path" 2>&1 | Out-Null
+    if (Test-Path -LiteralPath $Path) { throw "Could not delete $Path (a file may still be in use)" }
+}
+# User data lives in a user-writable profile, so it is deleted by the process the user started, with
+# that user's own token, never by the elevated child (security review 2026-11-15: a junction planted in
+# the profile must not redirect an administrator's delete). A console that is already elevated has no
+# such process; there both folders must be real directories or nothing is deleted.
+# Organization / application name: QSettings in src/main.cpp.
+function Remove-UserData {
+    $failed = $false
+    try {
+        $key = 'HKCU:\Software\Delcado\MSI Mystic Light Standalone'
+        if (Test-Path -LiteralPath $key) { Remove-Item -LiteralPath $key -Recurse -Force }
+        $parentKey = Split-Path $key -Parent
+        if ((Test-Path -LiteralPath $parentKey) -and !(Get-ChildItem -LiteralPath $parentKey) -and !(Get-Item -LiteralPath $parentKey).Property) { Remove-Item -LiteralPath $parentKey -Force }
+        $parent = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Delcado'
+        $data = Join-Path $parent 'MSI Mystic Light Standalone'
+        foreach ($folder in @($parent,$data)) {
+            if ((Test-Path -LiteralPath $folder) -and ((Get-Item -LiteralPath $folder -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Not deleted, $folder is a link: remove it yourself" }
+        }
+        Remove-Tree $data
+        if ((Test-Path -LiteralPath $parent) -and !(Get-ChildItem -LiteralPath $parent -Force)) { Remove-Item -LiteralPath $parent -Force }
+        Write-Host 'Done: Delete editor settings and recovery data'
+    } catch { $failed = $true; Write-Warning "Editor settings and recovery data - $($_.Exception.Message)" }
+    return !$failed
+}
 if (!$PSCmdlet.ShouldProcess($destination, 'Remove Lighting Studio service, editor logon task, program files and service data')) { return }
 if (!$Quiet -and !$Elevated) {
     if (!$RemoveUserData) { $RemoveUserData = (Read-Host 'Also delete your editor settings and unsaved recovery data? Saved project files are kept. [y/N]') -match '^(y|j)' }
@@ -28,29 +50,24 @@ if (!$Quiet -and !$Elevated) {
         $RemovePawnIO = (Read-Host 'Also uninstall PawnIO? [y/N]') -match '^(y|j)'
     }
 }
+# This script may run from inside the folder it deletes; no process may keep that folder as its working directory.
+Set-Location -LiteralPath $env:SystemRoot
 $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     if ($PSCommandPath -match '["\r\n]') { throw 'Invalid uninstaller path' }
-    $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $PSCommandPath + '"'),'-OwnerSid',$OwnerSid,'-Elevated')
+    $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $PSCommandPath + '"'),'-Elevated')
     if ($RemovePawnIO) { $arguments += '-RemovePawnIO' }
-    if ($RemoveUserData) { $arguments += '-RemoveUserData' }
     if ($Quiet) { $arguments += '-Quiet' }
     # The elevated window stays visible: it lists every step and anything that could not be removed.
     $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru
     if ($child.ExitCode -ne 0) { throw "Removal was incomplete ($($child.ExitCode)); see the elevated window or rerun from an administrator console." }
+    # Only after the program is gone, so a declined UAC prompt leaves the settings in place.
+    if ($RemoveUserData -and !(Remove-UserData)) { if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1 }
     return
 }
-# This script may run from inside the folder it deletes.
-Set-Location -LiteralPath $env:SystemRoot
 $problems = New-Object Collections.Generic.List[string]
 function Invoke-Step([string]$Name, [scriptblock]$Action) {
     try { & $Action; Write-Host "Done: $Name" } catch { $problems.Add("$Name - $($_.Exception.Message)"); Write-Warning "$Name - $($_.Exception.Message)" }
-}
-# rd does not follow junctions; Remove-Item -Recurse can delete a junction target's contents.
-function Remove-Tree([string]$Path) {
-    if (!(Test-Path -LiteralPath $Path)) { return }
-    & cmd.exe /d /c rd /s /q "$Path" 2>&1 | Out-Null
-    if (Test-Path -LiteralPath $Path) { throw "Could not delete $Path (a file may still be in use)" }
 }
 Invoke-Step 'Close the installed editor' {
     Get-Process msi_mystic_light -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $destination 'msi_mystic_light.exe') } |
@@ -71,37 +88,14 @@ Invoke-Step 'Remove the Start menu shortcut' {
     $shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Lighting Studio.lnk'
     if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut -Force }
 }
-# service.json names the owner chosen at installation; read it before the folder is deleted.
-Invoke-Step 'Read the installed owner' {
-    $config = Join-Path $destination 'service.json'
-    if (Test-Path -LiteralPath $config) {
-        $installedOwner = (Get-Content -LiteralPath $config -Raw | ConvertFrom-Json).ownerSid
-        if ($installedOwner -match '^S-1-5-21-\d+-\d+-\d+-\d+$') { $script:OwnerSid = $installedOwner }
-    }
-}
 Invoke-Step "Delete $destination" { Remove-Tree $destination }
 Invoke-Step "Delete $state" { Remove-Tree $state }
 Invoke-Step 'Remove the Windows Apps entry' {
     if (Test-Path -LiteralPath $uninstallKey) { Remove-Item -LiteralPath $uninstallKey -Recurse -Force }
 }
-if ($RemoveUserData) {
-    Invoke-Step 'Delete editor settings' {
-        $hive = "Registry::HKEY_USERS\$OwnerSid"
-        # The hive is loaded only while that user is signed in.
-        if (!(Test-Path -LiteralPath $hive)) { throw "The settings of $OwnerSid are not loaded; sign in as that user and delete HKCU\$settingsPath" }
-        $key = "$hive\$settingsPath"
-        if (Test-Path -LiteralPath $key) { Remove-Item -LiteralPath $key -Recurse -Force }
-        $parent = Split-Path $key -Parent
-        if ((Test-Path -LiteralPath $parent) -and !(Get-ChildItem -LiteralPath $parent) -and !(Get-Item -LiteralPath $parent).Property) { Remove-Item -LiteralPath $parent -Force }
-    }
-    Invoke-Step 'Delete editor recovery data' {
-        $profilePath = (Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$OwnerSid" -ErrorAction Stop).ProfileImagePath
-        $data = Join-Path $profilePath $dataPath
-        Remove-Tree $data
-        $parent = Split-Path $data -Parent
-        if ((Test-Path -LiteralPath $parent) -and !(Get-ChildItem -LiteralPath $parent -Force)) { Remove-Item -LiteralPath $parent -Force }
-    }
-} else { Write-Host 'Kept: editor settings and recovery data.' }
+# The elevated child never touches the profile; its unelevated parent deletes user data afterwards.
+if ($RemoveUserData -and !$Elevated) { if (!(Remove-UserData)) { $problems.Add('Editor settings and recovery data were not deleted completely') } }
+elseif (!$RemoveUserData -and !$Elevated) { Write-Host 'Kept: editor settings and recovery data.' }
 if ($RemovePawnIO) {
     Invoke-Step 'Uninstall PawnIO' {
         if (!(Test-Path -LiteralPath $pawnIOKey)) { Write-Host 'PawnIO is not installed.'; return }
