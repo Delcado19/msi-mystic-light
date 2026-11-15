@@ -155,6 +155,7 @@ private slots:
     void fixedDeviceSettings();
     void sharedOutputsLayout();
     void identifyFlash();
+    void outputLedCount();
     void layoutAutoFitKeepsComponentsVisible();
     void sliderWheelStepsOneUnit();
     void savedLayoutKeepsLogoRightAndEffectAspect();
@@ -3900,6 +3901,21 @@ void EditorTest::sliderWheelStepsOneUnit()
     wheel(120);QCOMPARE(value.value(),11.);wheel(-120);wheel(-120);QCOMPARE(value.value(),9.);
     wheel(60);QCOMPARE(value.value(),9.);wheel(60);QCOMPARE(value.value(),10.); // High-resolution wheels accumulate.
     delete row;
+}
+
+void EditorTest::outputLedCount()
+{
+    // The header summary counts output positions, so shared outputs are not counted twice.
+    ComponentDefinition fan; fan.id="test.fan"; fan.name="Test fan"; fan.category="Fans";
+    for(int i=0;i<6;++i){const double angle=i*3.14159265358979/3;fan.positions.append({1.27*std::sin(angle),-1.27*std::cos(angle)});fan.mapping.append(i);}
+    DeviceProfile profile=channelProfile(); profile.channels[0].maxLeds=120;
+    LightingDocument document({{fan.id,fan}},nullptr,{profile});
+    QVector<QUuid> fans; for(int i=0;i<3;++i) fans.append(document.addComponent(fan.id));
+    ChannelAssignment assignment; assignment.endpoint="fake://one"; assignment.profileId=profile.id; assignment.channelId="Direct";
+    assignment.software=true; assignment.placements=fans;
+    QCOMPARE(document.outputLedsUsed(assignment),18);
+    for(const auto& id:fans) assignment.starts.insert(id,1);
+    QCOMPARE(document.outputLedsUsed(assignment),6);
 }
 
 void EditorTest::identifyFlash()

@@ -118,6 +118,8 @@ public:
     void setIdentifyPlacement(const QUuid& placement);
     QUuid identifyPlacement() const { return identify_; }
     bool hasSoftwareChannel(const QUuid& placement) const;
+    // Output positions a channel occupies: shared outputs count once, serial chains add up.
+    int outputLedsUsed(const ChannelAssignment& assignment) const;
     // Placement -> short Layout badge: "Same as #2" / "LEDs 1-6 same as ..." for components repeating
     // another component's colors, "Color source" for the component they repeat.
     QMap<QUuid, QString> sharedColorNotes() const;

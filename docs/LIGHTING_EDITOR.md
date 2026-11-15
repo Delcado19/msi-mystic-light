@@ -729,7 +729,7 @@ chain goes dark. Shared outputs light with it, so one fan on a splitter lights i
 The flash is transient: no undo entry, no revision change, not saved. Hardware receives it only
 while output runs; otherwise only the Layout preview shows it. Native channels cannot be flashed
 per component and are left unchanged. Unit-tested at document level (serial and shared chains);
-not yet checked on real fans.
+confirmed by the owner on the real fans (2026-11-15); shared-output siblings and native channels as described above.
 
 ## Snap to grid
 

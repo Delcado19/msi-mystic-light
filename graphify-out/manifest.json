@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794750439.413301,
-    "seen": 1794750445.548003,
-    "ast_hash": "4097738115d424c3dd1572ea314a709c",
+    "mtime": 1794750847.2218125,
+    "seen": 1794752630.9200735,
+    "ast_hash": "7f7dea7190924a360997524a2800a4ba",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -330,21 +330,21 @@
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1794750137.1713302,
-    "seen": 1794750445.542034,
-    "ast_hash": "fa28e8fdb54e7600dea34ed2dc107f9b",
+    "mtime": 1794752626.3537393,
+    "seen": 1794752630.9146852,
+    "ast_hash": "02be84c0a0c9a123ef88e10d16291556",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1794750137.1703272,
-    "seen": 1794750445.542036,
-    "ast_hash": "ee59d984f4ffd74578108bce6a4b1378",
+    "mtime": 1794752626.3522367,
+    "seen": 1794752630.914687,
+    "ast_hash": "9ca61828f982e89d6a0077528f2d1abb",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1794750137.1723282,
-    "seen": 1794750445.542037,
-    "ast_hash": "a535730f319bd521bcc2f9b4894c9a14",
+    "mtime": 1794752626.3537393,
+    "seen": 1794752630.914688,
+    "ast_hash": "c3517bb275877a0793b4de142c369696",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
@@ -354,15 +354,15 @@
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1794750191.0955153,
-    "seen": 1794750445.545696,
-    "ast_hash": "c7b91f5977dab237f704b96a3414fc9a",
+    "mtime": 1794752626.3557434,
+    "seen": 1794752630.9182348,
+    "ast_hash": "286c9468df572450a8b0f60522e51657",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1794750439.412299,
-    "seen": 1794750445.5490487,
-    "ast_hash": "d21ad3e724189c2010486491527f0477",
+    "mtime": 1794750847.1997151,
+    "seen": 1794752630.9210863,
+    "ast_hash": "62f726f959516504922225273a23cb01",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {

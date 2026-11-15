@@ -1,8 +1,14 @@
+## Header LED count - 2026-11-15
+
+Header summary now counts output positions instead of summing every component's LEDs, so shared
+(splitter) outputs count once. Document test outputLedCount passes; not checked against the real
+header yet. Card view with per-component photos and the component library are still open.
+
 ## Identify flash - 2026-11-15
 
 Layout context menu "Flash component (identify)" lights one software component white for 2 s
-(see docs/LIGHTING_EDITOR.md). Document-level test passes (22/22 ctest, build/r4). Not run on
-real hardware; hardware output needs an explicit owner Go.
+(see docs/LIGHTING_EDITOR.md). Document-level test passes (22/22 ctest, build/r4). Confirmed by the owner on real hardware (2026-11-15: "flash funktioniert").
+Details of the observed lighting were not recorded.
 
 ## LEDKeeper2 stop - 2026-11-14
 

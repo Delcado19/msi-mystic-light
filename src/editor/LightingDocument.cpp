@@ -465,6 +465,23 @@ QMap<QUuid, int> LightingDocument::componentLedOffsets() const
     return result;
 }
 
+int LightingDocument::outputLedsUsed(const ChannelAssignment& assignment) const
+{
+    QVector<int> counts;
+    int sum = 0;
+    for (const auto& id : assignment.placements)
+        for (const auto& placement : state_.placements) if (placement.id == id) {
+            counts.append(int(catalog()[placement.componentId].mapping.size()));
+            sum += counts.last();
+        }
+    // Native channels and incomplete lists have no chain positions; fall back to the plain sum.
+    if (!assignment.software || counts.size() != assignment.placements.size()) return sum;
+    const auto offsets = chainOffsets(counts, chainStarts(assignment));
+    int end = 0;
+    for (int item = 0; item < offsets.size(); ++item) end = std::max(end, offsets[item] + counts[item]);
+    return end;
+}
+
 void LightingDocument::setIdentifyPlacement(const QUuid& placement) { identify_ = placement; }
 
 bool LightingDocument::hasSoftwareChannel(const QUuid& placement) const

@@ -1530,9 +1530,7 @@ void LightingWindow::refreshHeader()
     const auto& channel=assignmentChannel(profile,assignment.channelId);
     findChild<QPushButton*>("headerSettings")->setText(channelHasFixedComponent(channel) ? "Device settings" : "Header settings");
     findChild<QPushButton*>("addHeaderComponents")->setEnabled(profile.driverId!="lighting.peripherals" && profile.driverId!="lighting.auxiliary" && !channelHasFixedComponent(channel));
-    int leds=0;
-    for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements)
-        if(placement.id==id) leds+=document_.catalog()[placement.componentId].positions.size();
+    const int leds=document_.outputLedsUsed(assignment);
     if(auto* empty=findChild<QLabel*>("hardwareEmptyState"))empty->setText(QString("No compatible controller detected\n\nSaved selection: %1 / %2\n%3 components / %4 LED addresses configured.\n\nChoose Refresh to check connections. Layouts remain editable offline.").arg(profile.name,channel.id).arg(assignment.placements.size()).arg(leds));
     for(const auto& placement:document_.state().placements) if(placement.id==layoutCanvas_->selection()) {
         const auto& component=document_.catalog()[placement.componentId]; headerTitle_->setText(document_.componentName(placement));
