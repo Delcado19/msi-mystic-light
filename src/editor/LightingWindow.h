@@ -44,6 +44,7 @@ public:
     const QImage& previewFrame() const { return previewFrame_; }
 signals:
     void previewFrameChanged(const QImage& frame);
+    void identifyRequested(const QUuid& placement); // ServicePanel forwards it to the installed service.
     void hardwareDiscovered();
     void closing();
     void projectLoading();

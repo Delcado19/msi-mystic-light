@@ -103,6 +103,7 @@ void ServiceRuntime::reconnect() {
     } catch(const std::exception& e) {error_=QString::fromUtf8(e.what());stopConnections();}
 }
 void ServiceRuntime::tick() {
+    if(!document_->identifyPlacement().isNull() && identifyClock_.elapsed()>=2000)document_->setIdentifyPlacement({});
     // Rendering 30 frames per second for no connected device only costs CPU (audit 2026-11-14).
     if(!enabled_ || suspended_ || connections_.empty())return;
     try {
@@ -154,6 +155,12 @@ QJsonObject ServiceRuntime::command(const QJsonObject& request) {
                 if(request.value("paused").toBool())next.insert(id.toString());else next.remove(id.toString());
             }
             const auto before=paused_;paused_=next;try{persist();}catch(...){paused_=before;throw;}
+        } else if(op=="identify") {
+            // Transient 2 s flash of one software component; never persisted or part of the snapshot.
+            const QUuid placement(request.value("placement").toString());
+            bool known=false;for(const auto& item:document_->state().placements)if(item.id==placement)known=true;
+            if(placement.isNull() || !known || !document_->hasSoftwareChannel(placement))throw std::invalid_argument("Unknown identify component");
+            document_->setIdentifyPlacement(placement);identifyClock_.start();
         } else if(op!="status" && op!="snapshot")throw std::invalid_argument("Unknown service command");
         auto reply=status();if(op=="snapshot" && !project_.isEmpty())reply["project"]=project_;return reply;
     } catch(const std::exception& e) {return {{"ok",false},{"error",QString::fromUtf8(e.what())}};}

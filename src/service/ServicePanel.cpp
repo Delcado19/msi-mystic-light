@@ -55,6 +55,8 @@ ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_
     // Clock value changes during normal playback need no IPC; the service advances its own clock.
     connect(window_.findChild<QDoubleSpinBox*>("previewTime"),&QDoubleSpinBox::editingFinished,this,[this]{if(ready_)clockDirty_=true;});
     connect(&window_,&LightingWindow::closing,this,[this]{flushOnClose();});
+    // The service owns output, so it must flash too; it expires the flash itself (CodeRabbit review 2026-11-15).
+    connect(&window_,&LightingWindow::identifyRequested,this,[this](const QUuid& placement){if(!ready_)return;auto c=command("identify");c["placement"]=placement.toString();send(c);});
     timer_.setInterval(50);connect(&timer_,&QTimer::timeout,this,[this]{poll();});
 }
 void ServicePanel::activate(bool preferLocal) {preferLocal_=preferLocal;active_=true;send(command("snapshot"));timer_.start();}

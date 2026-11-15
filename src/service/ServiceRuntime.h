@@ -35,6 +35,7 @@ private:
     QJsonObject project_;
     QTimer render_,retry_;
     QElapsedTimer clock_;
+    QElapsedTimer identifyClock_; // Identify flash expires in the service itself, even if the editor closes.
     double offset_=0;
     bool enabled_=true,playing_=true,suspended_=false,simulation_=false;
 };

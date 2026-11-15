@@ -1772,6 +1772,7 @@ void LightingWindow::flashComponent(const QUuid& placement)
     // Hardware receives the flash only while output runs (OutputPanel::dispatch); the preview always shows it.
     document_.setIdentifyPlacement(placement);
     updatePreview();
+    emit identifyRequested(placement);
     const auto generation = ++identifyGeneration_;
     QTimer::singleShot(2000, this, [this, generation] {
         if (generation != identifyGeneration_) return;

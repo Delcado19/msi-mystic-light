@@ -60,6 +60,7 @@ class ServiceTest:public QObject {
 private slots:
  void protocolBounds();
  void persistedPlaybackAndAtomicReject();
+ void identifyCommand();
  void fakeOutputPauseAndResume();
  void authenticatedPipe();
  void editorSynchronization();
@@ -74,6 +75,18 @@ void ServiceTest::protocolBounds(){
     QVERIFY_EXCEPTION_THROWN(StudioService::decode("{"),std::invalid_argument);
     QVERIFY_EXCEPTION_THROWN(StudioService::decode(QByteArray(StudioService::maximumMessage+1,'x')),std::invalid_argument);
 }
+void ServiceTest::identifyCommand() try {
+    QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    ServiceRuntime runtime({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};},true);
+    const auto request=project(profile);QVERIFY(runtime.command(request).value("ok").toBool());
+    const auto id=request.value("project").toObject().value("placements").toArray()[0].toObject().value("id").toString();
+    auto identify=cmd("identify");identify["placement"]=id;QVERIFY(runtime.command(identify).value("ok").toBool());
+    // Transient: the stored project snapshot does not change.
+    QCOMPARE(runtime.command(cmd("snapshot")).value("project"),request.value("project"));
+    identify["placement"]=QUuid::createUuid().toString();QVERIFY(!runtime.command(identify).value("ok").toBool());
+    identify["placement"]="not-a-uuid";QVERIFY(!runtime.command(identify).value("ok").toBool());
+    identify.remove("placement");QVERIFY(!runtime.command(identify).value("ok").toBool());
+} catch(const std::exception& e){QFAIL(e.what());}
 void ServiceTest::persistedPlaybackAndAtomicReject() try {
     QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
     const auto scan=[] {return QVector<ProfileCandidate>{};};const auto output=[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};};

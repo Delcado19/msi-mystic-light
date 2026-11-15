@@ -727,7 +727,9 @@ Right-click one component in Layout (its chain must be a software channel) and c
 "Flash component (identify)". For 2 seconds its outputs show white and every other software
 chain goes dark. Shared outputs light with it, so one fan on a splitter lights its siblings too.
 The flash is transient: no undo entry, no revision change, not saved. Hardware receives it only
-while output runs; otherwise only the Layout preview shows it. Native channels cannot be flashed
+while output runs; otherwise only the Layout preview shows it. With the installed service the
+editor sends an `identify` command and the service flashes and expires it on its own (the
+component must already be synchronized to the service). Native channels cannot be flashed
 per component and are left unchanged. Unit-tested at document level (serial and shared chains);
 confirmed by the owner on the real fans (2026-11-15); shared-output siblings and native channels as described above.
 

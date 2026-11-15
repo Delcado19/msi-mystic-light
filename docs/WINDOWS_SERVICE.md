@@ -74,8 +74,9 @@ and endpoint failures are visible in Hardware.
 Named-pipe requests authenticate the installation owner's Windows SID before JSON
 parsing, reject network logons, cap messages at 32 MiB, time out connections and
 limit concurrency. Clients verify server PID against SCM and its executable path.
-Commands are limited to status/snapshot, project, scan, playback, output enable and
-channel pause. No client file/DLL/module/register/shell API exists.
+Commands are limited to status/snapshot, project, scan, playback, output enable,
+channel pause and identify (2 s flash of one known software component; the service
+expires it itself and never persists it). No client file/DLL/module/register/shell API exists.
 
 Program Files and state ACLs protect runtime/configuration from normal-user writes.
 The six installed module DLLs (`msi_gen1`, `peripherals`, `auxiliary`,
