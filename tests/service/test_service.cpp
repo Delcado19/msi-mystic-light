@@ -143,10 +143,15 @@ void ServiceTest::authenticatedPipe(){
         PACL dacl=nullptr;PSECURITY_DESCRIPTOR descriptor=nullptr;
         QCOMPARE(GetSecurityInfo(reinterpret_cast<HANDLE>(probe.socketDescriptor()),SE_KERNEL_OBJECT,DACL_SECURITY_INFORMATION,nullptr,nullptr,&dacl,nullptr,&descriptor),DWORD(ERROR_SUCCESS));
         LPWSTR text=nullptr;QVERIFY(ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor,SDDL_REVISION_1,DACL_SECURITY_INFORMATION,&text,nullptr));
-        const auto sddl=QString::fromWCharArray(text);LocalFree(text);LocalFree(descriptor);
+        const auto sddl=QString::fromWCharArray(text);LocalFree(text);
         QVERIFY2(sddl.startsWith("D:P"),qPrintable(sddl));
         for(const auto* broad:{";;;WD)",";;;AU)",";;;BU)",";;;AN)"})QVERIFY2(!sddl.contains(broad),qPrintable(sddl));
-        QVERIFY2(sddl.contains(StudioService::currentUserSid()),qPrintable(sddl));
+        // Compare SIDs, not SDDL text: Windows prints well-known accounts as aliases (CI runs as LA).
+        PSID owner=nullptr;QVERIFY(ConvertStringSidToSidW(reinterpret_cast<LPCWSTR>(StudioService::currentUserSid().utf16()),&owner));
+        bool ownerListed=false;
+        for(DWORD i=0;i<dacl->AceCount;++i){void* ace=nullptr;if(GetAce(dacl,i,&ace) && static_cast<ACE_HEADER*>(ace)->AceType==ACCESS_ALLOWED_ACE_TYPE && EqualSid(&static_cast<ACCESS_ALLOWED_ACE*>(ace)->SidStart,owner))ownerListed=true;}
+        LocalFree(owner);LocalFree(descriptor);
+        QVERIFY2(ownerListed,qPrintable(sddl));
         // A second host cannot take over a pipe name that is already served (pipe squatting).
         Child squatter;squatter.process.setProgram(SERVICE_HOST_PATH);squatter.process.setArguments({"--simulate","--state-dir",folder.path()+"/squat","--pipe",pipe});
         squatter.process.start();QVERIFY(squatter.process.waitForFinished(10000));QVERIFY(squatter.process.exitCode()!=0);
