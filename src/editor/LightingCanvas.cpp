@@ -340,7 +340,11 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
     // Layout shows what the hardware shows, including components that share LED outputs.
     // sampleChannels applies each channel clock itself, so it needs the global time; passing the
     // Effects canvas's channel-local time applied the clock twice (CodeRabbit review 2026-11-15).
-    auto sampled=document_.previewComponentColors(frame,componentSeconds_<0?seconds_:componentSeconds_,&placements);
+    const double globalSeconds=componentSeconds_<0?seconds_:componentSeconds_;
+    const auto global=previewChannel_.isNull() ? QImage{} : document_.render(globalSeconds);
+    auto sampled=document_.previewComponentColors(frame,globalSeconds,&placements,global.isNull()?nullptr:&global);
+    // Numbers show the physical output position, so serial and shared chain items number correctly.
+    const auto ledOffsets=document_.componentLedOffsets();
     const auto shared=(!previewOnly_ && context_==Context::Layout) ? document_.sharedColorNotes() : QMap<QUuid,QString>{};
     for (auto placement : document_.state().placements) {
         painter.save();
@@ -383,7 +387,8 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
                 painter.drawEllipse(point,ledRadius,ledRadius);
                 if(ledRadius*zoom_*devicePixelRatioF()<2.) {
                     // Subpixel circles blend with their outline; keep the sampled center color exact when zoomed out.
-                    const double dpr=devicePixelRatioF();const auto pixel=(viewportPoint(point)*dpr).toPoint();
+                    // The painter transform includes the Effects world-to-raster mapping; viewportPoint does not.
+                    const double dpr=devicePixelRatioF();const auto pixel=(painter.transform().map(point)*dpr).toPoint();
                     painter.save();painter.resetTransform();painter.setRenderHint(QPainter::Antialiasing,false);
                     painter.fillRect(QRectF(QPointF(pixel)/dpr,QSizeF(1/dpr,1/dpr)),light);painter.restore();
                 }
@@ -393,10 +398,10 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
                 const double screenRadius=keyboard ? std::min(keySize.width(),keySize.height())*zoom_/2 : ledRadius*zoom_;
                 if(!previewOnly_ && screenRadius>=6) {
                     // Drawn in screen pixels so numbers stay readable at every zoom level.
-                    painter.save();const auto center=viewportPoint(point);painter.resetTransform();
+                    painter.save();const auto center=painter.transform().map(point);painter.resetTransform();
                     auto numberFont=font();numberFont.setPixelSize(int(std::clamp(screenRadius*1.05,8.,14.)));numberFont.setBold(true);painter.setFont(numberFont);
                     painter.setPen(light.lightnessF()>.55 ? QColor("#0b1220") : QColor("#f4f8ff"));
-                    painter.drawText(QRectF(center-QPointF(screenRadius,screenRadius),QSizeF(2*screenRadius,2*screenRadius)),Qt::AlignCenter,QString::number(definition.mapping[i]+1));
+                    painter.drawText(QRectF(center-QPointF(screenRadius,screenRadius),QSizeF(2*screenRadius,2*screenRadius)),Qt::AlignCenter,QString::number(ledOffsets.value(placement.id)+definition.mapping[i]+1));
                     painter.restore();
                 }
             }

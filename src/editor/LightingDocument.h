@@ -109,7 +109,10 @@ public:
     QMap<QUuid, QVector<QColor>> sampleChannels(const QImage& frame, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr) const;
     // Colors each component shows in Layout, derived from the channel output: components sharing
     // output positions show the shared colors, native channels their first firmware color.
-    QMap<QUuid, QVector<QColor>> previewComponentColors(const QImage& frame, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr) const;
+    // channelFrame: global composition for default-clock channels when frame shows one selected channel.
+    QMap<QUuid, QVector<QColor>> previewComponentColors(const QImage& frame, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr, const QImage* channelFrame = nullptr) const;
+    // Zero-based output position of each software-assigned component's first LED in its chain.
+    QMap<QUuid, int> componentLedOffsets() const;
     // Placement -> short Layout badge: "Same as #2" / "LEDs 1-6 same as ..." for components repeating
     // another component's colors, "Color source" for the component they repeat.
     QMap<QUuid, QString> sharedColorNotes() const;

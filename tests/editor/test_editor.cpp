@@ -3950,6 +3950,15 @@ void EditorTest::sharedOutputsLayout()
     const auto notes=document.sharedColorNotes(); QCOMPARE(notes.value(fans[0]),QString("Color source"));
     for(int i=1;i<4;++i) QCOMPARE(notes.value(fans[i]),QString("Same as #1"));
     QVERIFY(notes.value(bar).startsWith("LEDs 1-6 same as "));
+    // LED numbers on the canvas use these offsets: shared items all start at output 1.
+    for(const auto& id:assignment.placements) QCOMPARE(document.componentLedOffsets().value(id,-1),0);
+    {
+        LightingDocument serial({{fan.id,fan},{strip.id,strip}},nullptr,{profile});
+        QVector<QUuid> items{serial.addComponent(fan.id),serial.addComponent(fan.id),serial.addComponent(strip.id)};
+        ChannelAssignment chain=assignment; chain.placements=items; chain.starts.clear(); serial.assignChannel(chain);
+        const auto offsets=serial.componentLedOffsets();
+        QCOMPARE(offsets.value(items[0],-1),0); QCOMPARE(offsets.value(items[1],-1),6); QCOMPARE(offsets.value(items[2],-1),12);
+    }
     LightingCanvas canvas(document,LightingCanvas::Context::Layout);applyStudioStyle(&canvas);canvas.resize(1100,700);canvas.show();
     QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();QCoreApplication::processEvents();
     QVERIFY(canvas.grab().save(artifactDirectory()+"/shared-outputs-layout.png"));document.history()->setClean();

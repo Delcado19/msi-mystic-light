@@ -414,10 +414,12 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
     return result; // Native channels are deliberately absent, never overwritten with sampled colors.
 }
 
-QMap<QUuid, QVector<QColor>> LightingDocument::previewComponentColors(const QImage& frame, double seconds, const QVector<ComponentPlacement>* placements) const
+QMap<QUuid, QVector<QColor>> LightingDocument::previewComponentColors(const QImage& frame, double seconds, const QVector<ComponentPlacement>* placements, const QImage* channelFrame) const
 {
     auto sampled = sampleComponents(frame, placements);
-    const auto channels = sampleChannels(frame, seconds, placements);
+    // Output colors come from the global composition, not from one selected channel's raster
+    // (CodeRabbit review 2026-11-15); clocked channels re-render themselves in sampleChannels.
+    const auto channels = sampleChannels(channelFrame ? *channelFrame : frame, seconds, placements);
     for (const auto& assignment : state_.assignments) {
         if (!assignment.software) {
             QColor color = Qt::black;
@@ -439,6 +441,21 @@ QMap<QUuid, QVector<QColor>> LightingDocument::previewComponentColors(const QIma
         }
     }
     return sampled;
+}
+
+QMap<QUuid, int> LightingDocument::componentLedOffsets() const
+{
+    QMap<QUuid, int> result;
+    for (const auto& assignment : state_.assignments) if (assignment.software) {
+        QVector<int> counts;
+        for (const auto& id : assignment.placements)
+            for (const auto& placement : state_.placements) if (placement.id == id)
+                counts.append(int(catalog()[placement.componentId].mapping.size()));
+        if (counts.size() != assignment.placements.size()) continue;
+        const auto offsets = chainOffsets(counts, chainStarts(assignment));
+        for (int item = 0; item < offsets.size(); ++item) result.insert(assignment.placements[item], offsets[item]);
+    }
+    return result;
 }
 
 QMap<QUuid, QString> LightingDocument::sharedColorNotes() const

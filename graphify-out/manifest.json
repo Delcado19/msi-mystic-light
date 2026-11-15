@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1794732277.112542,
-    "seen": 1794732513.839562,
-    "ast_hash": "8e9fb4e71f2b447c59243631b741aa8d",
+    "mtime": 1794732958.3299618,
+    "seen": 1794733209.9806283,
+    "ast_hash": "28dabcdd0372c1bc3af537ef7ac7d7bf",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
@@ -330,15 +330,15 @@
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1794688544.7186763,
-    "seen": 1794690104.048431,
-    "ast_hash": "39285b89e5ab2e5af2462a6c901b049c",
+    "mtime": 1794732958.328962,
+    "seen": 1794733209.9807117,
+    "ast_hash": "c59145c165b9c0970f9417658b124034",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1794688544.300729,
-    "seen": 1794690104.048433,
-    "ast_hash": "39eb4d3dd77a47744d0a7ca46ddbd146",
+    "mtime": 1794732958.328962,
+    "seen": 1794733209.9807131,
+    "ast_hash": "897b567fdb64548dc84d71f6853da353",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
@@ -354,9 +354,9 @@
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1794688544.8136437,
-    "seen": 1794690104.0531082,
-    "ast_hash": "d126918eea42c8c062248911b934677d",
+    "mtime": 1794732986.875635,
+    "seen": 1794733209.9853926,
+    "ast_hash": "6dde109f59a25a9d4f54445594a7f3a3",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
@@ -846,9 +846,9 @@
     "semantic_hash": ""
   },
   "src/backends/PawnIoRam.cpp": {
-    "mtime": 1794688544.8979237,
-    "seen": 1794690104.046022,
-    "ast_hash": "dfd4586ff872168464471666caf1e368",
+    "mtime": 1794732958.3279622,
+    "seen": 1794733209.978563,
+    "ast_hash": "183db40513327c1db778d9c2dac2d7a4",
     "semantic_hash": ""
   },
   "src/backends/PawnIoRam.h": {
@@ -1695,6 +1695,12 @@
     "mtime": 1794646167.2780204,
     "seen": 1794659753.7537138,
     "ast_hash": "c47cd723721b5fbe98b7d7e655b2d050",
+    "semantic_hash": ""
+  },
+  ".coderabbit.yaml": {
+    "mtime": 1794732527.3037639,
+    "seen": 1794733209.9877238,
+    "ast_hash": "718752b4ed97583282df025fba11c9fa",
     "semantic_hash": ""
   }
 }

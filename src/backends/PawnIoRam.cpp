@@ -73,8 +73,11 @@ struct PawnIoRam::Impl {
                 return call("ioctl_smbus_xfer",in.data(),in.size(),out.data(),count,count);
             });
             const bool result=operation(protocol);
+            // A failed restore attempt must not replace the operation's own error and transient flag.
+            const bool transient=temporaryFailure;const auto operationError=error;
             // Another SMBus user expects its port back; one retry covers a transient controller busy state.
             const bool restored=call("ioctl_piix4_port_sel",&previous,1,&primary,1,1) || call("ioctl_piix4_port_sel",&previous,1,&primary,1,1);
+            if(!result){temporaryFailure=transient;error=operationError;}
             return result && restored;
         });
     }
