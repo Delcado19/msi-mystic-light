@@ -1537,8 +1537,17 @@ void LightingWindow::refreshHeader()
         headerSummary_->setText(QString("%1 / %2 LEDs\nDrag this component on the layout canvas.").arg(assignment.channelId).arg(component.positions.size())); return;
     }
     headerTitle_->setText(assignment.channelId);
+    // One row per attached component: its output range on this header (shared outputs repeat the range).
+    const auto offsets=document_.componentLedOffsets();
+    QStringList rows;
+    for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements) if(placement.id==id) {
+        const int count=int(document_.catalog()[placement.componentId].mapping.size());
+        const int start=offsets.value(id,-1);
+        rows.append(start<0 ? QString("%1: %2 LEDs").arg(document_.componentName(placement)).arg(count)
+                            : QString("%1: LEDs %2-%3").arg(document_.componentName(placement)).arg(start+1).arg(start+count));
+    }
     headerSummary_->setText(QString("%1\n%2 components / %3 of %4 LEDs\n%5").arg(profile.name).arg(assignment.placements.size()).arg(leds).arg(channel.maxLeds)
-        .arg(channel.direct ? "Effects canvas supported" : "Native lighting only"));
+        .arg(channel.direct ? "Effects canvas supported" : "Native lighting only") + (rows.isEmpty() ? QString() : "\n" + rows.join("\n")));
 }
 
 void LightingWindow::addHeaderComponents()
