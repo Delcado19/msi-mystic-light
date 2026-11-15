@@ -140,6 +140,7 @@ set_target_properties(msi_mystic_light PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CM
 target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi_hid lighting_startup lighting_editor lighting_output_ui lighting_service)
 add_dependencies(msi_mystic_light msi_gen1_module peripherals_module auxiliary_module asrock_polychrome_module lenovo_motherboard_module hp_omen_module)
 if(WIN32)
+    target_sources(msi_mystic_light PRIVATE src/app.rc)
     # A matching SDK plugin is preferred; the documented source build supplies SDKs without ImageFormats.
     set(WEBP_PLUGIN_HINTS "${Qt6_DIR}/../../../plugins/imageformats")
     if(Qt6_VERSION VERSION_EQUAL "6.8.3")

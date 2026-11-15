@@ -1,0 +1,77 @@
+name: Release
+
+# Builds, tests and packages the installable Windows ZIP (scripts/package_release.py).
+# - Manual run (any branch): the ZIP is a downloadable artifact of the run, for hardware testing
+#   before a release. Nothing is published.
+# - Tag push (v*): the same ZIP is attached to a DRAFT GitHub release; the owner publishes it
+#   after the hardware test.
+# Build steps mirror ci.yml; see the comments there for the Qt and hidapi choices.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Qt
+        id: qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          arch: win64_msvc2022_64
+          modules: "qtimageformats"
+
+      - name: Install hidapi via vcpkg
+        shell: pwsh
+        run: vcpkg install hidapi:x64-windows
+
+      - name: Configure
+        shell: pwsh
+        run: >
+          cmake -S . -B build
+          -DCMAKE_PREFIX_PATH="${{ steps.qt.outputs.qtdir }}"
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build (Release)
+        shell: pwsh
+        run: cmake --build build --config Release --parallel
+
+      - name: Test (Release)
+        shell: pwsh
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 600
+
+      # Tag builds are named after the tag, manual builds after the branch and commit.
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $label = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { ($env:GITHUB_REF_NAME -replace '[^A-Za-z0-9._-]', '-') + '-' + $env:GITHUB_SHA.Substring(0, 7) }
+          $archive = "build/dist/LightingStudio-$label-windows-x64.zip"
+          python scripts/package_release.py --runtime build/Release --archive $archive
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+          "name=LightingStudio-$label-windows-x64" >> $env:GITHUB_OUTPUT
+
+      - name: Upload test package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
+          if-no-files-found: error
+
+      - name: Create draft release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$env:GITHUB_REF_NAME" "${{ steps.package.outputs.archive }}" "${{ steps.package.outputs.archive }}.sha256" --draft --title "Lighting Studio $env:GITHUB_REF_NAME" --generate-notes

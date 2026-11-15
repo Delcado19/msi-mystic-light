@@ -1,0 +1,3 @@
+// Executable icon: Explorer, the taskbar and the installer's Start menu shortcut read it from here.
+// Source: assets/branding/README.md (owner-supplied Lighting-Studio-Icon, 2026-11-15).
+IDI_ICON1 ICON "../assets/branding/lighting-studio.ico"
