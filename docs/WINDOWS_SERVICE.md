@@ -122,17 +122,24 @@ and the [ShellExecuteEx runas/handle contract](https://learn.microsoft.com/en-us
 Hardware shows service/per-channel failures. Startup failures reach SCM and, when
 writable, `%ProgramData%/LightingStudio/service-error.log` (administrator-readable).
 Administrators can inspect Get-Service LightingStudio and sc.exe qc LightingStudio.
-To remove automatic operation from an administrator console:
+## Removal
 
-```powershell
-Stop-Service LightingStudio
-sc.exe delete LightingStudio
-Unregister-ScheduledTask -TaskName 'Lighting Studio Editor' -Confirm:$false
-```
+Remove Lighting Studio in Windows Settings > Apps, or run `installer/Uninstall.cmd` from the
+package. Both start `Uninstall-LightingStudio.ps1`, which requests elevation once and removes the
+LightingStudio service, the `Lighting Studio Editor` logon task, the Start menu shortcut,
+`%ProgramFiles%/Lighting Studio`, `%ProgramData%/LightingStudio` and the Apps entry.
 
-These commands retain installed files/playback data and shared PawnIO. User projects
-are never deleted. The installed copy retains service mode while service.json
-exists; a portable copy can use direct output after the service is removed.
+Two things are removed only on request (prompt, or `-RemoveUserData` / `-RemovePawnIO`; `-Quiet`
+skips the prompts):
+
+- the owner's editor settings (`HKCU/Software/Delcado/MSI Mystic Light Standalone`) and recovery
+  data (`%LOCALAPPDATA%/Delcado/MSI Mystic Light Standalone`); a portable copy shares them;
+- the PawnIO driver, through PawnIO's own registered `uninstall.exe -uninstall -silent`. It is
+  shared: OpenRGB, Fan Control, LibreHardwareMonitor and ZenTimings use it too.
+
+Saved project files are never deleted. Steps that fail are listed and the script exits non-zero.
+The removal is covered by a parse/WhatIf test only; it has not been run against a real
+installation yet.
 
 ## Verification boundaries
 

@@ -23,4 +23,11 @@ try {
     if (!$fixture.StartsWith($temporaryRoot,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path $fixture -Leaf) -notlike 'LightingStudio-plan-*') { throw 'Unsafe fixture cleanup path' }
     if (Test-Path -LiteralPath $fixture) { Remove-Item -LiteralPath $fixture -Recurse -Force }
 }
-Write-Host 'Installer parses and WhatIf validates a complete runtime without installing.'
+# The uninstaller must parse, use PawnIO's own registered quiet-uninstall arguments, and return on
+# WhatIf before any prompt, elevation or deletion.
+$uninstaller = Join-Path (Split-Path $Installer -Parent) 'Uninstall-LightingStudio.ps1'
+[Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$tokens,[ref]$errors) | Out-Null
+if ($errors.Count) { throw ($errors | Out-String) }
+if ((Get-Content -LiteralPath $uninstaller -Raw) -notmatch "-ArgumentList @\('-uninstall','-silent'\)") { throw 'PawnIO silent removal arguments differ from its registered QuietUninstallString' }
+& $uninstaller -OwnerSid 'S-1-5-21-1-2-3-1001' -WhatIf
+Write-Host 'Installer and uninstaller parse; WhatIf validates a complete runtime without installing or removing.'

@@ -4,6 +4,14 @@ Single maintainer, so no `dev` branch. Every feature gets its own branch and rea
 through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
 release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
 
+## Uninstaller and CI package - 2026-11-15
+
+`installer/Uninstall-LightingStudio.ps1` removes everything the installer creates and is registered
+in Windows Settings > Apps; PawnIO and editor settings only on request (docs/WINDOWS_SERVICE.md
+"Removal"). Parse/WhatIf test only, never run against a real installation. Every CI run attaches
+the installable ZIP; `release.yml` drafts a release on a `v*` tag. The editor executable has an
+icon (`src/app.rc`). Open: PawnIO/app update check (not started), DisplayVersion in the Apps entry.
+
 ## GS-06-R9 - 2026-11-15
 
 Hardware view has an LEDs column: header rows show used / max output positions (shared outputs once),

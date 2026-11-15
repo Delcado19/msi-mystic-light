@@ -136,6 +136,8 @@ playback. Installation requests elevation once; the service owns hardware and th
 editor/tray run with ordinary rights. Scans need no new UAC. Closing the installed
 editor keeps the last confirmed project running. Stop all output is explicit.
 The installer reuses PawnIO or downloads/verifies its official installer if absent.
+Remove it again in Windows Settings > Apps or with installer/Uninstall.cmd; the
+uninstaller asks before deleting your editor settings or the shared PawnIO driver.
 See docs/WINDOWS_SERVICE.md in the source repository for updates/removal, security
 boundaries and remaining physical/clean-install validation. Real SYSTEM output and
 a clean-install UAC count are not established by software tests. Without service
