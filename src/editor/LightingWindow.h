@@ -66,6 +66,8 @@ private:
     void refreshProperties();
     void refreshToolOptions();
     void updatePreview();
+    void flashComponent(const QUuid& placement);
+    quint64 identifyGeneration_ = 0; // Newest identify flash; older expiry timers do nothing.
     void refreshPlacement();
     void syncSelectionTrees();
     void updateWorkspacePanels();

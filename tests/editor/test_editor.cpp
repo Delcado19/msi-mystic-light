@@ -154,6 +154,7 @@ private slots:
     void fixedDeviceSettings_data();
     void fixedDeviceSettings();
     void sharedOutputsLayout();
+    void identifyFlash();
     void layoutAutoFitKeepsComponentsVisible();
     void sliderWheelStepsOneUnit();
     void savedLayoutKeepsLogoRightAndEffectAspect();
@@ -3899,6 +3900,41 @@ void EditorTest::sliderWheelStepsOneUnit()
     wheel(120);QCOMPARE(value.value(),11.);wheel(-120);wheel(-120);QCOMPARE(value.value(),9.);
     wheel(60);QCOMPARE(value.value(),9.);wheel(60);QCOMPARE(value.value(),10.); // High-resolution wheels accumulate.
     delete row;
+}
+
+void EditorTest::identifyFlash()
+{
+    // Identify lights one placement's outputs; shared outputs light with it. Document-level only, no hardware.
+    ComponentDefinition fan; fan.id="test.fan"; fan.name="Test fan"; fan.category="Fans";
+    for(int i=0;i<6;++i){const double angle=i*3.14159265358979/3;fan.positions.append({1.27*std::sin(angle),-1.27*std::cos(angle)});fan.mapping.append(i);}
+    DeviceProfile profile=channelProfile(); profile.channels[0].maxLeds=120;
+    LightingDocument document({{fan.id,fan}},nullptr,{profile});
+    QVector<QUuid> fans; for(int i=0;i<3;++i) fans.append(document.addComponent(fan.id));
+    ChannelAssignment assignment; assignment.endpoint="fake://one"; assignment.profileId=profile.id; assignment.channelId="Direct";
+    assignment.software=true; assignment.placements=fans;
+    document.assignChannel(assignment);
+    QVERIFY(document.hasSoftwareChannel(fans[0]));
+    QVERIFY(!document.hasSoftwareChannel(QUuid::createUuid()));
+    const auto frame=document.render(.4);
+    const auto before=document.sampleChannels(frame,.4)[assignment.id];
+    const auto revision=document.revision(); const auto undo=document.history()->count();
+    // Serial chain: fan 2 owns outputs 7-12 (1-based), so only indexes 6-11 turn white.
+    document.setIdentifyPlacement(fans[1]);
+    QCOMPARE(document.identifyPlacement(),fans[1]);
+    QCOMPARE(document.revision(),revision); QCOMPARE(document.history()->count(),undo);
+    const auto serial=document.sampleChannels(frame,.4)[assignment.id];
+    QCOMPARE(serial.size(),18);
+    for(int led=0;led<18;++led) QCOMPARE(serial[led],QColor(led>=6 && led<12 ? Qt::white : Qt::black));
+    // Shared outputs: every fan starts at LED 1, so identifying one lights all three.
+    for(const auto& id:fans) assignment.starts.insert(id,1);
+    document.assignChannel(assignment);
+    const auto shared=document.sampleChannels(frame,.4)[assignment.id];
+    QCOMPARE(shared.size(),6);
+    for(const auto& color:shared) QCOMPARE(color,QColor(Qt::white));
+    // Clearing the identify target restores the normal output exactly.
+    document.setIdentifyPlacement({});
+    assignment.starts.clear(); document.assignChannel(assignment);
+    QCOMPARE(document.sampleChannels(frame,.4)[assignment.id],before);
 }
 
 void EditorTest::layoutAutoFitKeepsComponentsVisible()

@@ -18,9 +18,9 @@
     "semantic_hash": ""
   },
   "docs/MB_800_HID_PROTOCOL.md": {
-    "mtime": 1792734798.1245952,
-    "seen": 1792735056.9157045,
-    "ast_hash": "77bfee4a9482504a08810c881f754cd6",
+    "mtime": 1794746283.6731956,
+    "seen": 1794750445.5490499,
+    "ast_hash": "fa499f699385fd4d85c012978d8e349d",
     "semantic_hash": ""
   },
   "docs/NETWORK_PROTOCOL.md": {
@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794690095.075826,
-    "seen": 1794690104.054919,
-    "ast_hash": "7bfa86a617670bf2fa5e1c5edc3888c4",
+    "mtime": 1794750439.413301,
+    "seen": 1794750445.548003,
+    "ast_hash": "4097738115d424c3dd1572ea314a709c",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -330,39 +330,39 @@
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1794732958.328962,
-    "seen": 1794733209.9807117,
-    "ast_hash": "c59145c165b9c0970f9417658b124034",
+    "mtime": 1794750137.1713302,
+    "seen": 1794750445.542034,
+    "ast_hash": "fa28e8fdb54e7600dea34ed2dc107f9b",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1794732958.328962,
-    "seen": 1794733209.9807131,
-    "ast_hash": "897b567fdb64548dc84d71f6853da353",
+    "mtime": 1794750137.1703272,
+    "seen": 1794750445.542036,
+    "ast_hash": "ee59d984f4ffd74578108bce6a4b1378",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1794732277.1185598,
-    "seen": 1794732513.8396976,
-    "ast_hash": "724d9d9cddaa33ffc69c1d02085fe547",
+    "mtime": 1794750137.1723282,
+    "seen": 1794750445.542037,
+    "ast_hash": "a535730f319bd521bcc2f9b4894c9a14",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1794485092.7102683,
-    "seen": 1794487304.8845935,
-    "ast_hash": "88842c999ce0f7e8b69a6318b8df228a",
+    "mtime": 1794750137.1713302,
+    "seen": 1794750445.5420377,
+    "ast_hash": "a927aaa6a8bf2adb384cf720e1c759c3",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1794732986.875635,
-    "seen": 1794733209.9853926,
-    "ast_hash": "6dde109f59a25a9d4f54445594a7f3a3",
+    "mtime": 1794750191.0955153,
+    "seen": 1794750445.545696,
+    "ast_hash": "c7b91f5977dab237f704b96a3414fc9a",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1794688544.2701995,
-    "seen": 1794690104.0560896,
-    "ast_hash": "f823e7c10aa68a5e769ab8fb697ea399",
+    "mtime": 1794750439.412299,
+    "seen": 1794750445.5490487,
+    "ast_hash": "d21ad3e724189c2010486491527f0477",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -1698,9 +1698,9 @@
     "semantic_hash": ""
   },
   ".coderabbit.yaml": {
-    "mtime": 1794732527.3037639,
-    "seen": 1794733209.9877238,
-    "ast_hash": "718752b4ed97583282df025fba11c9fa",
+    "mtime": 1794735477.982396,
+    "seen": 1794750445.5476904,
+    "ast_hash": "8f165ebe059b001d7c827f77412dbf5d",
     "semantic_hash": ""
   }
 }

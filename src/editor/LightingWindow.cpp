@@ -1242,12 +1242,16 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         const auto id=selectedLayer_;document_.edit("Toggle visibility",[id](auto& state){for(auto& layer:state.layers)if(layer.id==id)layer.visible=!layer.visible;});
     });
     auto* cropSelection=new QAction(studioToolIcon("crop"),"Crop image",this);cropSelection->setObjectName("cropSelectedImage");connect(cropSelection,&QAction::triggered,cropButton,&QToolButton::click);
-    const auto populateContext=[this,duplicate,remove,rename,visibility,cropSelection,cropButton,lock,unlock,fit,groupAction,paintAction](QMenu* menu,bool onObject){
+    auto* flash=new QAction("Flash component (identify)",this);flash->setObjectName("flashComponent");
+    flash->setToolTip("Lights only this component for 2 seconds. Hardware lights only while output is running; otherwise the Layout preview shows it.");
+    connect(flash,&QAction::triggered,this,[this]{const auto ids=layoutCanvas_->selections();if(ids.size()==1)flashComponent(*ids.begin());});
+    const auto populateContext=[this,duplicate,remove,rename,visibility,cropSelection,cropButton,lock,unlock,fit,groupAction,paintAction,flash](QMenu* menu,bool onObject){
         if(onObject){
             auto* canvas=tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_;bool editable=!canvas->selections().isEmpty();if(tabs_->currentIndex()==1)for(const auto& layer:document_.state().layers)if(layer.id==selectedLayer_ && layer.container && !layer.locked)editable=true;
             duplicate->setEnabled(editable);remove->setEnabled(editable);
             menu->addAction(duplicate);menu->addAction(remove);
             if(tabs_->currentIndex()==1){menu->addAction(rename);menu->addAction(visibility);menu->addAction(findChild<QAction*>("moveLayerUp"));menu->addAction(findChild<QAction*>("moveLayerDown"));if(cropButton->isEnabled())menu->addAction(cropSelection);}
+            if(tabs_->currentIndex()==0){const auto ids=layoutCanvas_->selections();flash->setEnabled(ids.size()==1 && document_.hasSoftwareChannel(*ids.begin()));menu->addAction(flash);}
             menu->addSeparator();menu->addAction(lock);menu->addAction(unlock);
         }else{menu->addAction(fit);if(tabs_->currentIndex()==1){menu->addSeparator();menu->addAction(paintAction);menu->addAction(groupAction);}else{auto* add=menu->addAction("Add components...");connect(add,&QAction::triggered,this,[this]{addHeaderComponents();});}}
     };
@@ -1742,6 +1746,19 @@ void LightingWindow::updatePreview()
     const double localTime=channel.isNull() ? seconds : document_.channelTime(channel,seconds);
     layoutCanvas_->setPreviewFrame(displayed,seconds,channel); effectsCanvas_->setPreviewFrame(displayed,localTime,channel,seconds); hardwarePreview_->setPreviewFrame(previewFrame_,seconds,channel);
     emit previewFrameChanged(previewFrame_);
+}
+
+void LightingWindow::flashComponent(const QUuid& placement)
+{
+    // Hardware receives the flash only while output runs (OutputPanel::dispatch); the preview always shows it.
+    document_.setIdentifyPlacement(placement);
+    updatePreview();
+    const auto generation = ++identifyGeneration_;
+    QTimer::singleShot(2000, this, [this, generation] {
+        if (generation != identifyGeneration_) return;
+        document_.setIdentifyPlacement({});
+        updatePreview();
+    });
 }
 
 void LightingWindow::refreshToolOptions()

@@ -721,6 +721,16 @@ component coordinates and draft placements are validated before sampling. Finite
 coordinates must leave arithmetic headroom for world spans and navigation zoom.
 Scrollbar camera and thumb positions are synchronized at both endpoints; camera
 clamping waits for the current drag/pan/minimap gesture to finish.
+### Identify flash (2026-11-15)
+
+Right-click one component in Layout (its chain must be a software channel) and choose
+"Flash component (identify)". For 2 seconds its outputs show white and every other software
+chain goes dark. Shared outputs light with it, so one fan on a splitter lights its siblings too.
+The flash is transient: no undo entry, no revision change, not saved. Hardware receives it only
+while output runs; otherwise only the Layout preview shows it. Native channels cannot be flashed
+per component and are left unchanged. Unit-tested at document level (serial and shared chains);
+not yet checked on real fans.
+
 ## Snap to grid
 
 The Preview toolbar provides a persistent Snap to grid toggle (default enabled)

@@ -1,17 +1,17 @@
 # Graph Report - msi-mystic-light  (2026-11-15)
 
 ## Corpus Check
-- 203 files · ~1,694,199 words
+- 203 files · ~1,694,815 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 18 file(s) not represented in the graph (top: .csv 6, .bin 3, (none) 2)
 
 ## Summary
-- 3324 nodes · 7432 edges · 179 communities (132 shown, 47 thin omitted)
-- Extraction: 78% EXTRACTED · 22% INFERRED · 0% AMBIGUOUS · INFERRED: 1607 edges (avg confidence: 0.83)
+- 3335 nodes · 7463 edges · 176 communities (136 shown, 40 thin omitted)
+- Extraction: 78% EXTRACTED · 22% INFERRED · 0% AMBIGUOUS · INFERRED: 1619 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f56347a9`
+- Built from commit: `8bb06811`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -32,7 +32,7 @@
 - test_editor.cpp
 - AeroBackend
 - ColorListEditor
-- PreviewDivider
+- HardwareArtwork.cpp
 - PawnIoRam.cpp
 - ServiceProtocol.cpp
 - Recording
@@ -42,11 +42,11 @@
 - IDriverModule
 - LightingCanvas
 - .render
-- PaletteStrip
+- authorizeHardwareOutput
 - Mystic Light — Overall Architecture
 - Reference repository reuse review
 - MSI Mystic Light – Lighting Studio
-- ServicePanel
+- QJsonObject
 - BuildReport0x51
 - ComponentDefinition
 - EffectLayer
@@ -58,8 +58,8 @@
 - ServiceRuntime
 - OpenRGB SDK client — cross-platform (esp. Linux) hardware access
 - ComponentEditor.cpp
+- Porting OpenRGB/SignalRGB hardware support into this app — motherboard tier
 - OutputPanel
-- test_output_ui.cpp
 - Lighting Studio — Design Doc (v2)
 - ConflictDialog
 - GeometryView
@@ -69,10 +69,10 @@
 - Lighting Studio: whole-interface and unified-editor review
 - DriverInstance
 - MsiLightingMode
-- RecordingTransport
+- PairedTransport
 - ComponentPlacement
 - test_scheduler.cpp
-- test_output.cpp
+- .connect
 - .edit
 - Transport
 - EneRamProtocol
@@ -86,52 +86,53 @@
 - Status
 - src/main.cpp
 - Transport
-- HidApiDevice
+- OutputProof
 - Effect implementation checklist
 - ServiceRuntime.cpp
-- LightingDocument
+- LightingState
 - EffectKind
-- SaturationValueField
+- PaletteStrip
 - CONTINUE.md
 - ChannelAssignment
 - ConflictProcesses.cpp
 - ModulesTest
-- HidApiDevice.cpp
+- HidApiDevice
 - .pushColors
 - IHidDevice
-- OutputPanel.cpp
-- qttest
-- Record
+- Layer visibility, brush size and Delete
+- test_hp_omen.cpp
+- DeviceProfile.cpp
+- .cancelGesture
 - FakeProcesses
 - Layer model proposal
 - BuildApex3ColorsPacket
 - HardwarePicker
 - NativeEffect
-- LightingDocument.cpp
+- LightingDocument
 - Lighting Studio GUI and interaction audit
-- SignalRGB repository research
+- Effect editor interaction research
 - Test review: recent lighting changes (2026-10-24)
-- QJsonObject
-- ParameterSpinBox
+- .fromJson
+- Gradient travel and blend verification (2026-10-24)
 - Lightning and Fireworks visual review (2026-10-29)
-- .mouseMoveEvent
+- .mousePressEvent
 - ProfileCandidate
 - PawnIO AMD SMBus module
-- StudioWidgets.cpp
+- AuxiliaryDriver
 - service/main.cpp
-- .create
+- .setNativeMode_rejectsInvalidEffectsAndClosedDevice
 - AsrockPolychromeDriver
 - LenovoMotherboardMode
-- ConflictProcesses.h
+- ConflictService
 - ServiceServer.cpp
-- QDialog
+- ComponentEditor
 - VirtualModule
-- Effect editor interaction research
+- Editor interaction implementation
 - Studio interaction and motion review
 - DocumentEdit
 - hw_inventory_linux.sh
 - test_hid_backend.cpp
-- colorIcon
+- QMap
 - LayerTree
 - PeripheralModule
 - closeWindow
@@ -139,49 +140,45 @@
 - .load
 - Connection
 - PawnIO integration and service feasibility
-- HidDescriptor
+- Reliability and layer-design work (2026-11-11)
 - Lighting Studio editor UX review
 - Unified Editor implementation
-- .load
+- QPainter
 - branding/README.md
 - JARGB2 physical response tests - 2026-11-13 / 2026-11-14
-- ConflictService
+- ConflictProcess
 - Hardware migration inventory and priorities
 - OutputFrame
 - AsrockPolychromeZone
-- QWidget
-- validateChannelAssignments
-- .connect
+- QToolButton
+- .channelAssignments
+- MsiModule
 - README.md
-- stdexcept
-- EffectParameter
+- ParameterSpinBox
 - EffectRenderer.h
 - SignalForge editor reference
 - Hardware modules
 - Hardware support strategy
 - .setNativeMode_rejectsInvalidEffectsAndClosedDevice
 - LightingCanvas.h
-- .paint
+- State
 - PowerResumeFilter
-- OutputConnection
-- ChannelEditor::ChannelEditor
-- ConflictProcess
+- Lighting Studio 0.1.0
+- StudioWidgets.cpp
+- Artwork, continuous gestures and spatial controls (GS-06)
 - impl_
-- .displayText
-- `Mystic Light Online Data.dat` — decryption and content
 - HP Omen 30L migration: first independent-module increment
 - Third-party runtime components
-- HidRuntime
 - ScCloser
 
 ## God Nodes (most connected - your core abstractions)
-1. `LightingWindow` - 219 edges
+1. `LightingWindow` - 222 edges
 2. `LightingCanvas` - 194 edges
-3. `EditorTest` - 142 edges
+3. `EditorTest` - 143 edges
 4. `catalog()` - 93 edges
 5. `document_` - 81 edges
-6. `EffectLayer` - 71 edges
-7. `LightingDocument` - 70 edges
+6. `LightingDocument` - 75 edges
+7. `EffectLayer` - 71 edges
 8. `Implementation status` - 66 edges
 9. `IHidDevice` - 59 edges
 10. `EffectKind` - 53 edges
@@ -191,17 +188,17 @@
   docs/design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md → src/backends/PawnIoRam.cpp
 - `Problem confirmed in the current code` --references--> `LightingWindow`  [INFERRED]
   docs/LAYER_MODEL_PLAN.md → src/editor/LightingWindow.h
-- `Device plugins and gaps in our current contract` --references--> `IHidDevice`  [INFERRED]
-  docs/SIGNALRGB_REPOSITORY_RESEARCH.md → src/hid/IHidDevice.h
+- `Open questions` --references--> `IHidDevice`  [INFERRED]
+  docs/OPENRGB_HARDWARE_PORT_PLAN.md → src/hid/IHidDevice.h
+- `What's portable right now` --references--> `IHidDevice`  [INFERRED]
+  docs/OPENRGB_HARDWARE_PORT_PLAN.md → src/hid/IHidDevice.h
 - `Task 18: Final wire-up and real-hardware verification` --references--> `IHidDevice`  [INFERRED]
   docs/superpowers/plans/2026-10-19-lighting-studio.md → src/hid/IHidDevice.h
-- `Service pipe access list - 2026-11-14 (Windows only)` --references--> `ServiceServer`  [INFERRED]
-  CONTINUE.md → src/service/ServiceServer.h
 
 ## Import Cycles
 - None detected.
 
-## Communities (179 total, 47 thin omitted)
+## Communities (176 total, 40 thin omitted)
 
 ### Community 0 - "IDriver"
 Cohesion: 0.10
@@ -228,8 +225,8 @@ Cohesion: 0.22
 Nodes (9): MSI mainboard LED protocol, "800-series" generation (VID `0x0DB0`/PID `0x0076`), Record layout (16 bytes, per zone/"area"), Report `0x50` ("Gen1"), 290 bytes — status and default configuration, Report `0x51` ("Gen1_Adv"), 727 bytes — per-LED addressing of individual segments, Report `0x90`+port / `0xB0`+port ("Gen2"/"Gen2_Adv") — newer strip model, ⚠️ Safety-relevant finding: the `Store` flag is set on every write, Upstream OpenRGB bug found while cross-checking: `FeaturePacket_PerLED_761` is 727 bytes, not 761, Verification against the existing capture template (+1 more)
 
 ### Community 7 - "RgbColor"
-Cohesion: 0.12
-Nodes (8): Responsibilities, HpOmenDriver, channels_, HpOmenModule, RgbColor, b, g, r
+Cohesion: 0.15
+Nodes (6): HpOmenDriver, channels_, RgbColor, b, g, r
 
 ### Community 8 - "MsiDriver"
 Cohesion: 0.19
@@ -240,28 +237,32 @@ Cohesion: 0.11
 Nodes (19): MsiGen1AdvArea, JAF, JARGB1, JARGB2, JARGB3, JPIPE1, JPIPE2, JPIPE3 (+11 more)
 
 ### Community 11 - "LightingWindow.cpp"
-Cohesion: 0.06
-Nodes (8): canCreateEffect(), spin, button(), LightingWindow::LightingWindow(), scan_, QTreeWidgetItem, setEffectControlRange(), studioLogo()
+Cohesion: 0.04
+Nodes (11): channelHasFixedComponent(), spin, button(), colorIcon(), LightingWindow::LightingWindow(), scan_, PreviewDivider, PreviewSplitter (+3 more)
 
 ### Community 12 - "MsiColor"
 Cohesion: 0.12
 Nodes (18): File Structure, Global Constraints, Review Focus, Self-Review, Standalone Lighting App — v1 Skeleton Implementation Plan, Task 11: Windows autostart registration, Task 1: Project scaffolding and test harness, Task 3: HID transport interface and hidapi backend (+10 more)
 
 ### Community 13 - "test_editor.cpp"
-Cohesion: 0.07
-Nodes (8): document_, studioThemeColor(), applyStudioStyle(), addEffect(), artifactDirectory(), catalog(), EditorTest, QTemporaryDir
+Cohesion: 0.06
+Nodes (6): document_, addEffect(), artifactDirectory(), catalog(), EditorTest, QTemporaryDir
 
 ### Community 14 - "AeroBackend"
 Cohesion: 0.12
 Nodes (14): AeroBackend, attempted_, failed_, handle_, kChannel, lastSend_, library_, read_ (+6 more)
 
 ### Community 15 - "ColorListEditor"
-Cohesion: 0.06
-Nodes (23): Component catalog schema 1, Task 5: `BreathingEffect`, Task 7: `CometEffect` and `MarqueeEffect`, ColorEditor, hex_, picker_, public, ColorListEditor (+15 more)
+Cohesion: 0.08
+Nodes (18): Component catalog schema 1, Task 5: `BreathingEffect`, Task 7: `CometEffect` and `MarqueeEffect`, ColorEditor, hex_, picker_, public, ColorListEditor (+10 more)
+
+### Community 16 - "HardwareArtwork.cpp"
+Cohesion: 0.19
+Nodes (7): drawHardwareArtwork(), drawHardwareComponentArtwork(), hardwareArtworkCategory(), hardwareBodyBounds(), hardwarePreviewLedRadius(), initializeHardwareArtwork(), productIcon()
 
 ### Community 17 - "PawnIoRam.cpp"
-Cohesion: 0.14
-Nodes (9): call(), libraryPath(), locked(), onPrimary(), PawnIoRam, error, pawnIoRamDiscoveryError(), reconcilePawnIoRamAddresses() (+1 more)
+Cohesion: 0.13
+Nodes (10): version, call(), libraryPath(), locked(), onPrimary(), PawnIoRam, error, pawnIoRamDiscoveryError() (+2 more)
 
 ### Community 18 - "ServiceProtocol.cpp"
 Cohesion: 0.26
@@ -280,28 +281,28 @@ Cohesion: 0.07
 Nodes (27): Active-layer picking, canvas labels and transport controls (2026-10-28), Authoring controls, pan and two patterns (2026-10-28), Components fullscreen and edit-mode visibility fix (2026-10-28), CONTINUE.md history archive, Dense strip SVG visibility regression (2026-10-26), Editor interaction and channel preview follow-up (2026-10-27), Editor UX, Pan crash and four sources (2026-10-28), Fixed optional component captions (2026-10-26) (+19 more)
 
 ### Community 22 - "LIGHTING_EDITOR.md"
-Cohesion: 0.10
-Nodes (14): Collaboration contract, Current status, Decisions and validation boundaries, Final software validation, Package and scope limits, Reliability and layer-design work (2026-11-11), Evidence, Ice workspace - GS-06-R2 (+6 more)
+Cohesion: 0.15
+Nodes (8): Evidence, Ice workspace - GS-06-R2, Behavioral evidence, GS-06-R2 editor, background and mask validation, Investigation and limits, Resulting interface, Design and collaboration, Editor interaction audit and resolution - 2026-11-13
 
 ### Community 23 - "IDriverModule"
 Cohesion: 0.08
-Nodes (5): AuxiliaryModule, MsiModule, IDriverModule, IncompatibleModule, MissingInterface
+Nodes (5): AuxiliaryModule, HpOmenModule, IDriverModule, IncompatibleModule, MissingInterface
 
 ### Community 24 - "LightingCanvas"
 Cohesion: 0.02
-Nodes (79): LightingCanvas, activeLayer_, additiveMarquee_, autoFit_, autoScroll_, autoScrollClock_, autoScrollSpeed_, componentSeconds_ (+71 more)
+Nodes (76): LightingCanvas, activeLayer_, additiveMarquee_, autoFit_, autoScroll_, autoScrollClock_, autoScrollSpeed_, componentSeconds_ (+68 more)
 
 ### Community 25 - ".render"
-Cohesion: 0.17
-Nodes (5): renderEffect(), validateEffect(), makeSource(), validate(), layer()
+Cohesion: 0.21
+Nodes (5): canCreateEffect(), isPattern(), renderEffect(), validateEffect(), layer()
 
-### Community 26 - "PaletteStrip"
-Cohesion: 0.15
-Nodes (12): PaletteStrip, add, begin, colors, dragging, end, gradient, move (+4 more)
+### Community 26 - "authorizeHardwareOutput"
+Cohesion: 0.20
+Nodes (5): authorizeHardwareOutput(), loadModules(), previewOutputReports(), RecordingTransport, reports_
 
 ### Community 27 - "Mystic Light — Overall Architecture"
-Cohesion: 0.29
-Nodes (7): Components, HID password mechanism (`HID_Basic.init`), LEDKeeper2.exe, MLModule.dll — network core, Mystic Light — Overall Architecture, Mystic_Light_Service.exe, SyncData.dll
+Cohesion: 0.14
+Nodes (12): Components, HID password mechanism (`HID_Basic.init`), LEDKeeper2.exe, MLModule.dll — network core, Mystic Light — Overall Architecture, Mystic_Light_Service.exe, SyncData.dll, Content (+4 more)
 
 ### Community 28 - "Reference repository reuse review"
 Cohesion: 0.12
@@ -311,17 +312,17 @@ Nodes (14): CompGen, Decision summary, Implementation and validation sequence, L
 Cohesion: 0.25
 Nodes (8): Building from source, Documentation, Features, Getting started, License, MSI Mystic Light – Lighting Studio, Related repos, Supported hardware
 
-### Community 30 - "ServicePanel"
+### Community 30 - "QJsonObject"
 Cohesion: 0.08
-Nodes (22): main(), command(), host(), serviceInventory(), ServicePanel, active_, changedAt_, clockDirty_ (+14 more)
+Nodes (23): main(), command(), host(), serviceInventory(), ServicePanel, active_, changedAt_, clockDirty_ (+15 more)
 
 ### Community 31 - "BuildReport0x51"
-Cohesion: 0.16
+Cohesion: 0.18
 Nodes (7): Completed: first v1 increment (2026-10-23), Task 12: Application wire-up and first real-hardware verification, Task 2: MSI wire-protocol encoders, Task 6: MSI motherboard driver, BuildReport0x50(), BuildReport0x51(), MsiProtocolTest
 
 ### Community 32 - "ComponentDefinition"
-Cohesion: 0.07
-Nodes (22): ComponentDefinition, category, id, manufacturer, mapping, name, nonPhysicalSlots, positions (+14 more)
+Cohesion: 0.11
+Nodes (16): ComponentDefinition, category, id, manufacturer, mapping, name, nonPhysicalSlots, positions (+8 more)
 
 ### Community 33 - "EffectLayer"
 Cohesion: 0.03
@@ -329,19 +330,19 @@ Nodes (59): EffectLayer, allChannels, blend, breathe, center, channelTargets, co
 
 ### Community 34 - "LightingWindow"
 Cohesion: 0.03
-Nodes (70): ColorEditor, ColorListEditor, LightingWindow, activeLayer_, adjustingPanels_, advanced_, allChannels_, animation_ (+62 more)
+Nodes (71): ColorEditor, ColorListEditor, LightingWindow, activeLayer_, adjustingPanels_, advanced_, allChannels_, animation_ (+63 more)
 
 ### Community 35 - "OutputSession"
-Cohesion: 0.12
+Cohesion: 0.11
 Nodes (11): OutputSession, appliedNative_, driver_, identity_, pending_, profile_, transport_, State (+3 more)
 
 ### Community 36 - "EffectRenderer.cpp"
-Cohesion: 0.18
-Nodes (12): effectTransform(), interpolate(), isParticle(), noise2d(), periodic(), polygon(), renderAtTime(), renderBaseEffect() (+4 more)
+Cohesion: 0.25
+Nodes (11): interpolate(), isParticle(), noise2d(), periodic(), polygon(), renderAtTime(), renderBaseEffect(), renderClippedBaseEffect() (+3 more)
 
 ### Community 37 - "Lighting editor"
-Cohesion: 0.04
-Nodes (49): Addressable LEDs and NV5 MKII evidence, Artwork alignment and custom device geometry, Artwork, continuous gestures and spatial controls (GS-06), Authoring controls follow-up, Canvas playback, fullscreen and growing Layout, Channel targets and clocks (schema 9), Colors, paint sources and gradient stops (schema 11), Component authoring and import (+41 more)
+Cohesion: 0.07
+Nodes (30): Addressable LEDs and NV5 MKII evidence, Authoring controls follow-up, Channel targets and clocks (schema 9), Colors, paint sources and gradient stops (schema 11), Component authoring and import, Component sampling, Distinct source capabilities and particle authoring, Effects and direct tools (+22 more)
 
 ### Community 38 - "LenovoMotherboardModule.cpp"
 Cohesion: 0.14
@@ -356,16 +357,16 @@ Cohesion: 0.13
 Nodes (13): LED discovery, Data model (`RGBControllerInterface.h`) — what the server actually exposes, Deeper pass (2026-10-29, same day): SignalRgb.exe native binary + OpenRGB current-master re-check, Full decompile, targeted (2026-10-29, same session), Handshake (`NetworkClient::ConnectionThreadFunction`, `NetworkClient.cpp:1707`), License note (not a legal determination), Mapping onto this app's architecture, OpenRGB current-master re-check (`build/research/openrgb`, `aac7e551`) (+5 more)
 
 ### Community 42 - "ComponentEditor.cpp"
-Cohesion: 0.08
-Nodes (3): QPainter, updatePlaybackButton(), studioToolIcon()
+Cohesion: 0.05
+Nodes (10): ChannelEditor, fixedComponent_, initial_, CoordinateDelegate, updatePlaybackButton(), QDoubleSpinBox, QLabel, QLineEdit (+2 more)
 
-### Community 43 - "OutputPanel"
-Cohesion: 0.08
-Nodes (17): OutputPanel, authorize_, authorizing_, automatic_, channelDetails_, configured_, connections_, endpoints_ (+9 more)
+### Community 43 - "Porting OpenRGB/SignalRGB hardware support into this app — motherboard tier"
+Cohesion: 0.14
+Nodes (14): 162-byte MSI family — corroborated, not conflicting, ASRock Polychrome USB (`26CE:01A2`) — mostly confirmed, one open discrepancy, ASRock Polychrome USB — implemented (2026-10-29, same session), ENE SMBus (RAM) — register map confirmed 3-way, detection method rejected, Lenovo motherboard — implemented (2026-10-29, same session), Not yet cross-checked this pass, Open questions, Our board (`0DB0:0076`) — triple-confirmed, including the shared bug (+6 more)
 
-### Community 44 - "test_output_ui.cpp"
-Cohesion: 0.22
-Nodes (8): previewFrame_, configure(), connection(), identity(), OutputUiTest, QTemporaryDir, profile(), state()
+### Community 44 - "OutputPanel"
+Cohesion: 0.05
+Nodes (35): previewFrame_, channelKey(), OutputPanel, authorize_, authorizing_, automatic_, channelDetails_, configured_ (+27 more)
 
 ### Community 45 - "Lighting Studio — Design Doc (v2)"
 Cohesion: 0.12
@@ -381,7 +382,7 @@ Nodes (6): GeometryView, artwork, commit, moved, pressPosition, scale
 
 ### Community 48 - "test_service.cpp"
 Cohesion: 0.13
-Nodes (7): Child, process, cmd(), project(), ServiceTest, private, ServiceTest::protocolBounds()
+Nodes (8): Child, process, cmd(), identity(), project(), ServiceTest, private, ServiceTest::protocolBounds()
 
 ### Community 49 - "Record"
 Cohesion: 0.08
@@ -403,28 +404,32 @@ Nodes (7): DriverInstance, driver_, loader_, Entry, id, loader, module
 Cohesion: 0.17
 Nodes (12): MsiLightingMode, Advanced, Breathing, ColorRing, Flame, GodLike, Lightning, Meteor (+4 more)
 
-### Community 54 - "RecordingTransport"
-Cohesion: 0.14
-Nodes (5): PairedTransport, control, leds, RecordingTransport, reports_
+### Community 54 - "PairedTransport"
+Cohesion: 0.22
+Nodes (3): PairedTransport, control, leds
 
 ### Community 55 - "ComponentPlacement"
-Cohesion: 0.20
+Cohesion: 0.18
 Nodes (6): ComponentPlacement, componentId, id, locked, origin, rotation
 
 ### Community 56 - "test_scheduler.cpp"
 Cohesion: 0.26
 Nodes (7): assertClosedOnWorker(), factory(), frame(), identity(), SchedulerTest, SchedulerTest::latestWhileStarting(), private
 
-### Community 57 - "test_output.cpp"
-Cohesion: 0.24
-Nodes (5): frame(), identity(), OutputTest, OutputTest::latestFrameAndNativeCache(), private
+### Community 57 - ".connect"
+Cohesion: 0.18
+Nodes (6): validateFrame(), frame(), identity(), OutputTest, OutputTest::latestFrameAndNativeCache(), private
+
+### Community 58 - ".edit"
+Cohesion: 0.16
+Nodes (4): loadComponentDefinition(), state_, applyStudioStyle(), channelProfile()
 
 ### Community 59 - "Transport"
 Cohesion: 0.15
 Nodes (4): ReleaseGate, record, Transport, record_
 
 ### Community 61 - "EneRamProtocol"
-Cohesion: 0.21
+Cohesion: 0.23
 Nodes (4): EneRamProtocol, address_, transfer_, AuxiliaryTest
 
 ### Community 64 - "inventory_hardware.py"
@@ -432,12 +437,12 @@ Cohesion: 0.05
 Nodes (13): arguments(), build(), git(), integer(), js_return(), priority(), registrations(), snapshot() (+5 more)
 
 ### Community 65 - "I2cInfo"
-Cohesion: 0.18
-Nodes (11): I2cInfo, address, ddc, displayMask, port, portSet, reg, regSize (+3 more)
+Cohesion: 0.20
+Nodes (10): I2cInfo, address, ddc, displayMask, port, portSet, reg, regSize (+2 more)
 
 ### Community 67 - "OutputScheduler"
-Cohesion: 0.10
-Nodes (13): Automatic GUI output and presence, Output scheduler, Output session backend, Restored native transports, Transient layout sampling and per-channel pause, Verification, OutputScheduler, mutex_ (+5 more)
+Cohesion: 0.13
+Nodes (7): OutputScheduler, mutex_, pending_, public, stopRequested_, wake_, worker_
 
 ### Community 68 - "FakeHidDevice"
 Cohesion: 0.15
@@ -452,40 +457,40 @@ Cohesion: 0.29
 Nodes (4): Status, error, generation, state
 
 ### Community 73 - "src/main.cpp"
-Cohesion: 0.11
+Cohesion: 0.09
 Nodes (4): AppSession, AppSession::AppSession(), recoveryFile_, timer_
 
 ### Community 74 - "Transport"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (7): Recording, opens, present, writes, Transport, opened, record
 
-### Community 77 - "HidApiDevice"
-Cohesion: 0.10
-Nodes (15): scanAuxiliaryHardware(), HidApiDevice, handle_, initialized_, authorizeHardwareOutput(), loadModules(), OutputProof, controlIdentity (+7 more)
+### Community 77 - "OutputProof"
+Cohesion: 0.20
+Nodes (6): OutputProof, controlIdentity, identity, initial, profile, reports
 
 ### Community 78 - "Effect implementation checklist"
 Cohesion: 0.20
 Nodes (9): Additional native patterns, Additional native source batch, Capability gate and particle follow-up, Editing follow-up, Effect implementation checklist, First implementation batch, Second batch and color picker, Second batch and remaining candidates (+1 more)
 
 ### Community 79 - "ServiceRuntime.cpp"
-Cohesion: 0.17
-Nodes (6): prepareOutput(), Scan, key(), ServiceRuntime::ServiceRuntime(), writeFile(), identity()
+Cohesion: 0.21
+Nodes (5): prepareOutput(), Scan, key(), ServiceRuntime::ServiceRuntime(), writeFile()
 
-### Community 80 - "LightingDocument"
-Cohesion: 0.09
-Nodes (15): LightingDocument, colorPreviewBefore_, componentNames_, frameCache_, frameRevision_, frameSeconds_, initialCatalog_, nameRevision_ (+7 more)
+### Community 80 - "LightingState"
+Cohesion: 0.29
+Nodes (5): LightingState, assignments, components, layers, placements
 
 ### Community 81 - "EffectKind"
 Cohesion: 0.05
 Nodes (41): EffectKind, Aurora, Burst, Checkerboard, Circle, ConicalGradient, Cross, Diamond (+33 more)
 
-### Community 82 - "SaturationValueField"
-Cohesion: 0.08
-Nodes (12): ColorPopup, finished, gestureBegun, sampling, SaturationValueField, brightness, changed, hue (+4 more)
+### Community 82 - "PaletteStrip"
+Cohesion: 0.05
+Nodes (24): ColorPopup, finished, gestureBegun, sampling, SaturationValueField, brightness, changed, hue (+16 more)
 
 ### Community 83 - "CONTINUE.md"
 Cohesion: 0.25
-Nodes (6): Editor fixes and small audit fixes - 2026-11-14 (GS-06-R7, build/r4), GS-06-R2 UI correction - 2026-11-13, JARGB2 shared routing - 2026-11-14, JARGB2 topology follow-up - updated 2026-11-14, LEDKeeper2 stop - 2026-11-14, Service pipe access list - 2026-11-14 (Windows only)
+Nodes (6): Editor fixes and small audit fixes - 2026-11-14 (GS-06-R7, build/r4), GS-06-R2 UI correction - 2026-11-13, Identify flash - 2026-11-15, JARGB2 shared routing - 2026-11-14, JARGB2 topology follow-up - updated 2026-11-14, LEDKeeper2 stop - 2026-11-14
 
 ### Community 84 - "ChannelAssignment"
 Cohesion: 0.09
@@ -495,33 +500,37 @@ Nodes (17): ChannelAssignment, channelId, endpoint, id, native, placements, prof
 Cohesion: 0.15
 Nodes (17): conflictReason(), creationTime(), matchesProcessIdentity(), NativeServices, manager_, verifiedPid_, normalized(), processPath() (+9 more)
 
-### Community 87 - "HidApiDevice.cpp"
-Cohesion: 0.13
-Nodes (3): Resolved: `IHidDevice` read capability added (API 3), initializeHid(), HidBackendTest
+### Community 87 - "HidApiDevice"
+Cohesion: 0.08
+Nodes (18): Resolved: `IHidDevice` read capability added (API 3), hid_device_, HidApiDevice, handle_, initialized_, HidDescriptor, interfaceNumber, manufacturer (+10 more)
 
 ### Community 88 - ".pushColors"
 Cohesion: 0.08
 Nodes (13): Task 10: Roccat Kone Aimo driver, feature(), output(), PeripheralDriver, channel_, initialized_, BuildBasiliskColorsReport(), BuildBasiliskModeCustomReport() (+5 more)
 
 ### Community 89 - "IHidDevice"
-Cohesion: 0.08
-Nodes (15): 162-byte MSI family — corroborated, not conflicting, ASRock Polychrome USB (`26CE:01A2`) — mostly confirmed, one open discrepancy, ASRock Polychrome USB — implemented (2026-10-29, same session), ENE SMBus (RAM) — register map confirmed 3-way, detection method rejected, Lenovo motherboard — implemented (2026-10-29, same session), Not yet cross-checked this pass, Open questions, Our board (`0DB0:0076`) — triple-confirmed, including the shared bug (+7 more)
+Cohesion: 0.10
+Nodes (10): Components are data, not hardware drivers, Device plugins and gaps in our current contract, Exact MSI B850 findings, Import validation and provenance, Inventory and pinned revisions, Recommended next implementation increment, Repository installation and update evidence, Result (+2 more)
 
-### Community 90 - "OutputPanel.cpp"
-Cohesion: 0.24
-Nodes (4): channelKey(), OutputPanel::OutputPanel(), stateName(), sameOutputScope()
+### Community 90 - "Layer visibility, brush size and Delete"
+Cohesion: 0.22
+Nodes (9): Artwork alignment and custom device geometry, Detailed hardware artwork, Fixed-device settings versus attachable headers, Gaming workspace and responsive panels, Layer visibility, brush size and Delete, Mask playback, navigation and cosmetic hardware variants, Model labels, fullsize keyboards and zero-angle defaults, Scrollbar contrast and Effects preview divider (+1 more)
 
-### Community 91 - "qttest"
-Cohesion: 0.16
+### Community 91 - "test_hp_omen.cpp"
+Cohesion: 0.19
 Nodes (5): HpOmenTest, identity(), OutputOnlyHid, featureWrites, profile()
 
-### Community 92 - "Record"
-Cohesion: 0.14
-Nodes (6): Record, closes, mutex, reports, Transport, record_
+### Community 92 - "DeviceProfile.cpp"
+Cohesion: 0.36
+Nodes (5): DeviceProfile::fromJson(), DeviceProfile::load(), DeviceProfile::matches(), integer(), text()
+
+### Community 93 - ".cancelGesture"
+Cohesion: 0.10
+Nodes (3): MaskTool, Brush, Gradient
 
 ### Community 94 - "FakeProcesses"
-Cohesion: 0.06
-Nodes (25): FakeProcesses, adminActive, adminNeverStops, adminPendingPolls, adminPollError, adminQueryError, adminRequestError, adminRequests (+17 more)
+Cohesion: 0.08
+Nodes (21): FakeProcesses, adminActive, adminNeverStops, adminPendingPolls, adminPollError, adminQueryError, adminRequestError, adminRequests (+13 more)
 
 ### Community 95 - "Layer model proposal"
 Cohesion: 0.20
@@ -532,55 +541,55 @@ Cohesion: 0.36
 Nodes (3): Task 9: SteelSeries Apex 3 driver (T-Zone protocol), BuildApex3BrightnessPacket(), BuildApex3ColorsPacket()
 
 ### Community 97 - "HardwarePicker"
-Cohesion: 0.08
-Nodes (17): channelHasFixedComponent(), generic(), HardwarePicker, HardwarePicker::HardwarePicker(), headers_, leds_, products_, productsList_ (+9 more)
+Cohesion: 0.10
+Nodes (14): QPainter, HardwarePicker, headers_, leds_, products_, productsList_, HeaderChoice, identity (+6 more)
 
 ### Community 99 - "NativeEffect"
-Cohesion: 0.08
-Nodes (17): AuxiliaryDriver, channel_, DiscoveryStatus, Available, Failed, Unknown, Unsupported, LedTopology (+9 more)
+Cohesion: 0.10
+Nodes (16): DiscoveryStatus, Available, Failed, Unknown, Unsupported, LedTopology, error, ledCounts (+8 more)
 
-### Community 100 - "LightingDocument.cpp"
-Cohesion: 0.13
-Nodes (5): chainOffsets(), chainSharing(), chainStarts(), LightingDocument::LightingDocument(), placedPoints()
+### Community 100 - "LightingDocument"
+Cohesion: 0.08
+Nodes (15): LightingDocument, colorPreviewBefore_, componentNames_, frameCache_, frameRevision_, frameSeconds_, identify_, initialCatalog_ (+7 more)
 
 ### Community 102 - "Lighting Studio GUI and interaction audit"
 Cohesion: 0.18
 Nodes (10): Color picker, Consolidation, Evidence, Findings, ordered by impact, Identity and direction, Implementation follow-up, Implementation order and acceptance, Integer scales (+2 more)
 
-### Community 104 - "SignalRGB repository research"
-Cohesion: 0.22
-Nodes (9): Components are data, not hardware drivers, Device plugins and gaps in our current contract, Exact MSI B850 findings, Import validation and provenance, Inventory and pinned revisions, Recommended next implementation increment, Repository installation and update evidence, Result (+1 more)
+### Community 104 - "Effect editor interaction research"
+Cohesion: 0.25
+Nodes (8): Acceptance and implementation gates, Effect editor interaction research, Findings in current source, Interaction contract, Interface and identity, Recommended content model, Reference patterns, Scope and evidence
 
 ### Community 105 - "Test review: recent lighting changes (2026-10-24)"
 Cohesion: 0.25
 Nodes (7): Defects exposed before production changes, Final validation, Independent expected results, Limits, Mutation checks, Previously adjusted expectations, Test review: recent lighting changes (2026-10-24)
 
-### Community 106 - "QJsonObject"
-Cohesion: 0.12
-Nodes (11): integer(), requiredText(), channelAssignmentJson(), parseChannelAssignment(), importLegacyHardware(), DeviceProfile::fromJson(), DeviceProfile::load(), integer() (+3 more)
+### Community 106 - ".fromJson"
+Cohesion: 0.13
+Nodes (6): channelMapping(), integer(), loadComponentCatalog(), requiredText(), importLegacyHardware(), ComponentsTest
+
+### Community 107 - "Gradient travel and blend verification (2026-10-24)"
+Cohesion: 0.25
+Nodes (8): Canvas playback, fullscreen and growing Layout, Gradient travel and blend verification (2026-10-24), Identify flash (2026-11-15), Live layout movement and output selection, Per-device LED arrangement, Physical LEDs and reserved protocol slots, RAM component geometry correction, Restored integrated lighting
 
 ### Community 108 - "Lightning and Fireworks visual review (2026-10-29)"
 Cohesion: 0.50
 Nodes (3): Before and after, Lightning and Fireworks visual review (2026-10-29), Sources and observation limits
 
-### Community 109 - ".mouseMoveEvent"
-Cohesion: 0.22
-Nodes (5): isGradient(), isPattern(), isShape(), centeredGradient(), gradientEndpoints()
+### Community 109 - ".mousePressEvent"
+Cohesion: 0.17
+Nodes (5): effectTransform(), isGradient(), isShape(), centeredGradient(), gradientEndpoints()
 
 ### Community 110 - "ProfileCandidate"
-Cohesion: 0.12
-Nodes (10): BoardIdentity, manufacturer, model, deviceIdentity(), findProfileCandidates(), ProfileCandidate, device, profileId (+2 more)
-
-### Community 112 - "StudioWidgets.cpp"
-Cohesion: 0.14
-Nodes (6): openStudioColorPicker(), QToolButton, ColorEditor::ColorEditor(), ColorListEditor::ColorListEditor(), studioMotionEnabled(), StudioSectionButton
+Cohesion: 0.11
+Nodes (13): scanAuxiliaryHardware(), BoardIdentity, manufacturer, model, deviceIdentity(), findProfileCandidates(), ProfileCandidate, device (+5 more)
 
 ### Community 113 - "service/main.cpp"
-Cohesion: 0.27
+Cohesion: 0.15
 Nodes (8): control(), knownFolder(), main(), readJson(), report(), run(), serviceMain(), verifyInstall()
 
-### Community 114 - ".create"
-Cohesion: 0.20
+### Community 114 - ".setNativeMode_rejectsInvalidEffectsAndClosedDevice"
+Cohesion: 0.27
 Nodes (3): identity(), LenovoMotherboardTest, profile()
 
 ### Community 115 - "AsrockPolychromeDriver"
@@ -591,33 +600,41 @@ Nodes (10): AsrockPolychromeDriver, channels_, state_, AsrockPolychromeModule, m
 Cohesion: 0.12
 Nodes (12): BuildLenovoMotherboardReports(), LenovoMotherboardMode, Breathing, RainbowWave, Random, Sparkle, Specter, Static (+4 more)
 
+### Community 117 - "ConflictService"
+Cohesion: 0.11
+Nodes (12): ConflictService, acceptsStop, commandLine, name, ownProcess, pid, state, IConflictServices (+4 more)
+
 ### Community 118 - "ServiceServer.cpp"
 Cohesion: 0.08
-Nodes (11): QLocalSocket, QLocalServer, QLocalSocket, QWinEventNotifier, ServiceServer, clients_, ServiceServer::connected(), error_ (+3 more)
+Nodes (12): Service pipe access list - 2026-11-14 (Windows only), QLocalSocket, QLocalServer, QLocalSocket, QWinEventNotifier, ServiceServer, clients_, ServiceServer::connected() (+4 more)
 
-### Community 119 - "QDialog"
-Cohesion: 0.14
-Nodes (7): ChannelEditor, fixedComponent_, initial_, ComponentEditor, category_, manufacturer_, nonPhysicalSlots_
+### Community 119 - "ComponentEditor"
+Cohesion: 0.25
+Nodes (4): ComponentEditor, category_, manufacturer_, nonPhysicalSlots_
 
-### Community 121 - "Effect editor interaction research"
-Cohesion: 0.12
-Nodes (14): Editor interaction implementation, Identity and color sampling, Persistence and limits, Pointer behavior, Rendering and output status, Result, Acceptance and implementation gates, Effect editor interaction research (+6 more)
+### Community 121 - "Editor interaction implementation"
+Cohesion: 0.22
+Nodes (6): Editor interaction implementation, Identity and color sampling, Persistence and limits, Pointer behavior, Rendering and output status, Result
 
 ### Community 122 - "Studio interaction and motion review"
 Cohesion: 0.14
 Nodes (14): Data and transport boundaries, Design principles checked, Direct group dragging and automatic output (2026-10-24), Drawing and hardware regression pass (2026-10-24), Endpoint list correction and restored backends (2026-10-24), Fixed optional component captions (2026-10-26), Gaming lighting workspace review implementation (2026-10-26), Gradient/output feedback correction (2026-10-24) (+6 more)
 
 ### Community 125 - "test_hid_backend.cpp"
-Cohesion: 0.21
+Cohesion: 0.17
 Nodes (8): HID_API_CALL hid_close(), HID_API_CALL hid_error(), HID_API_CALL hid_free_enumeration(), HID_API_CALL hid_get_feature_report(), HID_API_CALL hid_read_timeout(), HID_API_CALL hid_send_feature_report(), HID_API_CALL hid_write(), hid_device_
+
+### Community 126 - "QMap"
+Cohesion: 0.29
+Nodes (4): SharedRun, firstLed, lastLed, source
 
 ### Community 131 - "Tool"
 Cohesion: 0.18
 Nodes (10): Tool, Ellipse, Eraser, Fill, Gradient, Line, Move, Pan (+2 more)
 
 ### Community 133 - ".load"
-Cohesion: 0.20
-Nodes (3): fail(), ModuleRegistry, entries_
+Cohesion: 0.19
+Nodes (4): fail(), ModuleRegistry, entries_, PeripheralTest
 
 ### Community 134 - "Connection"
 Cohesion: 0.33
@@ -627,9 +644,9 @@ Nodes (4): Connection, approved, generation, scheduler
 Cohesion: 0.12
 Nodes (15): Access control and process boundary, Conclusion, Coverage and next gate, Exact evidence, Installation and licensing boundary, PawnIO integration and service feasibility, Performance and recovery, Primary sources (+7 more)
 
-### Community 137 - "HidDescriptor"
-Cohesion: 0.15
-Nodes (10): hid_device_, HidDescriptor, interfaceNumber, manufacturer, path, product, productId, usage (+2 more)
+### Community 137 - "Reliability and layer-design work (2026-11-11)"
+Cohesion: 0.33
+Nodes (6): Collaboration contract, Current status, Decisions and validation boundaries, Final software validation, Package and scope limits, Reliability and layer-design work (2026-11-11)
 
 ### Community 138 - "Lighting Studio editor UX review"
 Cohesion: 0.15
@@ -639,48 +656,44 @@ Nodes (13): Additional procedural sources, Captures and measured checks, Crash e
 Cohesion: 0.33
 Nodes (5): Project compatibility, Rendering, color and numeric behavior, Unified Editor implementation, Verification, Workspace and interaction
 
-### Community 140 - ".load"
-Cohesion: 0.22
+### Community 140 - "QPainter"
+Cohesion: 0.24
 Nodes (3): SnapGrid, enabled, spacing
 
 ### Community 143 - "JARGB2 physical response tests - 2026-11-13 / 2026-11-14"
 Cohesion: 0.22
 Nodes (8): Approved tests and observations, Follow-up observations - 2026-11-14, JARGB2 physical response tests - 2026-11-13 / 2026-11-14, Pattern 6 - sequential fan-prefix qualification, Sleep/resume event, Software implications, Software status - 2026-11-14, Supported interpretation
 
-### Community 146 - "ConflictService"
-Cohesion: 0.11
-Nodes (13): ConflictService, acceptsStop, commandLine, name, ownProcess, pid, state, IConflictProcesses (+5 more)
+### Community 146 - "ConflictProcess"
+Cohesion: 0.12
+Nodes (8): ConflictProcess, executable, manualStop, path, pid, reason, started, IConflictProcesses
 
 ### Community 150 - "Hardware migration inventory and priorities"
 Cohesion: 0.33
 Nodes (6): Browse the full list, Hardware migration inventory and priorities, Prioritized migration queue, Reproduction and next decisions, Scale and counting units, Source provenance and limitations
 
 ### Community 151 - "OutputFrame"
-Cohesion: 0.16
-Nodes (10): previewOutputReports(), ChannelOutput, channelId, colors, native, software, OutputFrame, channels (+2 more)
+Cohesion: 0.10
+Nodes (18): Automatic GUI output and presence, Output scheduler, Output session backend, Restored native transports, Transient layout sampling and per-channel pause, Verification, OutputConnection, initial (+10 more)
 
 ### Community 153 - "AsrockPolychromeZone"
 Cohesion: 0.15
 Nodes (10): AsrockPolychromeZone, Argb1, Argb2, Audio, IoCover, Pcb, Pch, Rgb1 (+2 more)
 
-### Community 154 - "QWidget"
-Cohesion: 0.16
-Nodes (6): disclosure(), QToolBar, StudioBanner, artwork_, StudioHeaderToolbar, followHeaderRow_
+### Community 154 - "QToolButton"
+Cohesion: 0.10
+Nodes (8): QToolButton, LayerDelegate, studioThemeColor(), QToolBar, StudioHeaderToolbar, followHeaderRow_, StudioSectionButton, studioToolIcon()
 
-### Community 155 - "validateChannelAssignments"
-Cohesion: 0.13
-Nodes (7): channelMapping(), SharedRun, firstLed, lastLed, source, sharedColorNote(), validateChannelAssignments()
-
-### Community 157 - "README.md"
-Cohesion: 0.13
-Nodes (5): OpenRGB controller-family worklist, Entwurf: Kommentar für GitLab-Issues #4935 / #5429, Changes, Lighting Studio 0.1.0, Requirements and limitations
-
-### Community 159 - "EffectParameter"
+### Community 155 - ".channelAssignments"
 Cohesion: 0.18
-Nodes (8): EffectParameter, EffectLayer, id, label, maximum, minimum, schemaVersion, practicalEffectRange()
+Nodes (5): chainStarts(), channelAssignmentJson(), parseChannelAssignment(), sharedColorNote(), validateChannelAssignments()
+
+### Community 159 - "ParameterSpinBox"
+Cohesion: 0.14
+Nodes (10): EffectParameter, EffectLayer, id, label, maximum, minimum, schemaVersion, practicalEffectRange() (+2 more)
 
 ### Community 160 - "EffectRenderer.h"
-Cohesion: 0.18
+Cohesion: 0.14
 Nodes (9): EffectDefinition, description, id, kind, label, particleCount, patternSites, patternSpeed (+1 more)
 
 ### Community 161 - "SignalForge editor reference"
@@ -688,40 +701,40 @@ Cohesion: 0.40
 Nodes (5): Evidence and useful concepts, Proposed adaptation for this app, Reuse boundary, SignalForge editor reference, Sources
 
 ### Community 162 - "Hardware modules"
-Cohesion: 0.17
-Nodes (12): Adding support, Build and inspect, Compatibility and trust, Direct PawnIO RAM endpoints, Hardware discovery, Hardware modules, Integrated component assignment contract, Native GPU endpoint (+4 more)
+Cohesion: 0.15
+Nodes (13): Adding support, Build and inspect, Compatibility and trust, Direct PawnIO RAM endpoints, Hardware discovery, Hardware modules, Integrated component assignment contract, Native GPU endpoint (+5 more)
 
 ### Community 163 - "Hardware support strategy"
 Cohesion: 0.33
 Nodes (6): Evidence and qualification, Execution boundary, Hardware support strategy, Independent hardware modules, Installed manufacturer software and peripheral settings, Mandatory comparison of reference implementations
 
 ### Community 164 - ".setNativeMode_rejectsInvalidEffectsAndClosedDevice"
-Cohesion: 0.29
+Cohesion: 0.24
 Nodes (3): AsrockPolychromeTest, identity(), profile()
 
 ### Community 165 - "LightingCanvas.h"
-Cohesion: 0.25
+Cohesion: 0.22
 Nodes (7): Task 10: Qt tray app shell, QAction, QMenu, QPainter, QPushButton, QScrollBar, QTimer
 
-### Community 168 - "OutputConnection"
+### Community 166 - "State"
 Cohesion: 0.40
-Nodes (3): OutputConnection, initial, present
+Nodes (5): State, Other, Running, Stopped, StopPending
 
-### Community 169 - "ChannelEditor::ChannelEditor"
-Cohesion: 0.15
-Nodes (12): ChannelEditor::ChannelEditor(), installParameterTooltips(), NumericFieldStyle, QAbstractSpinBox, sliderField(), sliderPosition(), sliderRange(), SliderWheelStep (+4 more)
+### Community 168 - "Lighting Studio 0.1.0"
+Cohesion: 0.50
+Nodes (3): Changes, Lighting Studio 0.1.0, Requirements and limitations
 
-### Community 170 - "ConflictProcess"
-Cohesion: 0.25
-Nodes (7): ConflictProcess, executable, manualStop, path, pid, reason, started
+### Community 169 - "StudioWidgets.cpp"
+Cohesion: 0.07
+Nodes (21): chainOffsets(), chainSharing(), ChannelEditor::ChannelEditor(), openStudioColorPicker(), ColorEditor::ColorEditor(), ColorListEditor::ColorListEditor(), disclosure(), installParameterTooltips() (+13 more)
+
+### Community 170 - "Artwork, continuous gestures and spatial controls (GS-06)"
+Cohesion: 0.67
+Nodes (3): Artwork, continuous gestures and spatial controls (GS-06), Image-editor crop and visible preview scope (2026-11-13), Startup compatibility hotfix (2026-10-30)
 
 ### Community 171 - "impl_"
 Cohesion: 0.29
 Nodes (6): impl_, address, library, ready, sent, temporaryFailure
-
-### Community 173 - "`Mystic Light Online Data.dat` — decryption and content"
-Cohesion: 0.40
-Nodes (5): Content, Decryption recipe (read-only, nothing sent to any device), `Mystic Light Online Data.dat` — decryption and content, Our board (MS-7E62, i.e. the MSI MPG B850 Edge TI WiFi), Scope: how many other boards share this exact protocol
 
 ### Community 174 - "HP Omen 30L migration: first independent-module increment"
 Cohesion: 0.50
@@ -732,19 +745,19 @@ Cohesion: 0.50
 Nodes (3): Hardware artwork, HP Omen 30L protocol module, Third-party runtime components
 
 ## Knowledge Gaps
-- **1085 isolated node(s):** `mode`, `speed`, `color`, `applied`, `channels_` (+1080 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1627 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **47 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **1089 isolated node(s):** `mode`, `speed`, `color`, `applied`, `channels_` (+1084 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1633 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **40 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `LightingWindow` connect `LightingWindow` to `ComponentDefinition`, `HardwarePicker`, `.edit`, `LightingDocument.cpp`, `src/main.cpp`, `LightingWindow.cpp`, `test_output_ui.cpp`, `test_editor.cpp`, `ProfileCandidate`, `.mouseMoveEvent`, `LightingDocument`, `PreviewDivider`, `OutputPanel`, `LightingCanvas`, `.render`, `OutputPanel.cpp`, `ServicePanel`, `Layer model proposal`?**
-  _High betweenness centrality (0.119) - this node is a cross-community bridge._
-- **Why does `Output session backend` connect `OutputScheduler` to `LightingDocument.cpp`, `.load`, `OutputFrame`, `test_output.cpp`, `.connect`, `README.md`?**
-  _High betweenness centrality (0.108) - this node is a cross-community bridge._
-- **Why does `IHidDevice` connect `IHidDevice` to `IDriver`, `PeripheralModule`, `AuxiliaryTransport`, `RgbColor`, `MsiDriver`, `MsiColor`, `Recording`, `IDriverModule`, `.connect`, `stdexcept`, `BuildReport0x51`, `Hardware modules`, `OutputSession`, `LenovoMotherboardModule.cpp`, `ComponentEditor.cpp`, `RecordingTransport`, `Transport`, `FakeHidDevice`, `Transport`, `HidApiDevice`, `HidApiDevice.cpp`, `.pushColors`, `Record`, `BuildApex3ColorsPacket`, `msiprotocol`, `NativeEffect`, `SignalRGB repository research`, `.create`, `AsrockPolychromeDriver`, `VirtualModule`?**
-  _High betweenness centrality (0.105) - this node is a cross-community bridge._
+- **Why does `LightingWindow` connect `LightingWindow` to `LightingDocument`, `src/main.cpp`, `LightingWindow.cpp`, `OutputPanel`, `test_editor.cpp`, `ProfileCandidate`, `.mousePressEvent`, `test_service.cpp`, `LightingCanvas`, `.render`, `.edit`, `.channelAssignments`, `QJsonObject`, `Layer model proposal`?**
+  _High betweenness centrality (0.125) - this node is a cross-community bridge._
+- **Why does `IHidDevice` connect `IHidDevice` to `IDriver`, `PeripheralModule`, `AuxiliaryTransport`, `.load`, `RgbColor`, `MsiDriver`, `MsiColor`, `Recording`, `IDriverModule`, `authorizeHardwareOutput`, `stdexcept`, `BuildReport0x51`, `Hardware modules`, `OutputSession`, `LenovoMotherboardModule.cpp`, `Porting OpenRGB/SignalRGB hardware support into this app — motherboard tier`, `OutputPanel`, `PairedTransport`, `.connect`, `Transport`, `FakeHidDevice`, `src/main.cpp`, `Transport`, `HidApiDevice`, `.pushColors`, `BuildApex3ColorsPacket`, `msiprotocol`, `NativeEffect`, `AuxiliaryDriver`, `AsrockPolychromeDriver`, `VirtualModule`?**
+  _High betweenness centrality (0.097) - this node is a cross-community bridge._
+- **Why does `Output session backend` connect `OutputFrame` to `OutputScheduler`, `LightingDocument`, `.load`, `.connect`, `README.md`?**
+  _High betweenness centrality (0.078) - this node is a cross-community bridge._
 - **Are the 85 inferred relationships involving `LightingWindow` (e.g. with `Problem confirmed in the current code` and `main()`) actually correct?**
   _`LightingWindow` has 85 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 7 inferred relationships involving `catalog()` (e.g. with `.componentLedOffsets()` and `.componentName()`) actually correct?**
@@ -752,4 +765,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **Are the 80 inferred relationships involving `document_` (e.g. with `main()` and `addEffect()`) actually correct?**
   _`document_` has 80 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `mode`, `speed`, `color` to the rest of the system?**
-  _1085 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1089 weakly-connected nodes found - possible documentation gaps or missing edges._

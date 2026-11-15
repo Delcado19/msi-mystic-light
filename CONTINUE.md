@@ -1,3 +1,9 @@
+## Identify flash - 2026-11-15
+
+Layout context menu "Flash component (identify)" lights one software component white for 2 s
+(see docs/LIGHTING_EDITOR.md). Document-level test passes (22/22 ctest, build/r4). Not run on
+real hardware; hardware output needs an explicit owner Go.
+
 ## LEDKeeper2 stop - 2026-11-14
 
 Conflict dialog now stops `Mystic_Light_Service` (session only, start type unchanged) and then

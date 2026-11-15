@@ -391,9 +391,10 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
             ? renderForChannel(assignment.id,seconds) : rgb;
         QVector<QVector<QColor>> sampled;
         QVector<int> counts;
+        QVector<QUuid> ids;
         for (const auto& id : assignment.placements)
             for (const auto& placement : placements ? *placements : state_.placements) if (placement.id == id) {
-                sampled.append(sampleComponent(placement, raster, bounds)); counts.append(int(sampled.last().size()));
+                ids.append(id); sampled.append(sampleComponent(placement, raster, bounds)); counts.append(int(sampled.last().size()));
             }
         // A preview subset may omit placements; positions then fall back to the serial order.
         const auto starts = counts.size() == assignment.placements.size() ? chainStarts(assignment) : QVector<int>{};
@@ -408,6 +409,12 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
             for (int led = 0; led < counts[index]; ++led) if (!owned[offsets[index] + led]) {
                 chain[offsets[index] + led] = sampled[index][led]; owned[offsets[index] + led] = true;
             }
+        }
+        // Identify: only the flashed component's outputs light (shared outputs light with it); other chains go dark.
+        if (!identify_.isNull()) {
+            chain.fill(QColor(Qt::black));
+            const auto at = ids.indexOf(identify_);
+            if (at >= 0) for (int led = 0; led < counts[at]; ++led) chain[offsets[at] + led] = QColor(Qt::white);
         }
         result.insert(assignment.id, chain);
     }
@@ -456,6 +463,14 @@ QMap<QUuid, int> LightingDocument::componentLedOffsets() const
         for (int item = 0; item < offsets.size(); ++item) result.insert(assignment.placements[item], offsets[item]);
     }
     return result;
+}
+
+void LightingDocument::setIdentifyPlacement(const QUuid& placement) { identify_ = placement; }
+
+bool LightingDocument::hasSoftwareChannel(const QUuid& placement) const
+{
+    for (const auto& assignment : state_.assignments) if (assignment.software && assignment.placements.contains(placement)) return true;
+    return false;
 }
 
 QMap<QUuid, QString> LightingDocument::sharedColorNotes() const
