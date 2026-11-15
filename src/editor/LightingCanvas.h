@@ -128,7 +128,8 @@ private:
     double autoScrollSpeed_=720;
     void scrollAtEdge();
     void paintMinimap(QPainter& painter);
-    void paintComponents(QPainter& painter, const QImage& frame, const QRectF& world);
+    // working: uncommitted Effects state (drag, mask stroke) whose colors the components must show.
+    void paintComponents(QPainter& painter, const QImage& frame, const QRectF& world, const LightingState* working = nullptr);
     QRectF navigationBounds() const;
     QRectF minimapRect() const;
     void navigateMinimap(QPointF position);

@@ -1561,9 +1561,10 @@ void LightingWindow::addHeaderComponents()
         if(profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary") continue; // Dedicated devices are detected, never attached to ARGB headers.
         const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
         if(channelHasFixedComponent(channel)) continue; // Integrated output, not an attachable fan header.
+        // Shared outputs count once, matching the header summary (CodeRabbit review 2026-11-15).
         int used=0;
         for(const auto& assignment:document_.state().assignments) if(assignment.profileId==profile.id && assignment.endpoint==data.value("path") && assignment.channelId==channel.id)
-            for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements) if(placement.id==id) used+=document_.catalog()[placement.componentId].positions.size();
+            used=document_.outputLedsUsed(assignment);
         choices.append({profile.name+" / "+channel.id,data,channel.maxLeds-used,channel.fixedLeds ? channel.fixedLeds-used : 0});
     }
     HardwarePicker picker(document_.catalog(),choices,selectedHeader_,this);

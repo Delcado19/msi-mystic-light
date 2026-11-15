@@ -11,6 +11,7 @@
 #include <shellapi.h>
 #include <tlhelp32.h>
 #include <memory>
+#include <thread>
 #endif
 
 namespace {
@@ -220,10 +221,28 @@ QString stopMysticLightService()
     ScHandle service(OpenServiceW(manager.get(), L"Mystic_Light_Service", SERVICE_STOP | SERVICE_QUERY_STATUS));
     if (!service) return GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST ? QString{} :
         winError("Cannot stop Mystic_Light_Service; run as administrator");
-    SERVICE_STATUS status{};
-    if (!ControlService(service.get(), SERVICE_CONTROL_STOP, &status) && GetLastError() != ERROR_SERVICE_NOT_ACTIVE)
-        return winError("Mystic_Light_Service stop failed; it would restart LEDKeeper2");
+    // ControlService can block up to 30 s while the service handles another control, so it runs on a
+    // detached worker that owns its handles; the dialog thread never waits on it. The force step checks
+    // SERVICE_STOPPED before terminating LEDKeeper2 (CodeRabbit review 2026-11-15).
+    std::thread([manager = std::move(manager), service = std::move(service)] {
+        SERVICE_STATUS status{};
+        ControlService(service.get(), SERVICE_CONTROL_STOP, &status);
+    }).detach();
     return {};
+}
+// Empty when Mystic_Light_Service is absent or fully stopped; LEDKeeper2 must not be terminated before that,
+// or the still-running service restarts it.
+QString mysticLightServiceStopped()
+{
+    ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    if (!manager) return winError("Cannot access service manager; run as administrator");
+    ScHandle service(OpenServiceW(manager.get(), L"Mystic_Light_Service", SERVICE_QUERY_STATUS));
+    if (!service) return GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST ? QString{} :
+        winError("Cannot query Mystic_Light_Service; run as administrator");
+    SERVICE_STATUS status{};
+    if (!QueryServiceStatus(service.get(), &status)) return winError("Cannot query Mystic_Light_Service");
+    if (status.dwCurrentState == SERVICE_STOPPED) return {};
+    return "Mystic_Light_Service has not stopped yet; LEDKeeper2 left running so it is not restarted. Try again";
 }
 BOOL CALLBACK closeWindow(HWND window, LPARAM pid)
 {
@@ -358,7 +377,10 @@ QString SystemConflictProcesses::stop(const ConflictProcess& process, bool force
         NativeServices services;
         return stopSignalRgbService(process, force, services);
     }
-    if (normalized(process.executable) == "ledkeeper2.exe" && !force) return stopMysticLightService();
+    if (normalized(process.executable) == "ledkeeper2.exe") {
+        if (!force) return stopMysticLightService();
+        if (const auto error = mysticLightServiceStopped(); !error.isEmpty()) return error;
+    }
     if (force) {
         // The checked handle, not a fresh PID lookup, is the termination target.
         if (!TerminateProcess(handle.get(), 1)) return winError("Cannot terminate process");

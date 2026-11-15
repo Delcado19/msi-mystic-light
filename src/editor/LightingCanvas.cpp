@@ -232,12 +232,14 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             painter.fillRect(QRectF(x,y,tile,tile),std::fmod(std::floor(x/tile)+std::floor(y/tile),2.0)!=0 ? QColor("#484b50") : QColor("#35383d"));
     }
     auto frame = rendered_;
+    std::optional<LightingState> working; // The uncommitted state behind frame, if any.
     if (context_ == Context::Effects) {
         if (workingEffect_) {
             auto state=document_.state();
             if(createdObject_)state.layers.append(*workingEffect_);
             else for (auto& layer : state.layers) if (selections().contains(layer.id)) layer=transformedSelection(layer);
             frame=LightingDocument::render(state,seconds_,previewChannel_);
+            working=std::move(state);
         }
         if (maskTarget_) {
             auto state=document_.state();
@@ -245,11 +247,13 @@ void LightingCanvas::paintEvent(QPaintEvent*)
                 if (!workingMask_.isNull()) layer.mask=workingMask_;
             }
             frame=LightingDocument::render(state,seconds_,previewChannel_); // Mask inspection must not freeze the live composition.
+            working=std::move(state);
         }
         if (!workingMask_.isNull() && !maskTarget_) {
             auto state = document_.state();
             for (auto& layer : state.layers) if (layer.id == selected_) layer.mask = workingMask_;
             frame = LightingDocument::render(state, seconds_,previewChannel_);
+            working=std::move(state);
         }
         if (showMask_ && maskTarget_) {
             for (const auto& layer : document_.state().layers)
@@ -262,7 +266,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         if(showComponents_) {
             painter.save();const auto bounds=document_.layoutBounds();
             painter.scale(640/bounds.width(),400/bounds.height());painter.translate(-bounds.topLeft());
-            paintComponents(painter,frame,bounds);painter.restore();
+            paintComponents(painter,frame,bounds,working ? &*working : nullptr);painter.restore();
         }
         SnapGrid::load().paint(painter,QRectF(0,0,640,400).intersected(QRectF(canvasPoint({0,0}),canvasPoint({double(width()),double(height())}))),zoom_);
         if(underMouse() && !panning_ && !spaceHeld_ && !cropTool_ && (drawingTool_==Tool::Pencil || drawingTool_==Tool::Eraser)) {
@@ -333,7 +337,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     paintMinimap(painter);
 }
 
-void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const QRectF& world)
+void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const QRectF& world,const LightingState* working)
 {
     painter.setRenderHint(QPainter::Antialiasing);
     const auto placements=previewPlacements();
@@ -341,7 +345,9 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
     // sampleChannels applies each channel clock itself, so it needs the global time; passing the
     // Effects canvas's channel-local time applied the clock twice (CodeRabbit review 2026-11-15).
     const double globalSeconds=componentSeconds_<0?seconds_:componentSeconds_;
-    const auto global=previewChannel_.isNull() ? QImage{} : document_.render(globalSeconds);
+    // With a channel selected, frame shows only that channel; the global composition must still include an
+    // uncommitted drag or mask stroke, or component colors freeze until release (CodeRabbit review 2026-11-15).
+    const auto global=previewChannel_.isNull() ? QImage{} : working ? LightingDocument::render(*working,globalSeconds) : document_.render(globalSeconds);
     auto sampled=document_.previewComponentColors(frame,globalSeconds,&placements,global.isNull()?nullptr:&global);
     // Numbers show the physical output position, so serial and shared chain items number correctly.
     const auto ledOffsets=document_.componentLedOffsets();
