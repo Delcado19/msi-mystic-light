@@ -18,9 +18,9 @@
     "semantic_hash": ""
   },
   "docs/MB_800_HID_PROTOCOL.md": {
-    "mtime": 1794746283.6731956,
-    "seen": 1794750445.5490499,
-    "ast_hash": "fa499f699385fd4d85c012978d8e349d",
+    "mtime": 1794771647.083347,
+    "seen": 1794771686.96724,
+    "ast_hash": "97483215ae8fbeaaa939e97b0d2dcb52",
     "semantic_hash": ""
   },
   "docs/NETWORK_PROTOCOL.md": {
@@ -66,8 +66,8 @@
     "semantic_hash": ""
   },
   "src/main.cpp": {
-    "mtime": 1794688544.900428,
-    "seen": 1794690104.0491009,
+    "mtime": 1794771647.1102116,
+    "seen": 1794771686.962954,
     "ast_hash": "08f78d430a679c0b817dec128e2ca598",
     "semantic_hash": ""
   },
@@ -90,15 +90,15 @@
     "semantic_hash": ""
   },
   "CMakeLists.txt": {
-    "mtime": 1794556515.5063412,
-    "seen": 1794558055.3171012,
-    "ast_hash": "65cc9b2c682cefc28249bbec8b8d99a3",
+    "mtime": 1794771647.2062984,
+    "seen": 1794771686.966391,
+    "ast_hash": "a146d3b97f3d536314672f2cc50ab0b6",
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794768409.7196107,
-    "seen": 1794769222.6938896,
-    "ast_hash": "b949d40aacd929c4d2f00d8e2a8a646f",
+    "mtime": 1794771647.0763385,
+    "seen": 1794771686.9663918,
+    "ast_hash": "0525e43a70fdb8a27963d0bbe8d9746d",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -108,8 +108,8 @@
     "semantic_hash": ""
   },
   "src/hid/HidApiDevice.cpp": {
-    "mtime": 1794688544.8994222,
-    "seen": 1794690104.048928,
+    "mtime": 1794771647.1102116,
+    "seen": 1794771686.9628315,
     "ast_hash": "13f61bb06b0c8840164af445f53610ee",
     "semantic_hash": ""
   },
@@ -132,8 +132,8 @@
     "semantic_hash": ""
   },
   "tests/hid/test_hid_backend.cpp": {
-    "mtime": 1794688544.902936,
-    "seen": 1794690104.0531843,
+    "mtime": 1794771647.116335,
+    "seen": 1794771686.9652185,
     "ast_hash": "87893518ad693e29d549975711b7ab9a",
     "semantic_hash": ""
   },
@@ -240,14 +240,14 @@
     "semantic_hash": ""
   },
   "src/components/ComponentCatalog.cpp": {
-    "mtime": 1794688544.2952018,
-    "seen": 1794690104.0461452,
+    "mtime": 1794771647.1032038,
+    "seen": 1794771686.9616208,
     "ast_hash": "22e0ef14d575f66e4f0ef620f4a273e9",
     "semantic_hash": ""
   },
   "src/components/ComponentCatalog.h": {
-    "mtime": 1794688544.296201,
-    "seen": 1794690104.046147,
+    "mtime": 1794771647.1032038,
+    "seen": 1794771686.9616218,
     "ast_hash": "90a9b85ba91f78c6826ae5e6dbe25e64",
     "semantic_hash": ""
   },
@@ -264,8 +264,8 @@
     "semantic_hash": ""
   },
   "tests/components/test_components.cpp": {
-    "mtime": 1794688544.3047316,
-    "seen": 1794690104.0528038,
+    "mtime": 1794771647.11476,
+    "seen": 1794771686.9649465,
     "ast_hash": "fc365c2822f765bbb6d9296b83a80095",
     "semantic_hash": ""
   },
@@ -300,9 +300,9 @@
     "semantic_hash": ""
   },
   "src/startup/ConflictProcesses.cpp": {
-    "mtime": 1794762494.071157,
-    "seen": 1794762530.3848717,
-    "ast_hash": "ee35c1ba8c4be7413b6e66275a61c0a7",
+    "mtime": 1794771647.1137533,
+    "seen": 1794771686.9648776,
+    "ast_hash": "91720561830f2342bf0033d8955eafb6",
     "semantic_hash": ""
   },
   "src/startup/ConflictProcesses.h": {
@@ -312,57 +312,57 @@
     "semantic_hash": ""
   },
   "tests/startup/test_startup.cpp": {
-    "mtime": 1794689814.2113576,
-    "seen": 1794690104.0545356,
+    "mtime": 1794771647.1184332,
+    "seen": 1794771686.966186,
     "ast_hash": "75e7434bf7ba1e730534db6aaf8cd783",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1794759475.2723358,
-    "seen": 1794759479.3687005,
-    "ast_hash": "7b6f7a8aca4fe202f130d82f2e838cc3",
+    "mtime": 1794771647.105212,
+    "seen": 1794771686.9626422,
+    "ast_hash": "78beb3a10a7e415b0c348ee3b0e7c298",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
-    "mtime": 1794759475.2723358,
-    "seen": 1794759479.3687022,
-    "ast_hash": "608dcf86bc8abd4f91173c33d3b19d35",
+    "mtime": 1794771647.106212,
+    "seen": 1794771686.9626431,
+    "ast_hash": "1ff6d507b3c44e6fd1d6929dc8cc6327",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
-    "mtime": 1794752626.3537393,
-    "seen": 1794752630.9146852,
-    "ast_hash": "02be84c0a0c9a123ef88e10d16291556",
+    "mtime": 1794771647.107212,
+    "seen": 1794771686.9626446,
+    "ast_hash": "b2ce992fb975f1d2c92e62ed647aad31",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.h": {
-    "mtime": 1794752626.3522367,
-    "seen": 1794752630.914687,
-    "ast_hash": "9ca61828f982e89d6a0077528f2d1abb",
+    "mtime": 1794771647.107212,
+    "seen": 1794771686.9626453,
+    "ast_hash": "80c24df6dc9da440008d9b253a3ba6aa",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1794760256.4341917,
-    "seen": 1794760260.6612525,
-    "ast_hash": "084ae69b2eeed46018c68b396e414aa8",
+    "mtime": 1794771647.1082118,
+    "seen": 1794771686.962646,
+    "ast_hash": "fe56261e3df244665f36997683c73b1a",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1794760256.4331915,
-    "seen": 1794760260.6612542,
-    "ast_hash": "9880fa3c7ca31970709cdaa6ef7180de",
+    "mtime": 1794771647.1082118,
+    "seen": 1794771686.9626465,
+    "ast_hash": "bd8a5103044328178c2e0124a23651b0",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1794752626.3557434,
-    "seen": 1794752630.9182348,
-    "ast_hash": "286c9468df572450a8b0f60522e51657",
+    "mtime": 1794771647.116335,
+    "seen": 1794771686.96515,
+    "ast_hash": "7d80ac3118a6995386dcd943b61e7235",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1794760522.28348,
-    "seen": 1794762530.3879724,
-    "ast_hash": "f6af861a5e45d4e27ad92ccffca22449",
+    "mtime": 1794771647.083347,
+    "seen": 1794771686.9672394,
+    "ast_hash": "3f6dd5b5bbe345a5f9445dc9068a2e93",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -432,20 +432,20 @@
     "semantic_hash": ""
   },
   "src/editor/ChannelAssignment.cpp": {
-    "mtime": 1794688544.296201,
-    "seen": 1794690104.0465226,
+    "mtime": 1794771647.1042118,
+    "seen": 1794771686.9618113,
     "ast_hash": "c985acc2150436ce63958709745afb8d",
     "semantic_hash": ""
   },
   "src/editor/ChannelAssignment.h": {
-    "mtime": 1794688544.2977097,
-    "seen": 1794690104.0465245,
+    "mtime": 1794771647.1042118,
+    "seen": 1794771686.9618125,
     "ast_hash": "9a303cef8094d6bd54080f2c1d6c4334",
     "semantic_hash": ""
   },
   "src/editor/ChannelEditor.cpp": {
-    "mtime": 1794688544.3961768,
-    "seen": 1794690104.0465262,
+    "mtime": 1794771647.105212,
+    "seen": 1794771686.961813,
     "ast_hash": "091a1f10e0824bde5eae5789f0de627f",
     "semantic_hash": ""
   },
@@ -456,21 +456,21 @@
     "semantic_hash": ""
   },
   "src/output/OutputSession.cpp": {
-    "mtime": 1794759883.7821758,
-    "seen": 1794759916.2904942,
-    "ast_hash": "fa0c739e8ab89daae3b0e37d10f348d5",
+    "mtime": 1794771647.1117208,
+    "seen": 1794771686.9635239,
+    "ast_hash": "0ee461417783e0719c5c831611259b8e",
     "semantic_hash": ""
   },
   "src/output/OutputSession.h": {
-    "mtime": 1794759883.7821758,
-    "seen": 1794759916.2904954,
-    "ast_hash": "38c28dd26e05e5571d52264258bbd040",
+    "mtime": 1794771647.1117208,
+    "seen": 1794771686.9635246,
+    "ast_hash": "1e68ae2cd25adce606653c3c7a617805",
     "semantic_hash": ""
   },
   "tests/output/test_output.cpp": {
-    "mtime": 1794759912.34093,
-    "seen": 1794759916.2932818,
-    "ast_hash": "bc6938c0aca0a3e339b4e4d98fec16d5",
+    "mtime": 1794771647.116335,
+    "seen": 1794771686.965922,
+    "ast_hash": "2868878b442787a17a266da0ea8802a3",
     "semantic_hash": ""
   },
   "docs/OUTPUT_SESSION.md": {
@@ -498,8 +498,8 @@
     "semantic_hash": ""
   },
   "src/editor/AppSession.cpp": {
-    "mtime": 1794688544.7166686,
-    "seen": 1794690104.046397,
+    "mtime": 1794771647.1042118,
+    "seen": 1794771686.9617472,
     "ast_hash": "08ef59c08787a92c78ba1f399ac8feb9",
     "semantic_hash": ""
   },
@@ -522,14 +522,14 @@
     "semantic_hash": ""
   },
   "src/output/OutputPanel.cpp": {
-    "mtime": 1794688544.9009318,
-    "seen": 1794690104.0497174,
+    "mtime": 1794771647.1102116,
+    "seen": 1794771686.9634013,
     "ast_hash": "f03ed4097977f91646b1431446b05e22",
     "semantic_hash": ""
   },
   "src/output/OutputPanel.h": {
-    "mtime": 1794688544.9014325,
-    "seen": 1794690104.0497196,
+    "mtime": 1794771647.1112142,
+    "seen": 1794771686.963402,
     "ast_hash": "9031da273d9e6dcf00362c283481c89e",
     "semantic_hash": ""
   },
@@ -546,8 +546,8 @@
     "semantic_hash": ""
   },
   "src/editor/StudioWidgets.cpp": {
-    "mtime": 1794688544.8116412,
-    "seen": 1794690104.048855,
+    "mtime": 1794771647.109212,
+    "seen": 1794771686.9627702,
     "ast_hash": "23f04009254c4cb91216554d71190616",
     "semantic_hash": ""
   },
@@ -630,8 +630,8 @@
     "semantic_hash": ""
   },
   "modules/peripherals/PeripheralModule.cpp": {
-    "mtime": 1794688544.8969223,
-    "seen": 1794690104.0431685,
+    "mtime": 1794771647.1021974,
+    "seen": 1794771686.9600885,
     "ast_hash": "5eefb649cdfaef82333113396acadfe2",
     "semantic_hash": ""
   },
@@ -738,8 +738,8 @@
     "semantic_hash": ""
   },
   "tests/output/test_peripherals.cpp": {
-    "mtime": 1794688544.9038506,
-    "seen": 1794690104.054325,
+    "mtime": 1794771647.116335,
+    "seen": 1794771686.9659836,
     "ast_hash": "3d34360c495958f5861e14d48e41efa4",
     "semantic_hash": ""
   },
@@ -846,8 +846,8 @@
     "semantic_hash": ""
   },
   "src/backends/PawnIoRam.cpp": {
-    "mtime": 1794732958.3279622,
-    "seen": 1794733209.978563,
+    "mtime": 1794771647.1021974,
+    "seen": 1794771686.9615595,
     "ast_hash": "183db40513327c1db778d9c2dac2d7a4",
     "semantic_hash": ""
   },
@@ -1032,15 +1032,15 @@
     "semantic_hash": ""
   },
   "src/editor/ParameterSpinBox.h": {
-    "mtime": 1794688544.400196,
-    "seen": 1794690104.0485868,
+    "mtime": 1794771647.109212,
+    "seen": 1794771686.9626474,
     "ast_hash": "f695bce397355bc65fe0ef9c77b16074",
     "semantic_hash": ""
   },
   "assets/branding/README.md": {
-    "mtime": 1794557972.4539804,
-    "seen": 1794558055.3171804,
-    "ast_hash": "a6ee1211d0d86f74916c5e2d86818188",
+    "mtime": 1794771647.2062984,
+    "seen": 1794771686.9665794,
+    "ast_hash": "de87435cee0ad4eed62bfcb639f09e02",
     "semantic_hash": ""
   },
   "docs/design/GUI_AUDIT_2026-10-26.md": {
@@ -1074,9 +1074,9 @@
     "semantic_hash": ""
   },
   "assets/branding/lighting-studio-header.png": {
-    "mtime": 1794549383.2002513,
-    "seen": 1794558055.3203804,
-    "ast_hash": "7f99216a7c09dd63e79fceb4402fb130",
+    "mtime": 1794771647.081343,
+    "seen": 1794771686.9696457,
+    "ast_hash": "d7ca945d64a24a9c47af53c22421fda7",
     "semantic_hash": ""
   },
   "docs/design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md": {
@@ -1104,20 +1104,20 @@
     "semantic_hash": ""
   },
   "installer/Install-LightingStudio.ps1": {
-    "mtime": 1794688544.896423,
-    "seen": 1794690104.0419118,
+    "mtime": 1794771647.1021974,
+    "seen": 1794771686.9594312,
     "ast_hash": "574c320532c3512c863ed87151c8e672",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.cpp": {
-    "mtime": 1794769156.3895068,
-    "seen": 1794769222.6912932,
-    "ast_hash": "e63c4b9c90e7efe87764d387e96d5920",
+    "mtime": 1794771647.1122367,
+    "seen": 1794771686.9644601,
+    "ast_hash": "a7f0390261ac9354676970da9bccfea5",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.h": {
-    "mtime": 1794769121.0196004,
-    "seen": 1794769222.6912951,
+    "mtime": 1794771647.1122367,
+    "seen": 1794771686.964461,
     "ast_hash": "075250fc7f87bb763b168cdc5ee9aa7f",
     "semantic_hash": ""
   },
@@ -1134,26 +1134,26 @@
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.cpp": {
-    "mtime": 1794760256.4331915,
-    "seen": 1794760260.6637094,
-    "ast_hash": "76d87dd656ec4a931b74522b3dc14c24",
+    "mtime": 1794771647.1122367,
+    "seen": 1794771686.96459,
+    "ast_hash": "671c016370e43bda4add8143c5760823",
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.h": {
-    "mtime": 1794760256.4321918,
-    "seen": 1794760260.663711,
-    "ast_hash": "cbff05437fc5eff743187fae65ade079",
+    "mtime": 1794771647.113245,
+    "seen": 1794771686.964591,
+    "ast_hash": "2c4d7bcd8e78c16e91441fab3238cd63",
     "semantic_hash": ""
   },
   "src/service/ServiceServer.cpp": {
-    "mtime": 1794732277.1065383,
-    "seen": 1794732513.8429024,
+    "mtime": 1794771647.1137533,
+    "seen": 1794771686.964592,
     "ast_hash": "cf236b70a9f59a3168af99b4beff7dd1",
     "semantic_hash": ""
   },
   "src/service/ServiceServer.h": {
-    "mtime": 1794732277.1065383,
-    "seen": 1794732513.842904,
+    "mtime": 1794771647.1137533,
+    "seen": 1794771686.964593,
     "ast_hash": "c42f648b3ba93f4024678b522060ae87",
     "semantic_hash": ""
   },
@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "tests/service/test_service.cpp": {
-    "mtime": 1794768709.524477,
-    "seen": 1794769222.6934578,
-    "ast_hash": "ba1584348a2d38933a4bcf10ef4d8725",
+    "mtime": 1794771647.1179087,
+    "seen": 1794771686.9661856,
+    "ast_hash": "405630f107a387c36a32a9d048cd7ff8",
     "semantic_hash": ""
   },
   "docs/PAWNIO_SERVICE_RESEARCH_2026-10-27.md": {
@@ -1182,8 +1182,8 @@
     "semantic_hash": ""
   },
   "docs/WINDOWS_SERVICE.md": {
-    "mtime": 1794769216.7613928,
-    "seen": 1794769222.6958532,
+    "mtime": 1794771647.083347,
+    "seen": 1794771686.9681373,
     "ast_hash": "8a6797719351eb5995883131bc60b1cb",
     "semantic_hash": ""
   },
@@ -1680,14 +1680,14 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1794657231.0486,
-    "seen": 1794659753.7510965,
-    "ast_hash": "579ed5ef27d7185f9d42b055ea454688",
+    "mtime": 1794771660.1540527,
+    "seen": 1794771686.9663215,
+    "ast_hash": "ce72cf17ae65b36db4b2d6aa3fea2845",
     "semantic_hash": ""
   },
   "docs/JARGB2_TOPOLOGY_TEST.md": {
-    "mtime": 1794688544.2691956,
-    "seen": 1794690104.0560064,
+    "mtime": 1794771647.082346,
+    "seen": 1794771686.967181,
     "ast_hash": "0207e080abe608768aa9c6353bbde55b",
     "semantic_hash": ""
   },
@@ -1698,9 +1698,15 @@
     "semantic_hash": ""
   },
   ".coderabbit.yaml": {
-    "mtime": 1794735477.982396,
-    "seen": 1794750445.5476904,
-    "ast_hash": "8f165ebe059b001d7c827f77412dbf5d",
+    "mtime": 1794771647.0758321,
+    "seen": 1794771686.966252,
+    "ast_hash": "35c7bb679c331821c0a3c495837bb80d",
+    "semantic_hash": ""
+  },
+  ".github/workflows/release.yml": {
+    "mtime": 1794771660.193899,
+    "seen": 1794771686.9663231,
+    "ast_hash": "bbdef4e7ac4c08982ad1ec320bc5fc19",
     "semantic_hash": ""
   }
 }
