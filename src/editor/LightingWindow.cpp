@@ -69,8 +69,8 @@
 #include <QVBoxLayout>
 
 namespace {
-// R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer).
-constexpr auto studioBuildId="GS-06-R8";
+// R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges.
+constexpr auto studioBuildId="GS-06-R9";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -451,13 +451,15 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardwareScroll=new QScrollArea; hardwareScroll->setWidgetResizable(true); hardwareScroll->setWidget(hardwarePage);
     tabs_->addTab(hardwareScroll,"Hardware");
     components_=new QTreeWidget; components_->setObjectName("layoutComponents");
-    components_->setHeaderLabels({"Header / component","Manufacturer"});
+    components_->setHeaderLabels({"Header / component","Manufacturer","LEDs"});
     auto* hardwareTree=new QTreeView; hardwareTree->setObjectName("hardwareComponents"); hardwareTree->setMinimumHeight(220);
     // Both workspaces share the same inventory model and selection; editing never maintains a second hardware list.
     hardwareTree->setModel(components_->model()); hardwareTree->setSelectionModel(components_->selectionModel()); hardwareControls->insertWidget(2,hardwareTree,1);
     hardwareTree->header()->setStretchLastSection(false);
     hardwareTree->header()->setSectionResizeMode(0,QHeaderView::Stretch); hardwareTree->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
+    hardwareTree->header()->setSectionResizeMode(2,QHeaderView::ResizeToContents);
     components_->setColumnHidden(1,true); // Keep the narrow Layout sidebar focused on names; Hardware exposes the manufacturer column.
+    components_->setColumnHidden(2,true); // LED usage column: Hardware view only.
     components_->setSelectionMode(QAbstractItemView::ExtendedSelection);components_->setHeaderHidden(true); components_->setRootIsDecorated(true); componentStack->insertWidget(0,components_,1);
     connect(components_,&QTreeWidget::currentItemChanged,this,[this](QTreeWidgetItem* item) {
         if(item) {
@@ -1636,6 +1638,8 @@ void LightingWindow::refresh()
         // Saved chains stay editable while disconnected; discovery never rewrites their exact endpoint.
         for(const auto& assignment:document_.state().assignments) append(assignment.profileId,assignment.endpoint,assignment.channelId);
         QSet<QUuid> assigned;
+        // LEDs column: header usage "used / max" (shared outputs count once) and each component's output range.
+        const auto ledOffsets=document_.componentLedOffsets();
         for(const auto& data:headers) {
             bool online=false;
             for(const auto& candidate:discovered_) if(candidate.profileId==data["profileId"] && candidate.device.path==data["path"]) online=true;
@@ -1647,6 +1651,7 @@ void LightingWindow::refresh()
             for(const auto& assignment:document_.state().assignments)
                 if(assignment.profileId==data["profileId"] && assignment.endpoint==data["path"] && assignment.channelId==data["channelId"]) {
                     group->setData(0,Qt::UserRole,assignment.id);
+                    group->setText(2,QString("%1 / %2").arg(document_.outputLedsUsed(assignment)).arg(assignmentChannel(profile,assignment.channelId).maxLeds));
                     for(int i=0;i<assignment.placements.size();++i)
                         for(const auto& placement:document_.state().placements) if(placement.id==assignment.placements[i]) {
                             assigned.insert(placement.id);
@@ -1655,6 +1660,8 @@ void LightingWindow::refresh()
                             child->setText(0,document_.componentName(placement));
                             child->setData(0,Qt::UserRole,placement.id);
                             child->setText(1,hardwareManufacturer(document_.catalog()[placement.componentId]));
+                            const int count=int(document_.catalog()[placement.componentId].mapping.size()), start=ledOffsets.value(placement.id,-1);
+                            child->setText(2,standalone || start<0 ? QString::number(count) : QString("%1-%2").arg(start+1).arg(start+count));
                             if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);
                         }
                 }

@@ -1,3 +1,8 @@
+## GS-06-R9 - 2026-11-15
+
+Hardware view has an LEDs column: header rows show used / max output positions (shared outputs once),
+component rows their output range. Build ID GS-06-R9. Column not checked visually yet.
+
 ## Header LED count - 2026-11-15
 
 Header summary now counts output positions instead of summing every component's LEDs, so shared

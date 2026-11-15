@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794752874.4577744,
-    "seen": 1794753181.369216,
-    "ast_hash": "10933a92ee9c1b0203836d1ffb777c24",
+    "mtime": 1794756985.2391322,
+    "seen": 1794756989.3048792,
+    "ast_hash": "027a5e6dd3aa85f9d5d03d3236e84efc",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1794753177.0083756,
-    "seen": 1794753181.3639154,
-    "ast_hash": "74e03530313524eb4c5b8a11799162b0",
+    "mtime": 1794756951.245286,
+    "seen": 1794756989.2997663,
+    "ast_hash": "db474e333ed39f771cb0b141068f8d7b",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
