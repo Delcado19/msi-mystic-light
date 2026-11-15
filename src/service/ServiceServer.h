@@ -20,6 +20,7 @@ private:
 #ifdef Q_OS_WIN
     bool createInstance(bool first);
     void connected();
+    void rearm();
     QString path_;
     void* pending_=nullptr;   // Pipe instance waiting for the next client (HANDLE).
     void* event_=nullptr;     // Overlapped connect event (HANDLE).

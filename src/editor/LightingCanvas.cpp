@@ -137,9 +137,9 @@ void LightingCanvas::resizeEvent(QResizeEvent*)
     emptyAction_->move((width()-emptyAction_->width())/2,height()/2+32);
 }
 
-void LightingCanvas::setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel)
+void LightingCanvas::setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel, double componentSeconds)
 {
-    seconds_ = seconds; previewChannel_=channel; rendered_ = frame; update();
+    seconds_ = seconds; componentSeconds_ = componentSeconds; previewChannel_=channel; rendered_ = frame; update();
 }
 
 QSizeF LightingCanvas::displayScale() const
@@ -338,7 +338,9 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
     painter.setRenderHint(QPainter::Antialiasing);
     const auto placements=previewPlacements();
     // Layout shows what the hardware shows, including components that share LED outputs.
-    auto sampled=document_.previewComponentColors(frame,seconds_,&placements);
+    // sampleChannels applies each channel clock itself, so it needs the global time; passing the
+    // Effects canvas's channel-local time applied the clock twice (CodeRabbit review 2026-11-15).
+    auto sampled=document_.previewComponentColors(frame,componentSeconds_<0?seconds_:componentSeconds_,&placements);
     const auto shared=(!previewOnly_ && context_==Context::Layout) ? document_.sharedColorNotes() : QMap<QUuid,QString>{};
     for (auto placement : document_.state().placements) {
         painter.save();

@@ -35,11 +35,13 @@ void ServiceServer::serve(QLocalSocket* socket)
         const auto size=qFromBigEndian<quint32>(buffer->constData());
         if(!size || size>StudioService::maximumMessage || buffer->size()>size+4){socket->abort();return;}
         if(buffer->size()!=size+4)return;
-        timer->stop();*done=true;
+        *done=true;
         QJsonObject reply;
         try{reply=handler_(StudioService::decode(buffer->mid(4)));}
         catch(const std::exception& e){reply={{"ok",false},{"error",QString::fromUtf8(e.what())}};}
-        socket->write(StudioService::encode(reply));socket->flush();socket->disconnectFromServer();
+        // Leave closing to the client: disconnecting here discards reply bytes the client has not read
+        // yet (CodeRabbit review 2026-11-15). The 15 s timer still aborts a client that never closes.
+        socket->write(StudioService::encode(reply));socket->flush();timer->start();
     });
     if(socket->bytesAvailable())QMetaObject::invokeMethod(socket,"readyRead",Qt::QueuedConnection);
 }
@@ -81,11 +83,19 @@ void ServiceServer::connected()
     HANDLE pipe=pending_;pending_=nullptr;DWORD ignored=0;
     const bool ok=immediate_ || GetOverlappedResult(pipe,static_cast<OVERLAPPED*>(overlapped_),&ignored,FALSE);
     // Keep one instance listening before serving, so the next client never sees a busy pipe.
-    if(!createInstance(false))qWarning("%s",qPrintable(error_));
+    rearm();
     if(!ok){CloseHandle(pipe);return;}   // ERROR_NO_DATA: the client came and went.
     auto* socket=new QLocalSocket(this);
     if(!socket->setSocketDescriptor(reinterpret_cast<qintptr>(pipe))){CloseHandle(pipe);delete socket;return;}
     serve(socket);
+}
+void ServiceServer::rearm()
+{
+    // Without a pending instance no client can connect; retry once per second until one exists
+    // instead of staying deaf until a service restart (CodeRabbit review 2026-11-15).
+    if(pending_ || createInstance(false))return;
+    qWarning("%s",qPrintable(error_));
+    QTimer::singleShot(1000,this,[this]{rearm();});
 }
 bool ServiceServer::listen(const QString& name)
 {

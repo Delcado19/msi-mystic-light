@@ -318,15 +318,15 @@
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
-    "mtime": 1794688544.8091116,
-    "seen": 1794690104.0484262,
-    "ast_hash": "6fdbbf802452b12f1ae0180bef7b8887",
+    "mtime": 1794732277.112542,
+    "seen": 1794732513.839562,
+    "ast_hash": "8e9fb4e71f2b447c59243631b741aa8d",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.h": {
-    "mtime": 1794688544.3976862,
-    "seen": 1794690104.0484288,
-    "ast_hash": "b065d262482d25ed9dff4c676f2af9cf",
+    "mtime": 1794732277.111542,
+    "seen": 1794732513.8395643,
+    "ast_hash": "2badfa49599e7e6f2569632343deb43f",
     "semantic_hash": ""
   },
   "src/editor/LightingDocument.cpp": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1794688544.8994222,
-    "seen": 1794690104.0484352,
-    "ast_hash": "aa2339ee939d597df937e9e3a2d88319",
+    "mtime": 1794732277.1185598,
+    "seen": 1794732513.8396976,
+    "ast_hash": "724d9d9cddaa33ffc69c1d02085fe547",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
@@ -1146,15 +1146,15 @@
     "semantic_hash": ""
   },
   "src/service/ServiceServer.cpp": {
-    "mtime": 1794688544.989312,
-    "seen": 1794690104.052225,
-    "ast_hash": "63836958cbba6c9aa89e77c05b75cf17",
+    "mtime": 1794732277.1065383,
+    "seen": 1794732513.8429024,
+    "ast_hash": "cf236b70a9f59a3168af99b4beff7dd1",
     "semantic_hash": ""
   },
   "src/service/ServiceServer.h": {
-    "mtime": 1794688544.9908414,
-    "seen": 1794690104.0522275,
-    "ast_hash": "8d8ddd8e14463e4e70ba527fc97baff8",
+    "mtime": 1794732277.1065383,
+    "seen": 1794732513.842904,
+    "ast_hash": "c42f648b3ba93f4024678b522060ae87",
     "semantic_hash": ""
   },
   "src/service/main.cpp": {
@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "tests/service/test_service.cpp": {
-    "mtime": 1794688544.9913409,
-    "seen": 1794690104.0545342,
-    "ast_hash": "3e079f906716bc50d5db54169e66aff1",
+    "mtime": 1794729059.00365,
+    "seen": 1794732513.8447938,
+    "ast_hash": "efcfadacd9b26d60c656962d7a060adc",
     "semantic_hash": ""
   },
   "docs/PAWNIO_SERVICE_RESEARCH_2026-10-27.md": {

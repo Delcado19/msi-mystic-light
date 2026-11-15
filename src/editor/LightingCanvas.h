@@ -47,7 +47,8 @@ public:
     void setBrush(double radius, double hardness, double opacity, int gray);
     void setShowMask(bool show) { showMask_ = show; update(); }
     void setCropTool(bool enabled) { cancelGesture(); cropTool_ = enabled; updateCursor(); update(); }
-    void setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel = {});
+    // componentSeconds: global time for component colors when seconds is a channel-local time (< 0 = seconds).
+    void setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel = {}, double componentSeconds = -1);
     void fitToView();
     // Non-finite/non-positive factors leave the view unchanged; valid zoom clamps to .001..4.
     void zoomBy(double factor);
@@ -152,7 +153,7 @@ private:
     MaskTool tool_ = MaskTool::Brush;
     QPointF start_, last_, origin_, pan_;
     double zoom_ = 1, radius_ = 30, hardness_ = 0.3, opacity_ = 1;
-    double seconds_ = 0, gestureSeconds_ = 0;
+    double seconds_ = 0, gestureSeconds_ = 0, componentSeconds_ = -1;
     bool cropTool_ = false, cropDragging_=false;
     std::optional<EffectLayer> cropBase_;
     QRectF cropRect_, cropDragRect_, cropLimit_;

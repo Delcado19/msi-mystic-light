@@ -1740,7 +1740,7 @@ void LightingWindow::updatePreview()
     previewFrame_=document_.render(seconds); // Canonical global composition for default-clock output channels.
     const auto displayed=channel.isNull() ? previewFrame_ : document_.renderForChannel(channel,seconds);
     const double localTime=channel.isNull() ? seconds : document_.channelTime(channel,seconds);
-    layoutCanvas_->setPreviewFrame(displayed,seconds,channel); effectsCanvas_->setPreviewFrame(displayed,localTime,channel); hardwarePreview_->setPreviewFrame(previewFrame_,seconds,channel);
+    layoutCanvas_->setPreviewFrame(displayed,seconds,channel); effectsCanvas_->setPreviewFrame(displayed,localTime,channel,seconds); hardwarePreview_->setPreviewFrame(previewFrame_,seconds,channel);
     emit previewFrameChanged(previewFrame_);
 }
 
