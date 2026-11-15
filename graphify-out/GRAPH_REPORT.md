@@ -1,17 +1,17 @@
 # Graph Report - msi-mystic-light  (2026-11-15)
 
 ## Corpus Check
-- 203 files · ~1,695,649 words
+- 203 files · ~1,695,783 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 18 file(s) not represented in the graph (top: .csv 6, .bin 3, (none) 2)
 
 ## Summary
-- 3349 nodes · 7506 edges · 186 communities (137 shown, 49 thin omitted)
-- Extraction: 78% EXTRACTED · 22% INFERRED · 0% AMBIGUOUS · INFERRED: 1628 edges (avg confidence: 0.83)
+- 3349 nodes · 7508 edges · 186 communities (137 shown, 49 thin omitted)
+- Extraction: 78% EXTRACTED · 22% INFERRED · 0% AMBIGUOUS · INFERRED: 1629 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `57ee1cba`
+- Built from commit: `53338bd2`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -767,11 +767,11 @@ Nodes (4): State, Connected, Disconnected, Faulted
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `IHidDevice` connect `IHidDevice` to `IDriver`, `AuxiliaryTransport`, `VirtualModule`, `HpOmenDriver`, `RgbColor`, `MsiColor`, `.load`, `Recording`, `IDriverModule`, `Transport`, `stdexcept`, `BuildReport0x51`, `memory`, `OutputSession`, `LenovoMotherboardModule.cpp`, `PeripheralModule`, `RecordingTransport`, `.connect`, `Transport`, `Hardware modules`, `FakeHidDevice`, `HidApiDevice`, `.pushColors`, `SignalRGB repository research`, `msiprotocol`, `NativeEffect`, `AuxiliaryDriver`, `AsrockPolychromeDriver`, `Record`?**
-  _High betweenness centrality (0.130) - this node is a cross-community bridge._
+  _High betweenness centrality (0.131) - this node is a cross-community bridge._
 - **Why does `LightingWindow` connect `LightingWindow` to `LightingWindow.cpp`, `test_editor.cpp`, `LightingCanvas`, `.render`, `button`, `ServicePanel`, `OutputPanel`, `EffectRenderer.cpp`, `.eventFilter`, `test_output_ui.cpp`, `test_service.cpp`, `.edit`, `src/main.cpp`, `LightingWindow::LightingWindow`, `Layer model proposal`, `HardwarePicker`, `LightingDocument`, `OutputPanel.cpp`, `ProfileCandidate`, `PreviewDivider`?**
   _High betweenness centrality (0.123) - this node is a cross-community bridge._
 - **Why does `Output session backend` connect `Output session backend` to `OutputScheduler`, `LightingDocument`, `ModuleRegistry`, `OutputFrame`, `.connect`, `README.md`?**
-  _High betweenness centrality (0.089) - this node is a cross-community bridge._
+  _High betweenness centrality (0.090) - this node is a cross-community bridge._
 - **Are the 85 inferred relationships involving `LightingWindow` (e.g. with `Problem confirmed in the current code` and `main()`) actually correct?**
   _`LightingWindow` has 85 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 8 inferred relationships involving `catalog()` (e.g. with `.componentLedOffsets()` and `.componentName()`) actually correct?**

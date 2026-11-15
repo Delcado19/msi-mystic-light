@@ -12,6 +12,7 @@
 #include <tlhelp32.h>
 #include <memory>
 #include <thread>
+#include <atomic>
 #endif
 
 namespace {
@@ -214,6 +215,8 @@ public:
 // Mystic_Light_Service restarts LEDKeeper2.exe through Task Scheduler (docs/ARCHITECTURE.md;
 // owner test 2026-11-14: after stopping the service a killed LEDKeeper2 stayed gone). Stop the
 // service for this session only; its start type is unchanged, so MSI Center returns after reboot.
+// Last ControlService failure of the detached stop worker; 0 = none (yet).
+std::atomic<DWORD>& mysticStopError() { static std::atomic<DWORD> error{0}; return error; }
 QString stopMysticLightService()
 {
     ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
@@ -224,9 +227,12 @@ QString stopMysticLightService()
     // ControlService can block up to 30 s while the service handles another control, so it runs on a
     // detached worker that owns its handles; the dialog thread never waits on it. The force step checks
     // SERVICE_STOPPED before terminating LEDKeeper2 (CodeRabbit review 2026-11-15).
+    mysticStopError().store(0);
     std::thread([manager = std::move(manager), service = std::move(service)] {
         SERVICE_STATUS status{};
-        ControlService(service.get(), SERVICE_CONTROL_STOP, &status);
+        // A refused stop (e.g. ERROR_DEPENDENT_SERVICES_RUNNING) is reported by the force step; retrying cannot help.
+        if (!ControlService(service.get(), SERVICE_CONTROL_STOP, &status) && GetLastError() != ERROR_SERVICE_NOT_ACTIVE)
+            mysticStopError().store(GetLastError());
     }).detach();
     return {};
 }
@@ -242,6 +248,10 @@ QString mysticLightServiceStopped()
     SERVICE_STATUS status{};
     if (!QueryServiceStatus(service.get(), &status)) return winError("Cannot query Mystic_Light_Service");
     if (status.dwCurrentState == SERVICE_STOPPED) return {};
+    if (const auto error = mysticStopError().load()) {
+        SetLastError(error);
+        return winError("Mystic_Light_Service refused to stop; LEDKeeper2 left running");
+    }
     return "Mystic_Light_Service has not stopped yet; LEDKeeper2 left running so it is not restarted. Try again";
 }
 BOOL CALLBACK closeWindow(HWND window, LPARAM pid)

@@ -989,7 +989,7 @@
       "file_type": "code",
       "norm_label": "sccloser",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L148"
+      "source_location": "L149"
     },
     {
       "id": "src_output_outputsession_state",
@@ -2250,7 +2250,7 @@
       "file_type": "code",
       "norm_label": "nativeservices",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L161"
+      "source_location": "L162"
     },
     {
       "id": "src_startup_conflictprocesses_systemconflictprocesses",
@@ -9871,7 +9871,7 @@
       "file_type": "code",
       "norm_label": "closewindow()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L247"
+      "source_location": "L257"
     },
     {
       "id": "src_editor_lightingcanvas_lightingcanvas_tool",
@@ -12277,7 +12277,7 @@
       "file_type": "code",
       "norm_label": ".operator()()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L148"
+      "source_location": "L149"
     },
     {
       "id": "src_hid_hidapidevice_hidapidevice_open",
@@ -14247,7 +14247,7 @@
       "community": 30,
       "community_name": "ServicePanel",
       "definition_file": "src/service/ServicePanel.cpp",
-      "definition_location": "L132",
+      "definition_location": "L136",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -14255,37 +14255,37 @@
             "callee": "append",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L135"
+            "line": "L139"
           },
           {
             "callee": "fromUtf8",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L135"
+            "line": "L139"
           },
           {
             "callee": "isEmpty",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L149"
+            "line": "L153"
           },
           {
             "callee": "removeDuplicates",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L150"
+            "line": "L154"
           },
           {
             "callee": "warning",
             "receiver_type": "QMessageBox",
             "lang": "cpp",
-            "line": "L151"
+            "line": "L155"
           },
           {
             "callee": "join",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L151"
+            "line": "L155"
           }
         ]
       },
@@ -14301,7 +14301,7 @@
       "community": 30,
       "community_name": "ServicePanel",
       "definition_file": "src/service/ServicePanel.cpp",
-      "definition_location": "L62",
+      "definition_location": "L66",
       "file_type": "code",
       "norm_label": ".activate()",
       "source_file": "src/service/ServicePanel.h",
@@ -14315,7 +14315,7 @@
       "community": 30,
       "community_name": "ServicePanel",
       "definition_file": "src/service/ServicePanel.cpp",
-      "definition_location": "L63",
+      "definition_location": "L67",
       "file_type": "code",
       "norm_label": ".stopoutput()",
       "source_file": "src/service/ServicePanel.h",
@@ -14329,7 +14329,7 @@
       "community": 30,
       "community_name": "ServicePanel",
       "definition_file": "src/service/ServicePanel.cpp",
-      "definition_location": "L64",
+      "definition_location": "L68",
       "file_type": "code",
       "norm_label": ".send()",
       "source_file": "src/service/ServicePanel.h",
@@ -14343,7 +14343,7 @@
       "community": 30,
       "community_name": "ServicePanel",
       "definition_file": "src/service/ServicePanel.cpp",
-      "definition_location": "L68",
+      "definition_location": "L72",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -14351,19 +14351,19 @@
             "callee": "isValid",
             "receiver_type": "QTemporaryDir",
             "lang": "cpp",
-            "line": "L69"
+            "line": "L73"
           },
           {
             "callee": "path",
             "receiver_type": "QTemporaryDir",
             "lang": "cpp",
-            "line": "L70"
+            "line": "L74"
           },
           {
             "callee": "decode",
             "receiver_type": "StudioService",
             "lang": "cpp",
-            "line": "L72"
+            "line": "L76"
           }
         ]
       },
@@ -14379,7 +14379,7 @@
       "community": 30,
       "community_name": "ServicePanel",
       "definition_file": "src/service/ServicePanel.cpp",
-      "definition_location": "L75",
+      "definition_location": "L79",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -14387,25 +14387,25 @@
             "callee": "append",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L79"
+            "line": "L83"
           },
           {
             "callee": "removeDuplicates",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L86"
+            "line": "L90"
           },
           {
             "callee": "isEmpty",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L87"
+            "line": "L91"
           },
           {
             "callee": "join",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L87"
+            "line": "L91"
           }
         ]
       },
@@ -14421,7 +14421,7 @@
       "community": 30,
       "community_name": "ServicePanel",
       "definition_file": "src/service/ServicePanel.cpp",
-      "definition_location": "L90",
+      "definition_location": "L94",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -14429,37 +14429,37 @@
             "callee": "open",
             "receiver_type": "QTemporaryFile",
             "lang": "cpp",
-            "line": "L100"
+            "line": "L104"
           },
           {
             "callee": "write",
             "receiver_type": "QTemporaryFile",
             "lang": "cpp",
-            "line": "L102"
+            "line": "L106"
           },
           {
             "callee": "flush",
             "receiver_type": "QTemporaryFile",
             "lang": "cpp",
-            "line": "L102"
+            "line": "L106"
           },
           {
             "callee": "fileName",
             "receiver_type": "QTemporaryFile",
             "lang": "cpp",
-            "line": "L103"
+            "line": "L107"
           },
           {
             "callee": "fromUtf8",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L116"
+            "line": "L120"
           },
           {
             "callee": "currentMSecsSinceEpoch",
             "receiver_type": "QDateTime",
             "lang": "cpp",
-            "line": "L118"
+            "line": "L122"
           }
         ]
       },
@@ -14722,6 +14722,12 @@
             "receiver_type": "QDateTime",
             "lang": "cpp",
             "line": "L53"
+          },
+          {
+            "callee": "fromUtf8",
+            "receiver_type": "QString",
+            "lang": "cpp",
+            "line": "L62"
           }
         ]
       },
@@ -17013,7 +17019,7 @@
       "file_type": "code",
       "norm_label": "issignalrgbservice()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L48"
+      "source_location": "L49"
     },
     {
       "id": "src_editor_componenteditor_geometryview_drawbackground",
@@ -23327,7 +23333,7 @@
       "community": 85,
       "community_name": "ConflictProcesses.cpp",
       "definition_file": "src/startup/ConflictProcesses.cpp",
-      "definition_location": "L258",
+      "definition_location": "L268",
       "file_type": "code",
       "norm_label": ".systemconflictprocesses()",
       "source_file": "src/startup/ConflictProcesses.h",
@@ -23341,7 +23347,7 @@
       "community": 85,
       "community_name": "ConflictProcesses.cpp",
       "definition_file": "src/startup/ConflictProcesses.cpp",
-      "definition_location": "L265",
+      "definition_location": "L275",
       "file_type": "code",
       "norm_label": ".querysignalrgbservice()",
       "source_file": "src/startup/ConflictProcesses.h",
@@ -23355,7 +23361,7 @@
       "community": 85,
       "community_name": "ConflictProcesses.cpp",
       "definition_file": "src/startup/ConflictProcesses.cpp",
-      "definition_location": "L274",
+      "definition_location": "L284",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -23363,37 +23369,37 @@
             "callee": "isEmpty",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L281"
+            "line": "L291"
           },
           {
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L286"
+            "line": "L296"
           },
           {
             "callee": "activeModalWidget",
             "receiver_type": "QApplication",
             "lang": "cpp",
-            "line": "L290"
+            "line": "L300"
           },
           {
             "callee": "winId",
             "receiver_type": "DWORD",
             "lang": "cpp",
-            "line": "L290"
+            "line": "L300"
           },
           {
             "callee": "utf16",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L291"
+            "line": "L301"
           },
           {
             "callee": "number",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L295"
+            "line": "L305"
           }
         ]
       },
@@ -23409,7 +23415,7 @@
       "community": 85,
       "community_name": "ConflictProcesses.cpp",
       "definition_file": "src/startup/ConflictProcesses.cpp",
-      "definition_location": "L304",
+      "definition_location": "L314",
       "file_type": "code",
       "norm_label": ".pollsignalrgbadminstop()",
       "source_file": "src/startup/ConflictProcesses.h",
@@ -23423,7 +23429,7 @@
       "community": 85,
       "community_name": "ConflictProcesses.cpp",
       "definition_file": "src/startup/ConflictProcesses.cpp",
-      "definition_location": "L320",
+      "definition_location": "L330",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -23431,25 +23437,25 @@
             "callee": "get",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L324"
+            "line": "L334"
           },
           {
             "callee": "release",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L325"
+            "line": "L335"
           },
           {
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L333"
+            "line": "L343"
           },
           {
             "callee": "applicationPid",
             "receiver_type": "QCoreApplication",
             "lang": "cpp",
-            "line": "L335"
+            "line": "L345"
           }
         ]
       },
@@ -23465,7 +23471,7 @@
       "community": 85,
       "community_name": "ConflictProcesses.cpp",
       "definition_file": "src/startup/ConflictProcesses.cpp",
-      "definition_location": "L358",
+      "definition_location": "L368",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -23473,19 +23479,19 @@
             "callee": "applicationPid",
             "receiver_type": "QCoreApplication",
             "lang": "cpp",
-            "line": "L360"
+            "line": "L370"
           },
           {
             "callee": "get",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L373"
+            "line": "L383"
           },
           {
             "callee": "isEmpty",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L382"
+            "line": "L392"
           }
         ]
       },
@@ -23503,7 +23509,7 @@
       "file_type": "code",
       "norm_label": "conflictreason()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L24"
+      "source_location": "L25"
     },
     {
       "id": "src_startup_conflictprocesses_creationtime",
@@ -23515,7 +23521,7 @@
       "file_type": "code",
       "norm_label": "creationtime()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_startup_conflictprocesses_matchesprocessidentity",
@@ -23527,7 +23533,7 @@
       "file_type": "code",
       "norm_label": "matchesprocessidentity()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L121"
+      "source_location": "L122"
     },
     {
       "id": "src_startup_conflictprocesses_mysticlightservicestopped",
@@ -23543,13 +23549,13 @@
             "callee": "get",
             "receiver_type": "ScHandle",
             "lang": "cpp",
-            "line": "L243"
+            "line": "L249"
           }
         ]
       },
       "norm_label": "mysticlightservicestopped()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L235"
+      "source_location": "L241"
     },
     {
       "id": "src_startup_conflictprocesses_nativeservices_enumerate",
@@ -23565,13 +23571,13 @@
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L177"
+            "line": "L178"
           }
         ]
       },
       "norm_label": ".enumerate()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L165"
+      "source_location": "L166"
     },
     {
       "id": "src_startup_conflictprocesses_nativeservices_query",
@@ -23587,19 +23593,19 @@
             "callee": "get",
             "receiver_type": "ScHandle",
             "lang": "cpp",
-            "line": "L184"
+            "line": "L185"
           },
           {
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L197"
+            "line": "L198"
           }
         ]
       },
       "norm_label": ".query()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L180"
+      "source_location": "L181"
     },
     {
       "id": "src_startup_conflictprocesses_nativeservices_requeststop",
@@ -23615,13 +23621,13 @@
             "callee": "get",
             "receiver_type": "ScHandle",
             "lang": "cpp",
-            "line": "L203"
+            "line": "L204"
           }
         ]
       },
       "norm_label": ".requeststop()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L199"
+      "source_location": "L200"
     },
     {
       "id": "src_startup_conflictprocesses_normalized",
@@ -23637,13 +23643,13 @@
             "callee": "fromNativeSeparators",
             "receiver_type": "QDir",
             "lang": "cpp",
-            "line": "L20"
+            "line": "L21"
           }
         ]
       },
       "norm_label": "normalized()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L18"
+      "source_location": "L19"
     },
     {
       "id": "src_startup_conflictprocesses_processpath",
@@ -23659,13 +23665,13 @@
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L142"
+            "line": "L143"
           }
         ]
       },
       "norm_label": "processpath()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L137"
+      "source_location": "L138"
     },
     {
       "id": "src_startup_conflictprocesses_requiresmanualstop",
@@ -23677,7 +23683,7 @@
       "file_type": "code",
       "norm_label": "requiresmanualstop()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L40"
+      "source_location": "L41"
     },
     {
       "id": "src_startup_conflictprocesses_serviceinfo",
@@ -23689,7 +23695,7 @@
       "file_type": "code",
       "norm_label": "serviceinfo()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L150"
+      "source_location": "L151"
     },
     {
       "id": "src_startup_conflictprocesses_signalrgbadminstoperror",
@@ -23705,31 +23711,31 @@
             "callee": "size",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L71"
+            "line": "L72"
           },
           {
             "callee": "contains",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L72"
+            "line": "L73"
           },
           {
             "callee": "cleanPath",
             "receiver_type": "QDir",
             "lang": "cpp",
-            "line": "L79"
+            "line": "L80"
           },
           {
             "callee": "fromNativeSeparators",
             "receiver_type": "QDir",
             "lang": "cpp",
-            "line": "L79"
+            "line": "L80"
           }
         ]
       },
       "norm_label": "signalrgbadminstoperror()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L53"
+      "source_location": "L54"
     },
     {
       "id": "src_startup_conflictprocesses_signalrgbadminstopexiterror",
@@ -23745,13 +23751,13 @@
             "callee": "number",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L93"
+            "line": "L94"
           }
         ]
       },
       "norm_label": "signalrgbadminstopexiterror()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L87"
+      "source_location": "L88"
     },
     {
       "id": "src_startup_conflictprocesses_stopmysticlightservice",
@@ -23767,13 +23773,13 @@
             "callee": "get",
             "receiver_type": "ScHandle",
             "lang": "cpp",
-            "line": "L229"
+            "line": "L234"
           }
         ]
       },
       "norm_label": "stopmysticlightservice()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L217"
+      "source_location": "L220"
     },
     {
       "id": "src_startup_conflictprocesses_stopsignalrgbservice",
@@ -23789,13 +23795,13 @@
             "callee": "isEmpty",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L103"
+            "line": "L104"
           }
         ]
       },
       "norm_label": "stopsignalrgbservice()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L96"
+      "source_location": "L97"
     },
     {
       "id": "src_startup_conflictprocesses_winerror",
@@ -23811,13 +23817,13 @@
             "callee": "number",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L146"
+            "line": "L147"
           }
         ]
       },
       "norm_label": "winerror()",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L144"
+      "source_location": "L145"
     },
     {
       "id": "tests_modules_test_modules_modulestest_descriptormatching",
@@ -29901,7 +29907,7 @@
       "node_kind": "heading",
       "norm_label": "diagnostics and removal",
       "source_file": "docs/WINDOWS_SERVICE.md",
-      "source_location": "L94"
+      "source_location": "L95"
     },
     {
       "id": "docs_windows_service_install_and_update",
@@ -29949,7 +29955,7 @@
       "node_kind": "heading",
       "norm_label": "verification boundaries",
       "source_file": "docs/WINDOWS_SERVICE.md",
-      "source_location": "L134"
+      "source_location": "L135"
     },
     {
       "id": "docs_windows_service_windows_service_operation",
@@ -33049,7 +33055,7 @@
       "node_kind": "heading",
       "norm_label": "artwork, continuous gestures and spatial controls (gs-06)",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1195"
+      "source_location": "L1197"
     },
     {
       "id": "docs_lighting_editor_image_editor_crop_and_visible_preview_scope_2026_11_13",
@@ -33061,7 +33067,7 @@
       "node_kind": "heading",
       "norm_label": "image-editor crop and visible preview scope (2026-11-13)",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1238"
+      "source_location": "L1240"
     },
     {
       "id": "docs_lighting_editor_startup_compatibility_hotfix_2026_10_30",
@@ -33073,7 +33079,7 @@
       "node_kind": "heading",
       "norm_label": "startup compatibility hotfix (2026-10-30)",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1230"
+      "source_location": "L1232"
     },
     {
       "id": "docs_design_unified_editor_implementation_2026_10_27",
@@ -33306,7 +33312,7 @@
       "node_kind": "heading",
       "norm_label": "addressable leds and nv5 mkii evidence",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L793"
+      "source_location": "L795"
     },
     {
       "id": "docs_lighting_editor_msi_board_configuration_versus_spatial_pixel_frames",
@@ -33318,7 +33324,7 @@
       "node_kind": "heading",
       "norm_label": "msi board configuration versus spatial pixel frames",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L808"
+      "source_location": "L810"
     },
     {
       "id": "docs_lighting_editor_workspace_navigation_and_catalog_identity",
@@ -33330,7 +33336,7 @@
       "node_kind": "heading",
       "norm_label": "workspace navigation and catalog identity",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L756"
+      "source_location": "L758"
     },
     {
       "id": "docs_lighting_editor_distinct_source_capabilities_and_particle_authoring",
@@ -33342,7 +33348,7 @@
       "node_kind": "heading",
       "norm_label": "distinct source capabilities and particle authoring",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1149"
+      "source_location": "L1151"
     },
     {
       "id": "docs_lighting_editor_independent_wave_distortion",
@@ -33354,7 +33360,7 @@
       "node_kind": "heading",
       "norm_label": "independent wave distortion",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1182"
+      "source_location": "L1184"
     },
     {
       "id": "docs_lighting_editor_project_files_and_boundaries",
@@ -39548,7 +39554,7 @@
       "node_kind": "heading",
       "norm_label": "authoring controls follow-up",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1088"
+      "source_location": "L1090"
     },
     {
       "id": "docs_lighting_editor_channel_targets_and_clocks_schema_9",
@@ -39632,7 +39638,7 @@
       "node_kind": "heading",
       "norm_label": "integer controls, live color and identity (2026-10-26)",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1022"
+      "source_location": "L1024"
     },
     {
       "id": "docs_lighting_editor_layer_objects_and_interaction_2026_10_27",
@@ -39644,7 +39650,7 @@
       "node_kind": "heading",
       "norm_label": "layer objects and interaction (2026-10-27)",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1060"
+      "source_location": "L1062"
     },
     {
       "id": "docs_lighting_editor_layers_and_masks",
@@ -39716,7 +39722,7 @@
       "node_kind": "heading",
       "norm_label": "precision tools and editor polish",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1117"
+      "source_location": "L1119"
     },
     {
       "id": "docs_lighting_editor_restored_hardware_and_drawing_workflow_2026_10_23",
@@ -39776,7 +39782,7 @@
       "node_kind": "heading",
       "norm_label": "snap to grid",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L734"
+      "source_location": "L736"
     },
     {
       "id": "docs_lighting_editor_staged_channel_configuration",
@@ -46367,7 +46373,7 @@
       "file_type": "code",
       "norm_label": "manager_",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L163"
+      "source_location": "L164"
     },
     {
       "id": "src_startup_conflictprocesses_nativeservices_verifiedpid",
@@ -46378,7 +46384,7 @@
       "file_type": "code",
       "norm_label": "verifiedpid_",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L162"
+      "source_location": "L163"
     },
     {
       "id": "src_startup_conflictprocesses_systemconflictprocesses_adminstopprocess",
@@ -47093,7 +47099,7 @@
       "node_kind": "heading",
       "norm_label": "artwork alignment and custom device geometry",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L920"
+      "source_location": "L922"
     },
     {
       "id": "docs_lighting_editor_detailed_hardware_artwork",
@@ -47105,7 +47111,7 @@
       "node_kind": "heading",
       "norm_label": "detailed hardware artwork",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L904"
+      "source_location": "L906"
     },
     {
       "id": "docs_lighting_editor_fixed_device_settings_versus_attachable_headers",
@@ -47117,7 +47123,7 @@
       "node_kind": "heading",
       "norm_label": "fixed-device settings versus attachable headers",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L965"
+      "source_location": "L967"
     },
     {
       "id": "docs_lighting_editor_gaming_workspace_and_responsive_panels",
@@ -47129,7 +47135,7 @@
       "node_kind": "heading",
       "norm_label": "gaming workspace and responsive panels",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L977"
+      "source_location": "L979"
     },
     {
       "id": "docs_lighting_editor_layer_visibility_brush_size_and_delete",
@@ -47141,7 +47147,7 @@
       "node_kind": "heading",
       "norm_label": "layer visibility, brush size and delete",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L832"
+      "source_location": "L834"
     },
     {
       "id": "docs_lighting_editor_mask_playback_navigation_and_cosmetic_hardware_variants",
@@ -47153,7 +47159,7 @@
       "node_kind": "heading",
       "norm_label": "mask playback, navigation and cosmetic hardware variants",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L888"
+      "source_location": "L890"
     },
     {
       "id": "docs_lighting_editor_model_labels_fullsize_keyboards_and_zero_angle_defaults",
@@ -47165,7 +47171,7 @@
       "node_kind": "heading",
       "norm_label": "model labels, fullsize keyboards and zero-angle defaults",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L941"
+      "source_location": "L943"
     },
     {
       "id": "docs_lighting_editor_scrollbar_contrast_and_effects_preview_divider",
@@ -47177,7 +47183,7 @@
       "node_kind": "heading",
       "norm_label": "scrollbar contrast and effects preview divider",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L860"
+      "source_location": "L862"
     },
     {
       "id": "docs_lighting_editor_shared_effect_and_hardware_canvas_extent",
@@ -47189,7 +47195,7 @@
       "node_kind": "heading",
       "norm_label": "shared effect and hardware canvas extent",
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L876"
+      "source_location": "L878"
     },
     {
       "id": "tests_modules_test_hp_omen",
@@ -53326,7 +53332,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L62",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -53338,7 +53344,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L147",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -53350,7 +53356,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L126",
+      "source_location": "L130",
       "weight": 1.0
     },
     {
@@ -53362,7 +53368,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L72",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
@@ -53398,7 +53404,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L63",
+      "source_location": "L67",
       "weight": 1.0
     },
     {
@@ -53602,7 +53608,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L27",
+      "source_location": "L28",
       "weight": 1.0
     },
     {
@@ -53614,7 +53620,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L50",
+      "source_location": "L51",
       "weight": 1.0
     },
     {
@@ -53626,7 +53632,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L124",
+      "source_location": "L125",
       "weight": 1.0
     },
     {
@@ -53638,7 +53644,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L238",
+      "source_location": "L244",
       "weight": 1.0
     },
     {
@@ -53650,7 +53656,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L166",
+      "source_location": "L167",
       "weight": 1.0
     },
     {
@@ -53662,7 +53668,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L177",
+      "source_location": "L178",
       "weight": 1.0
     },
     {
@@ -53674,7 +53680,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L182",
+      "source_location": "L183",
       "weight": 1.0
     },
     {
@@ -53686,7 +53692,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L186",
+      "source_location": "L187",
       "weight": 1.0
     },
     {
@@ -53698,7 +53704,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L201",
+      "source_location": "L202",
       "weight": 1.0
     },
     {
@@ -53710,7 +53716,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L42",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -53722,7 +53728,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L73",
+      "source_location": "L74",
       "weight": 1.0
     },
     {
@@ -53734,7 +53740,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L75",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
@@ -53746,7 +53752,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L220",
+      "source_location": "L223",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_conflictprocesses_stopsignalrgbservice",
+      "target": "src_startup_conflictprocesses_matchesprocessidentity",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/startup/ConflictProcesses.cpp",
+      "source_location": "L100",
       "weight": 1.0
     },
     {
@@ -53758,7 +53776,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L109",
+      "source_location": "L110",
       "weight": 1.0
     },
     {
@@ -53770,24 +53788,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L118",
+      "source_location": "L119",
       "weight": 1.0
     },
     {
       "source": "src_startup_conflictprocesses_stopsignalrgbservice",
       "target": "src_startup_conflictprocesses_issignalrgbservice",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L98",
-      "weight": 1.0
-    },
-    {
-      "source": "src_startup_conflictprocesses_stopsignalrgbservice",
-      "target": "src_startup_conflictprocesses_matchesprocessidentity",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -53806,7 +53812,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L312",
+      "source_location": "L322",
       "weight": 1.0
     },
     {
@@ -53818,7 +53824,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L313",
+      "source_location": "L323",
       "weight": 1.0
     },
     {
@@ -53830,7 +53836,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L268",
+      "source_location": "L278",
       "weight": 1.0
     },
     {
@@ -53842,7 +53848,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L283",
+      "source_location": "L293",
       "weight": 1.0
     },
     {
@@ -53854,7 +53860,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L285",
+      "source_location": "L295",
       "weight": 1.0
     },
     {
@@ -53866,7 +53872,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L294",
+      "source_location": "L304",
       "weight": 1.0
     },
     {
@@ -53878,7 +53884,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L326",
+      "source_location": "L336",
       "weight": 1.0
     },
     {
@@ -53890,7 +53896,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L334",
+      "source_location": "L344",
       "weight": 1.0
     },
     {
@@ -53902,7 +53908,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L340",
+      "source_location": "L350",
       "weight": 1.0
     },
     {
@@ -53914,7 +53920,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L343",
+      "source_location": "L353",
       "weight": 1.0
     },
     {
@@ -53926,60 +53932,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L344",
+      "source_location": "L354",
       "weight": 1.0
     },
     {
       "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
       "target": "src_startup_conflictprocesses_conflictreason",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L361",
-      "weight": 1.0
-    },
-    {
-      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_requiresmanualstop",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L362",
-      "weight": 1.0
-    },
-    {
-      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_normalized",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L364",
-      "weight": 1.0
-    },
-    {
-      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_issignalrgbservice",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L365",
-      "weight": 1.0
-    },
-    {
-      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_winerror",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -53991,7 +53949,19 @@
     },
     {
       "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_creationtime",
+      "target": "src_startup_conflictprocesses_requiresmanualstop",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/startup/ConflictProcesses.cpp",
+      "source_location": "L372",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
+      "target": "src_startup_conflictprocesses_normalized",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -54003,43 +53973,19 @@
     },
     {
       "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_matchesprocessidentity",
+      "target": "src_startup_conflictprocesses_issignalrgbservice",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L374",
+      "source_location": "L375",
       "weight": 1.0
     },
     {
       "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_processpath",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L374",
-      "weight": 1.0
-    },
-    {
-      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_stopsignalrgbservice",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L378",
-      "weight": 1.0
-    },
-    {
-      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
-      "target": "src_startup_conflictprocesses_stopmysticlightservice",
+      "target": "src_startup_conflictprocesses_winerror",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -54051,6 +53997,66 @@
     },
     {
       "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
+      "target": "src_startup_conflictprocesses_creationtime",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/startup/ConflictProcesses.cpp",
+      "source_location": "L384",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
+      "target": "src_startup_conflictprocesses_matchesprocessidentity",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/startup/ConflictProcesses.cpp",
+      "source_location": "L384",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
+      "target": "src_startup_conflictprocesses_processpath",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/startup/ConflictProcesses.cpp",
+      "source_location": "L384",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
+      "target": "src_startup_conflictprocesses_stopsignalrgbservice",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/startup/ConflictProcesses.cpp",
+      "source_location": "L388",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
+      "target": "src_startup_conflictprocesses_stopmysticlightservice",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/startup/ConflictProcesses.cpp",
+      "source_location": "L391",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_conflictprocesses_systemconflictprocesses_stop",
       "target": "src_startup_conflictprocesses_mysticlightservicestopped",
       "relation": "calls",
       "_origin": "ast",
@@ -54058,7 +54064,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L382",
+      "source_location": "L392",
       "weight": 1.0
     },
     {
@@ -65074,7 +65080,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L162",
+      "source_location": "L163",
       "weight": 1.0
     },
     {
@@ -65086,7 +65092,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L163",
+      "source_location": "L164",
       "weight": 1.0
     },
     {
@@ -69106,7 +69112,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L162",
+      "source_location": "L163",
       "weight": 1.0
     },
     {
@@ -69118,7 +69124,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L163",
+      "source_location": "L164",
       "weight": 1.0
     },
     {
@@ -71386,7 +71392,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L165",
+      "source_location": "L166",
       "weight": 1.0
     },
     {
@@ -71398,7 +71404,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -71410,7 +71416,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L320",
+      "source_location": "L330",
       "weight": 1.0
     },
     {
@@ -80211,6 +80217,18 @@
     },
     {
       "source": "src_startup_conflictprocesses_cpp_src_startup_conflictprocesses",
+      "target": "atomic",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "src/startup/ConflictProcesses.cpp",
+      "source_location": "L15",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_conflictprocesses_cpp_src_startup_conflictprocesses",
       "target": "qcoreapplication",
       "relation": "imports",
       "_origin": "ast",
@@ -88834,7 +88852,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L75",
+      "source_location": "L79",
       "weight": 1.0
     },
     {
@@ -88846,7 +88864,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L64",
+      "source_location": "L68",
       "weight": 1.0
     },
     {
@@ -89266,7 +89284,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L247",
+      "source_location": "L257",
       "weight": 1.0
     },
     {
@@ -89278,7 +89296,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L247",
+      "source_location": "L257",
       "weight": 1.0
     },
     {
@@ -89290,7 +89308,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L24",
+      "source_location": "L25",
       "weight": 1.0
     },
     {
@@ -89302,7 +89320,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -89338,7 +89356,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L48",
+      "source_location": "L49",
       "weight": 1.0
     },
     {
@@ -89350,7 +89368,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L121",
+      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -89362,7 +89380,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L121",
+      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -89374,7 +89392,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L121",
+      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -89386,7 +89404,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L165",
+      "source_location": "L166",
       "weight": 1.0
     },
     {
@@ -89398,7 +89416,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L180",
+      "source_location": "L181",
       "weight": 1.0
     },
     {
@@ -89410,7 +89428,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L180",
+      "source_location": "L181",
       "weight": 1.0
     },
     {
@@ -89422,7 +89440,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L199",
+      "source_location": "L200",
       "weight": 1.0
     },
     {
@@ -89434,7 +89452,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L18",
+      "source_location": "L19",
       "weight": 1.0
     },
     {
@@ -89446,7 +89464,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L137",
+      "source_location": "L138",
       "weight": 1.0
     },
     {
@@ -89458,7 +89476,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L40",
+      "source_location": "L41",
       "weight": 1.0
     },
     {
@@ -89470,7 +89488,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -89482,7 +89500,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L150",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -89494,7 +89512,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L150",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -89506,7 +89524,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -89518,7 +89536,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -89530,7 +89548,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L87",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
@@ -89542,7 +89560,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L96",
+      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -89554,7 +89572,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L96",
+      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -89566,7 +89584,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L265",
+      "source_location": "L275",
       "weight": 1.0
     },
     {
@@ -89578,7 +89596,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L274",
+      "source_location": "L284",
       "weight": 1.0
     },
     {
@@ -89590,7 +89608,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L358",
+      "source_location": "L368",
       "weight": 1.0
     },
     {
@@ -89602,7 +89620,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L144",
+      "source_location": "L145",
       "weight": 1.0
     },
     {
@@ -92062,7 +92080,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L68",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -92194,7 +92212,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L247",
+      "source_location": "L257",
       "weight": 1.0
     },
     {
@@ -92206,7 +92224,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -92254,7 +92272,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L235",
+      "source_location": "L241",
       "weight": 1.0
     },
     {
@@ -92266,7 +92284,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L165",
+      "source_location": "L166",
       "weight": 1.0
     },
     {
@@ -92278,7 +92296,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L137",
+      "source_location": "L138",
       "weight": 1.0
     },
     {
@@ -92290,7 +92308,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L150",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -92302,7 +92320,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -92314,7 +92332,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L87",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
@@ -92326,7 +92344,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L217",
+      "source_location": "L220",
       "weight": 1.0
     },
     {
@@ -92338,7 +92356,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L96",
+      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -92350,7 +92368,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L304",
+      "source_location": "L314",
       "weight": 1.0
     },
     {
@@ -92362,7 +92380,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L265",
+      "source_location": "L275",
       "weight": 1.0
     },
     {
@@ -92374,7 +92392,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L274",
+      "source_location": "L284",
       "weight": 1.0
     },
     {
@@ -92386,7 +92404,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L320",
+      "source_location": "L330",
       "weight": 1.0
     },
     {
@@ -92398,7 +92416,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L358",
+      "source_location": "L368",
       "weight": 1.0
     },
     {
@@ -97058,7 +97076,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1230",
+      "source_location": "L1232",
       "weight": 1.0
     },
     {
@@ -97069,7 +97087,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1238",
+      "source_location": "L1240",
       "weight": 1.0
     },
     {
@@ -97080,7 +97098,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1182",
+      "source_location": "L1184",
       "weight": 1.0
     },
     {
@@ -97168,7 +97186,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L860",
+      "source_location": "L862",
       "weight": 1.0
     },
     {
@@ -97179,7 +97197,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L876",
+      "source_location": "L878",
       "weight": 1.0
     },
     {
@@ -97190,7 +97208,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L888",
+      "source_location": "L890",
       "weight": 1.0
     },
     {
@@ -97201,7 +97219,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L904",
+      "source_location": "L906",
       "weight": 1.0
     },
     {
@@ -97212,7 +97230,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L920",
+      "source_location": "L922",
       "weight": 1.0
     },
     {
@@ -97223,7 +97241,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L941",
+      "source_location": "L943",
       "weight": 1.0
     },
     {
@@ -97234,7 +97252,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L965",
+      "source_location": "L967",
       "weight": 1.0
     },
     {
@@ -97245,7 +97263,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L977",
+      "source_location": "L979",
       "weight": 1.0
     },
     {
@@ -97256,7 +97274,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1022",
+      "source_location": "L1024",
       "weight": 1.0
     },
     {
@@ -97267,7 +97285,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1060",
+      "source_location": "L1062",
       "weight": 1.0
     },
     {
@@ -97278,7 +97296,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1088",
+      "source_location": "L1090",
       "weight": 1.0
     },
     {
@@ -97289,7 +97307,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1117",
+      "source_location": "L1119",
       "weight": 1.0
     },
     {
@@ -97300,7 +97318,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1149",
+      "source_location": "L1151",
       "weight": 1.0
     },
     {
@@ -97311,7 +97329,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1195",
+      "source_location": "L1197",
       "weight": 1.0
     },
     {
@@ -97520,7 +97538,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L734",
+      "source_location": "L736",
       "weight": 1.0
     },
     {
@@ -97531,7 +97549,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L756",
+      "source_location": "L758",
       "weight": 1.0
     },
     {
@@ -97553,7 +97571,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L832",
+      "source_location": "L834",
       "weight": 1.0
     },
     {
@@ -97575,7 +97593,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L793",
+      "source_location": "L795",
       "weight": 1.0
     },
     {
@@ -97586,7 +97604,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L808",
+      "source_location": "L810",
       "weight": 1.0
     },
     {
@@ -99599,7 +99617,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/WINDOWS_SERVICE.md",
-      "source_location": "L134",
+      "source_location": "L135",
       "weight": 1.0
     },
     {
@@ -99643,7 +99661,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/WINDOWS_SERVICE.md",
-      "source_location": "L94",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -105165,7 +105183,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L132",
+      "source_location": "L136",
       "weight": 1.0
     },
     {
@@ -105220,7 +105238,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L62",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -105231,7 +105249,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L63",
+      "source_location": "L67",
       "weight": 1.0
     },
     {
@@ -105242,7 +105260,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L64",
+      "source_location": "L68",
       "weight": 1.0
     },
     {
@@ -105253,7 +105271,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L68",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -105264,7 +105282,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L75",
+      "source_location": "L79",
       "weight": 1.0
     },
     {
@@ -105275,7 +105293,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L90",
+      "source_location": "L94",
       "weight": 1.0
     },
     {
@@ -105814,7 +105832,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L121",
+      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -105825,7 +105843,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -105836,7 +105854,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L137",
+      "source_location": "L138",
       "weight": 1.0
     },
     {
@@ -105847,7 +105865,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L144",
+      "source_location": "L145",
       "weight": 1.0
     },
     {
@@ -105858,7 +105876,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -105869,7 +105887,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L150",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -105880,7 +105898,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L161",
+      "source_location": "L162",
       "weight": 1.0
     },
     {
@@ -105891,7 +105909,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L18",
+      "source_location": "L19",
       "weight": 1.0
     },
     {
@@ -105902,7 +105920,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L217",
+      "source_location": "L220",
       "weight": 1.0
     },
     {
@@ -105913,7 +105931,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L235",
+      "source_location": "L241",
       "weight": 1.0
     },
     {
@@ -105924,7 +105942,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L24",
+      "source_location": "L25",
       "weight": 1.0
     },
     {
@@ -105935,7 +105953,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L247",
+      "source_location": "L257",
       "weight": 1.0
     },
     {
@@ -105946,7 +105964,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L258",
+      "source_location": "L268",
       "weight": 1.0
     },
     {
@@ -105957,7 +105975,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L265",
+      "source_location": "L275",
       "weight": 1.0
     },
     {
@@ -105968,7 +105986,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L274",
+      "source_location": "L284",
       "weight": 1.0
     },
     {
@@ -105979,7 +105997,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L304",
+      "source_location": "L314",
       "weight": 1.0
     },
     {
@@ -105990,7 +106008,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L320",
+      "source_location": "L330",
       "weight": 1.0
     },
     {
@@ -106001,7 +106019,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L358",
+      "source_location": "L368",
       "weight": 1.0
     },
     {
@@ -106012,7 +106030,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L40",
+      "source_location": "L41",
       "weight": 1.0
     },
     {
@@ -106023,7 +106041,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L48",
+      "source_location": "L49",
       "weight": 1.0
     },
     {
@@ -106034,7 +106052,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -106045,7 +106063,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L87",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
@@ -106056,7 +106074,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L96",
+      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -109488,7 +109506,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L161",
+      "source_location": "L162",
       "weight": 1.0
     },
     {
@@ -114427,7 +114445,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L165",
+      "source_location": "L166",
       "weight": 1.0
     },
     {
@@ -114438,7 +114456,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L180",
+      "source_location": "L181",
       "weight": 1.0
     },
     {
@@ -114449,7 +114467,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L199",
+      "source_location": "L200",
       "weight": 1.0
     },
     {
@@ -114460,7 +114478,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -118222,7 +118240,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1077",
+      "source_location": "L1079",
       "weight": 1.0
     },
     {
@@ -118233,7 +118251,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1141",
+      "source_location": "L1143",
       "weight": 1.0
     },
     {
@@ -118244,7 +118262,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/LIGHTING_EDITOR.md",
-      "source_location": "L1202",
+      "source_location": "L1204",
       "weight": 1.0
     },
     {
@@ -119006,7 +119024,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L102",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -126938,7 +126956,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/startup/ConflictProcesses.cpp",
-      "source_location": "L346",
+      "source_location": "L356",
       "weight": 1.0
     },
     {
@@ -134486,7 +134504,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L62",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -134498,7 +134516,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L135",
+      "source_location": "L139",
       "weight": 1.0
     },
     {
@@ -134510,7 +134528,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L135",
+      "source_location": "L139",
       "weight": 1.0
     },
     {
@@ -134522,7 +134540,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L143",
+      "source_location": "L147",
       "weight": 1.0
     },
     {
@@ -134534,7 +134552,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L145",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -134546,7 +134564,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L111",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -134558,7 +134576,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L123",
+      "source_location": "L127",
       "weight": 1.0
     },
     {
@@ -134623,6 +134641,18 @@
     },
     {
       "source": "src_service_servicepanel_servicepanel_servicepanel",
+      "target": "src_service_servicepanel_servicepanel_project",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "call",
+      "source_file": "src/service/ServicePanel.cpp",
+      "source_location": "L62",
+      "weight": 1.0
+    },
+    {
+      "source": "src_service_servicepanel_servicepanel_servicepanel",
       "target": "src_service_servicepanel_servicepanel_poll",
       "relation": "calls",
       "_origin": "ast",
@@ -134630,7 +134660,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L60",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -134642,7 +134672,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/service/ServicePanel.cpp",
-      "source_location": "L63",
+      "source_location": "L67",
       "weight": 1.0
     },
     {
@@ -138115,5 +138145,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "57ee1cba6169743b32a33d5851c29c4b67b7b891"
+  "built_at_commit": "53338bd25a132379a70b3d5d35d0b67550f1c8bc"
 }

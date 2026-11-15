@@ -2,8 +2,12 @@
 setlocal
 rem Development builds: start the most recently built of r4, routing and aurora, so a stale
 rem build folder never hides a newer one (CodeRabbit review 2026-11-15).
+rem Paths reach PowerShell as environment data, never as source text (apostrophes in the checkout path).
 set "APP="
-for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "Get-ChildItem -LiteralPath '%~dp0build\r4\Release\msi_mystic_light.exe','%~dp0build\routing\Release\msi_mystic_light.exe','%~dp0build\aurora\Release\msi_mystic_light.exe' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName"`) do set "APP=%%A"
+set "LS_R4=%~dp0build\r4\Release\msi_mystic_light.exe"
+set "LS_ROUTING=%~dp0build\routing\Release\msi_mystic_light.exe"
+set "LS_AURORA=%~dp0build\aurora\Release\msi_mystic_light.exe"
+for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "Get-ChildItem -LiteralPath $env:LS_R4,$env:LS_ROUTING,$env:LS_AURORA -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName"`) do set "APP=%%A"
 if defined APP goto launch
 set "APP=%~dp0build\dist\LightingStudio-ReliabilityFix\msi_mystic_light.exe"
 if exist "%ProgramFiles%\Lighting Studio\service.json" (

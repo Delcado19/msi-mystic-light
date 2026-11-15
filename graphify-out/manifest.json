@@ -300,9 +300,9 @@
     "semantic_hash": ""
   },
   "src/startup/ConflictProcesses.cpp": {
-    "mtime": 1794759409.1955357,
-    "seen": 1794759479.373753,
-    "ast_hash": "31b1be53df99136a644994c247ef86f2",
+    "mtime": 1794762494.071157,
+    "seen": 1794762530.3848717,
+    "ast_hash": "ee35c1ba8c4be7413b6e66275a61c0a7",
     "semantic_hash": ""
   },
   "src/startup/ConflictProcesses.h": {
@@ -360,9 +360,9 @@
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
-    "mtime": 1794750847.1997151,
-    "seen": 1794752630.9210863,
-    "ast_hash": "62f726f959516504922225273a23cb01",
+    "mtime": 1794760522.28348,
+    "seen": 1794762530.3879724,
+    "ast_hash": "f6af861a5e45d4e27ad92ccffca22449",
     "semantic_hash": ""
   },
   "docs/REFERENCE_REUSE_REVIEW.md": {
@@ -1110,9 +1110,9 @@
     "semantic_hash": ""
   },
   "src/service/ServicePanel.cpp": {
-    "mtime": 1794760256.4341917,
-    "seen": 1794760260.6635213,
-    "ast_hash": "73c9fd7869c5ccdcd8a22b5ab0999be3",
+    "mtime": 1794762494.071157,
+    "seen": 1794762530.3842497,
+    "ast_hash": "5acdfbf9de604acd2985cd12fd35216a",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.h": {
@@ -1182,9 +1182,9 @@
     "semantic_hash": ""
   },
   "docs/WINDOWS_SERVICE.md": {
-    "mtime": 1794424850.3051183,
-    "seen": 1794425347.7465744,
-    "ast_hash": "618d44c6e05e70b6c489c4b5d5592d82",
+    "mtime": 1794760522.2824779,
+    "seen": 1794762530.3889265,
+    "ast_hash": "99a535dc2ead40547d5359e2edab4fe1",
     "semantic_hash": ""
   },
   "docs/images/layout-fullscreen.png": {
