@@ -67,6 +67,7 @@ private slots:
  void persistedPauseAndReconnect();
  void offlineEndpointKeepsHealthyOutput();
  void editorRestoresServiceSnapshot();
+ void identifyKeepsQueuedEditorState();
 };
 void ServiceTest::protocolBounds(){
     const auto encoded=StudioService::encode(cmd("status"));QCOMPARE(qFromBigEndian<quint32>(encoded.constData()),quint32(encoded.size()-4));
@@ -272,6 +273,26 @@ void ServiceTest::editorRestoresServiceSnapshot() {
     QTRY_COMPARE(window.document().state().assignments.size(),1);QVERIFY(window.projectFile().isEmpty());
     QCOMPARE(window.previewSeconds(),7.);QVERIFY(window.document().history()->isClean());
     QCOMPARE(uploads.load(),0);QVERIFY(original.open(QIODevice::ReadOnly));QCOMPARE(original.readAll(),oldBytes);
+    window.closing();
+}
+// CodeRabbit review 2026-11-15: identify must not re-enable a queued Stop or drop a project the full queue rejected.
+void ServiceTest::identifyKeepsQueuedEditorState() {
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});
+    struct State{std::mutex mutex;QList<QJsonObject> requests;};auto state=std::make_shared<State>();
+    ServicePanel panel(window,[state](const QJsonObject& request){
+        std::lock_guard<std::mutex> lock(state->mutex);state->requests.append(request);
+        return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}}};
+    });window.installOutputPanel(&panel);panel.activate();QTest::qWait(200);
+    const auto ops=[state](const QString& op){std::lock_guard<std::mutex> lock(state->mutex);QList<QJsonObject> found;for(const auto& r:state->requests)if(r.value("op")==op)found.append(r);return found;};
+    QVERIFY(ops("project").isEmpty());
+    // Stop is still queued when identify sends the pending project; the snapshot must keep output off.
+    window.document().addEmptyLayer();panel.stopOutput();emit window.identifyRequested(QUuid::createUuid());
+    QTRY_COMPARE(ops("identify").size(),1);QVERIFY(!ops("project").first().value("enabled").toBool());
+    // With a full queue identify cannot queue the project; it must stay dirty and reach the service later.
+    const int before=ops("project").size();window.document().addEmptyLayer();
+    for(int i=0;i<16;++i)panel.stopOutput();
+    emit window.identifyRequested(QUuid::createUuid());
+    QTRY_VERIFY_WITH_TIMEOUT(ops("project").size()>before,5000);
     window.closing();
 }
 QTEST_MAIN(ServiceTest)

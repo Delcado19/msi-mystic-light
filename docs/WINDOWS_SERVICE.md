@@ -33,7 +33,9 @@ certificate is installed. Driver repairs and protected updates can require UAC
 again. The exact one-prompt flow still needs observation on clean Windows, including
 reboot/policy conditions. Shared PawnIO device permissions are not changed.
 
-Start-Lighting.cmd prefers the installed editor, then the latest prepared development package.
+Start-Lighting.cmd (development launcher) starts the newest local build of build/r4, build/routing
+and build/aurora; without one it starts the installed editor. Older build/dist packages are no
+longer used as fallbacks.
 Current portable builds also detect a registered service and route to it, preventing
 a second direct hardware writer. Installed mode fails closed when service access
 fails. Older portable binaries cannot provide that protection; close them before
