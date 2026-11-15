@@ -144,6 +144,16 @@ zone — confirms board SKUs sharing a chip ID can still differ in which
 optional zones are physically present, as already suspected from the
 MSI online catalog.
 
+**IO Shield LED count is unverified (owner check 2026-11-15).** The `11 LEDs`
+above come only from SignalRGB's table; OpenRGB lists no IO Shield for MS-7E62
+and MSI's catalog names the zone (`IO COVER`, index 4) without a count. On the
+owner's board the cover looks like one color. MSI Center offers only whole-zone
+effects for IO COVER (no per-LED or device chain, unlike JARGB_V2_*). With a
+vertically moving SignalRGB effect the cover stayed solid red, so SignalRGB does
+not drive it per LED either. Lighting Studio keeps it a single-color zone (the
+profile's `maxLeds: 11` only caps averaged samples). No per-LED command for
+JPIPE1 (area 768) has been sent; do not try one without an explicit owner go.
+
 ## Report `0x90`+port / `0xB0`+port ("Gen2"/"Gen2_Adv") — newer strip model
 
 An additional, newer system for addressable multi-strip headers
