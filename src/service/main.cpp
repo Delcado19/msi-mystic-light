@@ -130,7 +130,7 @@ int run(int argc,char** argv,bool managed) {
     const auto answer=[](const ServiceServer::Reply& reply,const QJsonObject& result) {
         if(auto* app=QCoreApplication::instance())QMetaObject::invokeMethod(app,[reply,result]{reply(result);},Qt::QueuedConnection);
     };
-    const auto conflicts=[simulation,monitor,answer,&runtime](const QJsonObject& request,const ServiceServer::Reply& reply) {
+    const auto conflicts=[simulation,monitor,answer,owner,&runtime](const QJsonObject& request,const ServiceServer::Reply& reply) {
         const auto op=request.value("op").toString();
         if(op!="conflicts" && op!="stopConflict")return false;
         if(request.value("version").toInt()!=StudioService::protocolVersion)throw std::invalid_argument("Unsupported service protocol");
@@ -151,9 +151,9 @@ int run(int argc,char** argv,bool managed) {
         }
         const auto pid=quint32(request.value("pid").toInteger());const auto started=request.value("started").toString().toULongLong();
         const bool force=request.value("force").toBool();
-        std::thread([monitor,answer,reply,pid,started,force] {
+        std::thread([monitor,answer,reply,pid,started,force,owner] {
             QString error;
-            try {DetectedConflicts detected(monitor->last());error=stopListedConflict(detected,pid,started,force);}
+            try {DetectedConflicts detected(monitor->last(),owner);error=stopListedConflict(detected,pid,started,force);}
             catch(const std::exception& e) {error=QString::fromUtf8(e.what());}
             answer(reply,{{"ok",true},{"stopError",error}});
         }).detach();

@@ -306,15 +306,15 @@
     "semantic_hash": ""
   },
   "src/startup/ConflictProcesses.h": {
-    "mtime": 1794842687.371181,
-    "seen": 1794843235.076004,
-    "ast_hash": "65ad26cf2587318724020ea3a9099505",
+    "mtime": 1794846209.9216027,
+    "seen": 1794846584.6186187,
+    "ast_hash": "2a88c53713b3d331611fb558a3078324",
     "semantic_hash": ""
   },
   "tests/startup/test_startup.cpp": {
-    "mtime": 1794845508.7945142,
-    "seen": 1794845982.2082698,
-    "ast_hash": "86e15e61c8137a5a7e4102b73a798932",
+    "mtime": 1794846265.4671435,
+    "seen": 1794846584.6210551,
+    "ast_hash": "efb72beedc5bd912d5701e8a8d3c67dc",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
@@ -1110,9 +1110,9 @@
     "semantic_hash": ""
   },
   "src/service/ServicePanel.cpp": {
-    "mtime": 1794845095.7349558,
-    "seen": 1794845982.203316,
-    "ast_hash": "0d889b0c4ceb07700b3bb2aa63c3dde7",
+    "mtime": 1794846264.0369966,
+    "seen": 1794846584.6177425,
+    "ast_hash": "f91a436f3deb8025f7517e5a921c6afa",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.h": {
@@ -1158,9 +1158,9 @@
     "semantic_hash": ""
   },
   "src/service/main.cpp": {
-    "mtime": 1794845094.3153439,
-    "seen": 1794845982.2039404,
-    "ast_hash": "1e0fcd8ef2a9d6581f4da37fc5d2ec0d",
+    "mtime": 1794846261.20799,
+    "seen": 1794846584.6183357,
+    "ast_hash": "b3051663e738ca197e6515be8558e0cb",
     "semantic_hash": ""
   },
   "tests/service/test_installer.ps1": {
@@ -1182,9 +1182,9 @@
     "semantic_hash": ""
   },
   "docs/WINDOWS_SERVICE.md": {
-    "mtime": 1794845969.0697043,
-    "seen": 1794845982.211202,
-    "ast_hash": "6d25c84cce590e2d320d5219f9e61ce7",
+    "mtime": 1794846565.7907405,
+    "seen": 1794846584.6243775,
+    "ast_hash": "8509f1d274b42dcb8492c035e2a2bfb1",
     "semantic_hash": ""
   },
   "docs/images/layout-fullscreen.png": {
@@ -1716,15 +1716,15 @@
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.cpp": {
-    "mtime": 1794845506.855034,
-    "seen": 1794845982.2043178,
-    "ast_hash": "2a4aa1b481046f208c63fb2a53b2c120",
+    "mtime": 1794846239.018996,
+    "seen": 1794846584.6186204,
+    "ast_hash": "0d3cfe2455a6e72dea155c4337a5dc8a",
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.h": {
-    "mtime": 1794845419.6372995,
-    "seen": 1794845982.204319,
-    "ast_hash": "eb7c19a3f0ac35cbb1544903a155df8a",
+    "mtime": 1794846211.6498208,
+    "seen": 1794846584.6186216,
+    "ast_hash": "cb35142576777b4812b708029e8ebfa9",
     "semantic_hash": ""
   }
 }

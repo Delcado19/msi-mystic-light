@@ -65,13 +65,26 @@ private:
     QElapsedTimer lastTime_;
 };
 
+// True when the process runs as ownerSid without elevation. Stopping it grants the requester nothing
+// they could not do themselves.
+bool runsAsPlainUser(const ConflictProcess& process, const QString& ownerSid);
+// Privilege boundary of the LocalSystem service (security review 2026-11-16): any process of the
+// owner's account can send stop requests. Suspected holders and family members may therefore be
+// stopped only when they run as the owner without elevation; anything more privileged needs proof
+// (it was seen holding our device) or must be a known lighting program with its verified stop path.
+QString stopAllowed(const ConflictProcess& process, bool plainUser);
+
 // Adapter so stopListedConflict() validates stop requests against the monitor's last result.
 class DetectedConflicts final : public IConflictProcesses {
 public:
-    explicit DetectedConflicts(QVector<ConflictProcess> list) : list_(std::move(list)) {}
+    DetectedConflicts(QVector<ConflictProcess> list, QString ownerSid) : list_(std::move(list)), owner_(std::move(ownerSid)) {}
     QVector<ConflictProcess> scan() override { return list_; }
-    QString stop(const ConflictProcess& process, bool force) override { return stopHolder(process, force); }
+    QString stop(const ConflictProcess& process, bool force) override {
+        const auto refusal = stopAllowed(process, runsAsPlainUser(process, owner_));
+        return refusal.isEmpty() ? stopHolder(process, force) : refusal;
+    }
     bool stopsServices() const override { return true; }
 private:
     QVector<ConflictProcess> list_;
+    QString owner_;
 };

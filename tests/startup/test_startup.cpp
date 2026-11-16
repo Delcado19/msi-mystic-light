@@ -144,6 +144,15 @@ private slots:
         QCOMPARE(processFamily(running,7000,excluded),QVector<quint32>{7000});
         QCOMPARE(processFamily(running,9999,excluded),QVector<quint32>{9999});
     }
+    // Service privilege boundary (security review 2026-11-16).
+    void stopAllowedPolicy() {
+        ConflictProcess suspect{7,"Guard.exe","C:/Program Files/Guard/Guard.exe","May hold VID_0DB0&PID_0076",1,false};
+        QVERIFY(!stopAllowed(suspect,false).isEmpty());   // Privileged suspect: never stopped by the service.
+        QVERIFY(stopAllowed(suspect,true).isEmpty());     // Plain-user process: the user could stop it anyway.
+        suspect.provenHolder=true;QVERIFY(stopAllowed(suspect,false).isEmpty());
+        ConflictProcess known{8,"LEDKeeper2.exe","C:/MSI/LEDKeeper2.exe","related",1,false};
+        QVERIFY(stopAllowed(known,false).isEmpty());      // Known program: its own verified stop path.
+    }
     void exactNamesAndGuards() {
         QVERIFY(!conflictReason("C:/rgb/SignalRgb.EXE").isEmpty());
         QVERIFY(!conflictReason("LEDKeeper2.exe").isEmpty());

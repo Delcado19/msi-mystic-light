@@ -15,6 +15,7 @@
 #include <windows.h>
 #include <winternl.h>
 #include <tlhelp32.h>
+#include <sddl.h>
 #endif
 
 bool isExcludedImage(const QString& path, const QString& systemRoot, const QStringList& ownExecutables)
@@ -51,6 +52,12 @@ bool within(const QString& folder, const QString& root)
 {
     return folder.compare(root, Qt::CaseInsensitive) == 0 || folder.startsWith(root + "/", Qt::CaseInsensitive);
 }
+}
+
+QString stopAllowed(const ConflictProcess& process, bool plainUser)
+{
+    if (plainUser || process.provenHolder || !conflictReason(process.executable).isEmpty()) return {};
+    return "Runs with higher rights and was not seen holding a lighting device; stop it manually";
 }
 
 QVector<quint32> processFamily(const QVector<ProcessEntry>& processes, quint32 holder,
@@ -201,7 +208,8 @@ QVector<EndpointCheck> lookupHolders(const QStringList& endpoints, QVector<Confl
         bool system = false;
         for (const auto pid : holders[i]) {
             const auto& info = processes[pid]->info;
-            if (isExcludedImage(info.path, root, ours)) system = true; else checks[i].holders.append(info);
+            if (isExcludedImage(info.path, root, ours)) system = true;
+            else { auto holder = info; holder.provenHolder = true; checks[i].holders.append(holder); }
         }
         checks[i].systemOnly = checks[i].holders.isEmpty() && system;
         checks[i].hidden = checks[i].holders.isEmpty() && !system;
@@ -247,6 +255,13 @@ QVector<ProcessEntry> runningProcesses()
         result.append(process);
     }
     return result;
+}
+
+// Still the same running instance (not exited, PID not reused).
+bool alive(const ConflictProcess& process)
+{
+    Handle handle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, process.pid));
+    return handle && WaitForSingleObject(handle.get(), 0) == WAIT_TIMEOUT && creationTime(handle.get()) == process.started;
 }
 
 BOOL CALLBACK closeWindow(HWND window, LPARAM pid)
@@ -318,6 +333,28 @@ bool endpointBusy(const QString& endpoint)
 #endif
 }
 
+bool runsAsPlainUser(const ConflictProcess& process, const QString& ownerSid)
+{
+#ifdef Q_OS_WIN
+    Handle handle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process.pid));
+    if (!handle || creationTime(handle.get()) != process.started) return false;
+    HANDLE raw = nullptr;
+    if (!OpenProcessToken(handle.get(), TOKEN_QUERY, &raw)) return false;
+    Handle token(raw);
+    TOKEN_ELEVATION elevation{}; DWORD size = 0;
+    if (!GetTokenInformation(token.get(), TokenElevation, &elevation, sizeof(elevation), &size) || elevation.TokenIsElevated) return false;
+    alignas(8) unsigned char buffer[256];
+    if (!GetTokenInformation(token.get(), TokenUser, buffer, sizeof(buffer), &size)) return false;
+    LPWSTR sid = nullptr;
+    if (!ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(buffer)->User.Sid, &sid)) return false;
+    const bool owner = QString::fromWCharArray(sid).compare(ownerSid, Qt::CaseInsensitive) == 0;
+    LocalFree(sid);
+    return owner;
+#else
+    Q_UNUSED(process); Q_UNUSED(ownerSid); return false;
+#endif
+}
+
 QString requestClose(const ConflictProcess& process)
 {
 #ifdef Q_OS_WIN
@@ -360,18 +397,20 @@ QStringList DeviceConflictMonitor::blocked(const QStringList& endpoints, QString
         for (auto it = busy_.begin(); it != busy_.end();) if (!busy.contains(it.key())) it = busy_.erase(it); else ++it;
         for (const auto& endpoint : busy) if (!busy_.contains(endpoint)) unknown.append(endpoint);
     }
+    QHash<QString, EndpointCheck> fresh;
 #ifdef Q_OS_WIN
-    // Holders are looked up once per busy period, not on every five-second retry.
+    // Holders are looked up once per busy period, not on every five-second retry. A failed lookup blocks
+    // this round but is not cached: a device Windows never releases (hidserv) would stay blocked forever.
     if (!unknown.isEmpty()) {
         const auto checks = lookupWithTimeout(unknown, nullptr);
         QMutexLocker lock(&mutex_);
-        for (const auto& check : checks) busy_.insert(check.endpoint, check);
+        for (const auto& check : checks) { fresh.insert(check.endpoint, check); if (check.error.isEmpty()) busy_.insert(check.endpoint, check); }
     }
 #endif
     QStringList result, reasons;
     QMutexLocker lock(&mutex_);
     for (const auto& endpoint : busy) {
-        const auto check = busy_.value(endpoint);
+        const auto check = fresh.contains(endpoint) ? fresh.value(endpoint) : busy_.value(endpoint);
         if (!check.blocks()) continue;
         result.append(endpoint);
         QStringList names; for (const auto& holder : check.holders) names.append(holder.executable);
@@ -379,7 +418,7 @@ QStringList DeviceConflictMonitor::blocked(const QStringList& endpoints, QString
             : names.isEmpty() ? QString("a program that hides its handles") : names.join(", ")));
     }
     if (!result.isEmpty())
-        message = "Lighting devices in use by another program (" + reasons.join("; ") + "). Open Lighting Studio to stop it.";
+        message = "Lighting devices in use by another program (" + reasons.join("; ") + "). Choose Resolve conflicts to stop it.";
     return result;
 }
 
@@ -391,7 +430,13 @@ QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& end
         // The dialog rescans every 100 ms while waiting for a stop; reuse a fresh lookup while the same
         // devices stay busy. Freed devices change the busy set and end the reuse at once.
         QMutexLocker lock(&mutex_);
-        if (busy == lastBusy_ && lastTime_.isValid() && lastTime_.elapsed() < 3000) return last_;
+        if (busy == lastBusy_ && lastTime_.isValid() && lastTime_.elapsed() < 3000) {
+#ifdef Q_OS_WIN
+            // A process stopped since the lookup must not stay listed, or the dialog reports it as running.
+            last_.removeIf([](const ConflictProcess& process) { return !alive(process); });
+#endif
+            return last_;
+        }
     }
     QVector<ConflictProcess> result;
     const auto add = [&result](ConflictProcess process, const QString& reason) {

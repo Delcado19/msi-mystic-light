@@ -8,6 +8,7 @@ struct ConflictProcess {
     QString executable, path, reason;
     quint64 started = 0; // OS creation time protects against PID reuse.
     bool manualStop = false;
+    bool provenHolder = false; // Seen holding one of our devices, not merely suspected or related.
 };
 
 QString conflictReason(const QString& executable);

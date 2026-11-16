@@ -1,5 +1,6 @@
 #include "ServicePanel.h"
 #include "ServiceProtocol.h"
+#include "startup/ConflictDialog.h"
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDoubleSpinBox>
@@ -60,6 +61,16 @@ ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_
     const auto button=[&](const QString& text,const std::function<void()>& action){auto* b=new QPushButton(text);buttons->addWidget(b);connect(b,&QPushButton::clicked,this,action);};
     button("Resume all output",[this]{auto c=command("output");c["enabled"]=true;send(c);});
     button("Stop all output",[this]{stopOutput();});
+    // A conflict can appear while the editor is open (another program starts later); the dialog must be
+    // reachable then too, not only when the window opens (owner request 2026-11-16).
+    button("Resolve conflicts...",[this]{
+        try {
+            ServiceConflictProcesses processes(rpc_);
+            if(processes.scan().isEmpty()){status_->setText("No other program holds a configured lighting device.");return;}
+            ConflictDialog dialog(processes,&window_);dialog.exec();
+        } catch(const std::exception& e){status_->setText(QString::fromUtf8(e.what()));return;}
+        send(command("scan"));
+    });
     for(const bool pause:{false,true})button(pause?"Pause selected":"Resume selected",[this,pause]{
         QJsonArray keys;for(const auto* row:outputs_->selectedItems())keys.append(row->data(0,Qt::UserRole).toString());
         if(keys.isEmpty()){status_->setText("Select one or more output channels first.");return;}

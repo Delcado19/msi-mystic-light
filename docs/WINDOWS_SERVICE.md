@@ -96,8 +96,12 @@ Commands are limited to status/snapshot, project, scan, playback, output enable,
 channel pause, identify (2 s flash of one known software component; the service
 expires it itself and never persists it), and the conflict list with its stop
 request. A stop request names a process by PID and creation time only; the service
-acts on it only if its last device detection listed that process, so it cannot be
-used to end arbitrary processes. No client file/DLL/module/register/shell API exists.
+acts on it only if its last device detection listed that process. Any process of
+the owner's account can send that request, so the listed process must also either
+run as the owner without elevation (no rights gained), have been seen holding one
+of our devices, or be a known lighting program with its own verified stop path.
+Suspected holders and family members with higher rights are refused with "stop it
+manually". No client file/DLL/module/register/shell API exists.
 
 Program Files and state ACLs protect runtime/configuration from normal-user writes.
 The six installed module DLLs (`msi_gen1`, `peripherals`, `auxiliary`,
@@ -122,7 +126,9 @@ still stop all workers; they do not bypass the output guard.
 
 The installed editor shows the conflict dialog whenever its window is opened while
 another program holds one of the configured devices: on a start from the Start
-menu and on **Show editor** from the tray, not on the silent logon start. Each row
+menu and on **Show editor** from the tray, not on the silent logon start. While the
+editor is open, **Resolve conflicts...** in Devices opens the same dialog and then
+rescans; Hardware names held devices and points to that button. Each row
 names the holder and the device it holds, followed by the processes of the same
 program: its parent and child processes inside the same install folder (never
 Windows images or Lighting Studio), topmost first, so a launcher stops before the
