@@ -71,6 +71,12 @@ Conflicts are checked before connection and periodically; the service never kill
 another RGB application. Stop it explicitly, then rescan/resume. RAM discovery
 and endpoint failures are visible in Hardware.
 
+Hardware discovery and the conflict check run on a worker thread, one scan at a
+time, so the pipe keeps answering while a scan takes seconds. Status commands
+reply immediately; scan, project and output-enable commands reply after a scan
+that started after the command. Connections are still opened on the service
+thread, between two scans.
+
 ## Security boundary
 
 Named-pipe requests authenticate the installation owner's Windows SID before JSON

@@ -73,13 +73,52 @@ void ServiceRuntime::suspend(bool value) {
     offset_=seconds();suspended_=value;clock_.restart();stopConnections();
     if(!value)reconnect();
 }
-void ServiceRuntime::reconnect() {
+ServiceRuntime::~ServiceRuntime() {
+    // The worker posts its result to this object; wait for it before members disappear.
+    if(scanner_.joinable())scanner_.join();
+}
+// Runs on the scan worker when background scanning is on: touches only its arguments.
+ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const std::function<void()>& guard) {
+    ScanResult result;
+    try {result.inventory=scan();}
+    catch(const std::exception& e) {result.scanFailed=true;result.error=QString::fromUtf8(e.what());return result;}
+    if(guard)try {guard();} catch(const std::exception& e) {result.blocked=true;result.error=QString::fromUtf8(e.what());}
+    return result;
+}
+void ServiceRuntime::reconnect(std::function<void()> done) {
+    if(suspended_) {if(done)done();return;}
+    if(!background_) {applyScan(runScan(scan_,simulation_?std::function<void()>{}:guard_));if(done)done();return;}
+    // A periodic retry (no done) adds nothing to a scan that is already running; a command needs a fresh one.
+    if(scanning_ && !done)return;
+    if(!done)done=[]{};
+    next_.push_back(std::move(done));
+    if(!scanning_)startScan();
+}
+void ServiceRuntime::startScan() {
+    if(scanner_.joinable())scanner_.join();   // The previous worker has already posted its result.
+    scanning_=true;waiting_=std::move(next_);next_.clear();
+    scanner_=std::thread([this,scan=scan_,guard=simulation_?std::function<void()>{}:guard_] {
+        auto result=runScan(scan,guard);
+        QMetaObject::invokeMethod(this,[this,result=std::move(result)] {
+            scanning_=false;applyScan(result);
+            const auto done=std::move(waiting_);waiting_.clear();
+            for(const auto& answer:done)answer();
+            if(next_.empty())return;
+            if(!suspended_){startScan();return;}
+            const auto skipped=std::move(next_);next_.clear();
+            for(const auto& answer:skipped)answer();
+        },Qt::QueuedConnection);
+    });
+}
+// connect_ opens hardware and must not overlap a scan; it only runs here, between two scans.
+void ServiceRuntime::applyScan(const ScanResult& result) {
     if(suspended_)return;
     try {
-        inventory_=scan_();
+        if(result.scanFailed)throw std::runtime_error(result.error.toStdString());
+        inventory_=result.inventory;
         if(simulation_) {error_.clear();return;}
         if(!enabled_)return;
-        if(guard_)guard_();
+        if(result.blocked)throw std::runtime_error(result.error.toStdString());
         error_.clear();
         const auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
         // Offline saved endpoints are omitted by connect_; retry them without resetting healthy hardware.
@@ -131,11 +170,15 @@ QJsonObject ServiceRuntime::status() const {
     return {{"ok",true},{"version",StudioService::protocolVersion},{"simulation",simulation_},{"enabled",enabled_},{"playing",playing_},{"seconds",seconds()},{"devices",devices},{"outputs",outputs},{"error",error_}};
 }
 QJsonObject ServiceRuntime::command(const QJsonObject& request) {
+    QJsonObject result;command(request,[&result](const QJsonObject& reply){result=reply;});return result;
+}
+void ServiceRuntime::command(const QJsonObject& request,const Reply& reply) {
     try {
+        bool rescan=false;
         if(request.value("version").toInt()!=StudioService::protocolVersion)throw std::invalid_argument("Unsupported service protocol");
         const auto op=request.value("op").toString();
-        if(op=="project") {loadBundle(request,true);reconnect();}
-        else if(op=="scan")reconnect();
+        if(op=="project") {loadBundle(request,true);rescan=true;}
+        else if(op=="scan")rescan=true;
         else if(op=="playback") {
             if(!request.value("playing").isBool() || !request.value("seconds").isDouble())throw std::invalid_argument("Invalid playback command");
             const double time=request.value("seconds").toDouble();if(!std::isfinite(time)||time<0||time>86400)throw std::invalid_argument("Invalid playback time");
@@ -146,7 +189,7 @@ QJsonObject ServiceRuntime::command(const QJsonObject& request) {
             if(!request.value("enabled").isBool())throw std::invalid_argument("Invalid output command");
             const bool old=enabled_;enabled_=request.value("enabled").toBool();
             try{persist();}catch(...){enabled_=old;throw;}
-            if(enabled_)reconnect();else stopConnections();
+            if(enabled_)rescan=true;else stopConnections();
         } else if(op=="channels") {
             if(!request.value("keys").isArray() || !request.value("paused").isBool())throw std::invalid_argument("Invalid channel command");
             QSet<QString> valid;for(const auto& f:outputScope(*document_))for(const auto& c:f.channels)valid.insert(key(f,c));
@@ -162,6 +205,7 @@ QJsonObject ServiceRuntime::command(const QJsonObject& request) {
             if(placement.isNull() || !known || !document_->hasSoftwareChannel(placement))throw std::invalid_argument("Unknown identify component");
             document_->setIdentifyPlacement(placement);identifyClock_.start();
         } else if(op!="status" && op!="snapshot")throw std::invalid_argument("Unknown service command");
-        auto reply=status();if(op=="snapshot" && !project_.isEmpty())reply["project"]=project_;return reply;
-    } catch(const std::exception& e) {return {{"ok",false},{"error",QString::fromUtf8(e.what())}};}
+        const auto answer=[this,op,reply]{auto result=status();if(op=="snapshot" && !project_.isEmpty())result["project"]=project_;reply(result);};
+        if(rescan)reconnect(answer);else answer();
+    } catch(const std::exception& e) {reply({{"ok",false},{"error",QString::fromUtf8(e.what())}});}
 }

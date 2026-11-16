@@ -122,7 +122,11 @@ int run(int argc,char** argv,bool managed) {
     };
     ServiceRuntime runtime(loadComponentCatalog(root+"/components"),profiles,directory,scan,authorize,simulation);
     runtime.setOutputGuard(guard);
-    ServiceServer server(owner,[&runtime](const auto& request){auto reply=runtime.command(request);if(!pawnIoRamDiscoveryError().isEmpty())reply["discoveryError"]=pawnIoRamDiscoveryError();return reply;});
+    // Discovery blocked the pipe thread for seconds, so the editor's 1.5 s connect timed out (2026-11-16).
+    runtime.setBackgroundScan(true);
+    ServiceServer server(owner,[&runtime](const QJsonObject& request,const ServiceServer::Reply& reply) {
+        runtime.command(request,[reply](QJsonObject result){if(!pawnIoRamDiscoveryError().isEmpty())result["discoveryError"]=pawnIoRamDiscoveryError();reply(result);});
+    });
     const auto pipe=simulation?parser.value("pipe"):StudioService::pipeName();
     if(pipe.isEmpty() || !server.listen(pipe))throw std::runtime_error(("Cannot bind service pipe: "+server.errorString()).toStdString());
 #ifdef Q_OS_WIN

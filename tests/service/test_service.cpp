@@ -19,6 +19,7 @@
 #include <atomic>
 #include <future>
 #include <memory>
+#include <thread>
 #ifdef Q_OS_WIN
 #define NOMINMAX
 #include <windows.h>
@@ -62,6 +63,7 @@ private slots:
  void persistedPlaybackAndAtomicReject();
  void identifyCommand();
  void fakeOutputPauseAndResume();
+ void backgroundScanKeepsAnswering();
  void authenticatedPipe();
  void editorSynchronization();
  void persistedPauseAndReconnect();
@@ -130,6 +132,28 @@ void ServiceTest::fakeOutputPauseAndResume() try {
     runtime.setOutputGuard({});runtime.command(cmd("scan"));QTRY_VERIFY(record->writes>blockedWrites);
     auto stop=cmd("output");stop["enabled"]=false;QVERIFY(runtime.command(stop).value("ok").toBool());const int stopped=record->writes;QTest::qWait(100);QCOMPARE(record->writes.load(),stopped);
     QVERIFY(!runtime.status().value("enabled").toBool());
+} catch(const std::exception& e){QFAIL(e.what());}
+// Slow hardware discovery must not make the service deaf (owner report 2026-11-16: the editor's
+// 1.5 s connect timed out while a ~6.5 s scan ran on the pipe thread).
+void ServiceTest::backgroundScanKeepsAnswering() try {
+    QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    auto hold=std::make_shared<std::atomic_bool>(true);auto scans=std::make_shared<std::atomic_int>(0);
+    // The first scan, started by the constructor, blocks like slow discovery.
+    const auto scan=[hold,scans] {
+        if(scans->fetch_add(1)==0)while(hold->load())std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        return QVector<ProfileCandidate>{};
+    };
+    ServiceRuntime runtime({}, {profile},folder.path(),scan,[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};});
+    struct Release {std::shared_ptr<std::atomic_bool> hold;~Release(){hold->store(false);}} release{hold};   // Never leave the worker blocked.
+    runtime.setBackgroundScan(true);QTRY_COMPARE(scans->load(),1);
+    bool status=false;runtime.command(cmd("status"),[&status](const QJsonObject& reply){status=reply.value("ok").toBool();});
+    QVERIFY(status);
+    // A scan command is answered by a scan that started after it, not by the one already running.
+    runtime.setOutputGuard([]{throw std::runtime_error("Fixture controller conflict");});
+    QJsonObject scanned;runtime.command(cmd("scan"),[&scanned](const QJsonObject& reply){scanned=reply;});
+    QTest::qWait(50);QVERIFY(scanned.isEmpty());
+    hold->store(false);QTRY_VERIFY(!scanned.isEmpty());
+    QCOMPARE(scans->load(),2);QCOMPARE(scanned.value("error").toString(),QString("Fixture controller conflict"));
 } catch(const std::exception& e){QFAIL(e.what());}
 void ServiceTest::authenticatedPipe(){
 #ifdef Q_OS_WIN

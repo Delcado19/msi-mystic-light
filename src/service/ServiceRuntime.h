@@ -3,13 +3,22 @@
 #include <QElapsedTimer>
 #include <QJsonObject>
 #include <QTimer>
+#include <thread>
 // Owns the persisted playback session. No client file paths or plugin paths enter this API.
 class ServiceRuntime : public QObject {
 public:
     using Scan=std::function<QVector<ProfileCandidate>()>;
     using Connect=std::function<QVector<OutputConnection>(const QVector<OutputFrame>&)>;
     ServiceRuntime(ComponentCatalog catalog,QVector<DeviceProfile> profiles,QString directory,Scan scan,Connect connect,bool simulation=false);
+    using Reply=std::function<void(const QJsonObject&)>;
+    ~ServiceRuntime() override;
+    // Synchronous form; only valid while background scanning is off (tests, inline use).
     QJsonObject command(const QJsonObject& command);
+    // Replies once the command took effect; commands that rescan hardware reply after that scan.
+    void command(const QJsonObject& command,const Reply& reply);
+    // Run hardware discovery and the conflict guard on a worker so the caller's thread (the service
+    // pipe) keeps answering; a scan took ~6.5 s on the owner's system (measured 2026-11-16).
+    void setBackgroundScan(bool value) { background_=value; }
     QJsonObject status() const;
     void suspend(bool suspended);
     void setOutputGuard(std::function<void()> guard) { guard_=std::move(guard); }
@@ -17,7 +26,11 @@ private:
     void loadBundle(const QJsonObject& bundle,bool persist);
     void persist();
     void tick();
-    void reconnect();
+    struct ScanResult { QVector<ProfileCandidate> inventory; QString error; bool scanFailed=false,blocked=false; };
+    static ScanResult runScan(const Scan& scan,const std::function<void()>& guard);
+    void reconnect(std::function<void()> done={});
+    void startScan();
+    void applyScan(const ScanResult& result);
     void stopConnections();
     double seconds() const;
     QString directory_, error_;
@@ -38,4 +51,9 @@ private:
     QElapsedTimer identifyClock_; // Identify flash expires in the service itself, even if the editor closes.
     double offset_=0;
     bool enabled_=true,playing_=true,suspended_=false,simulation_=false;
+    // Background scan: one worker at a time. waiting_ is answered by the running scan, next_ by the
+    // following one, so a reply never reports a scan that started before its command.
+    std::thread scanner_;
+    std::vector<std::function<void()>> waiting_,next_;
+    bool background_=false,scanning_=false;
 };
