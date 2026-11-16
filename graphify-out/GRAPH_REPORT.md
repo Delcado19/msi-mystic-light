@@ -1,17 +1,17 @@
 # Graph Report - msi-mystic-light  (2026-11-16)
 
 ## Corpus Check
-- 206 files · ~1,704,198 words
+- 206 files · ~1,704,315 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 21 file(s) not represented in the graph (top: .csv 6, .cmd 3, .bin 3)
 
 ## Summary
-- 3492 nodes · 7862 edges · 187 communities (140 shown, 47 thin omitted)
+- 3492 nodes · 7863 edges · 187 communities (140 shown, 47 thin omitted)
 - Extraction: 79% EXTRACTED · 21% INFERRED · 0% AMBIGUOUS · INFERRED: 1670 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8f166cc8`
+- Built from commit: `ccf66042`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -779,7 +779,7 @@ Nodes (5): LayerBlend, Multiply, Normal, Overlay, Screen
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `LightingWindow` connect `LightingWindow` to `LightingWindow.cpp`, `ServicePanel.cpp`, `test_editor.cpp`, `ComponentDefinition`, `LightingCanvas`, `.edit`, `ServicePanel`, `OutputPanel`, `EffectRenderer.cpp`, `ServiceRuntime`, `test_output_ui.cpp`, `ComponentPlacement`, `.addComponent`, `src/main.cpp`, `Layer model proposal`, `HardwarePicker`, `LightingDocument`, `OutputPanel.cpp`, `QToolButton`?**
-  _High betweenness centrality (0.120) - this node is a cross-community bridge._
+  _High betweenness centrality (0.119) - this node is a cross-community bridge._
 - **Why does `IHidDevice` connect `IHidDevice` to `IDriver`, `AuxiliaryTransport`, `.load`, `RgbColor`, `MsiDriver`, `authorizeHardwareOutput`, `Recording`, `Transport`, `Hardware modules`, `stdexcept`, `OutputSession`, `LenovoMotherboardModule.cpp`, `PeripheralModule`, `Porting OpenRGB/SignalRGB hardware support into this app — motherboard tier`, `PairedTransport`, `HidApiDevice`, `.connect`, `Transport`, `FakeHidDevice`, `VirtualModule`, `SignalRGB repository research`, `msiprotocol`, `NativeEffect`, `AsrockPolychromeDriver`, `MsiColor`, `BuildApex3ColorsPacket`, `Record`, `algorithm`?**
   _High betweenness centrality (0.109) - this node is a cross-community bridge._
 - **Why does `Output session backend` connect `OutputScheduler` to `LightingDocument`, `.load`, `OutputFrame`, `.connect`, `README.md`?**

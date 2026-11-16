@@ -22,6 +22,8 @@ hidden-holder candidates. Built, untested on hardware: probe inside the service,
 LocalSystem, hidden-holder candidates, generic service stop, and the program family of each holder
 (`processFamily`: same install root, parent older than child, never Windows or our executables,
 topmost first). Only `\\?\HID#` paths are probed (security review: project paths reach a SYSTEM open).
+Open: the conflict scan runs synchronously in the editor's GUI thread (CodeRabbit 2026-11-16), so the
+dialog and "Resolve conflicts..." freeze the window for one holder lookup (~2.7 s) while a device is busy.
 
 Findings for the next step (detection beyond the name list, read-only experiments 2026-11-16):
 an exclusive-open probe (share mode 0) reports a held HID interface even when the holder protects

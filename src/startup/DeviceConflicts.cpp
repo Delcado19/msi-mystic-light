@@ -5,6 +5,7 @@
 #include <QMutexLocker>
 #include <QRegularExpression>
 #include <QSet>
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <memory>
@@ -230,13 +231,18 @@ QVector<EndpointCheck> lookupWithTimeout(const QStringList& endpoints, QVector<C
         QVector<ConflictProcess> candidates; auto checks = lookupHolders(endpoints, &candidates); return Result{checks, candidates};
     });
     auto future = task->get_future();
-    // shortcut: a hung lookup leaks its detached thread; acceptable for a rare driver hang, revisit if seen.
-    std::thread([task] { (*task)(); }).detach();
-    if (future.wait_for(std::chrono::seconds(20)) != std::future_status::ready) {
+    const auto failed = [&endpoints](const QString& error) {
         QVector<EndpointCheck> checks;
-        for (const auto& endpoint : endpoints) checks.append({endpoint, {}, false, false, "Holder lookup timed out"});
+        for (const auto& endpoint : endpoints) checks.append({endpoint, {}, false, false, error});
         return checks;
-    }
+    };
+    // At most one lookup thread: a hung one would otherwise be joined by a new one on every scan
+    // (CodeRabbit review 2026-11-16). Endpoints stay blocked until the hung lookup returns.
+    static std::atomic_bool running{false};
+    if (running.exchange(true)) return failed("A previous holder lookup is still running");
+    // shortcut: a hung lookup leaks its detached thread; acceptable for a rare driver hang, revisit if seen.
+    std::thread([task] { (*task)(); running.store(false); }).detach();
+    if (future.wait_for(std::chrono::seconds(20)) != std::future_status::ready) return failed("Holder lookup timed out");
     auto result = future.get();
     if (hiding) *hiding = result.second;
     return result.first;

@@ -191,8 +191,14 @@ int main(int argc, char** argv)
     tray.setToolTip("MSI Mystic Light");
     auto* trayMenu=new QMenu(&window);
     // Installed editors usually live in the tray since logon; opening the window is the deliberate start.
-    auto show=[&window,serviceInstalled,resolveConflicts] {
-        if(serviceInstalled && !window.isVisible())resolveConflicts(&window);
+    // The dialog's nested event loop can deliver another tray double-click; never open a second dialog.
+    auto resolving=std::make_shared<bool>(false);
+    auto show=[&window,serviceInstalled,resolveConflicts,resolving] {
+        if(*resolving)return;
+        if(serviceInstalled && !window.isVisible()) {
+            struct Reset {bool& flag;~Reset(){flag=false;}} reset{*resolving};*resolving=true;
+            resolveConflicts(&window);
+        }
         window.showNormal(); window.raise(); window.activateWindow();
     };
     QObject::connect(trayMenu->addAction("Show editor"),&QAction::triggered,&window,show);

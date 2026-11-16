@@ -417,7 +417,7 @@
       "file_type": "code",
       "norm_label": "handlecloser",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L92"
+      "source_location": "L93"
     },
     {
       "id": "src_startup_deviceconflicts_sccloser",
@@ -430,7 +430,7 @@
       "file_type": "code",
       "norm_label": "sccloser",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L94"
+      "source_location": "L95"
     },
     {
       "id": "tests_output_test_peripherals_peripheraltest",
@@ -2471,7 +2471,7 @@
       "file_type": "code",
       "norm_label": "handleentry",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_editor_lightingcanvas_masktool",
@@ -6718,25 +6718,25 @@
             "callee": "setContextMenu",
             "receiver_type": "QSystemTrayIcon",
             "lang": "cpp",
-            "line": "L201"
+            "line": "L207"
           },
           {
             "callee": "isSystemTrayAvailable",
             "receiver_type": "QSystemTrayIcon",
             "lang": "cpp",
-            "line": "L203"
+            "line": "L209"
           },
           {
             "callee": "show",
             "receiver_type": "QSystemTrayIcon",
             "lang": "cpp",
-            "line": "L204"
+            "line": "L210"
           },
           {
             "callee": "question",
             "receiver_type": "QMessageBox",
             "lang": "cpp",
-            "line": "L209"
+            "line": "L215"
           }
         ]
       },
@@ -7340,7 +7340,7 @@
       "community": 125,
       "community_name": "DeviceConflicts.cpp",
       "definition_file": "src/startup/DeviceConflicts.cpp",
-      "definition_location": "L390",
+      "definition_location": "L396",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -7348,25 +7348,25 @@
             "callee": "append",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L393"
+            "line": "L399"
           },
           {
             "callee": "contains",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L397"
+            "line": "L403"
           },
           {
             "callee": "isEmpty",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L404"
+            "line": "L410"
           },
           {
             "callee": "join",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L418"
+            "line": "L424"
           }
         ]
       },
@@ -7382,7 +7382,7 @@
       "community": 125,
       "community_name": "DeviceConflicts.cpp",
       "definition_file": "src/startup/DeviceConflicts.cpp",
-      "definition_location": "L425",
+      "definition_location": "L431",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -7390,25 +7390,25 @@
             "callee": "append",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L428"
+            "line": "L434"
           },
           {
             "callee": "isEmpty",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L451"
+            "line": "L457"
           },
           {
             "callee": "join",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L460"
+            "line": "L466"
           },
           {
             "callee": "clear",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L467"
+            "line": "L473"
           }
         ]
       },
@@ -7430,13 +7430,13 @@
             "callee": "get",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L264"
+            "line": "L270"
           }
         ]
       },
       "norm_label": "alive()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L261"
+      "source_location": "L267"
     },
     {
       "id": "src_startup_deviceconflicts_creationtime",
@@ -7448,7 +7448,7 @@
       "file_type": "code",
       "norm_label": "creationtime()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L98"
+      "source_location": "L99"
     },
     {
       "id": "src_startup_deviceconflicts_detectedconflicts_stop",
@@ -7472,7 +7472,7 @@
       "file_type": "code",
       "norm_label": "enabledebugprivilege()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L119"
+      "source_location": "L120"
     },
     {
       "id": "src_startup_deviceconflicts_endpointbusy",
@@ -7484,7 +7484,7 @@
       "file_type": "code",
       "norm_label": "endpointbusy()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L320"
+      "source_location": "L326"
     },
     {
       "id": "src_startup_deviceconflicts_endpointlabel",
@@ -7496,7 +7496,7 @@
       "file_type": "code",
       "norm_label": "endpointlabel()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L31"
+      "source_location": "L32"
     },
     {
       "id": "src_startup_deviceconflicts_folderof",
@@ -7512,19 +7512,19 @@
             "callee": "cleanPath",
             "receiver_type": "QDir",
             "lang": "cpp",
-            "line": "L50"
+            "line": "L51"
           },
           {
             "callee": "fromNativeSeparators",
             "receiver_type": "QDir",
             "lang": "cpp",
-            "line": "L50"
+            "line": "L51"
           }
         ]
       },
       "norm_label": "folderof()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L50"
+      "source_location": "L51"
     },
     {
       "id": "src_startup_deviceconflicts_handlecloser_operator",
@@ -7536,7 +7536,7 @@
       "file_type": "code",
       "norm_label": ".operator()()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L92"
+      "source_location": "L93"
     },
     {
       "id": "src_startup_deviceconflicts_hostedservice",
@@ -7552,19 +7552,19 @@
             "callee": "get",
             "receiver_type": "ScHandle",
             "lang": "cpp",
-            "line": "L292"
+            "line": "L298"
           },
           {
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L301"
+            "line": "L307"
           }
         ]
       },
       "norm_label": "hostedservice()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L287"
+      "source_location": "L293"
     },
     {
       "id": "src_startup_deviceconflicts_imagepath",
@@ -7580,13 +7580,13 @@
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L107"
+            "line": "L108"
           }
         ]
       },
       "norm_label": "imagepath()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L104"
+      "source_location": "L105"
     },
     {
       "id": "src_startup_deviceconflicts_isexcludedimage",
@@ -7602,19 +7602,19 @@
             "callee": "cleanPath",
             "receiver_type": "QDir",
             "lang": "cpp",
-            "line": "L24"
+            "line": "L25"
           },
           {
             "callee": "fromNativeSeparators",
             "receiver_type": "QDir",
             "lang": "cpp",
-            "line": "L24"
+            "line": "L25"
           }
         ]
       },
       "norm_label": "isexcludedimage()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L21"
+      "source_location": "L22"
     },
     {
       "id": "src_startup_deviceconflicts_lookupholders",
@@ -7630,19 +7630,19 @@
             "callee": "get",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L163"
+            "line": "L164"
           },
           {
             "callee": "release",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L163"
+            "line": "L164"
           }
         ]
       },
       "norm_label": "lookupholders()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L147"
+      "source_location": "L148"
     },
     {
       "id": "src_startup_deviceconflicts_lookupwithtimeout",
@@ -7654,7 +7654,7 @@
       "file_type": "code",
       "norm_label": "lookupwithtimeout()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L226"
+      "source_location": "L227"
     },
     {
       "id": "src_startup_deviceconflicts_objectname",
@@ -7670,13 +7670,13 @@
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L137"
+            "line": "L138"
           }
         ]
       },
       "norm_label": "objectname()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L132"
+      "source_location": "L133"
     },
     {
       "id": "src_startup_deviceconflicts_openverified",
@@ -7692,19 +7692,19 @@
             "callee": "reset",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L278"
+            "line": "L284"
           },
           {
             "callee": "get",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L280"
+            "line": "L286"
           }
         ]
       },
       "norm_label": "openverified()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L274"
+      "source_location": "L280"
     },
     {
       "id": "src_startup_deviceconflicts_ownexecutables",
@@ -7720,13 +7720,13 @@
             "callee": "applicationDirPath",
             "receiver_type": "QCoreApplication",
             "lang": "cpp",
-            "line": "L116"
+            "line": "L117"
           }
         ]
       },
       "norm_label": "ownexecutables()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L114"
+      "source_location": "L115"
     },
     {
       "id": "src_startup_deviceconflicts_probeableendpoints",
@@ -7742,19 +7742,19 @@
             "callee": "contains",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L45"
+            "line": "L46"
           },
           {
             "callee": "append",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L45"
+            "line": "L46"
           }
         ]
       },
       "norm_label": "probeableendpoints()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L38"
+      "source_location": "L39"
     },
     {
       "id": "src_startup_deviceconflicts_processfamily",
@@ -7766,7 +7766,7 @@
       "file_type": "code",
       "norm_label": "processfamily()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L63"
+      "source_location": "L64"
     },
     {
       "id": "src_startup_deviceconflicts_processinfo",
@@ -7778,7 +7778,7 @@
       "file_type": "code",
       "norm_label": "processinfo()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L139"
+      "source_location": "L140"
     },
     {
       "id": "src_startup_deviceconflicts_requestclose",
@@ -7790,7 +7790,7 @@
       "file_type": "code",
       "norm_label": "requestclose()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L358"
+      "source_location": "L364"
     },
     {
       "id": "src_startup_deviceconflicts_runningprocesses",
@@ -7806,25 +7806,25 @@
             "callee": "get",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L249"
+            "line": "L255"
           },
           {
             "callee": "release",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L249"
+            "line": "L255"
           },
           {
             "callee": "append",
             "receiver_type": "QStringList",
             "lang": "cpp",
-            "line": "L255"
+            "line": "L261"
           }
         ]
       },
       "norm_label": "runningprocesses()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L245"
+      "source_location": "L251"
     },
     {
       "id": "src_startup_deviceconflicts_runsasplainuser",
@@ -7840,19 +7840,19 @@
             "callee": "get",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L340"
+            "line": "L346"
           },
           {
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L350"
+            "line": "L356"
           }
         ]
       },
       "norm_label": "runsasplainuser()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L336"
+      "source_location": "L342"
     },
     {
       "id": "src_startup_deviceconflicts_sccloser_operator",
@@ -7864,7 +7864,7 @@
       "file_type": "code",
       "norm_label": ".operator()()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L94"
+      "source_location": "L95"
     },
     {
       "id": "src_startup_deviceconflicts_stopallowed",
@@ -7876,7 +7876,7 @@
       "file_type": "code",
       "norm_label": "stopallowed()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L57"
+      "source_location": "L58"
     },
     {
       "id": "src_startup_deviceconflicts_stopholder",
@@ -7892,19 +7892,19 @@
             "callee": "isEmpty",
             "receiver_type": "ScHandle",
             "lang": "cpp",
-            "line": "L382"
+            "line": "L388"
           },
           {
             "callee": "get",
             "receiver_type": "Handle",
             "lang": "cpp",
-            "line": "L383"
+            "line": "L389"
           }
         ]
       },
       "norm_label": "stopholder()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L371"
+      "source_location": "L377"
     },
     {
       "id": "src_startup_deviceconflicts_stopservice",
@@ -7920,13 +7920,13 @@
             "callee": "get",
             "receiver_type": "ScHandle",
             "lang": "cpp",
-            "line": "L309"
+            "line": "L315"
           }
         ]
       },
       "norm_label": "stopservice()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L305"
+      "source_location": "L311"
     },
     {
       "id": "src_startup_deviceconflicts_systemroot",
@@ -7942,13 +7942,13 @@
             "callee": "fromWCharArray",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L112"
+            "line": "L113"
           }
         ]
       },
       "norm_label": "systemroot()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L109"
+      "source_location": "L110"
     },
     {
       "id": "src_startup_deviceconflicts_winerror",
@@ -7964,13 +7964,13 @@
             "callee": "number",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L97"
+            "line": "L98"
           }
         ]
       },
       "norm_label": "winerror()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L97"
+      "source_location": "L98"
     },
     {
       "id": "src_startup_deviceconflicts_within",
@@ -7982,7 +7982,7 @@
       "file_type": "code",
       "norm_label": "within()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L51"
+      "source_location": "L52"
     },
     {
       "id": "tests_startup_test_startup_startuptest_deviceconflictpolicy",
@@ -12146,7 +12146,7 @@
       "file_type": "code",
       "norm_label": "closewindow()",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L267"
+      "source_location": "L273"
     },
     {
       "id": "src_backends_aerobackend_aerobackend_open",
@@ -12332,7 +12332,7 @@
       "community": 146,
       "community_name": "ConflictProcess",
       "definition_file": "src/startup/DeviceConflicts.cpp",
-      "definition_location": "L486",
+      "definition_location": "L492",
       "file_type": "code",
       "norm_label": ".last()",
       "source_file": "src/startup/DeviceConflicts.h",
@@ -31360,7 +31360,7 @@
       "node_kind": "heading",
       "norm_label": "editor fixes and small audit fixes - 2026-11-14 (gs-06-r7, build/r4)",
       "source_file": "CONTINUE.md",
-      "source_location": "L76"
+      "source_location": "L78"
     },
     {
       "id": "continue_gs_06_r2_ui_correction_2026_11_13",
@@ -31372,7 +31372,7 @@
       "node_kind": "heading",
       "norm_label": "gs-06-r2 ui correction - 2026-11-13",
       "source_file": "CONTINUE.md",
-      "source_location": "L124"
+      "source_location": "L126"
     },
     {
       "id": "continue_gs_06_r9_2026_11_15",
@@ -31384,7 +31384,7 @@
       "node_kind": "heading",
       "norm_label": "gs-06-r9 - 2026-11-15",
       "source_file": "CONTINUE.md",
-      "source_location": "L43"
+      "source_location": "L45"
     },
     {
       "id": "continue_header_led_count_2026_11_15",
@@ -31396,7 +31396,7 @@
       "node_kind": "heading",
       "norm_label": "header led count - 2026-11-15",
       "source_file": "CONTINUE.md",
-      "source_location": "L48"
+      "source_location": "L50"
     },
     {
       "id": "continue_identify_flash_2026_11_15",
@@ -31408,7 +31408,7 @@
       "node_kind": "heading",
       "norm_label": "identify flash - 2026-11-15",
       "source_file": "CONTINUE.md",
-      "source_location": "L54"
+      "source_location": "L56"
     },
     {
       "id": "continue_jargb2_shared_routing_2026_11_14",
@@ -31420,7 +31420,7 @@
       "node_kind": "heading",
       "norm_label": "jargb2 shared routing - 2026-11-14",
       "source_file": "CONTINUE.md",
-      "source_location": "L93"
+      "source_location": "L95"
     },
     {
       "id": "continue_jargb2_topology_follow_up_updated_2026_11_14",
@@ -31432,7 +31432,7 @@
       "node_kind": "heading",
       "norm_label": "jargb2 topology follow-up - updated 2026-11-14",
       "source_file": "CONTINUE.md",
-      "source_location": "L107"
+      "source_location": "L109"
     },
     {
       "id": "continue_ledkeeper2_stop_2026_11_14",
@@ -31444,7 +31444,7 @@
       "node_kind": "heading",
       "norm_label": "ledkeeper2 stop - 2026-11-14",
       "source_file": "CONTINUE.md",
-      "source_location": "L60"
+      "source_location": "L62"
     },
     {
       "id": "continue_uninstaller_and_ci_package_2026_11_15",
@@ -31456,7 +31456,7 @@
       "node_kind": "heading",
       "norm_label": "uninstaller and ci package - 2026-11-15",
       "source_file": "CONTINUE.md",
-      "source_location": "L35"
+      "source_location": "L37"
     },
     {
       "id": "docs_history_continue_archive",
@@ -34506,7 +34506,7 @@
       "node_kind": "heading",
       "norm_label": "service pipe access list - 2026-11-14 (windows only)",
       "source_file": "CONTINUE.md",
-      "source_location": "L67"
+      "source_location": "L69"
     },
     {
       "id": "src_editor_lightingcanvas_h_qelapsedtimer",
@@ -49338,7 +49338,7 @@
       "file_type": "code",
       "norm_label": "access",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_startup_deviceconflicts_handleentry_attributes",
@@ -49349,7 +49349,7 @@
       "file_type": "code",
       "norm_label": "attributes",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_startup_deviceconflicts_handleentry_backtrace",
@@ -49360,7 +49360,7 @@
       "file_type": "code",
       "norm_label": "backtrace",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_startup_deviceconflicts_handleentry_handle",
@@ -49371,7 +49371,7 @@
       "file_type": "code",
       "norm_label": "handle",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_startup_deviceconflicts_handleentry_object",
@@ -49382,7 +49382,7 @@
       "file_type": "code",
       "norm_label": "object",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_startup_deviceconflicts_handleentry_pid",
@@ -49393,7 +49393,7 @@
       "file_type": "code",
       "norm_label": "pid",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_startup_deviceconflicts_handleentry_reserved",
@@ -49404,7 +49404,7 @@
       "file_type": "code",
       "norm_label": "reserved",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "src_startup_deviceconflicts_handleentry_type",
@@ -49415,7 +49415,7 @@
       "file_type": "code",
       "norm_label": "type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131"
+      "source_location": "L132"
     },
     {
       "id": "ulong",
@@ -56197,7 +56197,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L264",
+      "source_location": "L270",
       "weight": 1.0
     },
     {
@@ -56209,7 +56209,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L393",
+      "source_location": "L399",
       "weight": 1.0
     },
     {
@@ -56221,7 +56221,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L393",
+      "source_location": "L399",
       "weight": 1.0
     },
     {
@@ -56233,7 +56233,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L405",
+      "source_location": "L411",
       "weight": 1.0
     },
     {
@@ -56245,7 +56245,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L417",
+      "source_location": "L423",
       "weight": 1.0
     },
     {
@@ -56257,7 +56257,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L428",
+      "source_location": "L434",
       "weight": 1.0
     },
     {
@@ -56269,7 +56269,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L428",
+      "source_location": "L434",
       "weight": 1.0
     },
     {
@@ -56281,7 +56281,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L436",
+      "source_location": "L442",
       "weight": 1.0
     },
     {
@@ -56293,7 +56293,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L451",
+      "source_location": "L457",
       "weight": 1.0
     },
     {
@@ -56305,7 +56305,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L454",
+      "source_location": "L460",
       "weight": 1.0
     },
     {
@@ -56317,7 +56317,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L465",
+      "source_location": "L471",
       "weight": 1.0
     },
     {
@@ -56329,7 +56329,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L465",
+      "source_location": "L471",
       "weight": 1.0
     },
     {
@@ -56341,7 +56341,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L465",
+      "source_location": "L471",
       "weight": 1.0
     },
     {
@@ -56353,7 +56353,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L466",
+      "source_location": "L472",
       "weight": 1.0
     },
     {
@@ -56365,7 +56365,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L468",
+      "source_location": "L474",
       "weight": 1.0
     },
     {
@@ -56377,7 +56377,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L326",
+      "source_location": "L332",
       "weight": 1.0
     },
     {
@@ -56389,7 +56389,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L290",
+      "source_location": "L296",
       "weight": 1.0
     },
     {
@@ -56401,7 +56401,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L156",
+      "source_location": "L157",
       "weight": 1.0
     },
     {
@@ -56413,24 +56413,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L160",
+      "source_location": "L161",
       "weight": 1.0
     },
     {
       "source": "src_startup_deviceconflicts_lookupholders",
       "target": "src_startup_deviceconflicts_winerror",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L163",
-      "weight": 1.0
-    },
-    {
-      "source": "src_startup_deviceconflicts_lookupholders",
-      "target": "src_startup_deviceconflicts_objectname",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -56442,6 +56430,18 @@
     },
     {
       "source": "src_startup_deviceconflicts_lookupholders",
+      "target": "src_startup_deviceconflicts_objectname",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/startup/DeviceConflicts.cpp",
+      "source_location": "L165",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_deviceconflicts_lookupholders",
       "target": "src_startup_deviceconflicts_processinfo",
       "relation": "calls",
       "_origin": "ast",
@@ -56449,7 +56449,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L192",
+      "source_location": "L193",
       "weight": 1.0
     },
     {
@@ -56461,7 +56461,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L205",
+      "source_location": "L206",
       "weight": 1.0
     },
     {
@@ -56473,7 +56473,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L205",
+      "source_location": "L206",
       "weight": 1.0
     },
     {
@@ -56485,7 +56485,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L211",
+      "source_location": "L212",
       "weight": 1.0
     },
     {
@@ -56497,7 +56497,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L230",
+      "source_location": "L231",
       "weight": 1.0
     },
     {
@@ -56509,7 +56509,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L279",
+      "source_location": "L285",
       "weight": 1.0
     },
     {
@@ -56521,7 +56521,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L281",
+      "source_location": "L287",
       "weight": 1.0
     },
     {
@@ -56533,7 +56533,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L281",
+      "source_location": "L287",
       "weight": 1.0
     },
     {
@@ -56545,7 +56545,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L69",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -56557,7 +56557,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L76",
+      "source_location": "L77",
       "weight": 1.0
     },
     {
@@ -56569,7 +56569,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L141",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -56581,7 +56581,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L141",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -56593,7 +56593,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L362",
+      "source_location": "L368",
       "weight": 1.0
     },
     {
@@ -56605,7 +56605,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L254",
+      "source_location": "L260",
       "weight": 1.0
     },
     {
@@ -56617,7 +56617,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L254",
+      "source_location": "L260",
       "weight": 1.0
     },
     {
@@ -56629,7 +56629,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L340",
+      "source_location": "L346",
       "weight": 1.0
     },
     {
@@ -56641,7 +56641,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L377",
+      "source_location": "L383",
       "weight": 1.0
     },
     {
@@ -56653,7 +56653,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L379",
+      "source_location": "L385",
       "weight": 1.0
     },
     {
@@ -56665,7 +56665,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L381",
+      "source_location": "L387",
       "weight": 1.0
     },
     {
@@ -56677,7 +56677,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L382",
+      "source_location": "L388",
       "weight": 1.0
     },
     {
@@ -56689,7 +56689,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L383",
+      "source_location": "L389",
       "weight": 1.0
     },
     {
@@ -56701,7 +56701,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L308",
+      "source_location": "L314",
       "weight": 1.0
     },
     {
@@ -68029,7 +68029,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -68041,7 +68041,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -68053,7 +68053,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -68065,7 +68065,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -68077,7 +68077,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -68089,7 +68089,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -68101,7 +68101,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -68113,7 +68113,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -72397,7 +72397,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -72409,7 +72409,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -72421,7 +72421,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -72433,7 +72433,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -74869,7 +74869,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L425",
+      "source_location": "L431",
       "weight": 1.0
     },
     {
@@ -74881,7 +74881,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L486",
+      "source_location": "L492",
       "weight": 1.0
     },
     {
@@ -74905,7 +74905,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -74917,7 +74917,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -74929,7 +74929,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L226",
+      "source_location": "L227",
       "weight": 1.0
     },
     {
@@ -74941,7 +74941,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L226",
+      "source_location": "L227",
       "weight": 1.0
     },
     {
@@ -74953,7 +74953,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L63",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -74965,7 +74965,7 @@
       "confidence_score": 1.0,
       "context": "generic_arg",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L245",
+      "source_location": "L251",
       "weight": 1.0
     },
     {
@@ -83946,7 +83946,7 @@
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "memory",
+      "target": "future",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -83958,7 +83958,7 @@
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "src_output_outputscheduler_h_thread",
+      "target": "memory",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -83970,7 +83970,7 @@
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "src_modules_moduleregistry_h_vector",
+      "target": "src_output_outputscheduler_h_thread",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -83982,19 +83982,19 @@
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "windows",
+      "target": "src_modules_moduleregistry_h_vector",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L15",
+      "source_location": "L13",
       "weight": 1.0
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "winternl",
+      "target": "windows",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -84006,7 +84006,7 @@
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "tlhelp32",
+      "target": "winternl",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -84018,7 +84018,7 @@
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "sddl",
+      "target": "tlhelp32",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -84026,6 +84026,18 @@
       "context": "import",
       "source_file": "src/startup/DeviceConflicts.cpp",
       "source_location": "L18",
+      "weight": 1.0
+    },
+    {
+      "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
+      "target": "sddl",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "src/startup/DeviceConflicts.cpp",
+      "source_location": "L19",
       "weight": 1.0
     },
     {
@@ -84102,7 +84114,7 @@
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "chrono",
+      "target": "atomic",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -84114,7 +84126,7 @@
     },
     {
       "source": "src_startup_deviceconflicts_cpp_src_startup_deviceconflicts",
-      "target": "future",
+      "target": "chrono",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -93661,7 +93673,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L261",
+      "source_location": "L267",
       "weight": 1.0
     },
     {
@@ -93673,7 +93685,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L267",
+      "source_location": "L273",
       "weight": 1.0
     },
     {
@@ -93685,7 +93697,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L267",
+      "source_location": "L273",
       "weight": 1.0
     },
     {
@@ -93697,7 +93709,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L98",
+      "source_location": "L99",
       "weight": 1.0
     },
     {
@@ -93745,7 +93757,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L390",
+      "source_location": "L396",
       "weight": 1.0
     },
     {
@@ -93757,7 +93769,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L390",
+      "source_location": "L396",
       "weight": 1.0
     },
     {
@@ -93769,7 +93781,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L425",
+      "source_location": "L431",
       "weight": 1.0
     },
     {
@@ -93781,7 +93793,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L320",
+      "source_location": "L326",
       "weight": 1.0
     },
     {
@@ -93793,7 +93805,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L31",
+      "source_location": "L32",
       "weight": 1.0
     },
     {
@@ -93805,7 +93817,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L50",
+      "source_location": "L51",
       "weight": 1.0
     },
     {
@@ -93817,7 +93829,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L92",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -93829,7 +93841,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L287",
+      "source_location": "L293",
       "weight": 1.0
     },
     {
@@ -93841,7 +93853,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L287",
+      "source_location": "L293",
       "weight": 1.0
     },
     {
@@ -93853,7 +93865,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L104",
+      "source_location": "L105",
       "weight": 1.0
     },
     {
@@ -93865,7 +93877,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L21",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -93877,7 +93889,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L21",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -93889,7 +93901,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -93901,7 +93913,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -93913,7 +93925,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L226",
+      "source_location": "L227",
       "weight": 1.0
     },
     {
@@ -93925,7 +93937,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L226",
+      "source_location": "L227",
       "weight": 1.0
     },
     {
@@ -93937,7 +93949,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L132",
+      "source_location": "L133",
       "weight": 1.0
     },
     {
@@ -93949,7 +93961,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L132",
+      "source_location": "L133",
       "weight": 1.0
     },
     {
@@ -93961,7 +93973,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L274",
+      "source_location": "L280",
       "weight": 1.0
     },
     {
@@ -93973,7 +93985,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L274",
+      "source_location": "L280",
       "weight": 1.0
     },
     {
@@ -93985,7 +93997,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L274",
+      "source_location": "L280",
       "weight": 1.0
     },
     {
@@ -93997,7 +94009,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L38",
+      "source_location": "L39",
       "weight": 1.0
     },
     {
@@ -94009,7 +94021,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L63",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -94021,7 +94033,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L63",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -94033,7 +94045,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L63",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -94045,7 +94057,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L139",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -94057,7 +94069,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L139",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -94069,7 +94081,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L358",
+      "source_location": "L364",
       "weight": 1.0
     },
     {
@@ -94081,7 +94093,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L336",
+      "source_location": "L342",
       "weight": 1.0
     },
     {
@@ -94093,7 +94105,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L336",
+      "source_location": "L342",
       "weight": 1.0
     },
     {
@@ -94105,7 +94117,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L94",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -94117,7 +94129,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L57",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -94129,7 +94141,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L371",
+      "source_location": "L377",
       "weight": 1.0
     },
     {
@@ -94141,7 +94153,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L305",
+      "source_location": "L311",
       "weight": 1.0
     },
     {
@@ -94153,7 +94165,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L97",
+      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -94165,7 +94177,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L51",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -97045,7 +97057,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L267",
+      "source_location": "L273",
       "weight": 1.0
     },
     {
@@ -97057,7 +97069,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L98",
+      "source_location": "L99",
       "weight": 1.0
     },
     {
@@ -97093,7 +97105,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L425",
+      "source_location": "L431",
       "weight": 1.0
     },
     {
@@ -97105,7 +97117,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L486",
+      "source_location": "L492",
       "weight": 1.0
     },
     {
@@ -97117,7 +97129,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L104",
+      "source_location": "L105",
       "weight": 1.0
     },
     {
@@ -97129,7 +97141,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L132",
+      "source_location": "L133",
       "weight": 1.0
     },
     {
@@ -97141,7 +97153,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L274",
+      "source_location": "L280",
       "weight": 1.0
     },
     {
@@ -97153,7 +97165,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L114",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -97165,7 +97177,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L139",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -97177,7 +97189,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L358",
+      "source_location": "L364",
       "weight": 1.0
     },
     {
@@ -97189,7 +97201,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L245",
+      "source_location": "L251",
       "weight": 1.0
     },
     {
@@ -97201,7 +97213,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L57",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -97213,7 +97225,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L371",
+      "source_location": "L377",
       "weight": 1.0
     },
     {
@@ -97225,7 +97237,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L109",
+      "source_location": "L110",
       "weight": 1.0
     },
     {
@@ -99157,7 +99169,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L107",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -99168,7 +99180,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L124",
+      "source_location": "L126",
       "weight": 1.0
     },
     {
@@ -99179,7 +99191,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L35",
+      "source_location": "L37",
       "weight": 1.0
     },
     {
@@ -99190,7 +99202,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L43",
+      "source_location": "L45",
       "weight": 1.0
     },
     {
@@ -99201,7 +99213,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L48",
+      "source_location": "L50",
       "weight": 1.0
     },
     {
@@ -99212,7 +99224,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L54",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -99223,7 +99235,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L60",
+      "source_location": "L62",
       "weight": 1.0
     },
     {
@@ -99234,7 +99246,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L67",
+      "source_location": "L69",
       "weight": 1.0
     },
     {
@@ -99256,7 +99268,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L76",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -99267,7 +99279,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L93",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -111147,7 +111159,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L104",
+      "source_location": "L105",
       "weight": 1.0
     },
     {
@@ -111158,7 +111170,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L109",
+      "source_location": "L110",
       "weight": 1.0
     },
     {
@@ -111169,7 +111181,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L114",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -111180,7 +111192,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L119",
+      "source_location": "L120",
       "weight": 1.0
     },
     {
@@ -111191,7 +111203,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1.0
     },
     {
@@ -111202,7 +111214,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L132",
+      "source_location": "L133",
       "weight": 1.0
     },
     {
@@ -111213,7 +111225,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L139",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -111224,7 +111236,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -111235,7 +111247,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L21",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -111246,7 +111258,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L226",
+      "source_location": "L227",
       "weight": 1.0
     },
     {
@@ -111257,7 +111269,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L245",
+      "source_location": "L251",
       "weight": 1.0
     },
     {
@@ -111268,7 +111280,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L261",
+      "source_location": "L267",
       "weight": 1.0
     },
     {
@@ -111279,7 +111291,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L267",
+      "source_location": "L273",
       "weight": 1.0
     },
     {
@@ -111290,7 +111302,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L274",
+      "source_location": "L280",
       "weight": 1.0
     },
     {
@@ -111301,7 +111313,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L287",
+      "source_location": "L293",
       "weight": 1.0
     },
     {
@@ -111312,7 +111324,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L305",
+      "source_location": "L311",
       "weight": 1.0
     },
     {
@@ -111323,7 +111335,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L31",
+      "source_location": "L32",
       "weight": 1.0
     },
     {
@@ -111334,7 +111346,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L320",
+      "source_location": "L326",
       "weight": 1.0
     },
     {
@@ -111345,7 +111357,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L336",
+      "source_location": "L342",
       "weight": 1.0
     },
     {
@@ -111356,7 +111368,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L358",
+      "source_location": "L364",
       "weight": 1.0
     },
     {
@@ -111367,7 +111379,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L371",
+      "source_location": "L377",
       "weight": 1.0
     },
     {
@@ -111378,7 +111390,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L38",
+      "source_location": "L39",
       "weight": 1.0
     },
     {
@@ -111389,7 +111401,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L390",
+      "source_location": "L396",
       "weight": 1.0
     },
     {
@@ -111400,7 +111412,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L425",
+      "source_location": "L431",
       "weight": 1.0
     },
     {
@@ -111411,7 +111423,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L486",
+      "source_location": "L492",
       "weight": 1.0
     },
     {
@@ -111422,7 +111434,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L50",
+      "source_location": "L51",
       "weight": 1.0
     },
     {
@@ -111433,7 +111445,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L51",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -111444,7 +111456,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L57",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -111455,7 +111467,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L63",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -111466,7 +111478,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L92",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -111477,7 +111489,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L94",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -111488,7 +111500,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L97",
+      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -111499,7 +111511,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L98",
+      "source_location": "L99",
       "weight": 1.0
     },
     {
@@ -120200,7 +120212,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L92",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -120211,7 +120223,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L94",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -123819,7 +123831,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CONTINUE.md",
-      "source_location": "L159",
+      "source_location": "L161",
       "weight": 1.0
     },
     {
@@ -124479,7 +124491,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/main.cpp",
-      "source_location": "L199",
+      "source_location": "L205",
       "weight": 1.0
     },
     {
@@ -124491,7 +124503,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/main.cpp",
-      "source_location": "L199",
+      "source_location": "L205",
       "weight": 1.0
     },
     {
@@ -124503,7 +124515,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/main.cpp",
-      "source_location": "L208",
+      "source_location": "L214",
       "weight": 1.0
     },
     {
@@ -124515,7 +124527,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/main.cpp",
-      "source_location": "L215",
+      "source_location": "L221",
       "weight": 1.0
     },
     {
@@ -124527,7 +124539,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/main.cpp",
-      "source_location": "L215",
+      "source_location": "L221",
       "weight": 1.0
     },
     {
@@ -124539,7 +124551,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/main.cpp",
-      "source_location": "L216",
+      "source_location": "L222",
       "weight": 1.0
     },
     {
@@ -124551,7 +124563,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/main.cpp",
-      "source_location": "L219",
+      "source_location": "L225",
       "weight": 1.0
     },
     {
@@ -124563,7 +124575,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/main.cpp",
-      "source_location": "L219",
+      "source_location": "L225",
       "weight": 1.0
     },
     {
@@ -124827,7 +124839,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L375",
+      "source_location": "L381",
       "weight": 1.0
     },
     {
@@ -132891,7 +132903,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L460",
+      "source_location": "L466",
       "weight": 1.0
     },
     {
@@ -141435,7 +141447,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L454",
+      "source_location": "L460",
       "weight": 1.0
     },
     {
@@ -141447,7 +141459,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L459",
+      "source_location": "L465",
       "weight": 1.0
     },
     {
@@ -141459,7 +141471,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L59",
+      "source_location": "L60",
       "weight": 1.0
     },
     {
@@ -141471,7 +141483,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/startup/DeviceConflicts.cpp",
-      "source_location": "L375",
+      "source_location": "L381",
       "weight": 1.0
     },
     {
@@ -144123,7 +144135,7 @@
       "confidence_score": 0.95,
       "context": "ServiceServer",
       "source_file": "CONTINUE.md",
-      "source_location": "L69",
+      "source_location": "L71",
       "weight": 1.0
     },
     {
@@ -144231,7 +144243,7 @@
       "confidence_score": 0.95,
       "context": "exactNamesAndGuards",
       "source_file": "CONTINUE.md",
-      "source_location": "L32",
+      "source_location": "L34",
       "weight": 1.0
     },
     {
@@ -144339,7 +144351,7 @@
       "confidence_score": 0.95,
       "context": "sampleChannels",
       "source_file": "CONTINUE.md",
-      "source_location": "L98",
+      "source_location": "L100",
       "weight": 1.0
     },
     {
@@ -144392,5 +144404,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "8f166cc89a54e28cfbe0ebad2522764f9f70fdb2"
+  "built_at_commit": "ccf66042a01464a24c477a68fc50b8649f73a779"
 }

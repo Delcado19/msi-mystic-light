@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "src/main.cpp": {
-    "mtime": 1794842762.0611124,
-    "seen": 1794843235.0728154,
-    "ast_hash": "f3956039d172d06f6e3272d11446fe0f",
+    "mtime": 1794847972.2176735,
+    "seen": 1794848195.4576123,
+    "ast_hash": "5d15bcdc5edfc75880b892252ef3de9d",
     "semantic_hash": ""
   },
   "src/protocol/MsiProtocol.cpp": {
@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794845967.2553713,
-    "seen": 1794845982.2088497,
-    "ast_hash": "9774ca6c4c193764178280ecc715063c",
+    "mtime": 1794848184.447228,
+    "seen": 1794848195.4627566,
+    "ast_hash": "b8e98fe29831639a872a24fc4bb663c8",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -1716,9 +1716,9 @@
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.cpp": {
-    "mtime": 1794846239.018996,
-    "seen": 1794846584.6186204,
-    "ast_hash": "0d3cfe2455a6e72dea155c4337a5dc8a",
+    "mtime": 1794847969.5901017,
+    "seen": 1794848195.4603083,
+    "ast_hash": "898415e3a170460f04f674ff5a51581f",
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.h": {
