@@ -1,20 +1,25 @@
 #include "DeviceConflicts.h"
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QMutexLocker>
 #include <QRegularExpression>
 #include <QSet>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <future>
+#include <map>
 #include <memory>
+#include <tuple>
 #include <thread>
 #include <vector>
 #ifdef Q_OS_WIN
 #define NOMINMAX
 #include <windows.h>
-#include <winternl.h>
+#include <evntrace.h>
+#include <evntcons.h>
+#include <tdh.h>
 #include <tlhelp32.h>
 #include <sddl.h>
 #endif
@@ -34,6 +39,29 @@ QString endpointLabel(const QString& endpoint)
     const auto match = QRegularExpression("VID_[0-9A-F]{4}&PID_[0-9A-F]{4}(&MI_[0-9A-F]{2})?",
         QRegularExpression::CaseInsensitiveOption).match(endpoint);
     return match.hasMatch() ? match.captured(0).toUpper() : endpoint;
+}
+
+bool hidSetReport(const unsigned char* setup, int* interfaceNumber)
+{
+    // bmRequestType 0x21 (class request to an interface), bRequest 0x09 (SET_REPORT); wIndex names the interface.
+    if (setup[0] != 0x21 || setup[1] != 0x09) return false;
+    if (interfaceNumber) *interfaceNumber = setup[4] | (setup[5] << 8);
+    return true;
+}
+
+QString usbDeviceId(const QString& path)
+{
+    const auto match = QRegularExpression("VID_[0-9A-F]{4}&PID_[0-9A-F]{4}", QRegularExpression::CaseInsensitiveOption).match(path);
+    return match.hasMatch() ? match.captured(0).toUpper() : QString{};
+}
+
+bool writeTargets(const QString& endpoint, const QString& device, int interfaceNumber)
+{
+    const auto label = endpointLabel(endpoint);
+    if (device.isEmpty() || !label.startsWith(device, Qt::CaseInsensitive)) return false;
+    // A composite device's endpoint names its interface (MI_03); a single-interface device has none.
+    const auto mi = QRegularExpression("&MI_([0-9A-F]{2})").match(label);
+    return !mi.hasMatch() || mi.captured(1).toInt(nullptr, 16) == interfaceNumber;
 }
 
 QStringList probeableEndpoints(const QStringList& endpoints)
@@ -117,26 +145,6 @@ QStringList ownExecutables()
     const auto folder = QCoreApplication::applicationDirPath();
     return {folder + "/msi_mystic_light.exe", folder + "/lighting_service_host.exe"};
 }
-void enableDebugPrivilege()
-{
-    // Needed to duplicate handles of services and elevated processes; not assumed to be enabled.
-    HANDLE raw = nullptr;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &raw)) return;
-    Handle token(raw);
-    TOKEN_PRIVILEGES privileges{}; privileges.PrivilegeCount = 1; privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    if (LookupPrivilegeValueW(nullptr, SE_DEBUG_NAME, &privileges.Privileges[0].Luid))
-        AdjustTokenPrivileges(token.get(), FALSE, &privileges, 0, nullptr, nullptr);
-}
-using QuerySystem = NTSTATUS(NTAPI*)(ULONG, PVOID, ULONG, PULONG);
-using QueryObject = NTSTATUS(NTAPI*)(HANDLE, ULONG, PVOID, ULONG, PULONG);
-struct HandleEntry { PVOID object; ULONG_PTR pid; ULONG_PTR handle; ULONG access; USHORT backtrace; USHORT type; ULONG attributes; ULONG reserved; };
-QString objectName(QueryObject query, HANDLE handle)
-{
-    alignas(8) unsigned char buffer[4096]; ULONG length = 0;
-    if (query(handle, 1 /*ObjectNameInformation*/, buffer, sizeof(buffer), &length) < 0) return {};
-    const auto* name = reinterpret_cast<const UNICODE_STRING*>(buffer);
-    return name->Buffer ? QString::fromWCharArray(name->Buffer, name->Length / 2) : QString{};
-}
 ConflictProcess processInfo(quint32 pid, HANDLE process)
 {
     ConflictProcess result; result.pid = pid; result.started = creationTime(process); result.path = imagePath(process);
@@ -144,108 +152,130 @@ ConflictProcess processInfo(quint32 pid, HANDLE process)
     return result;
 }
 
-// One system handle snapshot (about 2.2 million handles and 2.7 s elevated, measured 2026-11-16).
-QVector<EndpointCheck> lookupHolders(const QStringList& endpoints, QVector<ConflictProcess>* hiding)
+// Undocumented provider events; layouts observed on Windows 11 build 26300 (experiment 2026-11-16):
+// USBHUB3 event 6 maps fid_UsbDevice to the device interface path and is logged for every device when
+// the provider is enabled. UCX event 53 is the dispatch of a control transfer, raised in the sending
+// process, with the 8-byte setup packet at the end of its payload. Completion events run in whatever
+// process is on the CPU and are ignored.
+// shortcut: unverified on other Windows builds; a capture without device events reports an error.
+const GUID ucxProvider{0x36DA592D, 0xE43A, 0x4E28, {0xAF, 0x6F, 0x4B, 0xC5, 0x7C, 0x5A, 0x11, 0xE8}};
+const GUID hubProvider{0xAC52AD17, 0xCC01, 0x4F85, {0x8D, 0xF5, 0x4D, 0xCE, 0x43, 0x33, 0xC9, 0x9B}};
+bool eventProperty(PEVENT_RECORD record, const wchar_t* name, std::vector<BYTE>& value)
 {
-    QVector<EndpointCheck> checks;
-    for (const auto& endpoint : endpoints) checks.append({endpoint});
-    const auto fail = [&checks](const QString& error) { for (auto& check : checks) check.error = error; return checks; };
-    auto* ntdll = GetModuleHandleW(L"ntdll.dll");
-    const auto querySystem = reinterpret_cast<QuerySystem>(ntdll ? GetProcAddress(ntdll, "NtQuerySystemInformation") : nullptr);
-    const auto queryObject = reinterpret_cast<QueryObject>(ntdll ? GetProcAddress(ntdll, "NtQueryObject") : nullptr);
-    if (!querySystem || !queryObject) return fail("Handle inspection unavailable");
-    enableDebugPrivilege();
-    // Our own handle to each device yields its object name and the File object type index.
-    QHash<QString, int> byName; std::vector<Handle> own;
-    for (int i = 0; i < checks.size(); ++i) {
-        if (probeableEndpoints({checks[i].endpoint}).isEmpty()) { checks[i].error = "Not a HID device path"; continue; }
-        Handle device(CreateFileW(reinterpret_cast<LPCWSTR>(checks[i].endpoint.utf16()), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
-            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr));
-        if (device.get() == INVALID_HANDLE_VALUE) { checks[i].error = winError("Cannot open device for inspection"); device.release(); continue; }
-        const auto name = objectName(queryObject, device.get());
-        if (name.isEmpty()) { checks[i].error = "Cannot read device object name"; continue; }
-        byName.insert(name, i); own.push_back(std::move(device));
-    }
-    if (own.empty()) return checks;
-    std::vector<unsigned char> buffer; ULONG size = 1u << 24, needed = 0; NTSTATUS status = 0;
-    do { buffer.resize(size); status = querySystem(64 /*SystemExtendedHandleInformation*/, buffer.data(), size, &needed); size *= 2; }
-    while (status == NTSTATUS(0xC0000004L) && size <= (1u << 30));
-    if (status < 0) return fail(QString("Handle snapshot failed (0x%1)").arg(quint32(status), 8, 16, QLatin1Char('0')));
-    const auto count = *reinterpret_cast<const ULONG_PTR*>(buffer.data());
-    const auto* entries = reinterpret_cast<const HandleEntry*>(buffer.data() + 2 * sizeof(ULONG_PTR));
-    const auto self = GetCurrentProcessId();
-    USHORT fileType = 0;
-    for (ULONG_PTR i = 0; i < count; ++i)
-        if (entries[i].pid == self && entries[i].handle == reinterpret_cast<ULONG_PTR>(own.front().get())) { fileType = entries[i].type; break; }
-    if (!fileType) return fail("Cannot identify the device handle type");
-    struct Process { Handle handle; ConflictProcess info; int files = 0, duplicated = 0; bool opened = false; };
-    QHash<quint32, std::shared_ptr<Process>> processes;
-    QVector<QSet<quint32>> holders(checks.size());
-    for (ULONG_PTR i = 0; i < count; ++i) {
-        const auto& entry = entries[i];
-        if (entry.type != fileType || entry.pid == self) continue;
-        const auto pid = quint32(entry.pid);
-        auto& process = processes[pid];
-        if (!process) {
-            process = std::make_shared<Process>();
-            process->handle.reset(OpenProcess(PROCESS_DUP_HANDLE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
-            process->opened = bool(process->handle);
-            if (process->opened) process->info = processInfo(pid, process->handle.get());
+    PROPERTY_DATA_DESCRIPTOR descriptor{}; descriptor.PropertyName = ULONGLONG(name); descriptor.ArrayIndex = ULONG_MAX;
+    ULONG size = 0;
+    if (TdhGetPropertySize(record, 0, nullptr, 1, &descriptor, &size) != ERROR_SUCCESS || !size) return false;
+    value.resize(size);
+    return TdhGetProperty(record, 0, nullptr, 1, &descriptor, size, value.data()) == ERROR_SUCCESS;
+}
+quint64 pointerProperty(PEVENT_RECORD record, const wchar_t* name)
+{
+    std::vector<BYTE> value;
+    if (!eventProperty(record, name, value)) return 0;
+    if (value.size() == 8) return *reinterpret_cast<const quint64*>(value.data());
+    if (value.size() == 4) return *reinterpret_cast<const quint32*>(value.data());
+    return 0;
+}
+struct Capture {
+    QHash<quint64, QString> devices;                       // fid_UsbDevice -> VID_xxxx&PID_yyyy
+    std::map<std::tuple<quint32, quint64, int>, int> writes; // (process, fid_UsbDevice, interface) -> count
+};
+// Runs on the single ProcessTrace thread.
+void WINAPI onUsbEvent(PEVENT_RECORD record)
+{
+    auto* capture = static_cast<Capture*>(record->UserContext);
+    const auto id = record->EventHeader.EventDescriptor.Id;
+    if (IsEqualGUID(record->EventHeader.ProviderId, hubProvider) && id == 6) {
+        std::vector<BYTE> path;
+        const auto device = pointerProperty(record, L"fid_UsbDevice");
+        if (device && eventProperty(record, L"fid_DeviceInterfacePath", path) && path.size() >= 2) {
+            path.push_back(0); path.push_back(0);
+            const auto identity = usbDeviceId(QString::fromWCharArray(reinterpret_cast<const wchar_t*>(path.data())));
+            if (!identity.isEmpty()) capture->devices.insert(device, identity);
         }
-        if (!process->opened) continue;
-        ++process->files;
-        HANDLE copy = nullptr;
-        if (!DuplicateHandle(process->handle.get(), reinterpret_cast<HANDLE>(entry.handle), GetCurrentProcess(), &copy, 0, FALSE, DUPLICATE_SAME_ACCESS)) continue;
-        Handle duplicate(copy); ++process->duplicated;
-        // HID handles report FILE_TYPE_UNKNOWN; disk files, consoles and pipes are skipped before the name
-        // query, which can block forever on a synchronous pipe.
-        if (GetFileType(duplicate.get()) != FILE_TYPE_UNKNOWN) continue;
-        const auto found = byName.constFind(objectName(queryObject, duplicate.get()));
-        if (found != byName.constEnd()) holders[found.value()].insert(pid);
+    } else if (IsEqualGUID(record->EventHeader.ProviderId, ucxProvider) && id == 53 && record->UserDataLength >= 48) {
+        const auto* setup = static_cast<const unsigned char*>(record->UserData) + record->UserDataLength - 8;
+        int interfaceNumber = -1;
+        if (!hidSetReport(setup, &interfaceNumber)) return;
+        if (const auto device = pointerProperty(record, L"fid_UsbDevice"))
+            ++capture->writes[{quint32(record->EventHeader.ProcessId), device, interfaceNumber}];
     }
-    const auto root = systemRoot(); const auto ours = ownExecutables();
-    for (int i = 0; i < checks.size(); ++i) {
-        if (!checks[i].error.isEmpty()) continue;
-        bool system = false;
-        for (const auto pid : holders[i]) {
-            const auto& info = processes[pid]->info;
-            if (isExcludedImage(info.path, root, ours)) system = true;
-            else { auto holder = info; holder.provenHolder = true; checks[i].holders.append(holder); }
-        }
-        checks[i].systemOnly = checks[i].holders.isEmpty() && system;
-        checks[i].hidden = checks[i].holders.isEmpty() && !system;
-    }
-    // shortcut: "openable but no handle duplicable" names candidates for hidden holders; SignalRgb.exe
-    // matched this unelevated (all 10108 duplications denied). Unverified under LocalSystem.
-    if (hiding) for (const auto& process : processes)
-        if (process->opened && process->files > 0 && process->duplicated == 0 && !isExcludedImage(process->info.path, root, ours))
-            hiding->append(process->info);
-    return checks;
 }
 
-// The snapshot or a name query could hang inside a driver; never let that freeze the scan worker.
-QVector<EndpointCheck> lookupWithTimeout(const QStringList& endpoints, QVector<ConflictProcess>* hiding)
+// One real-time session for `milliseconds` (LocalSystem or administrator only).
+QVector<UsbWrite> captureUsbWrites(int milliseconds, QString& error)
 {
-    using Result = std::pair<QVector<EndpointCheck>, QVector<ConflictProcess>>;
-    auto task = std::make_shared<std::packaged_task<Result()>>([endpoints] {
-        QVector<ConflictProcess> candidates; auto checks = lookupHolders(endpoints, &candidates); return Result{checks, candidates};
-    });
-    auto future = task->get_future();
-    const auto failed = [&endpoints](const QString& error) {
-        QVector<EndpointCheck> checks;
-        for (const auto& endpoint : endpoints) checks.append({endpoint, {}, false, false, error});
-        return checks;
-    };
-    // At most one lookup thread: a hung one would otherwise be joined by a new one on every scan
-    // (CodeRabbit review 2026-11-16). Endpoints stay blocked until the hung lookup returns.
     static std::atomic_bool running{false};
-    if (running.exchange(true)) return failed("A previous holder lookup is still running");
-    // shortcut: a hung lookup leaks its detached thread; acceptable for a rare driver hang, revisit if seen.
-    std::thread([task] { (*task)(); running.store(false); }).detach();
-    if (future.wait_for(std::chrono::seconds(20)) != std::future_status::ready) return failed("Holder lookup timed out");
-    auto result = future.get();
-    if (hiding) *hiding = result.second;
-    return result.first;
+    if (running.exchange(true)) { error = "A USB capture is already running"; return {}; }
+    struct Reset { ~Reset() { running.store(false); } } reset;
+    static const wchar_t name[] = L"LightingStudioUsbWrites";
+    std::vector<BYTE> buffer(sizeof(EVENT_TRACE_PROPERTIES) + sizeof(name));
+    const auto properties = [&buffer] {
+        std::fill(buffer.begin(), buffer.end(), BYTE(0));
+        auto* p = reinterpret_cast<EVENT_TRACE_PROPERTIES*>(buffer.data());
+        p->Wnode.BufferSize = ULONG(buffer.size()); p->Wnode.Flags = WNODE_FLAG_TRACED_GUID; p->Wnode.ClientContext = 1;
+        p->LogFileMode = EVENT_TRACE_REAL_TIME_MODE; p->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
+        return p;
+    };
+    ControlTraceW(0, name, properties(), EVENT_TRACE_CONTROL_STOP); // A session left behind by a crashed service.
+    TRACEHANDLE session = 0;
+    if (const auto status = StartTraceW(&session, name, properties()); status != ERROR_SUCCESS) {
+        error = QString("Cannot start USB trace (Windows error %1)").arg(status); return {};
+    }
+    Capture capture;
+    EVENT_TRACE_LOGFILEW log{};
+    log.LoggerName = const_cast<LPWSTR>(name);
+    log.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_EVENT_RECORD;
+    log.EventRecordCallback = onUsbEvent; log.Context = &capture;
+    TRACEHANDLE consumer = OpenTraceW(&log);
+    if (consumer == INVALID_PROCESSTRACE_HANDLE) {
+        error = winError("Cannot open USB trace");
+        ControlTraceW(session, nullptr, properties(), EVENT_TRACE_CONTROL_STOP); return {};
+    }
+    std::thread reader([&consumer] { ProcessTrace(&consumer, 1, nullptr, nullptr); });
+    // Enabled after the consumer runs, so the device events logged on enable are not lost.
+    for (const auto& provider : {hubProvider, ucxProvider})
+        EnableTraceEx2(session, &provider, EVENT_CONTROL_CODE_ENABLE_PROVIDER, TRACE_LEVEL_VERBOSE, ~0ULL, 0, 0, nullptr);
+    Sleep(DWORD(milliseconds));
+    ControlTraceW(session, nullptr, properties(), EVENT_TRACE_CONTROL_STOP);
+    CloseTrace(consumer);
+    reader.join();
+    if (capture.devices.isEmpty()) { error = "USB trace delivered no device events; write detection is unavailable on this Windows build"; return {}; }
+    QVector<UsbWrite> result;
+    for (const auto& [key, count] : capture.writes) {
+        const auto device = capture.devices.value(std::get<1>(key));
+        if (!device.isEmpty()) result.append({std::get<0>(key), device, std::get<2>(key), count});
+    }
+    return result;
+}
+
+// Processes that sent lighting commands to these endpoints during one capture.
+QVector<EndpointCheck> findWriters(const QStringList& endpoints)
+{
+    QVector<EndpointCheck> checks;
+    const auto now = QDateTime::currentMSecsSinceEpoch();
+    for (const auto& endpoint : endpoints) { EndpointCheck check; check.endpoint = endpoint; check.checkedAt = now; checks.append(check); }
+    QString error;
+    const auto writes = captureUsbWrites(5000, error);
+    if (!error.isEmpty()) { for (auto& check : checks) check.error = error; return checks; }
+    const auto self = GetCurrentProcessId(); const auto root = systemRoot(); const auto ours = ownExecutables();
+    QHash<quint32, ConflictProcess> processes;
+    for (const auto& write : writes) {
+        if (write.pid == self || write.pid <= 4) continue;
+        for (auto& check : checks) {
+            if (!writeTargets(check.endpoint, write.device, write.interfaceNumber)) continue;
+            if (!processes.contains(write.pid)) {
+                Handle handle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, write.pid));
+                ConflictProcess unknown; unknown.pid = write.pid; unknown.executable = QString("PID %1").arg(write.pid);
+                processes.insert(write.pid, handle ? processInfo(write.pid, handle.get()) : unknown);
+            }
+            auto writer = processes.value(write.pid);
+            if (isExcludedImage(writer.path, root, ours)) continue;
+            if (std::any_of(check.holders.cbegin(), check.holders.cend(), [&](const auto& h) { return h.pid == writer.pid; })) continue;
+            writer.provenHolder = true; check.holders.append(writer);
+        }
+    }
+    return checks;
 }
 
 QVector<ProcessEntry> runningProcesses()
@@ -397,48 +427,52 @@ QStringList DeviceConflictMonitor::blocked(const QStringList& endpoints, QString
 {
     QStringList busy;
     for (const auto& endpoint : probeableEndpoints(endpoints)) if (endpointBusy(endpoint)) busy.append(endpoint);
-    QStringList unknown;
+    QStringList stale;
     {
         QMutexLocker lock(&mutex_);
         for (auto it = busy_.begin(); it != busy_.end();) if (!busy.contains(it.key())) it = busy_.erase(it); else ++it;
-        for (const auto& endpoint : busy) if (!busy_.contains(endpoint)) unknown.append(endpoint);
+        // One capture per busy endpoint and minute, not on every five-second retry: a writer that starts
+        // later, or one that stopped writing but keeps the device open, is noticed within a minute.
+        const auto now = QDateTime::currentMSecsSinceEpoch();
+        for (const auto& endpoint : busy)
+            if (!busy_.contains(endpoint) || now - busy_.value(endpoint).checkedAt >= 60000) stale.append(endpoint);
     }
-    QHash<QString, EndpointCheck> fresh;
 #ifdef Q_OS_WIN
-    // Holders are looked up once per busy period, not on every five-second retry. A failed lookup blocks
-    // this round but is not cached: a device Windows never releases (hidserv) would stay blocked forever.
-    if (!unknown.isEmpty()) {
-        const auto checks = lookupWithTimeout(unknown, nullptr);
+    if (!stale.isEmpty()) {
+        const auto checks = findWriters(stale);
         QMutexLocker lock(&mutex_);
-        for (const auto& check : checks) { fresh.insert(check.endpoint, check); if (check.error.isEmpty()) busy_.insert(check.endpoint, check); }
+        for (const auto& check : checks) busy_.insert(check.endpoint, check);
     }
 #endif
-    QStringList result, reasons;
+    QStringList result, reasons, errors;
     QMutexLocker lock(&mutex_);
     for (const auto& endpoint : busy) {
-        const auto check = fresh.contains(endpoint) ? fresh.value(endpoint) : busy_.value(endpoint);
+        const auto check = busy_.value(endpoint);
+        // Detection that cannot run must not switch the lighting off; it is reported instead.
+        if (!check.error.isEmpty() && !errors.contains(check.error)) errors.append(check.error);
         if (!check.blocks()) continue;
         result.append(endpoint);
         QStringList names; for (const auto& holder : check.holders) names.append(holder.executable);
-        reasons.append(endpointLabel(endpoint) + ": " + (!check.error.isEmpty() ? check.error
-            : names.isEmpty() ? QString("a program that hides its handles") : names.join(", ")));
+        reasons.append(endpointLabel(endpoint) + ": " + names.join(", "));
     }
-    if (!result.isEmpty())
-        message = "Lighting devices in use by another program (" + reasons.join("; ") + "). Choose Resolve conflicts to stop it.";
+    QStringList parts;
+    if (!result.isEmpty()) parts.append("Another program sends lighting commands (" + reasons.join("; ") + "). Choose Resolve conflicts to stop it.");
+    if (!errors.isEmpty()) parts.append("Conflict detection unavailable: " + errors.join("; "));
+    message = parts.join("\n");
     return result;
 }
 
-QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& endpoints)
+QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& endpoints, QString* error)
 {
     QStringList busy;
     for (const auto& endpoint : probeableEndpoints(endpoints)) if (endpointBusy(endpoint)) busy.append(endpoint);
     {
-        // The dialog rescans every 100 ms while waiting for a stop; reuse a fresh lookup while the same
+        // The dialog rescans every 100 ms while waiting for a stop; reuse a fresh capture while the same
         // devices stay busy. Freed devices change the busy set and end the reuse at once.
         QMutexLocker lock(&mutex_);
         if (busy == lastBusy_ && lastTime_.isValid() && lastTime_.elapsed() < 3000) {
 #ifdef Q_OS_WIN
-            // A process stopped since the lookup must not stay listed, or the dialog reports it as running.
+            // A process stopped since the capture must not stay listed, or the dialog reports it as running.
             last_.removeIf([](const ConflictProcess& process) { return !alive(process); });
 #endif
             return last_;
@@ -453,42 +487,35 @@ QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& end
         process.reason = reason; result.append(process);
     };
 #ifdef Q_OS_WIN
-    QVector<ConflictProcess> hiding;
-    const auto checks = busy.isEmpty() ? QVector<EndpointCheck>{} : lookupWithTimeout(busy, &hiding);
-    QStringList hidden;
+    const auto checks = busy.isEmpty() ? QVector<EndpointCheck>{} : findWriters(busy);
     for (const auto& check : checks) {
-        for (const auto& holder : check.holders) add(holder, "Holds " + endpointLabel(check.endpoint));
-        if (check.hidden) hidden.append(endpointLabel(check.endpoint));
-    }
-    // The name list only labels a candidate; it never makes a process a conflict by itself.
-    if (!hidden.isEmpty()) for (const auto& process : hiding) {
-        const auto known = conflictReason(process.executable);
-        add(process, "May hold " + hidden.join(", ") + "; hides its handles" + (known.isEmpty() ? QString{} : " (" + known + ")"));
+        if (!check.error.isEmpty() && error) *error = check.error;
+        for (const auto& writer : check.holders) add(writer, "Sends lighting commands to " + endpointLabel(check.endpoint));
     }
     if (!result.isEmpty()) {
-        // Add each holder's program family, topmost first, so a launcher is listed and stopped before
+        // Add each writer's program family, topmost first, so a launcher is listed and stopped before
         // the program it would restart.
         const auto running = runningProcesses(); const auto root = systemRoot(); const auto ours = ownExecutables();
         const auto excluded = [&](const QString& path) { return isExcludedImage(path, root, ours); };
         const auto direct = result; result.clear();
-        for (const auto& holder : direct) for (const auto pid : processFamily(running, holder.pid, excluded)) {
-            if (pid == holder.pid) { add(holder, holder.reason); continue; }
+        for (const auto& writer : direct) for (const auto pid : processFamily(running, writer.pid, excluded)) {
+            if (pid == writer.pid) { add(writer, writer.reason); continue; }
             for (const auto& member : running) if (member.pid == pid) {
                 ConflictProcess process; process.pid = pid; process.started = member.started; process.path = member.path;
                 process.executable = QFileInfo(member.path).fileName();
-                add(process, "Same program as " + holder.executable + "; may start it again");
+                add(process, "Same program as " + writer.executable + "; may start it again");
             }
         }
     }
     QMutexLocker lock(&mutex_);
     for (const auto& check : checks) busy_.insert(check.endpoint, check);
 #else
+    Q_UNUSED(error);
     QMutexLocker lock(&mutex_);
 #endif
     last_ = result; lastBusy_ = busy; lastTime_.start();
     return result;
 }
-
 QVector<ConflictProcess> DeviceConflictMonitor::last() const
 {
     QMutexLocker lock(&mutex_);

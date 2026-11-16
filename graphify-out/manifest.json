@@ -90,15 +90,15 @@
     "semantic_hash": ""
   },
   "CMakeLists.txt": {
-    "mtime": 1794845024.2993877,
-    "seen": 1794845982.2088466,
-    "ast_hash": "5ed8a64892be402839d15593677407a2",
+    "mtime": 1794858543.931419,
+    "seen": 1794859485.889542,
+    "ast_hash": "79b5ebf25318781f1f906ad17eb79e94",
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794848184.447228,
-    "seen": 1794848195.4627566,
-    "ast_hash": "b8e98fe29831639a872a24fc4bb663c8",
+    "mtime": 1794859477.282036,
+    "seen": 1794859485.8895438,
+    "ast_hash": "3338130ff7c476b11929c4a3b3420dc6",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -312,9 +312,9 @@
     "semantic_hash": ""
   },
   "tests/startup/test_startup.cpp": {
-    "mtime": 1794846265.4671435,
-    "seen": 1794846584.6210551,
-    "ast_hash": "efb72beedc5bd912d5701e8a8d3c67dc",
+    "mtime": 1794858563.9705892,
+    "seen": 1794859485.8888001,
+    "ast_hash": "329f5d94123b3ba366237f2fd0a15bf7",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
@@ -1110,9 +1110,9 @@
     "semantic_hash": ""
   },
   "src/service/ServicePanel.cpp": {
-    "mtime": 1794846264.0369966,
-    "seen": 1794846584.6177425,
-    "ast_hash": "f91a436f3deb8025f7517e5a921c6afa",
+    "mtime": 1794858540.4056275,
+    "seen": 1794859485.8857336,
+    "ast_hash": "1440d0b502f0c2a706d0a2929ddc1362",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.h": {
@@ -1134,9 +1134,9 @@
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.cpp": {
-    "mtime": 1794846662.119173,
-    "seen": 1794846745.2096455,
-    "ast_hash": "a61b05d4a35068015ba8bdb1019ba8c4",
+    "mtime": 1794858542.229491,
+    "seen": 1794859485.8860009,
+    "ast_hash": "691cf1cb84a21e84e19cf7eb36364be4",
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.h": {
@@ -1158,9 +1158,9 @@
     "semantic_hash": ""
   },
   "src/service/main.cpp": {
-    "mtime": 1794846668.114945,
-    "seen": 1794846745.2099023,
-    "ast_hash": "c1275e847ff48e48d30182583c3bc02b",
+    "mtime": 1794858538.7554872,
+    "seen": 1794859485.8862689,
+    "ast_hash": "e8a3b66419afbd2adfc0984691bf4833",
     "semantic_hash": ""
   },
   "tests/service/test_installer.ps1": {
@@ -1182,9 +1182,9 @@
     "semantic_hash": ""
   },
   "docs/WINDOWS_SERVICE.md": {
-    "mtime": 1794846734.6894429,
-    "seen": 1794846745.215279,
-    "ast_hash": "513a9f087b264da600442ddfe230ec0c",
+    "mtime": 1794859460.5050535,
+    "seen": 1794859485.8921225,
+    "ast_hash": "f46e1e8fef74f568edb17b91de1e1e97",
     "semantic_hash": ""
   },
   "docs/images/layout-fullscreen.png": {
@@ -1716,15 +1716,15 @@
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.cpp": {
-    "mtime": 1794847969.5901017,
-    "seen": 1794848195.4603083,
-    "ast_hash": "898415e3a170460f04f674ff5a51581f",
+    "mtime": 1794858476.6969874,
+    "seen": 1794859485.8866372,
+    "ast_hash": "e0033ae0297b997b17f3b3e1d3dbdfd4",
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.h": {
-    "mtime": 1794846211.6498208,
-    "seen": 1794846584.6186216,
-    "ast_hash": "cb35142576777b4812b708029e8ebfa9",
+    "mtime": 1794858534.0981455,
+    "seen": 1794859485.8866389,
+    "ast_hash": "d09b705662448b8b398860f3533d0a87",
     "semantic_hash": ""
   }
 }

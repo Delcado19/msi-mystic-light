@@ -35,8 +35,11 @@ ServiceConflictProcesses::ServiceConflictProcesses(ServicePanel::Rpc rpc):rpc_(s
     if(!rpc_)rpc_=[](const QJsonObject& request){return StudioService::request(request,host());};
 }
 QVector<ConflictProcess> ServiceConflictProcesses::scan() {
-    QVector<ConflictProcess> result;
-    for(const auto& entry:rpc_(command("conflicts")).value("conflicts").toArray()) {
+    QVector<ConflictProcess> result;const auto reply=rpc_(command("conflicts"));
+    // A failed USB capture must not look like "nothing conflicts"; the dialog shows the error.
+    const auto list=reply.value("conflicts").toArray();
+    if(list.isEmpty() && !reply.value("scanError").toString().isEmpty())throw std::runtime_error(reply.value("scanError").toString().toStdString());
+    for(const auto& entry:list) {
         const auto json=entry.toObject();ConflictProcess process;
         process.pid=quint32(json.value("pid").toInteger());process.started=json.value("started").toString().toULongLong();
         process.executable=json.value("executable").toString();process.path=json.value("path").toString();

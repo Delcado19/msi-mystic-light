@@ -22,8 +22,16 @@ hidden-holder candidates. Built, untested on hardware: probe inside the service,
 LocalSystem, hidden-holder candidates, generic service stop, and the program family of each holder
 (`processFamily`: same install root, parent older than child, never Windows or our executables,
 topmost first). Only `\\?\HID#` paths are probed (security review: project paths reach a SYSTEM open).
+Later the same day the handle lookup and its "hides its handles" candidates were replaced by a USB
+trace (writers only), after read-only ETW experiments (scripts in build/research/etw, not in git):
+UCX event 53 carries the sending process for HID SET_REPORT; completion events do not. Verified on
+real hardware with a throwaway harness (build/research/usbprobe): SignalRgb.exe found as writer of
+MSI controller, Apex 3 and Basilisk, plus its family; without SignalRGB nothing blocked although the
+MSI controller (MSI Center reads it) and Basilisk (hidserv) are busy. Gaps: interrupt-transfer writes
+(Vulcan), occasional writers, RAM/GPU. MSI Center: with Mystic Light switched off LEDKeeper2 sent no
+writes in 90 s; the dialog should suggest that switch instead of stopping MSI Center (not built).
 Open: the conflict scan runs synchronously in the editor's GUI thread (CodeRabbit 2026-11-16), so the
-dialog and "Resolve conflicts..." freeze the window for one holder lookup (~2.7 s) while a device is busy.
+dialog and "Resolve conflicts..." freeze the window for one USB trace (5 s) while a device is busy.
 
 Findings for the next step (detection beyond the name list, read-only experiments 2026-11-16):
 an exclusive-open probe (share mode 0) reports a held HID interface even when the holder protects

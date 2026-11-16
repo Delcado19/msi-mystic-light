@@ -6,24 +6,34 @@
 #include <QStringList>
 #include <functional>
 
-// Device-based conflict detection (owner decision 2026-11-16): find the process that holds one of our
-// lighting endpoints instead of blocking on program names. Read-only experiments that day showed:
-// an exclusive-open probe reports a held HID interface even when its holder protects its handles
-// (SignalRGB); a system handle snapshot names unprotected holders (MSI Center's CC_Engine_x64.exe);
-// a held interface is not proof of colour writes. RAM (SMBus) and GPU endpoints cannot be probed.
+// Device-based conflict detection (owner decisions 2026-11-16): a device is in conflict only while
+// another process sends lighting commands to it, not because a program runs or holds the device open.
+// Read-only experiments that day showed: an exclusive-open probe reports a held HID interface; holding
+// is not writing (MSI Center's CC_Engine_x64.exe only reads the MSI controller, LEDKeeper2.exe writes
+// only on "Apply" and not at all with Mystic Light switched off); a USB trace names the process that
+// dispatches each HID SET_REPORT, even SignalRGB, which hides its handles from inspection.
+// RAM (SMBus) and GPU endpoints cannot be checked this way.
 
 struct EndpointCheck {
     QString endpoint;
-    QVector<ConflictProcess> holders; // Visible holders that are neither Windows nor Lighting Studio.
-    bool systemOnly = false;          // Only Windows holds it (e.g. hidserv on consumer-control collections).
-    bool hidden = false;              // Busy without any visible holder: the holder hides its handles.
-    QString error;                    // Holder lookup failed; the endpoint is treated as blocked.
-    bool blocks() const { return !holders.isEmpty() || hidden || !error.isEmpty(); }
+    QVector<ConflictProcess> holders; // Processes seen writing to it, neither Windows nor Lighting Studio.
+    QString error;                    // The capture failed; reported, but it never blocks output.
+    qint64 checkedAt = 0;             // Epoch ms of the capture.
+    bool blocks() const { return !holders.isEmpty(); }
 };
+
+// One HID SET_REPORT seen in a USB trace.
+struct UsbWrite { quint32 pid = 0; QString device; int interfaceNumber = -1; int count = 0; };
 
 // Policy helpers, unit-tested.
 bool isExcludedImage(const QString& path, const QString& systemRoot, const QStringList& ownExecutables);
 QString endpointLabel(const QString& endpoint);
+// True for a HID SET_REPORT setup packet (8 bytes); interfaceNumber receives wIndex.
+bool hidSetReport(const unsigned char* setup, int* interfaceNumber);
+// "VID_xxxx&PID_yyyy" from a device path, or empty.
+QString usbDeviceId(const QString& path);
+// Whether a write to device/interface reaches this HID endpoint.
+bool writeTargets(const QString& endpoint, const QString& device, int interfaceNumber);
 // Endpoints with a scheme (pawnio://, nvapi://) are not device files and cannot be probed.
 QStringList probeableEndpoints(const QStringList& endpoints);
 
@@ -49,12 +59,11 @@ QString requestClose(const ConflictProcess& process);
 // Thread-safe; shared by the periodic output guard and the editor's conflict dialog.
 class DeviceConflictMonitor {
 public:
-    // Periodic guard: probes every endpoint, looks up holders only for endpoints that became busy
-    // since the last call (the lookup takes seconds). Returns the endpoints that must not be opened.
+    // Periodic guard: probes every endpoint; a busy one gets a 5 s USB capture at most once a minute.
+    // Returns the endpoints another process writes to; message explains them or a failed capture.
     QStringList blocked(const QStringList& endpoints, QString& message);
-    // On demand for the dialog: fresh holder lookup for all busy endpoints. Holders hiding their
-    // handles are offered as possible holders, labelled with the known-program reason if any.
-    QVector<ConflictProcess> conflicts(const QStringList& endpoints);
+    // On demand for the dialog: fresh capture for all busy endpoints; writers plus their program family.
+    QVector<ConflictProcess> conflicts(const QStringList& endpoints, QString* error = nullptr);
     // The last conflicts() result; the service stops only processes listed here.
     QVector<ConflictProcess> last() const;
 private:

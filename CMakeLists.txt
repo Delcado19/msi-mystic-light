@@ -101,7 +101,7 @@ add_library(lighting_startup src/startup/ConflictProcesses.cpp src/startup/Confl
 target_include_directories(lighting_startup PUBLIC src)
 target_link_libraries(lighting_startup PUBLIC Qt6::Widgets)
 if(WIN32)
-    target_link_libraries(lighting_startup PRIVATE user32 advapi32 shell32)
+    target_link_libraries(lighting_startup PRIVATE user32 advapi32 shell32 tdh)
 endif()
 
 add_library(lighting_editor src/editor/HardwareArtwork.cpp src/editor/LegacyHardware.cpp src/editor/HardwarePicker.cpp src/editor/StudioWidgets.cpp src/editor/ColorPicker.cpp src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)

@@ -89,7 +89,6 @@ ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const Guard&
         [&](const ProfileCandidate& c){return c.device.path.compare(target,Qt::CaseInsensitive)==0;}))discovered.append(target);
     if(guard)try {result.blocked=guard(discovered,result.error);}
     catch(const std::exception& e) {result.scanFailed=true;result.error=QString::fromUtf8(e.what());}
-    if(result.blocked.isEmpty() && !result.scanFailed)result.error.clear();
     return result;
 }
 QStringList ServiceRuntime::probeTargets() const {

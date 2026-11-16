@@ -121,6 +121,16 @@ private slots:
         QVERIFY(!isExcludedImage("C:/WindowsApps/x.exe","C:\\Windows",own));   // Prefix only on a folder boundary.
         QVERIFY(!isExcludedImage({},"C:\\Windows",own));                        // Unknown image is shown, not trusted.
         QCOMPARE(endpointLabel("\\\\?\\HID#VID_1038&PID_161A&MI_03#9&174f911&0&0000#{4d1e55b2}"),QString("VID_1038&PID_161A&MI_03"));
+        // Setup packets seen in the USB trace 2026-11-16: SignalRGB's 90-byte SET_REPORT to interface 3, a GET_REPORT.
+        const unsigned char setReport[]{0x21,0x09,0x00,0x03,0x03,0x00,0x5A,0x00}, getReport[]{0xA1,0x01,0x00,0x03,0x00,0x00,0x40,0x00};
+        int interfaceNumber=-1;QVERIFY(hidSetReport(setReport,&interfaceNumber));QCOMPARE(interfaceNumber,3);
+        QVERIFY(!hidSetReport(getReport,&interfaceNumber));
+        QCOMPARE(usbDeviceId("\\??\\USB#VID_0db0&PID_0076#7E6224110401#{a5dcbf10}"),QString("VID_0DB0&PID_0076"));
+        QVERIFY(usbDeviceId("\\??\\ROOT#SYSTEM#0000").isEmpty());
+        const QString apex="\\\\?\\HID#VID_1038&PID_161A&MI_03#9&174f911&0&0000#{4d1e55b2}",msi="\\\\?\\HID#VID_0DB0&PID_0076#9&167f430f&0&0000#{4d1e55b2}";
+        QVERIFY(writeTargets(apex,"VID_1038&PID_161A",3));QVERIFY(!writeTargets(apex,"VID_1038&PID_161A",1));
+        QVERIFY(!writeTargets(apex,"VID_1532&PID_0099",3));QVERIFY(writeTargets(msi,"VID_0DB0&PID_0076",0));
+        QVERIFY(!writeTargets(msi,{},0));
         QCOMPARE(probeableEndpoints({"\\\\?\\HID#a","pawnio://amd-piix4/0/0x71","nvapi://10de:2c02/1458:4179","\\\\?\\HID#a",
             "\\\\server\\share\\x","\\\\.\\pipe\\x","\\\\?\\UNC\\server\\share","C:\\x","\\\\?\\HID#a/../x"}),QStringList{"\\\\?\\HID#a"});
     }
