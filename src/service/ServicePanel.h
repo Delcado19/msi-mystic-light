@@ -1,6 +1,6 @@
 #pragma once
 #include "editor/LightingWindow.h"
-#include "startup/ConflictProcesses.h"
+#include "startup/DeviceConflicts.h"
 #include <QJsonObject>
 #include <QLabel>
 #include <QTreeWidget>

@@ -4,6 +4,7 @@
 #include "backends/AuxiliaryHardware.h"
 #include "backends/PawnIoRam.h"
 #include "startup/ConflictProcesses.h"
+#include "startup/DeviceConflicts.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QCryptographicHash>
@@ -107,18 +108,16 @@ int run(int argc,char** argv,bool managed) {
         auto candidates=findProfileCandidates(HidApiDevice::enumerate(),readBoardIdentity(),profiles);
         candidates+=scanAuxiliaryHardware(profiles,true);return candidates;
     };
-    const auto guard=[simulation] {
-        if(simulation)return;
-        // Recheck periodically: another RGB controller can start after boot or user logon.
-        SystemConflictProcesses processes;const auto conflicts=processes.scan();
-        if(!conflicts.isEmpty()) {
-            QStringList names;for(const auto& item:conflicts)names.append(item.executable);
-            throw std::runtime_error(("Conflicting lighting software: "+names.join(", ")+". Stop it explicitly, then resume output.").toStdString());
-        }
+    // Device-based guard (owner decision 2026-11-16): an endpoint stays closed only while another program
+    // holds it. A running program name alone no longer blocks output. RAM and GPU endpoints are not probed.
+    const auto monitor=std::make_shared<DeviceConflictMonitor>();
+    const auto guard=[simulation,monitor](const QStringList& endpoints,QString& message) {
+        return simulation?QStringList{}:monitor->blocked(endpoints,message);
     };
-    const auto authorize=[profiles,root,simulation,guard](const QVector<OutputFrame>& frames) {
+    // The runtime applies the guard right before calling this, between two scans.
+    const auto authorize=[profiles,root,simulation](const QVector<OutputFrame>& frames) {
         if(simulation)return QVector<OutputConnection>{};
-        guard();return authorizeHardwareOutput(nullptr,profiles,frames,root+"/modules");
+        return authorizeHardwareOutput(nullptr,profiles,frames,root+"/modules");
     };
     ServiceRuntime runtime(loadComponentCatalog(root+"/components"),profiles,directory,scan,authorize,simulation);
     runtime.setOutputGuard(guard);
@@ -126,31 +125,37 @@ int run(int argc,char** argv,bool managed) {
     runtime.setBackgroundScan(true);
     // Conflict dialog of the installed editor (2026-11-16): the unelevated editor cannot stop services
     // such as Mystic_Light_Service, so the owner had to end LEDKeeper2 in Task Manager. This host can.
-    // Stops are for now only (start types and tasks stay untouched) and limited to this host's own scan.
-    const auto conflicts=[simulation](const QJsonObject& request,const ServiceServer::Reply& reply) {
+    // Stops are for now only (start types and tasks stay untouched) and limited to processes the last
+    // detection found holding one of our devices; a client cannot name any other process.
+    const auto answer=[](const ServiceServer::Reply& reply,const QJsonObject& result) {
+        if(auto* app=QCoreApplication::instance())QMetaObject::invokeMethod(app,[reply,result]{reply(result);},Qt::QueuedConnection);
+    };
+    const auto conflicts=[simulation,monitor,answer,&runtime](const QJsonObject& request,const ServiceServer::Reply& reply) {
         const auto op=request.value("op").toString();
         if(op!="conflicts" && op!="stopConflict")return false;
         if(request.value("version").toInt()!=StudioService::protocolVersion)throw std::invalid_argument("Unsupported service protocol");
-        if(op=="conflicts") {
-            QJsonArray list;
-            if(!simulation) {
-                SystemConflictProcesses processes;
-                // Creation time is a 64-bit FILETIME; a JSON number would lose precision.
-                for(const auto& p:processes.scan())list.append(QJsonObject{{"pid",qint64(p.pid)},{"started",QString::number(p.started)},
-                    {"executable",p.executable},{"path",p.path},{"reason",p.reason},{"manualStop",p.manualStop}});
-            }
-            reply({{"ok",true},{"conflicts",list}});return true;
+        if(simulation) {
+            if(op=="stopConflict")throw std::invalid_argument("Conflict stop is unavailable in simulation");
+            reply({{"ok",true},{"conflicts",QJsonArray{}}});return true;
         }
-        if(simulation)throw std::invalid_argument("Conflict stop is unavailable in simulation");
+        // Detection takes seconds and service control can block; both run off the pipe thread.
+        if(op=="conflicts") {
+            std::thread([monitor,answer,reply,targets=runtime.probeTargets()] {
+                QJsonArray list;
+                // Creation time is a 64-bit FILETIME; a JSON number would lose precision.
+                for(const auto& p:monitor->conflicts(targets))list.append(QJsonObject{{"pid",qint64(p.pid)},{"started",QString::number(p.started)},
+                    {"executable",p.executable},{"path",p.path},{"reason",p.reason},{"manualStop",p.manualStop}});
+                answer(reply,{{"ok",true},{"conflicts",list}});
+            }).detach();
+            return true;
+        }
         const auto pid=quint32(request.value("pid").toInteger());const auto started=request.value("started").toString().toULongLong();
         const bool force=request.value("force").toBool();
-        // Service control calls can block for seconds; keep them off the pipe thread and answer from it afterwards.
-        std::thread([pid,started,force,reply] {
+        std::thread([monitor,answer,reply,pid,started,force] {
             QString error;
-            try {SystemConflictProcesses processes;error=stopListedConflict(processes,pid,started,force);}
+            try {DetectedConflicts detected(monitor->last());error=stopListedConflict(detected,pid,started,force);}
             catch(const std::exception& e) {error=QString::fromUtf8(e.what());}
-            if(auto* app=QCoreApplication::instance())
-                QMetaObject::invokeMethod(app,[reply,error]{reply({{"ok",true},{"stopError",error}});},Qt::QueuedConnection);
+            answer(reply,{{"ok",true},{"stopError",error}});
         }).detach();
         return true;
     };

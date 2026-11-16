@@ -97,7 +97,7 @@ foreach(component IN ITEMS vulcan apex3 kone basilisk)
         INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/peripheral-${component}.json")
 endforeach()
 
-add_library(lighting_startup src/startup/ConflictProcesses.cpp src/startup/ConflictDialog.cpp)
+add_library(lighting_startup src/startup/ConflictProcesses.cpp src/startup/ConflictDialog.cpp src/startup/DeviceConflicts.cpp)
 target_include_directories(lighting_startup PUBLIC src)
 target_link_libraries(lighting_startup PUBLIC Qt6::Widgets)
 if(WIN32)

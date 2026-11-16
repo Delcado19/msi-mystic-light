@@ -127,8 +127,15 @@ void ServiceTest::fakeOutputPauseAndResume() try {
     pause["paused"]=false;QVERIFY(runtime.command(pause).value("ok").toBool());QTRY_VERIFY(record->writes>count);
     runtime.suspend(true);const int suspended=record->writes;QTest::qWait(100);QCOMPARE(record->writes.load(),suspended);
     runtime.suspend(false);QTRY_VERIFY(record->writes>suspended);
-    runtime.setOutputGuard([]{throw std::runtime_error("Fixture controller conflict");});
-    auto blocked=runtime.command(cmd("scan"));QCOMPARE(blocked.value("error").toString(),QString("Fixture controller conflict"));
+    // Device-based guard (2026-11-16): an endpoint this service holds is never probed and keeps its output.
+    QStringList probed{"unset"};
+    runtime.setOutputGuard([&probed](const QStringList& targets,QString&){probed=targets;return QStringList{};});
+    QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());QVERIFY(probed.isEmpty());
+    // A free endpoint is probed; while another program holds it, it stays closed and is explained.
+    auto off=cmd("output");off["enabled"]=false;QVERIFY(runtime.command(off).value("ok").toBool());
+    runtime.setOutputGuard([](const QStringList& targets,QString& message){message="Fixture controller conflict";return targets;});
+    auto on=cmd("output");on["enabled"]=true;const auto blocked=runtime.command(on);
+    QCOMPARE(blocked.value("error").toString(),QString("Fixture controller conflict"));
     const int blockedWrites=record->writes;QTest::qWait(100);QCOMPARE(record->writes.load(),blockedWrites);
     runtime.setOutputGuard({});runtime.command(cmd("scan"));QTRY_VERIFY(record->writes>blockedWrites);
     auto stop=cmd("output");stop["enabled"]=false;QVERIFY(runtime.command(stop).value("ok").toBool());const int stopped=record->writes;QTest::qWait(100);QCOMPARE(record->writes.load(),stopped);
@@ -150,11 +157,10 @@ void ServiceTest::backgroundScanKeepsAnswering() try {
     bool status=false;runtime.command(cmd("status"),[&status](const QJsonObject& reply){status=reply.value("ok").toBool();});
     QVERIFY(status);
     // A scan command is answered by a scan that started after it, not by the one already running.
-    runtime.setOutputGuard([]{throw std::runtime_error("Fixture controller conflict");});
     QJsonObject scanned;runtime.command(cmd("scan"),[&scanned](const QJsonObject& reply){scanned=reply;});
     QTest::qWait(50);QVERIFY(scanned.isEmpty());
     hold->store(false);QTRY_VERIFY(!scanned.isEmpty());
-    QCOMPARE(scans->load(),2);QCOMPARE(scanned.value("error").toString(),QString("Fixture controller conflict"));
+    QCOMPARE(scans->load(),2);QVERIFY(scanned.value("ok").toBool());
 } catch(const std::exception& e){QFAIL(e.what());}
 // Editor side of the service-backed conflict dialog: the 64-bit creation time must survive JSON.
 void ServiceTest::conflictsThroughService() {

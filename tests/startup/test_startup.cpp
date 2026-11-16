@@ -1,4 +1,5 @@
 #include "startup/ConflictDialog.h"
+#include "startup/DeviceConflicts.h"
 #include <QtTest>
 #include <QTableWidget>
 #include <QPushButton>
@@ -110,6 +111,38 @@ private slots:
         ConflictDialog dialog(processes);dialog.show();
         QVERIFY(!button(dialog,"stopSignalRgbServiceAdmin")->isVisible());
         QVERIFY(!dialog.findChild<QLabel*>("conflictStatus")->text().contains("Administrator"));
+    }
+    // Device-based detection policy (2026-11-16): Windows' own holders and Lighting Studio never count.
+    void deviceConflictPolicy() {
+        const QStringList own{"C:/Program Files/Lighting Studio/lighting_service_host.exe","C:/Program Files/Lighting Studio/msi_mystic_light.exe"};
+        QVERIFY(isExcludedImage("C:\\Windows\\System32\\svchost.exe","C:\\WINDOWS",own));
+        QVERIFY(isExcludedImage("C:/Program Files/Lighting Studio/LIGHTING_SERVICE_HOST.exe","C:\\Windows",own));
+        QVERIFY(!isExcludedImage("C:/Program Files (x86)/MSI/MSI Center/Engine/CC_Engine_x64.exe","C:\\Windows",own));
+        QVERIFY(!isExcludedImage("C:/WindowsApps/x.exe","C:\\Windows",own));   // Prefix only on a folder boundary.
+        QVERIFY(!isExcludedImage({},"C:\\Windows",own));                        // Unknown image is shown, not trusted.
+        QCOMPARE(endpointLabel("\\\\?\\HID#VID_1038&PID_161A&MI_03#9&174f911&0&0000#{4d1e55b2}"),QString("VID_1038&PID_161A&MI_03"));
+        QCOMPARE(probeableEndpoints({"\\\\?\\HID#a","pawnio://amd-piix4/0/0x71","nvapi://10de:2c02/1458:4179","\\\\?\\HID#a",
+            "\\\\server\\share\\x","\\\\.\\pipe\\x","\\\\?\\UNC\\server\\share","C:\\x","\\\\?\\HID#a/../x"}),QStringList{"\\\\?\\HID#a"});
+    }
+    // Layout seen on the owner's system 2026-11-16 (PIDs, folders); creation times are illustrative.
+    void processFamilyPolicy() {
+        const QString app="C:/Users/u/AppData/Local/VortxEngine/app-2.5.86";
+        const QVector<ProcessEntry> running{
+            {29612,1,50,app+"/Update.exe"},                 // Grandparent in the same folder.
+            {29636,29612,100,app+"/SignalRgbLauncher.exe"},
+            {32524,29636,200,app+"/Signal-x64/SignalRgb.exe"},
+            {3016,32524,300,app+"/Signal-x64/QtWebEngineProcess.exe"},
+            {36684,32524,300,app+"/Signal-x64/crashpad_handler.exe"},
+            {4000,32524,400,"C:/Program Files/Browser/browser.exe"},    // Child outside the folder.
+            {5000,32524,400,"C:/Windows/System32/conhost.exe"},          // Windows image.
+            {6000,6001,500,"C:/Program Files (x86)/MSI/MSI Center/Engine/CC_Engine_x64.exe"},
+            {6001,700,600,"C:/Windows/explorer.exe"},
+            {7000,7001,800,"C:/Tools/x.exe"},{7001,1,900,"C:/Tools/launcher.exe"}};   // Parent newer: reused PID.
+        const auto excluded=[](const QString& path){return path.startsWith("C:/Windows/");};
+        QCOMPARE(processFamily(running,32524,excluded),(QVector<quint32>{29612,29636,32524,3016,36684}));
+        QCOMPARE(processFamily(running,6000,excluded),QVector<quint32>{6000});
+        QCOMPARE(processFamily(running,7000,excluded),QVector<quint32>{7000});
+        QCOMPARE(processFamily(running,9999,excluded),QVector<quint32>{9999});
     }
     void exactNamesAndGuards() {
         QVERIFY(!conflictReason("C:/rgb/SignalRgb.EXE").isEmpty());

@@ -46,7 +46,7 @@ QVector<ConflictProcess> ServiceConflictProcesses::scan() {
 QString ServiceConflictProcesses::stop(const ConflictProcess& process,bool force) {
     // The service runs in session 0 and cannot post WM_CLOSE to desktop windows, so the polite close
     // request comes from the editor; its result does not matter, the service step decides.
-    if(!force){SystemConflictProcesses local;local.stop(process,false);}
+    if(!force)requestClose(process);
     auto request=command("stopConflict");request["pid"]=qint64(process.pid);request["started"]=QString::number(process.started);request["force"]=force;
     try {return rpc_(request).value("stopError").toString();}
     catch(const std::exception& e) {return QString::fromUtf8(e.what());}

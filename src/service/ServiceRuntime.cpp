@@ -78,16 +78,27 @@ ServiceRuntime::~ServiceRuntime() {
     if(scanner_.joinable())scanner_.join();
 }
 // Runs on the scan worker when background scanning is on: touches only its arguments.
-ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const std::function<void()>& guard) {
+ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const Guard& guard,const QStringList& targets) {
     ScanResult result;
     try {result.inventory=scan();}
     catch(const std::exception& e) {result.scanFailed=true;result.error=QString::fromUtf8(e.what());return result;}
-    if(guard)try {guard();} catch(const std::exception& e) {result.blocked=true;result.error=QString::fromUtf8(e.what());}
+    if(guard)try {result.blocked=guard(targets,result.error);}
+    catch(const std::exception& e) {result.scanFailed=true;result.error=QString::fromUtf8(e.what());}
+    if(result.blocked.isEmpty() && !result.scanFailed)result.error.clear();
+    return result;
+}
+QStringList ServiceRuntime::probeTargets() const {
+    QStringList result;
+    for(const auto& frame:outputScope(*document_)) {
+        // Any state counts as held: a Starting worker may be opening the device right now.
+        const bool held=std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return scope.endpoint==frame.endpoint;});
+        if(!held && !result.contains(frame.endpoint))result.append(frame.endpoint);
+    }
     return result;
 }
 void ServiceRuntime::reconnect(std::function<void()> done) {
     if(suspended_) {if(done)done();return;}
-    if(!background_) {applyScan(runScan(scan_,simulation_?std::function<void()>{}:guard_));if(done)done();return;}
+    if(!background_) {applyScan(runScan(scan_,simulation_?Guard{}:guard_,probeTargets()));if(done)done();return;}
     // A periodic retry (no done) adds nothing to a scan that is already running; a command needs a fresh one.
     if(scanning_ && !done)return;
     if(!done)done=[]{};
@@ -97,8 +108,9 @@ void ServiceRuntime::reconnect(std::function<void()> done) {
 void ServiceRuntime::startScan() {
     if(scanner_.joinable())scanner_.join();   // The previous worker has already posted its result.
     scanning_=true;waiting_=std::move(next_);next_.clear();
-    scanner_=std::thread([this,scan=scan_,guard=simulation_?std::function<void()>{}:guard_] {
-        auto result=runScan(scan,guard);
+    // The target snapshot is taken here: the worker must not read scopes_.
+    scanner_=std::thread([this,scan=scan_,guard=simulation_?Guard{}:guard_,targets=probeTargets()] {
+        auto result=runScan(scan,guard,targets);
         QMetaObject::invokeMethod(this,[this,result=std::move(result)] {
             scanning_=false;applyScan(result);
             const auto done=std::move(waiting_);waiting_.clear();
@@ -118,9 +130,10 @@ void ServiceRuntime::applyScan(const ScanResult& result) {
         inventory_=result.inventory;
         if(simulation_) {error_.clear();return;}
         if(!enabled_)return;
-        if(result.blocked)throw std::runtime_error(result.error.toStdString());
-        error_.clear();
-        const auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
+        // Blocked endpoints stay closed and are reported; every other device keeps or gets its output.
+        error_=result.error;
+        auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
+        frames.removeIf([&](const OutputFrame& frame){return result.blocked.contains(frame.endpoint);});
         // Offline saved endpoints are omitted by connect_; retry them without resetting healthy hardware.
         for(int i=int(connections_.size())-1;i>=0;--i) {
             const auto state=connections_[i]->status().state;

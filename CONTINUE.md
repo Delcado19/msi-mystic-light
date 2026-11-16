@@ -15,6 +15,14 @@ when the service is installed. It now appears whenever the installed editor wind
 service performs the stops (`conflicts` / `stopConflict`), temporary only (owner decision). Unit
 tests pass; nothing here has run against the installed service or real conflicting software yet.
 
+Owner correction the same day: conflicts must be found per device, not by name list. Rebuilt in
+`src/startup/DeviceConflicts.*`: exclusive-open probe per configured HID endpoint the service does
+not hold, one handle lookup per busy period, block only the busy endpoints. The name list only labels
+hidden-holder candidates. Built, untested on hardware: probe inside the service, lookup as
+LocalSystem, hidden-holder candidates, generic service stop, and the program family of each holder
+(`processFamily`: same install root, parent older than child, never Windows or our executables,
+topmost first). Only `\\?\HID#` paths are probed (security review: project paths reach a SYSTEM open).
+
 Findings for the next step (detection beyond the name list, read-only experiments 2026-11-16):
 an exclusive-open probe (share mode 0) reports a held HID interface even when the holder protects
 its handles (SignalRGB does; handle enumeration cannot see it); handle enumeration names unprotected

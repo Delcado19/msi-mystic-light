@@ -67,10 +67,19 @@ connections and suspends retries; Resume all output reconnects. Pause/stop persi
 with the project and survive edits/restarts. Stops retain last applied device colors.
 Identity checks and latest-frame scheduling remain in force. Missing/faulted devices
 retry every five seconds. Suspend releases sessions; resume reopens/reverifies them.
-Conflicts are checked before connection and periodically; the service never stops
-another RGB application on its own. It stops one only on an explicit request from
-the editor's conflict dialog (see Diagnostics and removal). RAM discovery and
-endpoint failures are visible in Hardware.
+Conflicts are detected per device, not by program name. Before each connection
+attempt the service probes every configured HID endpoint it does not hold itself
+with an exclusive open. A busy endpoint gets one system handle lookup per busy
+period: if a program other than Windows or Lighting Studio holds it, or if no
+holder is visible at all (the holder hides its handles), that endpoint stays
+closed and Hardware shows who holds it; every other device keeps its output. An
+endpoint that only Windows holds (for example `hidserv` on a consumer-control
+collection) is not blocked, so a second, hidden holder there goes unnoticed. RAM
+(SMBus) and GPU endpoints cannot be probed; a conflict there is not detected. An
+endpoint the service already drives is not probed either. The service never stops
+another application on its own; it stops one only on an explicit request from the
+editor's conflict dialog (see Diagnostics and removal). RAM discovery and endpoint
+failures are visible in Hardware.
 
 Hardware discovery and the conflict check run on a worker thread, one scan at a
 time, so the pipe keeps answering while a scan takes seconds. Status commands
@@ -87,8 +96,8 @@ Commands are limited to status/snapshot, project, scan, playback, output enable,
 channel pause, identify (2 s flash of one known software component; the service
 expires it itself and never persists it), and the conflict list with its stop
 request. A stop request names a process by PID and creation time only; the service
-acts on it only if its own scan of known lighting software lists that process, so it
-cannot be used to end arbitrary processes. No client file/DLL/module/register/shell API exists.
+acts on it only if its last device detection listed that process, so it cannot be
+used to end arbitrary processes. No client file/DLL/module/register/shell API exists.
 
 Program Files and state ACLs protect runtime/configuration from normal-user writes.
 The six installed module DLLs (`msi_gen1`, `peripherals`, `auxiliary`,
@@ -112,15 +121,24 @@ every controller. Global discovery, conflict-guard or connection-preparation err
 still stop all workers; they do not bypass the output guard.
 
 The installed editor shows the conflict dialog whenever its window is opened while
-known lighting software runs: on a start from the Start menu and on **Show editor**
-from the tray, not on the silent logon start. There the service performs the stops,
-because the unelevated editor cannot stop services such as `Mystic_Light_Service`
-(which restarts LEDKeeper2) or `SignalRgb.Service`. The editor first posts a normal
-close request to the program's windows; the service then stops the named service
-through the service manager or terminates the process. Every stop is for now only:
-start types, autostart entries and scheduled tasks are never changed, so the other
-software returns after a reboot or when its own launcher starts it. The service's
-output guard and the dialog use the same list of executable names.
+another program holds one of the configured devices: on a start from the Start
+menu and on **Show editor** from the tray, not on the silent logon start. Each row
+names the holder and the device it holds, followed by the processes of the same
+program: its parent and child processes inside the same install folder (never
+Windows images or Lighting Studio), topmost first, so a launcher stops before the
+program it would restart. When the holder hides its handles (as
+SignalRGB does), processes whose handles cannot be inspected are offered as
+possible holders; a known lighting program's name only adds a label, it never makes
+a process a conflict by itself. These candidates are unverified under LocalSystem.
+The service performs the stops, because the unelevated editor cannot stop services
+such as `Mystic_Light_Service` (which restarts LEDKeeper2) or `SignalRgb.Service`.
+The editor first posts a normal close request to the program's windows; the service
+then stops a process that hosts its own service through the service manager and
+terminates any other. Known programs keep their dedicated paths (SignalRGB service,
+`Mystic_Light_Service` before LEDKeeper2). Every stop is for now only: start types,
+autostart entries and scheduled tasks are never changed, so the other software
+returns after a reboot or when its own launcher starts it. The portable editor
+still uses its name list.
 
 The portable startup dialog offers a separate **Stop SignalRGB service
 (administrator)** action. It reads the actual executable path from the Windows

@@ -90,15 +90,15 @@
     "semantic_hash": ""
   },
   "CMakeLists.txt": {
-    "mtime": 1794832314.3836012,
-    "seen": 1794832412.0539176,
-    "ast_hash": "a146d3b97f3d536314672f2cc50ab0b6",
+    "mtime": 1794845024.2993877,
+    "seen": 1794845982.2088466,
+    "ast_hash": "5ed8a64892be402839d15593677407a2",
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1794843053.4189048,
-    "seen": 1794843235.0793185,
-    "ast_hash": "28e2a2bf718b8dec1305a20a2933e218",
+    "mtime": 1794845967.2553713,
+    "seen": 1794845982.2088497,
+    "ast_hash": "9774ca6c4c193764178280ecc715063c",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -312,9 +312,9 @@
     "semantic_hash": ""
   },
   "tests/startup/test_startup.cpp": {
-    "mtime": 1794842810.3498652,
-    "seen": 1794843235.0783565,
-    "ast_hash": "d909e85858a13f385da4cf256398d3ac",
+    "mtime": 1794845508.7945142,
+    "seen": 1794845982.2082698,
+    "ast_hash": "86e15e61c8137a5a7e4102b73a798932",
     "semantic_hash": ""
   },
   "src/editor/LightingCanvas.cpp": {
@@ -1110,15 +1110,15 @@
     "semantic_hash": ""
   },
   "src/service/ServicePanel.cpp": {
-    "mtime": 1794842739.9094965,
-    "seen": 1794843235.0756018,
-    "ast_hash": "9678a217cdfc5ea78e63820d504700d5",
+    "mtime": 1794845095.7349558,
+    "seen": 1794845982.203316,
+    "ast_hash": "0d889b0c4ceb07700b3bb2aa63c3dde7",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.h": {
-    "mtime": 1794842738.1012194,
-    "seen": 1794843235.0756085,
-    "ast_hash": "89410d9264a6cea1454ca537d6a60d3a",
+    "mtime": 1794845097.481735,
+    "seen": 1794845982.2033195,
+    "ast_hash": "bc170397a9c886b2af6d0c91b54009e0",
     "semantic_hash": ""
   },
   "src/service/ServiceProtocol.cpp": {
@@ -1134,15 +1134,15 @@
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.cpp": {
-    "mtime": 1794842385.9274886,
-    "seen": 1794843235.0758946,
-    "ast_hash": "fa8e458d5b33c801fd8310f5d867d4b1",
+    "mtime": 1794845059.543432,
+    "seen": 1794845982.203478,
+    "ast_hash": "b47cb93355324f67e2953a5196d25d11",
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.h": {
-    "mtime": 1794842341.9284742,
-    "seen": 1794843235.0758967,
-    "ast_hash": "430046936b707cffc3dcd55bfdeca65b",
+    "mtime": 1794845032.0793133,
+    "seen": 1794845982.2034798,
+    "ast_hash": "6aa12730ca267500fc35d6b2cb6d327e",
     "semantic_hash": ""
   },
   "src/service/ServiceServer.cpp": {
@@ -1158,9 +1158,9 @@
     "semantic_hash": ""
   },
   "src/service/main.cpp": {
-    "mtime": 1794842720.4870162,
-    "seen": 1794843235.0759032,
-    "ast_hash": "ccccbe82104b9f0f8206e79593735555",
+    "mtime": 1794845094.3153439,
+    "seen": 1794845982.2039404,
+    "ast_hash": "1e0fcd8ef2a9d6581f4da37fc5d2ec0d",
     "semantic_hash": ""
   },
   "tests/service/test_installer.ps1": {
@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "tests/service/test_service.cpp": {
-    "mtime": 1794842813.5966387,
-    "seen": 1794843235.078353,
-    "ast_hash": "d2e766575353ced3be170e21cf09ba10",
+    "mtime": 1794845170.7100058,
+    "seen": 1794845982.208267,
+    "ast_hash": "58fd942ea977a221b3ba668875f244cc",
     "semantic_hash": ""
   },
   "docs/PAWNIO_SERVICE_RESEARCH_2026-10-27.md": {
@@ -1182,9 +1182,9 @@
     "semantic_hash": ""
   },
   "docs/WINDOWS_SERVICE.md": {
-    "mtime": 1794843031.630299,
-    "seen": 1794843235.082869,
-    "ast_hash": "3c780335ab65c4982a9d0395df23ba33",
+    "mtime": 1794845969.0697043,
+    "seen": 1794845982.211202,
+    "ast_hash": "6d25c84cce590e2d320d5219f9e61ce7",
     "semantic_hash": ""
   },
   "docs/images/layout-fullscreen.png": {
@@ -1713,6 +1713,18 @@
     "mtime": 1794832314.419322,
     "seen": 1794832412.0471706,
     "ast_hash": "d7cf711b1f6231de500237bec7d3def2",
+    "semantic_hash": ""
+  },
+  "src/startup/DeviceConflicts.cpp": {
+    "mtime": 1794845506.855034,
+    "seen": 1794845982.2043178,
+    "ast_hash": "2a4aa1b481046f208c63fb2a53b2c120",
+    "semantic_hash": ""
+  },
+  "src/startup/DeviceConflicts.h": {
+    "mtime": 1794845419.6372995,
+    "seen": 1794845982.204319,
+    "ast_hash": "eb7c19a3f0ac35cbb1544903a155df8a",
     "semantic_hash": ""
   }
 }

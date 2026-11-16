@@ -21,13 +21,18 @@ public:
     void setBackgroundScan(bool value) { background_=value; }
     QJsonObject status() const;
     void suspend(bool suspended);
-    void setOutputGuard(std::function<void()> guard) { guard_=std::move(guard); }
+    // Returns the endpoints another program holds and explains them in message. Only those endpoints
+    // stay closed; the others connect (device-based detection, owner decision 2026-11-16).
+    using Guard=std::function<QStringList(const QStringList& endpoints,QString& message)>;
+    void setOutputGuard(Guard guard) { guard_=std::move(guard); }
+    // Configured endpoints this service does not hold. Probing a held endpoint would only find ourselves.
+    QStringList probeTargets() const;
 private:
     void loadBundle(const QJsonObject& bundle,bool persist);
     void persist();
     void tick();
-    struct ScanResult { QVector<ProfileCandidate> inventory; QString error; bool scanFailed=false,blocked=false; };
-    static ScanResult runScan(const Scan& scan,const std::function<void()>& guard);
+    struct ScanResult { QVector<ProfileCandidate> inventory; QString error; QStringList blocked; bool scanFailed=false; };
+    static ScanResult runScan(const Scan& scan,const Guard& guard,const QStringList& targets);
     void reconnect(std::function<void()> done={});
     void startScan();
     void applyScan(const ScanResult& result);
@@ -39,7 +44,7 @@ private:
     std::unique_ptr<LightingDocument> document_;
     Scan scan_;
     Connect connect_;
-    std::function<void()> guard_;
+    Guard guard_;
     QVector<ProfileCandidate> inventory_;
     std::vector<std::unique_ptr<OutputScheduler>> connections_;
     QVector<OutputFrame> scopes_;
