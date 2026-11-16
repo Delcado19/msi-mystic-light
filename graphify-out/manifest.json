@@ -1716,15 +1716,15 @@
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.cpp": {
-    "mtime": 1794858476.6969874,
-    "seen": 1794859485.8866372,
-    "ast_hash": "e0033ae0297b997b17f3b3e1d3dbdfd4",
+    "mtime": 1794859648.5583227,
+    "seen": 1794859884.1123888,
+    "ast_hash": "5a540d8e213905a2e958cf93ebf2cdcd",
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.h": {
-    "mtime": 1794858534.0981455,
-    "seen": 1794859485.8866389,
-    "ast_hash": "d09b705662448b8b398860f3533d0a87",
+    "mtime": 1794859638.1069162,
+    "seen": 1794859884.1123922,
+    "ast_hash": "cb600f63c2518500017a7e68f86f5f15",
     "semantic_hash": ""
   }
 }

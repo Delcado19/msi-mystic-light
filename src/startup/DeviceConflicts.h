@@ -67,6 +67,11 @@ public:
     // The last conflicts() result; the service stops only processes listed here.
     QVector<ConflictProcess> last() const;
 private:
+    // The guard and the dialog can ask at the same time; only one USB trace can run. The second caller
+    // waits and reuses verdicts younger than 10 s instead of failing (a failed verdict never blocks,
+    // so a lost race would let the service connect to a device another program writes to).
+    QVector<EndpointCheck> writersFor(const QStringList& endpoints);
+    QMutex capture_;
     mutable QMutex mutex_;
     QHash<QString, EndpointCheck> busy_; // Verdict per endpoint, kept while it stays busy.
     QVector<ConflictProcess> last_;

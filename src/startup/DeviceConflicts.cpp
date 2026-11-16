@@ -423,6 +423,27 @@ QString stopHolder(const ConflictProcess& process, bool force)
 #endif
 }
 
+QVector<EndpointCheck> DeviceConflictMonitor::writersFor(const QStringList& endpoints)
+{
+#ifdef Q_OS_WIN
+    QMutexLocker capture(&capture_);
+    QVector<EndpointCheck> result; QStringList missing;
+    {
+        QMutexLocker lock(&mutex_);
+        const auto now = QDateTime::currentMSecsSinceEpoch();
+        for (const auto& endpoint : endpoints) {
+            const auto found = busy_.constFind(endpoint);
+            if (found != busy_.constEnd() && found->error.isEmpty() && now - found->checkedAt < 10000) result.append(*found);
+            else missing.append(endpoint);
+        }
+    }
+    if (!missing.isEmpty()) result += findWriters(missing);
+    return result;
+#else
+    Q_UNUSED(endpoints); return {};
+#endif
+}
+
 QStringList DeviceConflictMonitor::blocked(const QStringList& endpoints, QString& message)
 {
     QStringList busy;
@@ -439,7 +460,7 @@ QStringList DeviceConflictMonitor::blocked(const QStringList& endpoints, QString
     }
 #ifdef Q_OS_WIN
     if (!stale.isEmpty()) {
-        const auto checks = findWriters(stale);
+        const auto checks = writersFor(stale);
         QMutexLocker lock(&mutex_);
         for (const auto& check : checks) busy_.insert(check.endpoint, check);
     }
@@ -487,7 +508,7 @@ QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& end
         process.reason = reason; result.append(process);
     };
 #ifdef Q_OS_WIN
-    const auto checks = busy.isEmpty() ? QVector<EndpointCheck>{} : findWriters(busy);
+    const auto checks = busy.isEmpty() ? QVector<EndpointCheck>{} : writersFor(busy);
     for (const auto& check : checks) {
         if (!check.error.isEmpty() && error) *error = check.error;
         for (const auto& writer : check.holders) add(writer, "Sends lighting commands to " + endpointLabel(check.endpoint));
