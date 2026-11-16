@@ -1,11 +1,14 @@
 [CmdletBinding(SupportsShouldProcess=$true)]
 param(
-    [string]$Source = (Split-Path $PSScriptRoot -Parent),
+    [string]$Source,
     [string]$OwnerSid,
     [string]$PawnIOSetup,
     [switch]$NoEditorAutostart
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults of [CmdletBinding()] scripts,
+# which broke Install.cmd from the CI package; resolve the default here, where it is populated.
+if (!$Source) { $Source = Split-Path $PSScriptRoot -Parent }
 # Capture the interactive owner before elevation, including credential-based UAC.
 if (!$OwnerSid) { $OwnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value }
 if ($OwnerSid -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$') { throw 'Select a local or domain user SID, not a service account.' }

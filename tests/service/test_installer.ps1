@@ -8,6 +8,14 @@ if ($sourceText -notmatch "-ArgumentList @\('-install','-silent'\)") { throw 'Pa
 # WhatIf must reject a missing package and must return before elevation/system changes.
 try { & $Installer -Source (Join-Path $Runtime 'missing') -WhatIf; throw 'Missing runtime accepted' }
 catch { if ($_.Exception.Message -notmatch 'Missing runtime input') { throw } }
+# Install.cmd path: no -Source, run by Windows PowerShell 5.1 via -File. The default must resolve
+# to the installer's parent folder (here the repo root, which lacks the runtime) instead of failing
+# param binding on an empty $PSScriptRoot.
+# 'Stop' would turn the child's expected stderr into a terminating NativeCommandError.
+$ErrorActionPreference='Continue'
+$output = & "$PSHOME/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $Installer -OwnerSid 'S-1-5-21-1-2-3-1001' -WhatIf 2>&1 | Out-String
+$ErrorActionPreference='Stop'
+if ($output -notmatch 'Missing runtime input') { throw "Default -Source did not resolve: $output" }
 # Release packaging has its own binary/dependency test. A bounded fixture also
 # exercises planning in Debug builds, whose Qt DLL names deliberately differ.
 $temporaryRoot=[IO.Path]::GetFullPath([IO.Path]::GetTempPath())
