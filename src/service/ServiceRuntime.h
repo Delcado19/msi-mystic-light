@@ -27,6 +27,7 @@ public:
     void setOutputGuard(Guard guard) { guard_=std::move(guard); }
     // Configured endpoints this service does not hold. Probing a held endpoint would only find ourselves.
     QStringList probeTargets() const;
+    QVector<ProfileCandidate> inventory() const { return inventory_; }
 private:
     void loadBundle(const QJsonObject& bundle,bool persist);
     void persist();

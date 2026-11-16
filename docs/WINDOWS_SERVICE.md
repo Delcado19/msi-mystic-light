@@ -69,7 +69,8 @@ Identity checks and latest-frame scheduling remain in force. Missing/faulted dev
 retry every five seconds. Suspend releases sessions; resume reopens/reverifies them.
 Conflicts are detected per device, not by program name. Before each connection
 attempt the service probes every configured HID endpoint it does not hold itself
-with an exclusive open. A busy endpoint gets one system handle lookup per busy
+and has discovered itself as a supported lighting device (never a bare path from
+the project) with an exclusive open. A busy endpoint gets one system handle lookup per busy
 period: if a program other than Windows or Lighting Studio holds it, or if no
 holder is visible at all (the holder hides its handles), that endpoint stays
 closed and Hardware shows who holds it; every other device keeps its output. An

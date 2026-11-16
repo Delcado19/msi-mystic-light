@@ -1134,15 +1134,15 @@
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.cpp": {
-    "mtime": 1794845059.543432,
-    "seen": 1794845982.203478,
-    "ast_hash": "b47cb93355324f67e2953a5196d25d11",
+    "mtime": 1794846662.119173,
+    "seen": 1794846745.2096455,
+    "ast_hash": "a61b05d4a35068015ba8bdb1019ba8c4",
     "semantic_hash": ""
   },
   "src/service/ServiceRuntime.h": {
-    "mtime": 1794845032.0793133,
-    "seen": 1794845982.2034798,
-    "ast_hash": "6aa12730ca267500fc35d6b2cb6d327e",
+    "mtime": 1794846669.9129536,
+    "seen": 1794846745.209649,
+    "ast_hash": "850f9c184df739526f41f9c98339613c",
     "semantic_hash": ""
   },
   "src/service/ServiceServer.cpp": {
@@ -1158,9 +1158,9 @@
     "semantic_hash": ""
   },
   "src/service/main.cpp": {
-    "mtime": 1794846261.20799,
-    "seen": 1794846584.6183357,
-    "ast_hash": "b3051663e738ca197e6515be8558e0cb",
+    "mtime": 1794846668.114945,
+    "seen": 1794846745.2099023,
+    "ast_hash": "c1275e847ff48e48d30182583c3bc02b",
     "semantic_hash": ""
   },
   "tests/service/test_installer.ps1": {
@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "tests/service/test_service.cpp": {
-    "mtime": 1794845170.7100058,
-    "seen": 1794845982.208267,
-    "ast_hash": "58fd942ea977a221b3ba668875f244cc",
+    "mtime": 1794846671.5892034,
+    "seen": 1794846745.2123044,
+    "ast_hash": "8a83895ebaba9a60ac945b9af1abe329",
     "semantic_hash": ""
   },
   "docs/PAWNIO_SERVICE_RESEARCH_2026-10-27.md": {
@@ -1182,9 +1182,9 @@
     "semantic_hash": ""
   },
   "docs/WINDOWS_SERVICE.md": {
-    "mtime": 1794846565.7907405,
-    "seen": 1794846584.6243775,
-    "ast_hash": "8509f1d274b42dcb8492c035e2a2bfb1",
+    "mtime": 1794846734.6894429,
+    "seen": 1794846745.215279,
+    "ast_hash": "513a9f087b264da600442ddfe230ec0c",
     "semantic_hash": ""
   },
   "docs/images/layout-fullscreen.png": {

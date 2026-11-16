@@ -82,7 +82,12 @@ ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const Guard&
     ScanResult result;
     try {result.inventory=scan();}
     catch(const std::exception& e) {result.scanFailed=true;result.error=QString::fromUtf8(e.what());return result;}
-    if(guard)try {result.blocked=guard(targets,result.error);}
+    // Probe only endpoints this scan discovered as supported lighting devices, never a bare project path:
+    // a holder counts as proven for the LocalSystem stop path (security review 2026-11-16).
+    QStringList discovered;
+    for(const auto& target:targets)if(std::any_of(result.inventory.cbegin(),result.inventory.cend(),
+        [&](const ProfileCandidate& c){return c.device.path.compare(target,Qt::CaseInsensitive)==0;}))discovered.append(target);
+    if(guard)try {result.blocked=guard(discovered,result.error);}
     catch(const std::exception& e) {result.scanFailed=true;result.error=QString::fromUtf8(e.what());}
     if(result.blocked.isEmpty() && !result.scanFailed)result.error.clear();
     return result;

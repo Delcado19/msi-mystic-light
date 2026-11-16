@@ -119,7 +119,8 @@ void ServiceTest::fakeOutputPauseAndResume() try {
             auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
         },[record]{return record->present.load();}});return result;
     };
-    ServiceRuntime runtime({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
+    // The fixture endpoint is discovered, so the device guard may probe it.
+    ServiceRuntime runtime({}, {profile},folder.path(),[profile]{return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
     QVERIFY(runtime.command(project(profile)).value("ok").toBool());QTRY_VERIFY(record->writes>1);
     const auto key=runtime.status().value("outputs").toArray()[0].toObject().value("key");
     auto pause=cmd("channels");pause["keys"]=QJsonArray{key};pause["paused"]=true;QVERIFY(runtime.command(pause).value("ok").toBool());
