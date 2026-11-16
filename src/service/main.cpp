@@ -124,7 +124,38 @@ int run(int argc,char** argv,bool managed) {
     runtime.setOutputGuard(guard);
     // Discovery blocked the pipe thread for seconds, so the editor's 1.5 s connect timed out (2026-11-16).
     runtime.setBackgroundScan(true);
-    ServiceServer server(owner,[&runtime](const QJsonObject& request,const ServiceServer::Reply& reply) {
+    // Conflict dialog of the installed editor (2026-11-16): the unelevated editor cannot stop services
+    // such as Mystic_Light_Service, so the owner had to end LEDKeeper2 in Task Manager. This host can.
+    // Stops are for now only (start types and tasks stay untouched) and limited to this host's own scan.
+    const auto conflicts=[simulation](const QJsonObject& request,const ServiceServer::Reply& reply) {
+        const auto op=request.value("op").toString();
+        if(op!="conflicts" && op!="stopConflict")return false;
+        if(request.value("version").toInt()!=StudioService::protocolVersion)throw std::invalid_argument("Unsupported service protocol");
+        if(op=="conflicts") {
+            QJsonArray list;
+            if(!simulation) {
+                SystemConflictProcesses processes;
+                // Creation time is a 64-bit FILETIME; a JSON number would lose precision.
+                for(const auto& p:processes.scan())list.append(QJsonObject{{"pid",qint64(p.pid)},{"started",QString::number(p.started)},
+                    {"executable",p.executable},{"path",p.path},{"reason",p.reason},{"manualStop",p.manualStop}});
+            }
+            reply({{"ok",true},{"conflicts",list}});return true;
+        }
+        if(simulation)throw std::invalid_argument("Conflict stop is unavailable in simulation");
+        const auto pid=quint32(request.value("pid").toInteger());const auto started=request.value("started").toString().toULongLong();
+        const bool force=request.value("force").toBool();
+        // Service control calls can block for seconds; keep them off the pipe thread and answer from it afterwards.
+        std::thread([pid,started,force,reply] {
+            QString error;
+            try {SystemConflictProcesses processes;error=stopListedConflict(processes,pid,started,force);}
+            catch(const std::exception& e) {error=QString::fromUtf8(e.what());}
+            if(auto* app=QCoreApplication::instance())
+                QMetaObject::invokeMethod(app,[reply,error]{reply({{"ok",true},{"stopError",error}});},Qt::QueuedConnection);
+        }).detach();
+        return true;
+    };
+    ServiceServer server(owner,[&runtime,conflicts](const QJsonObject& request,const ServiceServer::Reply& reply) {
+        if(conflicts(request,reply))return;
         runtime.command(request,[reply](QJsonObject result){if(!pawnIoRamDiscoveryError().isEmpty())result["discoveryError"]=pawnIoRamDiscoveryError();reply(result);});
     });
     const auto pipe=simulation?parser.value("pipe"):StudioService::pipeName();

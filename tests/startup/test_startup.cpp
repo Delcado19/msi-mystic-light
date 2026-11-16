@@ -12,7 +12,8 @@ public:
     QVector<ConflictProcess> running{{11, "SignalRgb.exe", "C:/rgb/SignalRgb.exe", "Potential writer", 100, false},
         {22, "OpenRGB.exe", "C:/rgb/OpenRGB.exe", "Potential writer", 200, false}};
     QVector<quint32> graceful, forced;
-    bool denied = false, failScan = false, restart = false;
+    bool denied = false, failScan = false, restart = false, services = false;
+    bool stopsServices() const override { return services; }
     int exitScanDelay = 0;
     QMap<quint32,int> pendingExits;
     ConflictService adminService{"SignalRgb.Service",42,true,ConflictService::Running,true,"\"C:/rgb/SignalRgbService.exe\""};
@@ -93,6 +94,22 @@ private slots:
         QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR") + "/Fonts/segoeui.ttf");
         QApplication::setFont(QFont("Segoe UI", 9));
 #endif
+    }
+    // The LocalSystem service stops conflicts for the installed editor; it must only ever act on
+    // entries of its own scan, never on a PID the client merely names (2026-11-16).
+    void serviceStopsOnlyItsOwnScan() {
+        FakeProcesses processes;
+        QCOMPARE(stopListedConflict(processes,999,100,true),QString());   // Unknown PID.
+        QCOMPARE(stopListedConflict(processes,11,101,true),QString());    // Reused PID: creation time differs.
+        QVERIFY(!stopListedConflict(processes,11,0,true).isEmpty());
+        QVERIFY(processes.forced.isEmpty() && processes.graceful.isEmpty());
+        QCOMPARE(stopListedConflict(processes,11,100,false),QString());QCOMPARE(processes.graceful,QVector<quint32>{11});
+        QCOMPARE(stopListedConflict(processes,11,100,true),QString());QCOMPARE(processes.forced,QVector<quint32>{11});
+        // A service-backed dialog needs no separate administrator action.
+        processes.services=true;processes.running={{42,"SignalRgbService.exe","C:/rgb/SignalRgbService.exe","service",1,false}};
+        ConflictDialog dialog(processes);dialog.show();
+        QVERIFY(!button(dialog,"stopSignalRgbServiceAdmin")->isVisible());
+        QVERIFY(!dialog.findChild<QLabel*>("conflictStatus")->text().contains("Administrator"));
     }
     void exactNamesAndGuards() {
         QVERIFY(!conflictReason("C:/rgb/SignalRgb.EXE").isEmpty());

@@ -1,5 +1,6 @@
 #pragma once
 #include "editor/LightingWindow.h"
+#include "startup/ConflictProcesses.h"
 #include <QJsonObject>
 #include <QLabel>
 #include <QTreeWidget>
@@ -31,3 +32,14 @@ private:
     qint64 changedAt_=0,nextPoll_=0;
 };
 QVector<ProfileCandidate> serviceInventory(const QString& host);
+// Conflict scan and stop through the installed service: LocalSystem can stop services and elevated
+// processes the unelevated editor cannot (owner report 2026-11-16: LEDKeeper2 needed Task Manager).
+class ServiceConflictProcesses final : public IConflictProcesses {
+public:
+    explicit ServiceConflictProcesses(ServicePanel::Rpc rpc = {});
+    QVector<ConflictProcess> scan() override;
+    QString stop(const ConflictProcess& process, bool force) override;
+    bool stopsServices() const override { return true; }
+private:
+    ServicePanel::Rpc rpc_;
+};

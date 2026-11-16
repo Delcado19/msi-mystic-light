@@ -4,6 +4,26 @@ Single maintainer, so no `dev` branch. Every feature gets its own branch and rea
 through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
 release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
 
+## Responsive service and installed conflict dialog - 2026-11-16
+
+Branch `fix/service-responsive-conflict-stop` (off `feat/jargb2-shared-routing`). Owner report after
+the first real installation: editor showed "Connection error" / "No compatible controller" and no
+conflict dialog. Cause 1: discovery ran on the pipe thread (~6.5 s per scan, every 5 s; editor
+connect timeout 1.5 s); it now runs on a worker (`ServiceRuntime::setBackgroundScan`). Which part of
+the scan is slow is unmeasured; HID enumeration is not (0.1-0.2 s). Cause 2: the dialog was skipped
+when the service is installed. It now appears whenever the installed editor window is opened and the
+service performs the stops (`conflicts` / `stopConflict`), temporary only (owner decision). Unit
+tests pass; nothing here has run against the installed service or real conflicting software yet.
+
+Findings for the next step (detection beyond the name list, read-only experiments 2026-11-16):
+an exclusive-open probe (share mode 0) reports a held HID interface even when the holder protects
+its handles (SignalRGB does; handle enumeration cannot see it); handle enumeration names unprotected
+holders such as MSI Center's `CC_Engine_x64.exe`; Restart Manager and Kernel-File ETW do not cover
+devices. A held interface is not proof of colour writes. Vendor suites the owner needs for macros
+and key mapping (MSI Center, Razer, SteelSeries, Roccat, G-Menu) must not be stopped; their handling
+is open. `SignalRgbLauncher.exe` stays off the name list (test `exactNamesAndGuards`); whether it
+restarts a terminated SignalRgb.exe is unknown.
+
 ## Uninstaller and CI package - 2026-11-15
 
 `installer/Uninstall-LightingStudio.ps1` removes everything the installer creates and is registered

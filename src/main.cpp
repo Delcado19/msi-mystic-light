@@ -67,11 +67,6 @@ int main(int argc, char** argv)
     parser.process(app);
     const auto serviceHost=StudioService::installedHost();
     const bool serviceInstalled=!serviceHost.isEmpty() || QFileInfo::exists(QCoreApplication::applicationDirPath()+"/service.json");
-    if (!serviceInstalled && !parser.isSet("inspect") && !parser.isSet("scan") && !parser.isSet("probe-ram") && !parser.isSet("editor")) {
-        SystemConflictProcesses processes;
-        ConflictDialog conflicts(processes);
-        if (conflicts.exec() != QDialog::Accepted) return 0;
-    }
     ModuleRegistry modules;
     bool failed = false;
     for (const auto& error : modules.loadDirectory(parser.value("module-dir"))) {
@@ -156,6 +151,19 @@ int main(int argc, char** argv)
         else QMessageBox::warning(nullptr,"Startup failed","Cannot lock the session directory");
         return 1;
     }
+    // Opening the editor means "Lighting Studio controls the lighting now", so conflicts are offered
+    // for stopping in the installed mode too (owner decision 2026-11-16); there the service stops them.
+    // It runs after the instance lock so a second start ends at "Already running" without a dialog,
+    // and still before any hardware is opened. The silent logon start (--background) never prompts.
+    const auto resolveConflicts=[serviceInstalled](QWidget* parent) {
+        std::unique_ptr<IConflictProcesses> processes;
+        if(serviceInstalled)processes=std::make_unique<ServiceConflictProcesses>();else processes=std::make_unique<SystemConflictProcesses>();
+        // No dialog flash when nothing conflicts; a failed scan is shown by the dialog itself.
+        try {if(processes->scan().isEmpty())return true;} catch(const std::exception&) {}
+        ConflictDialog conflicts(*processes,parent);
+        return conflicts.exec()==QDialog::Accepted;
+    };
+    if(!parser.isSet("editor") && !(serviceInstalled && parser.isSet("background")) && !resolveConflicts(nullptr))return 0;
     QSettings settings;
     LightingWindow window(catalog, [availableProfiles,serviceInstalled,serviceHost] {
         if(serviceInstalled)return serviceInventory(serviceHost.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":serviceHost);
@@ -182,7 +190,11 @@ int main(int argc, char** argv)
     QSystemTrayIcon tray(window.style()->standardIcon(QStyle::SP_ComputerIcon),&window);
     tray.setToolTip("MSI Mystic Light");
     auto* trayMenu=new QMenu(&window);
-    auto show=[&window] { window.showNormal(); window.raise(); window.activateWindow(); };
+    // Installed editors usually live in the tray since logon; opening the window is the deliberate start.
+    auto show=[&window,serviceInstalled,resolveConflicts] {
+        if(serviceInstalled && !window.isVisible())resolveConflicts(&window);
+        window.showNormal(); window.raise(); window.activateWindow();
+    };
     QObject::connect(trayMenu->addAction("Show editor"),&QAction::triggered,&window,show);
     QObject::connect(trayMenu->addAction("Stop output"),&QAction::triggered,&window,[=]{if(servicePanel)servicePanel->stopOutput();else outputPanel->stopOutput();});
     QObject::connect(trayMenu->addAction("Quit"),&QAction::triggered,&window,&QWidget::close);

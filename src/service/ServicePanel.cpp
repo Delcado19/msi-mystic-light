@@ -30,6 +30,27 @@ QVector<ProfileCandidate> serviceInventory(const QString& executable) {
     }
     return result;
 }
+ServiceConflictProcesses::ServiceConflictProcesses(ServicePanel::Rpc rpc):rpc_(std::move(rpc)) {
+    if(!rpc_)rpc_=[](const QJsonObject& request){return StudioService::request(request,host());};
+}
+QVector<ConflictProcess> ServiceConflictProcesses::scan() {
+    QVector<ConflictProcess> result;
+    for(const auto& entry:rpc_(command("conflicts")).value("conflicts").toArray()) {
+        const auto json=entry.toObject();ConflictProcess process;
+        process.pid=quint32(json.value("pid").toInteger());process.started=json.value("started").toString().toULongLong();
+        process.executable=json.value("executable").toString();process.path=json.value("path").toString();
+        process.reason=json.value("reason").toString();process.manualStop=json.value("manualStop").toBool();result.append(process);
+    }
+    return result;
+}
+QString ServiceConflictProcesses::stop(const ConflictProcess& process,bool force) {
+    // The service runs in session 0 and cannot post WM_CLOSE to desktop windows, so the polite close
+    // request comes from the editor; its result does not matter, the service step decides.
+    if(!force){SystemConflictProcesses local;local.stop(process,false);}
+    auto request=command("stopConflict");request["pid"]=qint64(process.pid);request["started"]=QString::number(process.started);request["force"]=force;
+    try {return rpc_(request).value("stopError").toString();}
+    catch(const std::exception& e) {return QString::fromUtf8(e.what());}
+}
 ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_(std::move(rpc)),window_(window) {
     if(!rpc_)rpc_=[](const QJsonObject& request){return StudioService::request(request,host());};
     setObjectName("outputPanel");auto* layout=new QVBoxLayout(this);

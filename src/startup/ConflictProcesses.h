@@ -27,7 +27,13 @@ public:
     // Must reject another request while its controller process is still pending, including after a UI timeout.
     virtual QString requestSignalRgbAdminStop(quint32) { return "Administrator service stop unavailable"; }
     virtual QString pollSignalRgbAdminStop(bool& pending) { pending=false;return {}; }
+    // True when stop() itself has the rights to stop services, so no separate administrator action is offered.
+    virtual bool stopsServices() const { return false; }
 };
+// Service side of the installed editor's conflict dialog. The client names a process only by PID and
+// creation time; it is stopped only if this side's own scan lists it, so the LocalSystem service
+// cannot be used to end arbitrary processes.
+QString stopListedConflict(IConflictProcesses& processes, quint32 pid, quint64 started, bool force);
 
 class SystemConflictProcesses final : public IConflictProcesses {
 public:

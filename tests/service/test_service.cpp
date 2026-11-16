@@ -64,6 +64,7 @@ private slots:
  void identifyCommand();
  void fakeOutputPauseAndResume();
  void backgroundScanKeepsAnswering();
+ void conflictsThroughService();
  void authenticatedPipe();
  void editorSynchronization();
  void persistedPauseAndReconnect();
@@ -155,6 +156,24 @@ void ServiceTest::backgroundScanKeepsAnswering() try {
     hold->store(false);QTRY_VERIFY(!scanned.isEmpty());
     QCOMPARE(scans->load(),2);QCOMPARE(scanned.value("error").toString(),QString("Fixture controller conflict"));
 } catch(const std::exception& e){QFAIL(e.what());}
+// Editor side of the service-backed conflict dialog: the 64-bit creation time must survive JSON.
+void ServiceTest::conflictsThroughService() {
+    QList<QJsonObject> sent;
+    ServiceConflictProcesses processes([&sent](const QJsonObject& request)->QJsonObject {
+        sent.append(request);
+        if(request.value("op")=="conflicts")return {{"ok",true},{"conflicts",QJsonArray{QJsonObject{{"pid",4242},{"started","133000000000000001"},
+            {"executable","LEDKeeper2.exe"},{"path","C:/fixture/LEDKeeper2.exe"},{"reason","fixture"},{"manualStop",false}}}}};
+        return {{"ok",true},{"stopError","Fixture refusal"}};
+    });
+    const auto list=processes.scan();QCOMPARE(list.size(),1);
+    QCOMPARE(list[0].pid,quint32(4242));QCOMPARE(list[0].started,quint64(133000000000000001ULL));QCOMPARE(list[0].executable,QString("LEDKeeper2.exe"));
+    // Forced only: the non-forced step also posts a local close request to the real PID.
+    QCOMPARE(processes.stop(list[0],true),QString("Fixture refusal"));
+    QCOMPARE(sent.last().value("op").toString(),QString("stopConflict"));QCOMPARE(sent.last().value("pid").toInt(),4242);
+    QCOMPARE(sent.last().value("started").toString(),QString("133000000000000001"));QVERIFY(sent.last().value("force").toBool());
+    ServiceConflictProcesses offline([](const QJsonObject&)->QJsonObject{throw std::runtime_error("Lighting service unavailable");});
+    QVERIFY_EXCEPTION_THROWN(offline.scan(),std::runtime_error);QCOMPARE(offline.stop(list[0],true),QString("Lighting service unavailable"));
+}
 void ServiceTest::authenticatedPipe(){
 #ifdef Q_OS_WIN
     QTemporaryDir folder;const auto pipe="LightingStudio.Test."+QUuid::createUuid().toString(QUuid::WithoutBraces);

@@ -16,7 +16,12 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     setWindowTitle("Potential lighting conflicts");
     resize(940, 430);
     auto* layout = new QVBoxLayout(this);
-    auto* explanation = new QLabel("These programs may control the same lighting devices. Select processes to stop, "
+    auto* explanation = new QLabel(processes_.stopsServices()
+        ? "These programs may control the same lighting devices. Select processes to stop, "
+          "or choose Ignore to continue. Terminate requests a normal close, then the Lighting Studio service stops "
+          "remaining selected processes and their services after a short wait. They are stopped for now only: "
+          "automatic startup and scheduled tasks are unchanged. Unsaved work in those programs may be lost."
+        : "These programs may control the same lighting devices. Select processes to stop, "
         "or choose Ignore to continue. Terminate requests a normal close, then forces remaining selected processes "
         "after a short wait. Use the separate administrator action for the SignalRGB service; it never kills the service process. "
         "Its automatic startup and scheduled tasks are unchanged. Unsaved work in those programs may be lost.", this);
@@ -47,6 +52,7 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     terminateAll_ = button("Terminate all", "terminateAll");
     terminate_ = button("Terminate", "terminateSelected");
     adminStop_ = button("Stop SignalRGB service (administrator)", "stopSignalRgbServiceAdmin");
+    adminStop_->setVisible(!processes_.stopsServices());
     buttons->addStretch();
     auto* rescan = button("Rescan", "rescan");
     ignore_ = button("Ignore", "ignore");
@@ -78,7 +84,7 @@ bool ConflictDialog::refresh(bool acceptEmpty)
                 table_->setItem(row, col, new QTableWidgetItem(values[col]));
         }
         adminServicePid_=0;QString serviceError;
-        if(std::any_of(conflicts_.cbegin(),conflicts_.cend(),[](const auto& p){return isSignalRgbService(p.executable);})) {
+        if(!processes_.stopsServices() && std::any_of(conflicts_.cbegin(),conflicts_.cend(),[](const auto& p){return isSignalRgbService(p.executable);})) {
             ConflictService service;serviceError=processes_.querySignalRgbService(service);
             if(serviceError.isEmpty())serviceError=signalRgbAdminStopError(service,conflicts_);
             if(serviceError.isEmpty())adminServicePid_=service.pid;

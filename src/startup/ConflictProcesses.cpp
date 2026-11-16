@@ -27,8 +27,7 @@ QString conflictReason(const QString& executable)
     // Exact executable names only: a vendor name does not imply RGB access.
     const auto name = normalized(executable);
     if (name == "signalrgbservice.exe") return "SignalRGB background service may control RAM and other RGB devices";
-    if (name == "signalrgb.exe") return "SignalRGB may control the same RGB devices";
-    if (name == "openrgb.exe") return "OpenRGB may control the same RGB devices";
+    if (name == "signalrgb.exe") return "SignalRGB may control the same RGB devices";    if (name == "openrgb.exe") return "OpenRGB may control the same RGB devices";
     if (name == "icue.exe") return "Corsair iCUE lighting controller";
     if (name == "lghub.exe" || name == "lghub_agent.exe") return "Logitech G HUB lighting controller";
     if (name == "armourycrate.exe" || name == "lightingservice.exe") return "ASUS lighting controller";
@@ -117,6 +116,14 @@ QString stopSignalRgbService(const ConflictProcess& process, bool verifyOnly, IC
     if (current.state != ConflictService::Running || !current.acceptsStop)
         return "SignalRGB service does not currently accept stop; stop it manually";
     return services.requestStop(current.name);
+}
+
+QString stopListedConflict(IConflictProcesses& processes, quint32 pid, quint64 started, bool force)
+{
+    if (!pid || !started) return "Refusing an invalid conflict target";
+    for (const auto& process : processes.scan())
+        if (process.pid == pid && process.started == started) return processes.stop(process, force);
+    return {}; // No longer listed: already exited, like stop() reports for an exited process.
 }
 
 bool matchesProcessIdentity(const ConflictProcess& expected, quint64 started, const QString& path)
