@@ -55,6 +55,10 @@ bool endpointBusy(const QString& endpoint);
 QString stopHolder(const ConflictProcess& process, bool force);
 // Polite close request from the user's session (the service in session 0 cannot reach its windows).
 QString requestClose(const ConflictProcess& process);
+// Body of `lighting_service_host.exe --stop-process <pid> <started>`, run elevated after the user
+// approved UAC for exactly this process. Re-reads the image from the live process, refuses Windows
+// images and Lighting Studio itself, then stops it like stopHolder(force=true).
+QString stopApprovedProcess(quint32 pid, quint64 started);
 
 // Thread-safe; shared by the periodic output guard and the editor's conflict dialog.
 class DeviceConflictMonitor {

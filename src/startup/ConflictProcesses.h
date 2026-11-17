@@ -9,6 +9,9 @@ struct ConflictProcess {
     quint64 started = 0; // OS creation time protects against PID reuse.
     bool manualStop = false;
     bool provenHolder = false; // Seen holding one of our devices, not merely suspected or related.
+    // The service may not stop it (stopAllowed); the dialog offers a stop with UAC approval per
+    // process instead of "stop it manually" (owner decision 2026-11-17).
+    bool elevatedStop = false;
 };
 
 QString conflictReason(const QString& executable);
@@ -28,6 +31,8 @@ public:
     // Must reject another request while its controller process is still pending, including after a UI timeout.
     virtual QString requestSignalRgbAdminStop(quint32) { return "Administrator service stop unavailable"; }
     virtual QString pollSignalRgbAdminStop(bool& pending) { pending=false;return {}; }
+    // Stops a process marked elevatedStop after the user approves UAC; empty means stopped or exited.
+    virtual QString stopElevated(const ConflictProcess&) { return "Administrator stop unavailable"; }
     // True when stop() itself has the rights to stop services, so no separate administrator action is offered.
     virtual bool stopsServices() const { return false; }
 };

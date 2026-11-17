@@ -423,6 +423,23 @@ QString stopHolder(const ConflictProcess& process, bool force)
 #endif
 }
 
+QString stopApprovedProcess(quint32 pid, quint64 started)
+{
+#ifdef Q_OS_WIN
+    if (pid <= 4 || !started) return "Invalid process";
+    Handle handle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
+    if (!handle) return GetLastError() == ERROR_INVALID_PARAMETER ? QString{} : winError("Cannot access process");
+    const auto process = processInfo(pid, handle.get());
+    if (process.started != started) return "Process identity changed; rescan before trying again";
+    // The approval names a PID; never let it end Windows itself or Lighting Studio.
+    if (process.path.isEmpty() || isExcludedImage(process.path, systemRoot(), ownExecutables()))
+        return "Refusing to stop a Windows or Lighting Studio process";
+    return stopHolder(process, true);
+#else
+    Q_UNUSED(pid); Q_UNUSED(started); return "Process control is supported on Windows only";
+#endif
+}
+
 QVector<EndpointCheck> DeviceConflictMonitor::writersFor(const QStringList& endpoints)
 {
 #ifdef Q_OS_WIN

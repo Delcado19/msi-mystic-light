@@ -180,6 +180,22 @@ void ServiceTest::conflictsThroughService() {
     QCOMPARE(processes.stop(list[0],true),QString("Fixture refusal"));
     QCOMPARE(sent.last().value("op").toString(),QString("stopConflict"));QCOMPARE(sent.last().value("pid").toInt(),4242);
     QCOMPARE(sent.last().value("started").toString(),QString("133000000000000001"));QVERIFY(sent.last().value("force").toBool());
+    // Administrator stop: the editor runs the host with exactly this PID and creation time.
+    QStringList launched;quint32 exit=3;QString launchError;
+    ServiceConflictProcesses elevated([](const QJsonObject&)->QJsonObject{return {{"ok",true},{"conflicts",QJsonArray{QJsonObject{
+        {"pid",4243},{"started","133000000000000002"},{"executable","Launcher.exe"},{"path","C:/fixture/Launcher.exe"},{"reason","fixture"},{"elevatedStop",true}}}}};},
+        [&](const QStringList& arguments,quint32& code){launched=arguments;code=exit;return launchError;});
+    const auto approved=elevated.scan();QVERIFY(approved[0].elevatedStop);QVERIFY(!list[0].elevatedStop);
+    QVERIFY(elevated.stopElevated(approved[0]).contains("identity changed"));
+    QCOMPARE(launched,(QStringList{"--stop-process","4243","133000000000000002"}));
+    exit=0;QCOMPARE(elevated.stopElevated(approved[0]),QString());
+    launchError="Administrator approval was declined";QCOMPARE(elevated.stopElevated(approved[0]),launchError);
+    QVERIFY(!elevated.stopElevated(list[0]).isEmpty()); // Not marked: never elevated.
+#ifdef Q_OS_WIN
+    // The helper itself rejects malformed and system-reserved PIDs before touching any process.
+    QCOMPARE(QProcess::execute(SERVICE_HOST_PATH,{"--stop-process","not-a-pid","1"}),2);
+    QCOMPARE(QProcess::execute(SERVICE_HOST_PATH,{"--stop-process","4","1"}),1);
+#endif
     ServiceConflictProcesses offline([](const QJsonObject&)->QJsonObject{throw std::runtime_error("Lighting service unavailable");});
     QVERIFY_EXCEPTION_THROWN(offline.scan(),std::runtime_error);QCOMPARE(offline.stop(list[0],true),QString("Lighting service unavailable"));
 }

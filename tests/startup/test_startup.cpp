@@ -12,7 +12,10 @@ class FakeProcesses final : public IConflictProcesses {
 public:
     QVector<ConflictProcess> running{{11, "SignalRgb.exe", "C:/rgb/SignalRgb.exe", "Potential writer", 100, false},
         {22, "OpenRGB.exe", "C:/rgb/OpenRGB.exe", "Potential writer", 200, false}};
-    QVector<quint32> graceful, forced;
+    QVector<quint32> graceful, forced, elevated;
+    QString stopElevated(const ConflictProcess& process) override {
+        elevated.append(process.pid); running.removeIf([&](const auto& p) { return p.pid == process.pid; }); return {};
+    }
     bool denied = false, failScan = false, restart = false, services = false;
     bool stopsServices() const override { return services; }
     int exitScanDelay = 0;
@@ -374,6 +377,18 @@ private slots:
         QCOMPARE(table->rowCount(), 1);
         button(dialog, "terminateAll")->click();
         QTRY_COMPARE_WITH_TIMEOUT(processes.forced.size(), 2, 2500);
+        QTRY_COMPARE(dialog.result(), int(QDialog::Accepted));
+    }
+    // UAC per stop (owner decision 2026-11-17): a row the service may not stop goes only through the
+    // administrator path, never through the service request.
+    void elevatedRowsUseAdministratorStop() {
+        FakeProcesses processes; processes.running[0].elevatedStop = true;
+        ConflictDialog dialog(processes); dialog.show();
+        auto* table = dialog.findChild<QTableWidget*>("conflictTable");
+        QVERIFY(table->item(0, 3)->text().contains("administrator approval"));
+        button(dialog, "terminateAll")->click();
+        QTRY_COMPARE_WITH_TIMEOUT(processes.elevated, (QVector<quint32>{11}), 2500);
+        QCOMPARE(processes.graceful, (QVector<quint32>{22})); QTRY_COMPARE_WITH_TIMEOUT(processes.forced, (QVector<quint32>{22}), 2500);
         QTRY_COMPARE(dialog.result(), int(QDialog::Accepted));
     }
     void asynchronousExitNeedsOneClick() {

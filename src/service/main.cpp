@@ -140,7 +140,7 @@ int run(int argc,char** argv,bool managed) {
         }
         // Detection takes seconds and service control can block; both run off the pipe thread.
         if(op=="conflicts") {
-            std::thread([monitor,answer,reply,inventory=runtime.inventory()] {
+            std::thread([monitor,answer,reply,owner,inventory=runtime.inventory()] {
                 // Every lighting device the service discovered itself, with or without a project and
                 // including the ones it drives (2026-11-17: project-only targets left the dialog empty
                 // after a reinstall, and held endpoints hid SignalRGB writing to the same controller).
@@ -154,7 +154,8 @@ int run(int argc,char** argv,bool managed) {
                 const auto found=error.isEmpty()?monitor->conflicts(discovered,&error):QVector<ConflictProcess>{};
                 // Creation time is a 64-bit FILETIME; a JSON number would lose precision.
                 for(const auto& p:found)list.append(QJsonObject{{"pid",qint64(p.pid)},{"started",QString::number(p.started)},
-                    {"executable",p.executable},{"path",p.path},{"reason",p.reason},{"manualStop",p.manualStop}});
+                    {"executable",p.executable},{"path",p.path},{"reason",p.reason},{"manualStop",p.manualStop},
+                    {"elevatedStop",!stopAllowed(p,runsAsPlainUser(p,owner)).isEmpty()}});
                 answer(reply,{{"ok",true},{"conflicts",list},{"scanError",error}});
             }).detach();
             return true;
@@ -209,6 +210,18 @@ void WINAPI serviceMain(DWORD,wchar_t**) {
 }
 int main(int argc,char** argv) {
 #ifdef Q_OS_WIN
+    // Administrator stop of one conflict row, launched by the editor through UAC (owner decision
+    // 2026-11-17: UAC per stop instead of "stop it manually"). The approval itself is the
+    // authorization; the helper only re-verifies identity. Exit codes: see stopElevatedExitError().
+    if(argc==4 && QByteArray(argv[1])=="--stop-process") {
+        QCoreApplication app(argc,argv);
+        bool pidOk=false,startedOk=false;
+        const auto pid=QByteArray(argv[2]).toUInt(&pidOk);const auto started=QByteArray(argv[3]).toULongLong(&startedOk);
+        if(!pidOk || !startedOk)return 2;
+        const auto error=stopApprovedProcess(pid,started);
+        if(!error.isEmpty())fprintf(stderr,"%s\n",error.toUtf8().constData());
+        return error.isEmpty()?0:error.startsWith("Process identity changed")?3:error.startsWith("Refusing")?4:1;
+    }
     if(argc==2 && QByteArray(argv[1])=="--service") {
         SERVICE_TABLE_ENTRYW table[]={{const_cast<wchar_t*>(serviceName),serviceMain},{nullptr,nullptr}};
         return StartServiceCtrlDispatcherW(table)?0:int(GetLastError());

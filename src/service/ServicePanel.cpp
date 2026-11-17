@@ -16,7 +16,13 @@
 #include <QTemporaryDir>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QApplication>
 #include <stdexcept>
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
+#endif
 namespace {
 QString host() { const auto installed=StudioService::installedHost();return installed.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":installed; }
 QJsonObject command(const QString& op) {return {{"op",op},{"version",StudioService::protocolVersion}};}
@@ -31,8 +37,45 @@ QVector<ProfileCandidate> serviceInventory(const QString& executable) {
     }
     return result;
 }
-ServiceConflictProcesses::ServiceConflictProcesses(ServicePanel::Rpc rpc):rpc_(std::move(rpc)) {
+ServiceConflictProcesses::ServiceConflictProcesses(ServicePanel::Rpc rpc,Elevate elevate):rpc_(std::move(rpc)),elevate_(std::move(elevate)) {
     if(!rpc_)rpc_=[](const QJsonObject& request){return StudioService::request(request,host());};
+    if(!elevate_)elevate_=[](const QStringList& arguments,quint32& exitCode)->QString {
+#ifdef Q_OS_WIN
+        // The protected Program Files host, never a path from the service reply or the project.
+        const auto executable=QDir::toNativeSeparators(host());const auto parameters=arguments.join(' ');
+        SHELLEXECUTEINFOW launch{};launch.cbSize=sizeof(launch);launch.fMask=SEE_MASK_NOCLOSEPROCESS|SEE_MASK_FLAG_NO_UI;
+        if(auto* owner=QApplication::activeModalWidget())launch.hwnd=reinterpret_cast<HWND>(owner->winId());
+        launch.lpVerb=L"runas";launch.lpFile=reinterpret_cast<LPCWSTR>(executable.utf16());
+        launch.lpParameters=reinterpret_cast<LPCWSTR>(parameters.utf16());launch.nShow=SW_HIDE;
+        if(!ShellExecuteExW(&launch)) {
+            const auto failure=GetLastError();
+            return failure==ERROR_CANCELLED?QString("Administrator approval was declined"):
+                "Cannot start the administrator stop (Windows error "+QString::number(failure)+")";
+        }
+        if(!launch.hProcess)return "Cannot track the administrator stop; rescan";
+        // A stop takes milliseconds; a service stop is only requested, not awaited.
+        const auto wait=WaitForSingleObject(launch.hProcess,15000);DWORD code=1;
+        const bool done=wait==WAIT_OBJECT_0 && GetExitCodeProcess(launch.hProcess,&code);CloseHandle(launch.hProcess);
+        if(!done)return "The administrator stop did not finish in 15 s; rescan";
+        exitCode=code;return {};
+#else
+        Q_UNUSED(arguments);Q_UNUSED(exitCode);return "Administrator stop is supported on Windows only";
+#endif
+    };
+}
+QString stopElevatedExitError(quint32 exitCode) {
+    switch(exitCode) {
+    case 0: return {};
+    case 3: return "Process identity changed; rescan before trying again";
+    case 4: return "Refused: Windows and Lighting Studio processes are never stopped";
+    default: return "Administrator stop failed (exit code "+QString::number(exitCode)+")";
+    }
+}
+QString ServiceConflictProcesses::stopElevated(const ConflictProcess& process) {
+    if(!process.elevatedStop || !process.pid || !process.started)return "Refusing an invalid administrator stop";
+    quint32 code=1;
+    const auto error=elevate_({"--stop-process",QString::number(process.pid),QString::number(process.started)},code);
+    return error.isEmpty()?stopElevatedExitError(code):error;
 }
 QVector<ConflictProcess> ServiceConflictProcesses::scan() {
     QVector<ConflictProcess> result;const auto reply=rpc_(command("conflicts"));
@@ -43,7 +86,7 @@ QVector<ConflictProcess> ServiceConflictProcesses::scan() {
         const auto json=entry.toObject();ConflictProcess process;
         process.pid=quint32(json.value("pid").toInteger());process.started=json.value("started").toString().toULongLong();
         process.executable=json.value("executable").toString();process.path=json.value("path").toString();
-        process.reason=json.value("reason").toString();process.manualStop=json.value("manualStop").toBool();result.append(process);
+        process.reason=json.value("reason").toString();process.manualStop=json.value("manualStop").toBool();process.elevatedStop=json.value("elevatedStop").toBool();result.append(process);
     }
     return result;
 }

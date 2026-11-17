@@ -79,7 +79,8 @@ bool ConflictDialog::refresh(bool acceptEmpty)
             table_->insertRow(row);
             const QStringList values{process.executable, QString::number(process.pid),
                 process.path.isEmpty() ? "Unavailable" : process.path,
-                process.reason + (process.manualStop ? " (manual service stop required)" : "")};
+                process.reason + (process.manualStop ? " (manual service stop required)" : "") +
+                    (process.elevatedStop ? " (administrator approval required to stop)" : "")};
             for (int col = 0; col < values.size(); ++col)
                 table_->setItem(row, col, new QTableWidgetItem(values[col]));
         }
@@ -170,6 +171,8 @@ void ConflictDialog::terminate(bool all)
     QStringList errors;
     QVector<ConflictProcess> closable;
     for (const auto& process : targets) {
+        // The service may not stop these; each gets its own UAC approval in the force step.
+        if (process.elevatedStop) { closable.append(process); continue; }
         const auto error = processes_.stop(process, false);
         if (error.isEmpty()) closable.append(process);
         else errors.append(process.executable + ": " + error);
@@ -179,7 +182,7 @@ void ConflictDialog::terminate(bool all)
     QTimer::singleShot(1200, this, [this, closable, errors]() mutable {
         if (result() == QDialog::Rejected && !isVisible()) { busy_ = false; return; }
         for (const auto& process : closable) {
-            const auto error = processes_.stop(process, true);
+            const auto error = process.elevatedStop ? processes_.stopElevated(process) : processes_.stop(process, true);
             if (!error.isEmpty()) errors.append(process.executable + ": " + error);
         }
         const bool service = std::any_of(closable.begin(), closable.end(), [](const auto& p) { return isSignalRgbService(p.executable); });

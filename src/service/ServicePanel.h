@@ -36,10 +36,17 @@ QVector<ProfileCandidate> serviceInventory(const QString& host);
 // processes the unelevated editor cannot (owner report 2026-11-16: LEDKeeper2 needed Task Manager).
 class ServiceConflictProcesses final : public IConflictProcesses {
 public:
-    explicit ServiceConflictProcesses(ServicePanel::Rpc rpc = {});
+    // Runs the service host elevated with these arguments and returns its exit code, or an error
+    // (UAC declined, launch failed). Tests replace it; the default shows the UAC prompt.
+    using Elevate=std::function<QString(const QStringList& arguments,quint32& exitCode)>;
+    explicit ServiceConflictProcesses(ServicePanel::Rpc rpc = {},Elevate elevate = {});
     QVector<ConflictProcess> scan() override;
     QString stop(const ConflictProcess& process, bool force) override;
+    QString stopElevated(const ConflictProcess& process) override;
     bool stopsServices() const override { return true; }
 private:
     ServicePanel::Rpc rpc_;
+    Elevate elevate_;
 };
+// Message for an exit code of `lighting_service_host.exe --stop-process`; empty for success.
+QString stopElevatedExitError(quint32 exitCode);
