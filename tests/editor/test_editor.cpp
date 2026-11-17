@@ -190,6 +190,7 @@ private slots:
     void integerDisplayRoundTrip();
     void liveColorPicker();
     void hueSliderColorizesGrayStop();
+    void pickerApplyKeepsEveryInputPath();
     void menusFollowWorkspace();
     void effectLibraryCategorized();
     void hueTrackRetainsSpectrum();
@@ -4241,7 +4242,8 @@ void EditorTest::menusFollowWorkspace()
     }
     for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
     window.findChild<QAction*>("workspaceEditor")->trigger();QCoreApplication::processEvents();
-    for(const auto& name:canvasEdits)QVERIFY2(window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
+    // Back in Design with nothing selected they still have no effect (final review 2026-11-17).
+    for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
     // One entry point for new effects: the library button, not a second full menu under Edit.
     for(auto* top:window.menuBar()->actions())if(top->menu())for(auto* entry:top->menu()->actions())
         QVERIFY2(entry->menu()!=window.findChild<QMenu*>("addLayerMenu"),qPrintable(top->text()));
@@ -4250,6 +4252,31 @@ void EditorTest::menusFollowWorkspace()
     auto* status=window.findChild<QLabel*>("toolbarOutputStatus");
     QVERIFY(!status->text().contains("href"));QVERIFY(status->toolTip().contains("2 active"));
     QVERIFY(status->text().contains("#3fb950"));QVERIFY(status->text().contains("#f85149"));
+}
+
+// Final review 2026-11-17: every picker input path on a newly added stop must survive Apply and
+// reach the stop list, not only the hue slider. (The screen pipette needs a real desktop grab.)
+void EditorTest::pickerApplyKeepsEveryInputPath()
+{
+    enum class Path { Red, Hex, Field, Swatch };
+    for(const auto path:{Path::Red,Path::Hex,Path::Field,Path::Swatch}) {
+        ColorListEditor list(1,8);list.setGradientMode();applyStudioStyle(&list);
+        list.setStops({QColor(Qt::red),QColor(Qt::cyan)},{0,1});list.resize(420,200);list.show();QVERIFY(QTest::qWaitForWindowExposed(&list));
+        list.findChild<QPushButton*>("addColorStop")->click();
+        const int stop=1;QCOMPARE(list.colors().size(),3);
+        QSettings().setValue("editor/recentColors",QStringList{"#00ffff"}); // Swatches come from recent colors.
+        auto* editor=list.findChild<ColorEditor*>("selectedStopColor");editor->findChild<QPushButton*>()->click();
+        auto* popup=editor->findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
+        if(path==Path::Red){auto* red=popup->findChild<QSpinBox*>("pickerRed");red->setValue(10);}
+        else if(path==Path::Hex){auto* hex=popup->findChild<QLineEdit*>("pickerHex");hex->setText("#12AB34");emit hex->editingFinished();}
+        else if(path==Path::Field){auto* field=popup->findChild<QWidget*>("saturationValueField");
+            QTest::mousePress(field,Qt::LeftButton,{},QPoint(field->width()-5,5));QTest::mouseMove(field,QPoint(field->width()-3,4));QTest::mouseRelease(field,Qt::LeftButton,{},QPoint(field->width()-3,4));}
+        else {QPushButton* swatch=nullptr;for(auto* button:popup->findChildren<QPushButton*>())if(button->accessibleName()=="Use #00ffff")swatch=button;QVERIFY(swatch);swatch->click();}
+        QCoreApplication::processEvents();
+        const QColor chosen=editor->color();QVERIFY2(chosen!=QColor(128,128,128),qPrintable(chosen.name()));
+        popup->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();QCoreApplication::processEvents();
+        QCOMPARE(list.colors()[stop],chosen);
+    }
 }
 
 void EditorTest::hueSliderColorizesGrayStop()

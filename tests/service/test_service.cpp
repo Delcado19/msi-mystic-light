@@ -75,6 +75,7 @@ private slots:
  void unprobedEndpointStaysClosed();
  void hungScanIsAbandoned();
  void projectEditKeepsRunningOutput();
+ void scopeChangeReopensAfterOneScan();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
 };
@@ -287,6 +288,26 @@ void ServiceTest::projectEditKeepsRunningOutput() try {
     QVERIFY(runtime.command(project(profile)).value("ok").toBool());
     const int writes=record->writes;QTRY_VERIFY_WITH_TIMEOUT(record->writes>writes,200);
     QCOMPARE(record->opens.load(),1);
+} catch(const std::exception& e){QFAIL(e.what());}
+// Final review 2026-11-17: a project edit that changes a device's output scope (another channel)
+// must reopen that device after one scan, not two, and never report it as hung meanwhile.
+void ServiceTest::scopeChangeReopensAfterOneScan() try {
+    QTemporaryDir folder;const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);auto record=std::make_shared<Recording>();
+    const auto output=[record,profile](const QVector<OutputFrame>& frames){
+        QVector<OutputConnection> result;for(const auto& frame:frames)result.append({frame,[record,profile]{
+            ModuleRegistry modules;QString error;if(!modules.load(TEST_MODULE_PATH,&error))throw std::runtime_error(error.toStdString());
+            auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
+        },[record]{return record->present.load();}});return result;
+    };
+    ServiceRuntime runtime({}, {profile},folder.path(),[profile]{return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
+    runtime.setOutputGuard([](const QStringList&,QString&){return QStringList{};});runtime.setBackgroundScan(true);
+    runtime.command(project(profile),[](const QJsonObject&){});QTRY_COMPARE(record->opens.load(),1);
+    auto moved=project(profile);auto document=moved["project"].toObject();auto assignments=document["assignments"].toArray();
+    auto first=assignments[0].toObject();first["channelId"]="JARGB2";assignments[0]=first;document["assignments"]=assignments;moved["project"]=document;
+    QJsonObject reply;runtime.command(moved,[&reply](const QJsonObject& r){reply=r;});QVERIFY(reply.value("ok").toBool());
+    // The 5 s retry would be the second scan; one scan must be enough.
+    QTRY_COMPARE_WITH_TIMEOUT(record->opens.load(),2,3000);
+    QVERIFY(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString()!="Not responding");
 } catch(const std::exception& e){QFAIL(e.what());}
 // A scan hung in the driver is given up at its deadline: callers get a reply with an error, no
 // second scan piles up while it hangs, and scanning resumes once it returns (CodeRabbit 2026-11-17).

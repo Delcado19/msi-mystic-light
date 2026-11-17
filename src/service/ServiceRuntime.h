@@ -55,6 +55,7 @@ private:
     struct ScanMailbox { std::mutex mutex; ServiceRuntime* owner=nullptr; std::atomic_bool finished{false}; };
     void applyScan(const ScanResult& result);
     void stopConnections();
+    void retireAndWait(const std::function<bool(int)>& unwanted); // Retire matching connections, bounded wait.
     // A worker can hang inside a driver call without timeout (dump 2026-11-17: hidapi's
     // HidD_GetSerialNumberString on the MSI controller 0DB0:0076 never returned, and the main thread
     // joined it forever, so the pipe stopped answering). Stopped workers are therefore never joined on

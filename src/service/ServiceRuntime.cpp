@@ -62,9 +62,11 @@ void ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     }
     auto saved=bundle;QJsonArray pausedJson;for(const auto& entry:paused)pausedJson.append(entry);saved["paused"]=pausedJson;
     if(save)writeFile(directory_+"/playback.json",StudioService::encode(saved).mid(4));
-    // Running outputs stay open: tick() matches frames to connections by output scope, and the scan
-    // that follows a project command retires only connections whose scope changed. Closing all of
-    // them froze the lights for a whole scan on every drag (owner report 2026-11-17).
+    // Running outputs whose scope is unchanged stay open: tick() matches frames to connections by
+    // output scope. Closing all of them froze the lights for a whole scan on every drag (owner report
+    // 2026-11-17). Changed scopes, and everything when output is disabled, are released right here.
+    const auto keep=bundle.value("enabled").toBool() ? frames : QVector<OutputFrame>{}; // Same shape as scopes_.
+    retireAndWait([&](int i){return std::none_of(keep.cbegin(),keep.cend(),[&](const OutputFrame& frame){return sameOutputScope(scopes_[i],frame);});});
     document_=std::move(candidate);project_=bundle.value("project").toObject();
     enabled_=bundle.value("enabled").toBool();playing_=bundle.value("playing").toBool();offset_=time;clock_.restart();paused_=paused;error_.clear();
 }
@@ -89,11 +91,16 @@ bool ServiceRuntime::retiring(const QString& endpoint) const {
     return std::any_of(retired_.cbegin(),retired_.cend(),[&](const Retired& retired){return retired.endpoint==endpoint;});
 }
 void ServiceRuntime::stopConnections() {
+    retireAndWait([](int){return true;});
+}
+void ServiceRuntime::retireAndWait(const std::function<bool(int)>& unwanted) {
     std::vector<const OutputScheduler*> stopped;
-    while(!connections_.empty()) {stopped.push_back(connections_.back().get());retire(int(connections_.size())-1);}
-    // A healthy worker ends within one HID write; give the ones stopped here one bounded second so an
-    // immediate reconnect (project load, resume) can reopen their endpoints. Workers that hung in an
-    // earlier call are not waited for again, or every project sync would freeze rendering for 1 s.
+    for(int i=int(connections_.size())-1;i>=0;--i)if(unwanted(i)) {stopped.push_back(connections_[i].get());retire(i);}
+    // A healthy worker ends within one HID write; give the ones stopped here one bounded second so the
+    // same scan (or an immediate reconnect) can reopen their endpoints. Without the wait a retired
+    // worker was still Stopping at reap(), its endpoint counted as held and reopened two scans late
+    // (final review 2026-11-17). Workers that hung in an earlier call are not waited for again, or
+    // every project sync would freeze rendering for 1 s.
     const auto pending=[&] {return std::any_of(retired_.cbegin(),retired_.cend(),[&](const Retired& retired) {
         return std::find(stopped.cbegin(),stopped.cend(),retired.scheduler.get())!=stopped.cend();});};
     QElapsedTimer waited;waited.start();
@@ -220,13 +227,11 @@ void ServiceRuntime::applyScan(const ScanResult& result) {
         auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
         frames.removeIf([&](const OutputFrame& frame){return result.blocked.contains(frame.endpoint);});
         // Offline saved endpoints are omitted by connect_; retry them without resetting healthy hardware.
-        for(int i=int(connections_.size())-1;i>=0;--i) {
+        retireAndWait([&](int i) {
             const auto state=connections_[i]->status().state;
             const bool wanted=std::any_of(frames.cbegin(),frames.cend(),[&](const auto& frame){return sameOutputScope(scopes_[i],frame);});
-            if(wanted && (state==OutputScheduler::State::Starting || state==OutputScheduler::State::Running))continue;
-            retire(i);
-        }
-        reap();
+            return !wanted || (state!=OutputScheduler::State::Starting && state!=OutputScheduler::State::Running);
+        });
         // An endpoint whose old worker is still alive is not reopened: a hung driver call would only
         // gain a second stuck worker on every retry.
         QVector<OutputFrame> missing;

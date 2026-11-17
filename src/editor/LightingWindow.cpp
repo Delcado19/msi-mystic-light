@@ -1250,8 +1250,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* duplicate=editMenu->addAction("Duplicate selection");duplicate->setObjectName("duplicateSelection");duplicate->setShortcut(QKeySequence("Ctrl+D"));
     connect(duplicate,&QAction::triggered,this,[this]{auto* focus=QApplication::focusWidget();if(qobject_cast<QLineEdit*>(focus) || qobject_cast<QAbstractSpinBox*>(focus) || qobject_cast<QTextEdit*>(focus) || qobject_cast<QPlainTextEdit*>(focus))return;if(tabs_->currentIndex()!=2)(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->duplicateSelection();});
     auto* remove=editMenu->addAction("Delete selection");remove->setObjectName("deleteSelection");
-    // Canvas edits have no effect in Devices, so they are not offered there (owner report 2026-11-17).
-    connect(tabs_,&QTabWidget::currentChanged,this,[lock,unlock,duplicate,remove](int index){for(auto* action:{lock,unlock,duplicate,remove})action->setEnabled(index<2);});
+    // Canvas edits are offered only where they act: in Design with a selection (owner report and final review 2026-11-17).
+    connect(tabs_,&QTabWidget::currentChanged,this,[this](int){refreshToolOptions();});
     connect(remove,&QAction::triggered,this,[this]{if(tabs_->currentIndex()<2)(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->deleteSelection();});
     auto* rename=new QAction("Rename",this);rename->setObjectName("renameLayer");connect(rename,&QAction::triggered,this,[this]{if(layers_->currentItem())layers_->editItem(layers_->currentItem(),0);});
     auto* visibility=new QAction("Show / hide",this);visibility->setObjectName("toggleLayerVisibility");connect(visibility,&QAction::triggered,this,[this]{
@@ -1817,7 +1817,7 @@ void LightingWindow::refreshToolOptions()
     if(auto* button=findChild<QButtonGroup*>("drawingToolGroup")->button(int(tool)))button->setChecked(true);
     const bool panning=tool==LightingCanvas::Tool::Pan;
     const bool hasSelection=!(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->selections().isEmpty() || (tabs_->currentIndex()==1 && selected && selected->container && !selected->locked);
-    for(const auto& name:{"duplicateSelection","deleteSelection"})if(auto* action=findChild<QAction*>(name))action->setEnabled(tabs_->currentIndex()<2 && hasSelection);
+    for(const auto& name:{"duplicateSelection","deleteSelection","lockSelection","unlockSelection"})if(auto* action=findChild<QAction*>(name))action->setEnabled(tabs_->currentIndex()<2 && hasSelection);
     const int selectionCount=(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->selections().size();
     for(auto* action:findChildren<QAction*>())if(action->objectName().startsWith("align_"))
         action->setEnabled(selectionCount>=(action->objectName().contains("distribute") ? 3 : 2));
