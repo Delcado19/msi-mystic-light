@@ -57,7 +57,7 @@ void ServiceServer::serve(QLocalSocket* socket)
 // lets only SYSTEM, the server's own account (needed to add instances) and the configured owner
 // open it at all; authorizedClient below still checks the impersonated token as a second layer.
 // The owner keeps generic write, which includes FILE_CREATE_PIPE_INSTANCE: QLocalSocket opens with
-// GENERIC_WRITE, and clients reject foreign instances through trustedServer's process check.
+// GENERIC_WRITE, and clients reject foreign instances through trustedServer's SCM PID and binary-path check.
 bool ServiceServer::createInstance(bool first)
 {
     const auto self=StudioService::currentUserSid();

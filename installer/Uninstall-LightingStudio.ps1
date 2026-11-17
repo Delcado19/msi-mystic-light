@@ -43,7 +43,14 @@ function Remove-UserData {
 }
 if (!$PSCmdlet.ShouldProcess($destination, 'Remove Lighting Studio service, editor logon task, program files and service data')) { return }
 if (!$Quiet -and !$Elevated) {
-    if (!$RemoveUserData) { $RemoveUserData = (Read-Host 'Also delete your editor settings and unsaved recovery data? Saved project files are kept. [y/N]') -match '^(y|j)' }
+    if (!$RemoveUserData) {
+        # The one-line question was misread by the owner (2026-11-17); name each item and where it lives.
+        Write-Host 'Your personal editor data can be deleted too:'
+        Write-Host '  - window layout and editor preferences (registry: HKCU\Software\Delcado)'
+        Write-Host '  - the automatic backup of changes you never saved (%LOCALAPPDATA%\Delcado)'
+        Write-Host 'Projects you saved yourself (*.lighting.json) are never deleted.'
+        $RemoveUserData = (Read-Host 'Delete this personal editor data? [y/N]') -match '^(y|j)'
+    }
     if (!$RemovePawnIO -and (Test-Path -LiteralPath $pawnIOKey)) {
         Write-Host 'The PawnIO driver is shared. OpenRGB, Fan Control, LibreHardwareMonitor, ZenTimings and other'
         Write-Host 'hardware tools may need it and stop reading sensors or RAM if it is removed.'

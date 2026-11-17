@@ -4,6 +4,18 @@ Single maintainer, so no `dev` branch. Every feature gets its own branch and rea
 through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
 release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
 
+## Installed editor could not reach the service - 2026-11-17
+
+Owner report: empty conflict dialog ("Lighting service identity rejected"), SignalRGB effects stayed.
+Reproduced unelevated: `OpenProcess` on the LocalSystem service fails with ERROR_ACCESS_DENIED, so
+`trustedServer` rejected every request, including project sync (`C:\ProgramData\LightingStudio` had
+no playback.json). It now trusts the SCM PID plus the SCM-registered binary path. The tray icon is
+created right after the instance lock, before the blocking conflict scan, so "Open it from the tray"
+is true. Uninstaller question about user data names what it deletes. Release build and
+startup/service tests pass; untested against a real installed service. Open: slider drag jumps,
+split hardware preview shows the same view twice, uninstaller elevated window did not close on Enter
+(exit 0xC000013A after closing it with X, cause unknown).
+
 ## Responsive service and installed conflict dialog - 2026-11-16
 
 Branch `fix/service-responsive-conflict-stop` (off `feat/jargb2-shared-routing`). Owner report after
