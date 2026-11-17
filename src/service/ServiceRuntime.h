@@ -21,6 +21,8 @@ public:
     // Run hardware discovery and the conflict guard on a worker so the caller's thread (the service
     // pipe) keeps answering; a scan took ~6.5 s on the owner's system (measured 2026-11-16).
     void setBackgroundScan(bool value) { background_=value; }
+    // A background scan running longer than this is abandoned (default 30 s; tests shorten it).
+    void setScanDeadline(int milliseconds) { scanDeadline_.setInterval(milliseconds); }
     QJsonObject status() const;
     void suspend(bool suspended);
     // Returns the endpoints another program holds and explains them in message. Only those endpoints
@@ -45,6 +47,7 @@ private:
     void reconnect(std::function<void()> done={});
     void startScan();
     void finishScan(const ScanResult& result);
+    void abandonScan(); // Deadline reached: give up the running scan and answer its callers.
     // Shared with the scan worker so it never needs `this`; owner is cleared by the destructor.
     struct ScanMailbox { std::mutex mutex; ServiceRuntime* owner=nullptr; std::atomic_bool finished{false}; };
     void applyScan(const ScanResult& result);
@@ -72,7 +75,7 @@ private:
     std::vector<Retired> retired_;
     QSet<QString> paused_;
     QJsonObject project_;
-    QTimer render_,retry_,reopen_;
+    QTimer render_,retry_,reopen_,scanDeadline_;
     QElapsedTimer clock_;
     QElapsedTimer identifyClock_; // Identify flash expires in the service itself, even if the editor closes.
     double offset_=0;
@@ -81,6 +84,7 @@ private:
     // following one, so a reply never reports a scan that started before its command.
     std::thread scanner_;
     std::shared_ptr<ScanMailbox> mailbox_=std::make_shared<ScanMailbox>();
+    std::shared_ptr<ScanMailbox> abandoned_; // A scan given up at its deadline, until its worker returns.
     std::vector<std::function<void()>> waiting_,next_;
     bool background_=false,scanning_=false;
 };

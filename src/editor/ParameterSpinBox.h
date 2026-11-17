@@ -18,6 +18,8 @@ public:
         // explicit edit and rounds (CodeRabbit review 2026-11-16).
         connect(lineEdit(),&QLineEdit::textEdited,this,[this]{edited_=true;});
         connect(this,&QAbstractSpinBox::editingFinished,this,[this]{edited_=false;});
+        // A programmatic value change replaces the typed text, so it is no longer an edit (CodeRabbit 2026-11-17).
+        connect(this,&QDoubleSpinBox::valueChanged,this,[this]{edited_=false;});
     }
     void setDisplayUnit(double scale,const QString& unit) {
         scale_=scale; setProperty("displayScale",scale); setSuffix(unit);

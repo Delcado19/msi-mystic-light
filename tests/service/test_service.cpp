@@ -73,6 +73,7 @@ private slots:
  void hungDriverCallKeepsAnswering();
  void reopenReinitializesOutputs();
  void unprobedEndpointStaysClosed();
+ void hungScanIsAbandoned();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
 };
@@ -269,6 +270,27 @@ void ServiceTest::persistedPauseAndReconnect() {
     ServiceRuntime restored({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QCOMPARE(restored.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Paused"));
 }
+// A scan hung in the driver is given up at its deadline: callers get a reply with an error, no
+// second scan piles up while it hangs, and scanning resumes once it returns (CodeRabbit 2026-11-17).
+void ServiceTest::hungScanIsAbandoned() try {
+    QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    auto hold=std::make_shared<std::atomic_bool>(true);auto scans=std::make_shared<std::atomic_int>(0);
+    const auto scan=[hold,scans] {
+        if(scans->fetch_add(1)==0)while(hold->load())std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        return QVector<ProfileCandidate>{};
+    };
+    struct Release {std::shared_ptr<std::atomic_bool> hold;~Release(){hold->store(false);}} release{hold};
+    ServiceRuntime runtime({}, {profile},folder.path(),scan,[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};});
+    runtime.setBackgroundScan(true);runtime.setScanDeadline(300);QTRY_COMPARE(scans->load(),1);
+    QJsonObject first;runtime.command(cmd("scan"),[&first](const QJsonObject& reply){first=reply;});
+    QTRY_VERIFY_WITH_TIMEOUT(!first.isEmpty(),3000);
+    QVERIFY(first.value("error").toString().contains("did not finish"));
+    QJsonObject second;runtime.command(cmd("scan"),[&second](const QJsonObject& reply){second=reply;});
+    QTRY_VERIFY_WITH_TIMEOUT(!second.isEmpty(),3000);QCOMPARE(scans->load(),1); // No second stuck worker.
+    hold->store(false);QTest::qWait(50);
+    QJsonObject third;runtime.command(cmd("scan"),[&third](const QJsonObject& reply){third=reply;});
+    QTRY_VERIFY_WITH_TIMEOUT(!third.isEmpty(),3000);QVERIFY(scans->load()>=2);
+} catch(const std::exception& e){QFAIL(e.what());}
 // With a conflict guard, an endpoint is opened only after a scan probed it for other writers
 // (CodeRabbit review 2026-11-16: endpoints added or freed during a scan were opened unchecked).
 void ServiceTest::unprobedEndpointStaysClosed() try {

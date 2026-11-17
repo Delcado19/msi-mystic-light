@@ -28,6 +28,8 @@ ServiceRuntime::ServiceRuntime(ComponentCatalog catalog,QVector<DeviceProfile> p
     } catch(const std::exception& e) {error_=QString("Saved project rejected: ")+e.what();enabled_=false;}
     render_.setInterval(33);render_.setTimerType(Qt::PreciseTimer);QObject::connect(&render_,&QTimer::timeout,this,[this]{tick();});render_.start();
     retry_.setInterval(5000);QObject::connect(&retry_,&QTimer::timeout,this,[this]{reconnect();});retry_.start();
+    scanDeadline_.setSingleShot(true);scanDeadline_.setInterval(30000);   // A normal scan takes ~6.5 s.
+    QObject::connect(&scanDeadline_,&QTimer::timeout,this,[this]{abandonScan();});
     reopen_.setSingleShot(true);reopen_.setInterval(1500);
     QObject::connect(&reopen_,&QTimer::timeout,this,[this]{if(suspended_ || !enabled_)return;stopConnections();reconnect();});
     QTimer::singleShot(0,this,[this]{reconnect();});
@@ -152,8 +154,17 @@ void ServiceRuntime::reconnect(std::function<void()> done) {
     if(!scanning_)startScan();
 }
 void ServiceRuntime::startScan() {
+    // A scan abandoned at its deadline may still hang in the driver. Start no second one meanwhile, or
+    // every retry would add another stuck thread; answer the callers with the error instead.
+    if(abandoned_ && !abandoned_->finished.load()) {
+        const auto skipped=std::move(next_);next_.clear();
+        for(const auto& answer:skipped)answer();
+        return;
+    }
+    abandoned_.reset();
     if(scanner_.joinable())scanner_.join();   // The previous worker has already posted its result.
     scanning_=true;waiting_=std::move(next_);next_.clear();
+    scanDeadline_.start();
     // The target snapshot is taken here: the worker must not read scopes_. It never touches `this`;
     // the mailbox is cleared by the destructor before an abandoned worker could use it.
     mailbox_=std::make_shared<ScanMailbox>();mailbox_->owner=this;
@@ -165,7 +176,19 @@ void ServiceRuntime::startScan() {
             QMetaObject::invokeMethod(owner,[owner,result=std::move(result)]{owner->finishScan(result);},Qt::QueuedConnection);
     });
 }
+void ServiceRuntime::abandonScan() {
+    if(!scanning_)return;
+    // hid_enumerate reads serial numbers and can hang like a device open (CodeRabbit review 2026-11-17:
+    // a hung scan blocked retries and replies until restart). Its late result is never delivered.
+    {const std::lock_guard<std::mutex> lock(mailbox_->mutex);mailbox_->owner=nullptr;}
+    abandoned_=mailbox_;scanner_.detach();scanning_=false;
+    error_="Hardware discovery did not finish within "+QString::number(scanDeadline_.interval()/1000.0)+" s; a device may not respond. Retrying once it returns";
+    const auto done=std::move(waiting_);waiting_.clear();
+    for(const auto& answer:done)answer();
+    if(!next_.empty())startScan();
+}
 void ServiceRuntime::finishScan(const ScanResult& result) {
+    scanDeadline_.stop();
     scanning_=false;applyScan(result);
     const auto done=std::move(waiting_);waiting_.clear();
     for(const auto& answer:done)answer();

@@ -599,7 +599,10 @@ QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& end
     const auto checks = busy.isEmpty() ? QVector<EndpointCheck>{} : writersFor(busy);
     for (const auto& check : checks) {
         if (!check.error.isEmpty()) { captureError = check.error; if (error) *error = check.error; }
-        for (const auto& writer : check.holders) add(writer, "Sends lighting commands to " + endpointLabel(check.endpoint));
+        // A verdict can be up to 10 s old; a writer stopped since then must not be listed again
+        // (CodeRabbit review 2026-11-17). Unknown creation time: alive() cannot tell, so keep it.
+        for (const auto& writer : check.holders) if (!writer.started || alive(writer))
+            add(writer, "Sends lighting commands to " + endpointLabel(check.endpoint));
     }
     if (!result.isEmpty()) {
         // Add each writer's program family, topmost first, so a launcher is listed and stopped before
