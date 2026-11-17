@@ -1014,17 +1014,25 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* panAction=new QAction("Pan canvas",this);panAction->setObjectName("panCanvasAction");panAction->setShortcut(QKeySequence(Qt::Key_H));addAction(panAction);connect(panAction,&QAction::triggered,hand,&QToolButton::click);
     tools->addSeparator();
     auto* sources=new QToolButton;sources->setObjectName("sourcesTool");sources->setIcon(studioToolIcon("add"));sources->setAccessibleName("Add effect or image");
-    sources->setToolTip("Add effect or image: search the library. A selected group receives the new effect; a selected child receives a sibling. Otherwise a separate layer is created.");sources->setFixedSize(32,32);sources->setPopupMode(QToolButton::InstantPopup);
+    sources->setToolTip("Add effect or image: search the library. A selected group receives the new effect; a selected child receives a sibling. Otherwise a separate layer is created.");sources->setPopupMode(QToolButton::InstantPopup);
+    // A sparkle instead of a bare "+" with a dropdown arrow (owner report 2026-11-17). It stays
+    // icon-sized: the vertical tool strip beside the canvas must not widen.
+    sources->setText("Add effect");sources->setIcon(studioToolIcon("add-effect"));sources->setFixedSize(32,32);
+    sources->setStyleSheet("QToolButton::menu-indicator{image:none;width:0px;}");
     auto* sourceMenu=new QMenu(sources);sourceMenu->setObjectName("effectLibraryMenu");sources->setMenu(sourceMenu);
     auto* generatorPopupBody=new QWidget;auto* generatorPopupLayout=new QVBoxLayout(generatorPopupBody);generatorPopupLayout->setContentsMargins(8,8,8,8);
     auto* search=new QLineEdit;search->setObjectName("effectLibrarySearch");search->setPlaceholderText("Search effects and images...");search->setAccessibleName("Search effect library");search->installEventFilter(this);generatorPopupLayout->addWidget(search);
     auto* results=new QListWidget;results->setObjectName("effectLibraryResults");results->setFixedSize(300,340);generatorPopupLayout->addWidget(results);
     for(auto* category:{patterns,shapes,particlesMenu,organic,scenes}) {
         auto* heading=new QListWidgetItem(category->title(),results);heading->setFlags(Qt::NoItemFlags);auto font=heading->font();font.setBold(true);heading->setFont(font);
-        for(auto* entry:category->actions())if(!entry->isSeparator()) {
+        // Sorted by name inside each category; the definition order read as unsorted (owner 2026-11-17).
+        auto entries=category->actions();entries.removeIf([](QAction* entry){return entry->isSeparator();});
+        std::sort(entries.begin(),entries.end(),[](QAction* a,QAction* b){return QString::localeAwareCompare(a->text(),b->text())<0;});
+        for(auto* entry:entries) {
             auto* item=new QListWidgetItem(entry->text(),results);item->setData(Qt::UserRole,entry->objectName());item->setToolTip(entry->toolTip());
         }
     }
+    {auto* heading=new QListWidgetItem("Images",results);heading->setFlags(Qt::NoItemFlags);auto font=heading->font();font.setBold(true);heading->setFont(font);}
     imageAction->setObjectName("importImageAction");auto* imageItem=new QListWidgetItem("Import image...",results);imageItem->setData(Qt::UserRole,imageAction->objectName());
     auto* libraryAction=new QWidgetAction(sourceMenu);libraryAction->setDefaultWidget(generatorPopupBody);sourceMenu->addAction(libraryAction);
     const auto filterLibrary=[this,results](const QString& text){

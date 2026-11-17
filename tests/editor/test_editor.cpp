@@ -191,6 +191,7 @@ private slots:
     void liveColorPicker();
     void hueSliderColorizesGrayStop();
     void menusFollowWorkspace();
+    void effectLibraryCategorized();
     void hueTrackRetainsSpectrum();
     void screenEyedropperGeometry();
     void auditWorkspace();
@@ -4203,6 +4204,33 @@ void EditorTest::authoringControlsRegression()
 // only the hue slider changed nothing and Apply kept gray. Hue on an achromatic color must show.
 // Owner report 2026-11-17: saving was impossible in Devices, Edit offered commands without effect
 // there, "Add layer" existed twice, and the output link duplicated the Devices button.
+// Owner report 2026-11-17: the effect list looked unsorted, and the "+" with a dropdown arrow did
+// not say what it does.
+void EditorTest::effectLibraryCategorized()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* button=window.findChild<QToolButton*>("sourcesTool");QVERIFY(button);
+    QCOMPARE(button->text(),QString("Add effect"));QVERIFY(button->styleSheet().contains("menu-indicator{image:none"));
+    QVERIFY(button->icon().pixmap(24,24).toImage()!=studioToolIcon("add").pixmap(24,24).toImage());
+    auto* results=window.findChild<QListWidget*>("effectLibraryResults");QVERIFY(results);
+    const auto isHeading=[](QListWidgetItem* item){return item->data(Qt::UserRole).toString().isEmpty();};
+    QVERIFY(isHeading(results->item(0)));
+    QString previous;int headings=0;
+    for(int i=0;i<results->count();++i) {
+        auto* item=results->item(i);
+        if(isHeading(item)){previous.clear();++headings;continue;}
+        QVERIFY2(QString::localeAwareCompare(previous,item->text())<=0,qPrintable(previous+" > "+item->text()));
+        previous=item->text();
+    }
+    QVERIFY(headings>=6); // Five effect categories plus Images.
+    window.findChild<QLineEdit*>("effectLibrarySearch")->setText("a");
+    bool headingShown=false;
+    for(int i=0;i<results->count();++i) {
+        auto* item=results->item(i);if(item->isHidden())continue;
+        if(isHeading(item))headingShown=true;else QVERIFY2(headingShown,qPrintable(item->text()));
+    }
+}
+
 void EditorTest::menusFollowWorkspace()
 {
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
