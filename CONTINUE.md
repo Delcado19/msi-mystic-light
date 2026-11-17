@@ -4,6 +4,19 @@ Single maintainer, so no `dev` branch. Every feature gets its own branch and rea
 through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
 release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
 
+## Editor fixes and menu cleanup, R16 - 2026-11-17
+
+Branch fix/editor-menu-cleanup (off fix/service-responsive-conflict-stop), plan
+docs/superpowers/plans/2026-11-17-editor-fixes-and-menu-cleanup.md. Gray color stop: complementary
+neighbors interpolate to gray and the hue slider could not tint it; hue now adds saturation.
+Project edits keep running outputs (drag updated the lights only after a scan). Save/Undo work in
+Devices; canvas edits disabled there; Add layer removed from Edit and Tools; output status is a
+traffic light (green active, gray idle, red errors). Effect library sorted, Images heading, sparkle
+button. Portable start = msi_mystic_light.exe. Untested on HW.
+TODO: effect previews in the library. TODO: operating-concept redesign (hardware cards per header
+like SignalRGB, duplicate/remove/pulse per component, custom strip by LED count, component lab);
+needs a spec via brainstorming first.
+
 ## CodeRabbit round 2 fixes, R12 - 2026-11-17
 
 R11 HW-confirmed by owner: dialog lists SignalRGB, Terminate all stops it, Vulcan no longer flickers.
