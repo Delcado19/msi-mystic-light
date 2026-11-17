@@ -93,6 +93,8 @@ private:
 // True when the process runs as ownerSid without elevation. Stopping it grants the requester nothing
 // they could not do themselves.
 bool runsAsPlainUser(const ConflictProcess& process, const QString& ownerSid);
+// False once this instance has exited (or its PID belongs to a newer process).
+bool conflictProcessRunning(const ConflictProcess& process);
 // Privilege boundary of the LocalSystem service (security review 2026-11-16): any process of the
 // owner's account can send stop requests. Suspected holders and family members may therefore be
 // stopped only when they run as the owner without elevation; anything more privileged needs proof
@@ -105,6 +107,9 @@ public:
     DetectedConflicts(QVector<ConflictProcess> list, QString ownerSid) : list_(std::move(list)), owner_(std::move(ownerSid)) {}
     QVector<ConflictProcess> scan() override { return list_; }
     QString stop(const ConflictProcess& process, bool force) override {
+        // A child that ended with its parent (QtWebEngineProcess under SignalRgb.exe) cannot be opened
+        // any more, which runsAsPlainUser reads as "higher rights"; it is simply gone (owner report 2026-11-17).
+        if (!conflictProcessRunning(process)) return {};
         const auto refusal = stopAllowed(process, runsAsPlainUser(process, owner_));
         return refusal.isEmpty() ? stopHolder(process, force) : refusal;
     }

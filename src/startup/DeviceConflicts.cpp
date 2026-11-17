@@ -420,6 +420,18 @@ bool endpointBusy(const QString& endpoint)
 #endif
 }
 
+bool conflictProcessRunning(const ConflictProcess& process)
+{
+#ifdef Q_OS_WIN
+    Handle handle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, process.pid));
+    // Access denied means it exists; only "no such process" or a finished/replaced one counts as gone.
+    if (!handle) return GetLastError() != ERROR_INVALID_PARAMETER;
+    return WaitForSingleObject(handle.get(), 0) == WAIT_TIMEOUT && (!process.started || creationTime(handle.get()) == process.started);
+#else
+    Q_UNUSED(process); return true;
+#endif
+}
+
 bool runsAsPlainUser(const ConflictProcess& process, const QString& ownerSid)
 {
 #ifdef Q_OS_WIN

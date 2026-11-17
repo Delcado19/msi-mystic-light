@@ -169,6 +169,14 @@ private slots:
         suspect.provenHolder=true;QVERIFY(stopAllowed(suspect,false).isEmpty());
         ConflictProcess known{8,"LEDKeeper2.exe","C:/MSI/LEDKeeper2.exe","related",1,false};
         QVERIFY(stopAllowed(known,false).isEmpty());      // Known program: its own verified stop path.
+#ifdef Q_OS_WIN
+        // A family member that exited with its parent is reported as stopped, not as "higher rights"
+        // (owner report 2026-11-17: QtWebEngineProcess under SignalRgb.exe).
+        ConflictProcess gone{0x7ffffff0u,"QtWebEngineProcess.exe","C:/rgb/QtWebEngineProcess.exe","family",1,false}; // No process has this PID.
+        QVERIFY(!conflictProcessRunning(gone));
+        DetectedConflicts detected({gone},"S-1-5-21-1-2-3-4");
+        QCOMPARE(detected.stop(gone,true),QString());
+#endif
     }
     void exactNamesAndGuards() {
         QVERIFY(!conflictReason("C:/rgb/SignalRgb.EXE").isEmpty());
