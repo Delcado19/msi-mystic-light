@@ -12,6 +12,20 @@ cable" option or equal "Starts at LED" values). Usability defect, not a bug: mak
 where the user works with a single fan (for example from the selected component), and consider
 fans on different headers, which cannot be linked at all today. Not started; design open.
 
+## TODO: custom hardware lives only inside the project - 2026-11-17
+
+Owner report after uninstall/R10 install: Glacier One M25 Gen2 / AiO and the edited D30-120 (16
+LEDs) were missing from Add hardware. Cause (code-verified): `HardwarePicker` gets
+`document_.catalog()` (`LightingWindow.cpp:1574`) plus built-ins and SignalRGB component files;
+custom definitions (`instance.*`) exist only in the project file. Losing the project loses them.
+Plan: keep a per-user hardware library outside projects, offered in every project. Not started.
+
+## TODO: uninstaller deletes the owner's project - 2026-11-17
+
+The uninstall removed the editor data including the current layout (recovered from the service
+snapshot and an old `default.lighting.json`). Projects and custom hardware must only be deleted
+after an unambiguous question, with a backup offered first. Wording of today's prompt unchecked.
+
 ## Hung device open and project-only conflict check - 2026-11-17
 
 Dump of the deaf service: a worker hung in hidapi's `HidD_GetSerialNumberString` on 0DB0:0076 and
