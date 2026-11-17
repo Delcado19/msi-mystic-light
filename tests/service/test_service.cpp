@@ -271,6 +271,9 @@ void ServiceTest::hungDriverCallKeepsAnswering() try {
     QElapsedTimer timer;timer.start();
     QVERIFY(runtime.command(project(profile)).value("ok").toBool());
     QVERIFY2(timer.elapsed()<5000,"project command blocked on the hung worker");
+    // A worker that hung in an earlier call is not waited for again on the next sync.
+    timer.restart();QVERIFY(runtime.command(project(profile)).value("ok").toBool());
+    QVERIFY2(timer.elapsed()<300,"project command waited again for an earlier hung worker");
     for(int i=0;i<3;++i)QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());
     QCOMPARE(opens->load(),1); // No second stuck worker on the same endpoint.
     QCOMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Not responding"));

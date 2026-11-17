@@ -80,11 +80,15 @@ bool ServiceRuntime::retiring(const QString& endpoint) const {
     return std::any_of(retired_.cbegin(),retired_.cend(),[&](const Retired& retired){return retired.endpoint==endpoint;});
 }
 void ServiceRuntime::stopConnections() {
-    while(!connections_.empty())retire(int(connections_.size())-1);
-    // A healthy worker ends within one HID write; give all of them one bounded second so an immediate
-    // reconnect (project load, resume) can reopen their endpoints. A hung one stays retired.
+    std::vector<const OutputScheduler*> stopped;
+    while(!connections_.empty()) {stopped.push_back(connections_.back().get());retire(int(connections_.size())-1);}
+    // A healthy worker ends within one HID write; give the ones stopped here one bounded second so an
+    // immediate reconnect (project load, resume) can reopen their endpoints. Workers that hung in an
+    // earlier call are not waited for again, or every project sync would freeze rendering for 1 s.
+    const auto pending=[&] {return std::any_of(retired_.cbegin(),retired_.cend(),[&](const Retired& retired) {
+        return std::find(stopped.cbegin(),stopped.cend(),retired.scheduler.get())!=stopped.cend();});};
     QElapsedTimer waited;waited.start();
-    for(reap();!retired_.empty() && waited.elapsed()<1000;reap())std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    for(reap();pending() && waited.elapsed()<1000;reap())std::this_thread::sleep_for(std::chrono::milliseconds(5));
 }
 void ServiceRuntime::suspend(bool value) {
     if(suspended_==value)return;
@@ -96,11 +100,16 @@ ServiceRuntime::~ServiceRuntime() {
     // shortcut: a worker still hung in a driver call is leaked instead of joined, so the service can
     // stop (sc stop hung in STOP_PENDING, 2026-11-17); safe only because the process exits next.
     for(auto& retired:retired_)(void)retired.scheduler.release();
-    // The worker posts its result to this object; wait for it before members disappear. hid_enumerate
-    // reads serial numbers too, so a scan can hang like an open; then it is abandoned the same way.
-    // shortcut: a detached scanner that returns after this point posts to a destroyed object; the
-    // process is exiting by then. Upgrade to a shared state object if the runtime ever outlives exit.
-    if(scanner_.joinable()) {if(scanning_)scanner_.detach();else scanner_.join();}
+    // The worker posts its result to this object; wait for it before members disappear (a result
+    // posted but not yet delivered is dropped by ~QObject). hid_enumerate reads serial numbers too, so
+    // a scan can hang like an open; one still running after 10 s (a normal scan takes ~6.5 s) is abandoned.
+    // shortcut: an abandoned scanner that returns later posts to a destroyed object; the process is
+    // exiting by then. Upgrade to a shared state object if the runtime ever outlives a stuck scan.
+    if(scanner_.joinable()) {
+        QElapsedTimer waited;waited.start();
+        while(!scanFinished_->load() && waited.elapsed()<10000)std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if(scanFinished_->load())scanner_.join();else scanner_.detach();
+    }
 }
 // Runs on the scan worker when background scanning is on: touches only its arguments.
 ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const Guard& guard,const QStringList& targets) {
@@ -138,7 +147,9 @@ void ServiceRuntime::startScan() {
     if(scanner_.joinable())scanner_.join();   // The previous worker has already posted its result.
     scanning_=true;waiting_=std::move(next_);next_.clear();
     // The target snapshot is taken here: the worker must not read scopes_.
-    scanner_=std::thread([this,scan=scan_,guard=simulation_?Guard{}:guard_,targets=probeTargets()] {
+    scanFinished_=std::make_shared<std::atomic_bool>(false);
+    scanner_=std::thread([this,scan=scan_,guard=simulation_?Guard{}:guard_,targets=probeTargets(),finished=scanFinished_] {
+        struct Done {std::shared_ptr<std::atomic_bool> flag;~Done(){flag->store(true);}} done{finished};
         auto result=runScan(scan,guard,targets);
         QMetaObject::invokeMethod(this,[this,result=std::move(result)] {
             scanning_=false;applyScan(result);

@@ -100,7 +100,8 @@ A device open or HID call can hang inside the driver without timeout (2026-11-17
 controller never answered `HidD_GetSerialNumberString`). Stopped output workers are never
 joined on the service thread while alive: after one bounded second a hung worker is set
 aside, its endpoint reports **Not responding** and is not reopened until the call returns, and
-the pipe keeps answering. On service stop a still-hung worker is abandoned. A hung discovery
+the pipe keeps answering. A worker that hung earlier is not waited for again. On service stop a
+still-hung worker is abandoned, and a discovery scan still running after 10 s too. A hung discovery
 scan (hidapi also reads serial numbers while enumerating) still delays scan and project replies
 until it returns.
 

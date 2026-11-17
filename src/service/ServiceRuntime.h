@@ -3,6 +3,7 @@
 #include <QElapsedTimer>
 #include <QJsonObject>
 #include <QTimer>
+#include <atomic>
 #include <thread>
 // Owns the persisted playback session. No client file paths or plugin paths enter this API.
 class ServiceRuntime : public QObject {
@@ -70,6 +71,7 @@ private:
     // Background scan: one worker at a time. waiting_ is answered by the running scan, next_ by the
     // following one, so a reply never reports a scan that started before its command.
     std::thread scanner_;
+    std::shared_ptr<std::atomic_bool> scanFinished_=std::make_shared<std::atomic_bool>(true); // Set last by the scanner.
     std::vector<std::function<void()>> waiting_,next_;
     bool background_=false,scanning_=false;
 };
