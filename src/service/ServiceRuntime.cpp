@@ -28,6 +28,8 @@ ServiceRuntime::ServiceRuntime(ComponentCatalog catalog,QVector<DeviceProfile> p
     } catch(const std::exception& e) {error_=QString("Saved project rejected: ")+e.what();enabled_=false;}
     render_.setInterval(33);render_.setTimerType(Qt::PreciseTimer);QObject::connect(&render_,&QTimer::timeout,this,[this]{tick();});render_.start();
     retry_.setInterval(5000);QObject::connect(&retry_,&QTimer::timeout,this,[this]{reconnect();});retry_.start();
+    reopen_.setSingleShot(true);reopen_.setInterval(1500);
+    QObject::connect(&reopen_,&QTimer::timeout,this,[this]{if(suspended_ || !enabled_)return;stopConnections();reconnect();});
     QTimer::singleShot(0,this,[this]{reconnect();});
 }
 double ServiceRuntime::seconds() const {
@@ -260,7 +262,8 @@ void ServiceRuntime::command(const QJsonObject& request,const Reply& reply) {
             bool known=false;for(const auto& item:document_->state().placements)if(item.id==placement)known=true;
             if(placement.isNull() || !known || !document_->hasSoftwareChannel(placement))throw std::invalid_argument("Unknown identify component");
             document_->setIdentifyPlacement(placement);identifyClock_.start();
-        } else if(op!="status" && op!="snapshot")throw std::invalid_argument("Unknown service command");
+        } else if(op=="reopen")reopenOutputs(); // Sent by the editor after an administrator (UAC) stop.
+        else if(op!="status" && op!="snapshot")throw std::invalid_argument("Unknown service command");
         const auto answer=[this,op,reply]{auto result=status();if(op=="snapshot" && !project_.isEmpty())result["project"]=project_;reply(result);};
         if(rescan)reconnect(answer);else answer();
     } catch(const std::exception& e) {reply({{"ok",false},{"error",QString::fromUtf8(e.what())}});}

@@ -162,10 +162,13 @@ int run(int argc,char** argv,bool managed) {
         }
         const auto pid=quint32(request.value("pid").toInteger());const auto started=request.value("started").toString().toULongLong();
         const bool force=request.value("force").toBool();
-        std::thread([monitor,answer,reply,pid,started,force,owner] {
+        std::thread([monitor,answer,reply,pid,started,force,owner,runtime=&runtime] {
             QString error;
             try {DetectedConflicts detected(monitor->last(),owner);error=stopListedConflict(detected,pid,started,force);}
             catch(const std::exception& e) {error=QString::fromUtf8(e.what());}
+            // The stopped program may have left a device in its own mode; re-initialize our outputs.
+            if(force && error.isEmpty())if(auto* app=QCoreApplication::instance())
+                QMetaObject::invokeMethod(app,[runtime]{runtime->reopenOutputs();},Qt::QueuedConnection);
             answer(reply,{{"ok",true},{"stopError",error}});
         }).detach();
         return true;

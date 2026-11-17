@@ -71,6 +71,7 @@ private slots:
  void persistedPauseAndReconnect();
  void offlineEndpointKeepsHealthyOutput();
  void hungDriverCallKeepsAnswering();
+ void reopenReinitializesOutputs();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
 };
@@ -267,6 +268,24 @@ void ServiceTest::persistedPauseAndReconnect() {
     ServiceRuntime restored({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QCOMPARE(restored.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Paused"));
 }
+// After another program was stopped, every output is opened (and so initialized) again once,
+// however many stops arrive (owner report 2026-11-17: the Vulcan flickered after Terminate all).
+void ServiceTest::reopenReinitializesOutputs() try {
+    QTemporaryDir folder;const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);auto record=std::make_shared<Recording>();
+    const auto output=[record,profile](const QVector<OutputFrame>& frames){
+        QVector<OutputConnection> result;for(const auto& frame:frames)result.append({frame,[record,profile]{
+            ModuleRegistry modules;QString error;if(!modules.load(TEST_MODULE_PATH,&error))throw std::runtime_error(error.toStdString());
+            auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
+        },[record]{return record->present.load();}});return result;
+    };
+    ServiceRuntime runtime({}, {profile},folder.path(),[profile]{return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
+    QVERIFY(runtime.command(project(profile)).value("ok").toBool());QTRY_VERIFY(record->writes>1);
+    QCOMPARE(record->opens.load(),1);
+    QVERIFY(runtime.command(cmd("reopen")).value("ok").toBool());runtime.reopenOutputs();
+    QTRY_COMPARE_WITH_TIMEOUT(record->opens.load(),2,4000);
+    const int writes=record->writes;QTRY_VERIFY(record->writes>writes);
+    QTest::qWait(2000);QCOMPARE(record->opens.load(),2); // Two requests, one reopen.
+} catch(const std::exception& e){QFAIL(e.what());}
 // A driver call that never returns must not make the service deaf (dump 2026-11-17: the main
 // thread joined a worker stuck in HidD_GetSerialNumberString on the MSI controller).
 void ServiceTest::hungDriverCallKeepsAnswering() try {

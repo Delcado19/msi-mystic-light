@@ -75,7 +75,10 @@ QString ServiceConflictProcesses::stopElevated(const ConflictProcess& process) {
     if(!process.elevatedStop || !process.pid || !process.started)return "Refusing an invalid administrator stop";
     quint32 code=1;
     const auto error=elevate_({"--stop-process",QString::number(process.pid),QString::number(process.started)},code);
-    return error.isEmpty()?stopElevatedExitError(code):error;
+    const auto result=error.isEmpty()?stopElevatedExitError(code):error;
+    // The service did not see this stop; ask it to re-initialize its outputs (see reopenOutputs).
+    if(result.isEmpty())try{rpc_(command("reopen"));}catch(const std::exception&){}
+    return result;
 }
 QVector<ConflictProcess> ServiceConflictProcesses::scan() {
     QVector<ConflictProcess> result;const auto reply=rpc_(command("conflicts"));

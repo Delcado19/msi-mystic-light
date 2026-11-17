@@ -30,6 +30,10 @@ public:
     // Used by the periodic guard; the editor's conflict dialog checks the whole inventory instead.
     QStringList probeTargets() const;
     QVector<ProfileCandidate> inventory() const { return inventory_; }
+    // Reopens (and so re-initializes) every output shortly after another program was stopped; calls
+    // within 1.5 s collapse into one. Owner report 2026-11-17: after "Terminate all" stopped SignalRGB,
+    // the Roccat Vulcan flickered until a project change reopened it (cause inferred, not proven).
+    void reopenOutputs() { reopen_.start(); }
 private:
     void loadBundle(const QJsonObject& bundle,bool persist);
     void persist();
@@ -63,7 +67,7 @@ private:
     std::vector<Retired> retired_;
     QSet<QString> paused_;
     QJsonObject project_;
-    QTimer render_,retry_;
+    QTimer render_,retry_,reopen_;
     QElapsedTimer clock_;
     QElapsedTimer identifyClock_; // Identify flash expires in the service itself, even if the editor closes.
     double offset_=0;

@@ -160,7 +160,10 @@ process with higher rights that was not seen writing) is marked "administrator a
 required to stop": Terminate then runs `lighting_service_host.exe --stop-process <pid>
 <started>` through UAC, one approval per process. The helper re-reads the live process,
 refuses Windows images and Lighting Studio, and stops it like the service would
-(exit 0 stopped, 1 failed, 2 bad arguments, 3 identity changed, 4 refused). Every stop is for now only: start types,
+(exit 0 stopped, 1 failed, 2 bad arguments, 3 identity changed, 4 refused). After a
+successful stop (by the service or through UAC) the service reopens all outputs once,
+1.5 s later, so each device is initialized again; a stopped program can leave a device in
+its own mode (Roccat Vulcan flickered after SignalRGB was stopped, 2026-11-17). Every stop is for now only: start types,
 autostart entries and scheduled tasks are never changed, so the other software
 returns after a reboot or when its own launcher starts it. The portable editor
 still uses its name list.

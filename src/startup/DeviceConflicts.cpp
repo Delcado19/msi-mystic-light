@@ -234,8 +234,17 @@ QVector<UsbWrite> captureUsbWrites(int milliseconds, QString& error)
     }
     std::thread reader([&consumer] { ProcessTrace(&consumer, 1, nullptr, nullptr); });
     // Enabled after the consumer runs, so the device events logged on enable are not lost.
+    // A provider that fails to enable (e.g. session limits) would yield device events but no writes,
+    // which looks like "no conflict" (CodeRabbit review 2026-11-16).
+    ULONG enableStatus = ERROR_SUCCESS;
     for (const auto& provider : {hubProvider, ucxProvider})
-        EnableTraceEx2(session, &provider, EVENT_CONTROL_CODE_ENABLE_PROVIDER, TRACE_LEVEL_VERBOSE, ~0ULL, 0, 0, nullptr);
+        if (enableStatus == ERROR_SUCCESS)
+            enableStatus = EnableTraceEx2(session, &provider, EVENT_CONTROL_CODE_ENABLE_PROVIDER, TRACE_LEVEL_VERBOSE, ~0ULL, 0, 0, nullptr);
+    if (enableStatus != ERROR_SUCCESS) {
+        ControlTraceW(session, nullptr, properties(), EVENT_TRACE_CONTROL_STOP);
+        CloseTrace(consumer); reader.join();
+        error = QString("Cannot enable USB trace providers (Windows error %1)").arg(enableStatus); return {};
+    }
     Sleep(DWORD(milliseconds));
     ControlTraceW(session, nullptr, properties(), EVENT_TRACE_CONTROL_STOP);
     CloseTrace(consumer);
@@ -513,6 +522,8 @@ QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& end
             // A process stopped since the capture must not stay listed, or the dialog reports it as running.
             last_.removeIf([](const ConflictProcess& process) { return !alive(process); });
 #endif
+            // A failed capture must stay visible on reuse (CodeRabbit review 2026-11-16).
+            if (error) *error = lastError_;
             return last_;
         }
     }
@@ -520,14 +531,18 @@ QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& end
     const auto add = [&result](ConflictProcess process, const QString& reason) {
         for (auto& existing : result) if (existing.pid == process.pid && existing.started == process.started) {
             if (!existing.reason.contains(reason)) existing.reason += "; " + reason;
+            // A writer that is also another writer's family member keeps its proof (CodeRabbit 2026-11-16);
+            // otherwise it would needlessly require an administrator stop.
+            existing.provenHolder = existing.provenHolder || process.provenHolder;
             return;
         }
         process.reason = reason; result.append(process);
     };
+    QString captureError;
 #ifdef Q_OS_WIN
     const auto checks = busy.isEmpty() ? QVector<EndpointCheck>{} : writersFor(busy);
     for (const auto& check : checks) {
-        if (!check.error.isEmpty() && error) *error = check.error;
+        if (!check.error.isEmpty()) { captureError = check.error; if (error) *error = check.error; }
         for (const auto& writer : check.holders) add(writer, "Sends lighting commands to " + endpointLabel(check.endpoint));
     }
     if (!result.isEmpty()) {
@@ -551,7 +566,7 @@ QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& end
     Q_UNUSED(error);
     QMutexLocker lock(&mutex_);
 #endif
-    last_ = result; lastBusy_ = busy; lastTime_.start();
+    last_ = result; lastBusy_ = busy; lastError_ = captureError; lastTime_.start();
     return result;
 }
 QVector<ConflictProcess> DeviceConflictMonitor::last() const

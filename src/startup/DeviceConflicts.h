@@ -80,6 +80,7 @@ private:
     QHash<QString, EndpointCheck> busy_; // Verdict per endpoint, kept while it stays busy.
     QVector<ConflictProcess> last_;
     QStringList lastBusy_;
+    QString lastError_; // Capture error of last_, returned again on reuse.
     QElapsedTimer lastTime_;
 };
 
