@@ -4,6 +4,14 @@ Single maintainer, so no `dev` branch. Every feature gets its own branch and rea
 through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
 release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
 
+## TODO: shared LED colors are hard to find - 2026-11-17
+
+Owner report: could not find the setting "fan XY shows the same LEDs as fan AB" and had to ask.
+It only exists inside Layout -> select a header -> **Header settings** (`ChannelEditor`: "Splitter
+cable" option or equal "Starts at LED" values). Usability defect, not a bug: make it discoverable
+where the user works with a single fan (for example from the selected component), and consider
+fans on different headers, which cannot be linked at all today. Not started; design open.
+
 ## Hung device open and project-only conflict check - 2026-11-17
 
 Dump of the deaf service: a worker hung in hidapi's `HidD_GetSerialNumberString` on 0DB0:0076 and
