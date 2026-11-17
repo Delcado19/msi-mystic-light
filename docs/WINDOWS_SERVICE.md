@@ -98,8 +98,10 @@ Hardware discovery and the conflict check run on a worker thread, one scan at a
 time, so the pipe keeps answering while a scan takes seconds. Status commands
 and project commands reply immediately (a project command still starts a fresh scan);
 scan and output-enable commands reply after a scan that started after the command. A
-scan still running after 30 s is abandoned: its callers get the reply with an error,
-and no new scan starts until the abandoned one returns. Connections are still opened on the service
+scan still running after 12 s is abandoned: its callers get the reply with an error,
+and no new scan starts until the abandoned one returns. The deadline stays below the
+editor's 15 s request timeout so that reply arrives; a scan already queued behind a
+running one can still exceed it, and the error then shows in the next status poll. Connections are still opened on the service
 thread, between two scans.
 
 A device open or HID call can hang inside the driver without timeout (2026-11-17: the MSI
@@ -109,7 +111,7 @@ aside, its endpoint reports **Not responding** and is not reopened until the cal
 the pipe keeps answering. A worker that hung earlier is not waited for again. On service stop a
 still-hung worker is abandoned, and a discovery scan still running after 10 s too. A hung discovery
 scan (hidapi also reads serial numbers while enumerating) delays scan replies by at most the
-30 s scan deadline; meanwhile no devices are rescanned or reopened.
+12 s scan deadline; meanwhile no devices are rescanned or reopened.
 
 ## Security boundary
 

@@ -15,11 +15,11 @@ public:
         setDecimals(323); setKeyboardTracking(false); styleStudioNumericField(this);
         setProperty("displayScale",1.0);
         // Only untouched text keeps the exact value; clearing and retyping the shown integer is an
-        // explicit edit and rounds (CodeRabbit review 2026-11-16).
-        connect(lineEdit(),&QLineEdit::textEdited,this,[this]{edited_=true;});
-        connect(this,&QAbstractSpinBox::editingFinished,this,[this]{edited_=false;});
-        // A programmatic value change replaces the typed text, so it is no longer an edit (CodeRabbit 2026-11-17).
-        connect(this,&QDoubleSpinBox::valueChanged,this,[this]{edited_=false;});
+        // explicit edit and rounds (CodeRabbit review 2026-11-16). The typed text itself is kept, not a
+        // flag: a refresh under QSignalBlocker replaces the text without any signal, and then the
+        // field no longer shows what was typed (CodeRabbit review 2026-11-17).
+        connect(lineEdit(),&QLineEdit::textEdited,this,[this](const QString& text){typed_=text;});
+        connect(this,&QAbstractSpinBox::editingFinished,this,[this]{typed_.clear();});
     }
     void setDisplayUnit(double scale,const QString& unit) {
         scale_=scale; setProperty("displayScale",scale); setSuffix(unit);
@@ -38,7 +38,7 @@ protected:
         return QString::number(qRound64(shown));
     }
     double valueFromText(const QString& text) const override {
-        if(!edited_ && (text==textFromValue(value())+suffix() || text==prefix()+textFromValue(value())+suffix()))return value();
+        if((typed_.isEmpty() || text!=typed_) && (text==textFromValue(value())+suffix() || text==prefix()+textFromValue(value())+suffix()))return value();
         QString number=text;number.remove(suffix());number.remove(prefix());
         bool ok=false;const double result=locale().toDouble(number.trimmed(),&ok);
         return ok ? result/scale_ : value();
@@ -55,5 +55,5 @@ protected:
     }
 private:
     double scale_=1;
-    bool edited_=false;
+    QString typed_; // The field's text as last typed by the user, until editing finishes.
 };

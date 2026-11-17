@@ -28,7 +28,9 @@ ServiceRuntime::ServiceRuntime(ComponentCatalog catalog,QVector<DeviceProfile> p
     } catch(const std::exception& e) {error_=QString("Saved project rejected: ")+e.what();enabled_=false;}
     render_.setInterval(33);render_.setTimerType(Qt::PreciseTimer);QObject::connect(&render_,&QTimer::timeout,this,[this]{tick();});render_.start();
     retry_.setInterval(5000);QObject::connect(&retry_,&QTimer::timeout,this,[this]{reconnect();});retry_.start();
-    scanDeadline_.setSingleShot(true);scanDeadline_.setInterval(30000);   // A normal scan takes ~6.5 s.
+    // A normal scan takes ~6.5 s. 12 s stays below the editor's 15 s request timeout, so a caller
+    // receives the "did not finish" reply instead of timing out (owner decision 2026-11-17).
+    scanDeadline_.setSingleShot(true);scanDeadline_.setInterval(12000);
     QObject::connect(&scanDeadline_,&QTimer::timeout,this,[this]{abandonScan();});
     reopen_.setSingleShot(true);reopen_.setInterval(1500);
     QObject::connect(&reopen_,&QTimer::timeout,this,[this]{if(suspended_ || !enabled_)return;stopConnections();reconnect();});
@@ -157,6 +159,7 @@ void ServiceRuntime::startScan() {
     // A scan abandoned at its deadline may still hang in the driver. Start no second one meanwhile, or
     // every retry would add another stuck thread; answer the callers with the error instead.
     if(abandoned_ && !abandoned_->finished.load()) {
+        error_=scanStuckError(); // loadBundle cleared it; the reply must still say discovery is blocked.
         const auto skipped=std::move(next_);next_.clear();
         for(const auto& answer:skipped)answer();
         return;
@@ -173,7 +176,11 @@ void ServiceRuntime::startScan() {
         auto result=runScan(scan,guard,targets);
         const std::lock_guard<std::mutex> lock(mailbox->mutex);
         if(auto* owner=mailbox->owner)
-            QMetaObject::invokeMethod(owner,[owner,result=std::move(result)]{owner->finishScan(result);},Qt::QueuedConnection);
+            // The result may already be queued when the deadline abandons this scan; clearing owner
+            // does not cancel a posted call, so a superseded mailbox is rejected here (CodeRabbit 2026-11-17).
+            QMetaObject::invokeMethod(owner,[owner,mailbox,result=std::move(result)] {
+                if(owner->mailbox_==mailbox && owner->scanning_)owner->finishScan(result);
+            },Qt::QueuedConnection);
     });
 }
 void ServiceRuntime::abandonScan() {
@@ -182,7 +189,7 @@ void ServiceRuntime::abandonScan() {
     // a hung scan blocked retries and replies until restart). Its late result is never delivered.
     {const std::lock_guard<std::mutex> lock(mailbox_->mutex);mailbox_->owner=nullptr;}
     abandoned_=mailbox_;scanner_.detach();scanning_=false;
-    error_="Hardware discovery did not finish within "+QString::number(scanDeadline_.interval()/1000.0)+" s; a device may not respond. Retrying once it returns";
+    error_=scanStuckError();
     const auto done=std::move(waiting_);waiting_.clear();
     for(const auto& answer:done)answer();
     if(!next_.empty())startScan();

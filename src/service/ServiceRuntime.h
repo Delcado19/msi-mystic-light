@@ -21,7 +21,7 @@ public:
     // Run hardware discovery and the conflict guard on a worker so the caller's thread (the service
     // pipe) keeps answering; a scan took ~6.5 s on the owner's system (measured 2026-11-16).
     void setBackgroundScan(bool value) { background_=value; }
-    // A background scan running longer than this is abandoned (default 30 s; tests shorten it).
+    // A background scan running longer than this is abandoned (default 12 s; tests shorten it).
     void setScanDeadline(int milliseconds) { scanDeadline_.setInterval(milliseconds); }
     QJsonObject status() const;
     void suspend(bool suspended);
@@ -48,6 +48,9 @@ private:
     void startScan();
     void finishScan(const ScanResult& result);
     void abandonScan(); // Deadline reached: give up the running scan and answer its callers.
+    QString scanStuckError() const {
+        return "Hardware discovery did not finish within "+QString::number(scanDeadline_.interval()/1000.0)+" s; a device may not respond. Retrying once it returns";
+    }
     // Shared with the scan worker so it never needs `this`; owner is cleared by the destructor.
     struct ScanMailbox { std::mutex mutex; ServiceRuntime* owner=nullptr; std::atomic_bool finished{false}; };
     void applyScan(const ScanResult& result);
