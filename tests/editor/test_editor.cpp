@@ -1,5 +1,6 @@
 ﻿#include "editor/ParameterSpinBox.h"
 #include <QDialogButtonBox>
+#include <QMenuBar>
 #include <QMenu>
 #include <QColorDialog>
 #include <QVariantAnimation>
@@ -189,6 +190,7 @@ private slots:
     void integerDisplayRoundTrip();
     void liveColorPicker();
     void hueSliderColorizesGrayStop();
+    void menusFollowWorkspace();
     void hueTrackRetainsSpectrum();
     void screenEyedropperGeometry();
     void auditWorkspace();
@@ -4199,6 +4201,29 @@ void EditorTest::authoringControlsRegression()
 
 // Owner report 2026-11-17: a stop added between complementary colors interpolates to gray; moving
 // only the hue slider changed nothing and Apply kept gray. Hue on an achromatic color must show.
+// Owner report 2026-11-17: saving was impossible in Devices, Edit offered commands without effect
+// there, "Add layer" existed twice, and the output link duplicated the Devices button.
+void EditorTest::menusFollowWorkspace()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    const QStringList canvasEdits{"lockSelection","unlockSelection","duplicateSelection","deleteSelection"};
+    window.findChild<QAction*>("workspaceHardware")->trigger();QCoreApplication::processEvents();
+    for(const auto* name:{"saveProject","saveProjectAs"}) {
+        auto* action=window.findChild<QAction*>(name);QVERIFY2(action->isVisible() && action->isEnabled(),name);
+    }
+    for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
+    window.findChild<QAction*>("workspaceEditor")->trigger();QCoreApplication::processEvents();
+    for(const auto& name:canvasEdits)QVERIFY2(window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
+    // One entry point for new effects: the library button, not a second full menu under Edit.
+    for(auto* top:window.menuBar()->actions())if(top->menu())for(auto* entry:top->menu()->actions())
+        QVERIFY2(entry->menu()!=window.findChild<QMenu*>("addLayerMenu"),qPrintable(top->text()));
+    // Output state is a compact traffic light, not a second way into Devices.
+    window.setOutputState("2 active / 4 configured / 1 errors");
+    auto* status=window.findChild<QLabel*>("toolbarOutputStatus");
+    QVERIFY(!status->text().contains("href"));QVERIFY(status->toolTip().contains("2 active"));
+    QVERIFY(status->text().contains("#3fb950"));QVERIFY(status->text().contains("#f85149"));
+}
+
 void EditorTest::hueSliderColorizesGrayStop()
 {
     for(const QColor start:{QColor("#808080"),QColor(Qt::black)}) {

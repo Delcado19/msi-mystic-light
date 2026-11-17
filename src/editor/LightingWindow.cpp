@@ -67,6 +67,7 @@
 #include <QTreeView>
 #include <QWidgetAction>
 #include <QVBoxLayout>
+#include <QRegularExpression>
 
 namespace {
 // R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected.
@@ -305,8 +306,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             auto* header=new QHBoxLayout;header->addWidget(playback);
             auto* outputState=new QLabel(findChild<QLabel*>("toolbarOutputStatus")->text());outputState->setObjectName("fullscreenOutputStatus");outputState->setProperty("statusBadge",true);
             outputState->setProperty("outputState",findChild<QLabel*>("toolbarOutputStatus")->property("outputState"));
-            outputState->setTextInteractionFlags(Qt::LinksAccessibleByMouse|Qt::LinksAccessibleByKeyboard);
-            connect(outputState,&QLabel::linkActivated,this,[this,host]{host->reject();emit outputRequested();});
+            outputState->setTextFormat(Qt::RichText); // Traffic light, no link (owner request 2026-11-17).
             outputState->setAccessibleName("Device output status");header->addWidget(outputState);header->addStretch();full->addLayout(header);
             // Only the canvas receives spare height; a stretchable status label must not expand the header.
             full->addWidget(canvas,1);
@@ -604,8 +604,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     output->setToolTip("Show connected hardware and output status; canvas output starts automatically");
     // Keep output state outside toolbar overflow and separate from the animation clock.
     previewToolbar->removeAction(output); output->setEnabled(false);
-    auto* outputStatus=new QLabel("Devices: Offline");outputStatus->setTextInteractionFlags(Qt::LinksAccessibleByMouse|Qt::LinksAccessibleByKeyboard);
-    connect(outputStatus,&QLabel::linkActivated,this,[this]{tabs_->setCurrentIndex(2);}); outputStatus->setObjectName("toolbarOutputStatus");
+    auto* outputStatus=new QLabel("Devices: Offline");
+    outputStatus->setTextFormat(Qt::RichText); outputStatus->setObjectName("toolbarOutputStatus");
     outputStatus->setProperty("statusBadge",true);
     outputStatus->setAccessibleName("Device output status");statusBar()->addPermanentWidget(outputStatus);
     auto* previewStatus=new QLabel("Preview: stopped");previewStatus->setObjectName("previewPlaybackStatus");statusBar()->insertPermanentWidget(0,previewStatus);
@@ -661,7 +661,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         catch (const std::exception& error) { QMessageBox::warning(this, "Import failed", QString::fromUtf8(error.what())); }
     });
     auto* addMenu=new QMenu("Add layer",layersPanel);addMenu->setObjectName("addLayerMenu");
-    editMenu->addMenu(addMenu);
+    // Not added to Edit: the Navigator's effect library is the single place to add layers (owner 2026-11-17).
     auto* paintAction=addMenu->addAction("New paint layer");paintAction->setObjectName("newPaintLayer");connect(paintAction,&QAction::triggered,this,[this]{findChild<QPushButton*>("newLayer")->click();});
     auto* groupAction=addMenu->addAction(studioToolIcon("layers"),"New group");groupAction->setObjectName("newGroup");
     groupAction->setToolTip("Create an empty group. Effects added to the selected group share its mask, opacity and blend mode.");
@@ -1166,7 +1166,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         connect(toolsMenu,&QMenu::aboutToShow,action,sync);
         connect(tabs_,&QTabWidget::currentChanged,action,[sync](int){sync();});
     }
-    toolsMenu->addSeparator();toolsMenu->addMenu(addMenu);
+    // No "Add layer" here either: the effect library button is its single place (owner 2026-11-17).
     auto* resetWorkspace=viewMenu->addAction("Reset workspace"); resetWorkspace->setObjectName("resetWorkspace");panelsMenu->addSeparator();panelsMenu->addAction(resetWorkspace);
     // The default follows the Windows animation setting; this is the only in-app way to change a stored
     // editor/reduceMotion value (restored after the R6 menu cleanup, CodeRabbit review 2026-11-15).
@@ -1242,6 +1242,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* duplicate=editMenu->addAction("Duplicate selection");duplicate->setObjectName("duplicateSelection");duplicate->setShortcut(QKeySequence("Ctrl+D"));
     connect(duplicate,&QAction::triggered,this,[this]{auto* focus=QApplication::focusWidget();if(qobject_cast<QLineEdit*>(focus) || qobject_cast<QAbstractSpinBox*>(focus) || qobject_cast<QTextEdit*>(focus) || qobject_cast<QPlainTextEdit*>(focus))return;if(tabs_->currentIndex()!=2)(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->duplicateSelection();});
     auto* remove=editMenu->addAction("Delete selection");remove->setObjectName("deleteSelection");
+    // Canvas edits have no effect in Devices, so they are not offered there (owner report 2026-11-17).
+    connect(tabs_,&QTabWidget::currentChanged,this,[lock,unlock,duplicate,remove](int index){for(auto* action:{lock,unlock,duplicate,remove})action->setEnabled(index<2);});
     connect(remove,&QAction::triggered,this,[this]{if(tabs_->currentIndex()<2)(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->deleteSelection();});
     auto* rename=new QAction("Rename",this);rename->setObjectName("renameLayer");connect(rename,&QAction::triggered,this,[this]{if(layers_->currentItem())layers_->editItem(layers_->currentItem(),0);});
     auto* visibility=new QAction("Show / hide",this);visibility->setObjectName("toggleLayerVisibility");connect(visibility,&QAction::triggered,this,[this]{
@@ -1296,6 +1298,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     const auto firstEdit=previewToolbar->actions().first();
     for(auto* action:{editorAction,hardwareAction}) {navigation->removeAction(action);previewToolbar->insertAction(firstEdit,action);}
     previewToolbar->insertSeparator(firstEdit);
+    // Open, Save, Save as, Undo and Redo act in every workspace (owner report 2026-11-17: saving
+    // was impossible in Devices); only canvas commands hide there.
+    const auto historyCommands=toolbar->actions();
     for(auto* action:toolbar->actions()){toolbar->removeAction(action);previewToolbar->insertAction(firstEdit,action);}
     toolbar->hide();
     auto* brandSpace=new QWidget(navigation);brandSpace->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);
@@ -1311,8 +1316,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(previewChannel_,&QComboBox::currentTextChanged,this,[scopeHint](const QString&){scopeHint();});scopeHint();
     cropButton->setToolTip("Crop image: drag a frame, move it or resize its corners. Enter or double-click applies; Escape cancels.");
     const auto editorCommands=previewToolbar->actions();
-    connect(tabs_,&QTabWidget::currentChanged,this,[editorCommands,editorAction,hardwareAction](int index){
-        for(auto* action:editorCommands)if(action!=editorAction && action!=hardwareAction)action->setVisible(index<2 && action->objectName()!="projectNameAction");
+    connect(tabs_,&QTabWidget::currentChanged,this,[editorCommands,historyCommands,editorAction,hardwareAction](int index){
+        for(auto* action:editorCommands)if(action!=editorAction && action!=hardwareAction)
+            action->setVisible((index<2 || historyCommands.contains(action)) && action->objectName()!="projectNameAction");
     });
     tabs_->tabBar()->hide();
     tabs_->setCurrentIndex(1);tabs_->setCurrentIndex(0);editorAction->setChecked(true);
@@ -1739,6 +1745,19 @@ void LightingWindow::installOutputPanel(QWidget* panel)
     deviceOutput_->insertWidget(deviceOutput_->count()-1,panel);
 }
 
+namespace {
+// Compact status instead of a second link into Devices (owner request 2026-11-17): green = active,
+// gray = configured but not active, red = errors. Other states (portable mode) stay as text.
+QString outputTrafficLight(const QString& state)
+{
+    const auto match=QRegularExpression("^(\\d+) active / (\\d+) configured / (\\d+) errors$").match(state);
+    if(!match.hasMatch())return "Devices: "+state.toHtmlEscaped();
+    const int active=match.captured(1).toInt(),configured=match.captured(2).toInt(),errors=match.captured(3).toInt();
+    const auto dot=[](const char* color,int count){return QString("<span style=\"color:%1\">&#9679;</span> %2").arg(color).arg(count);};
+    return dot("#3fb950",active)+"&nbsp;&nbsp;"+dot("#8b949e",std::max(0,configured-active-errors))+"&nbsp;&nbsp;"+dot("#f85149",errors);
+}
+}
+
 void LightingWindow::setOutputState(const QString& state)
 {
     auto* action=findChild<QAction*>("reviewOutput"); action->setText("Output: "+state);
@@ -1749,7 +1768,7 @@ void LightingWindow::setOutputState(const QString& state)
     action->setToolTip(description+(detail ? "\n"+detail->text() : QString{}));
     auto labels=findChildren<QLabel*>("fullscreenOutputStatus");labels.prepend(findChild<QLabel*>("toolbarOutputStatus"));
     for(auto* label:labels) {
-        label->setText(state.contains(" active") ? "<a style=\"color:#afb4bd;text-decoration:none\" href=\"hardware\">Output: "+state.toHtmlEscaped()+"</a>" : "Devices: "+state);label->setToolTip(action->toolTip());label->setProperty("outputState",state.contains(" errors") ? "faulted" : state.contains(" active") ? (state.startsWith("0 active") ? "stopped" : "running") : state.toLower());
+        label->setText(outputTrafficLight(state));label->setToolTip("Output: "+state+"\n"+action->toolTip());label->setProperty("outputState",state.contains(" errors") ? "faulted" : state.contains(" active") ? (state.startsWith("0 active") ? "stopped" : "running") : state.toLower());
         label->style()->unpolish(label);label->style()->polish(label);
     }
 }
