@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "installer/Install-LightingStudio.ps1": {
-    "mtime": 1794901946.179904,
-    "seen": 1794902176.1078787,
-    "ast_hash": "468a09a50e74e46065d3634f760fb8b7",
+    "mtime": 1794902792.9507723,
+    "seen": 1794902875.7688105,
+    "ast_hash": "0c9d154b41d18acf0b37c946af09d2bd",
     "semantic_hash": ""
   },
   "src/service/ServicePanel.cpp": {
@@ -1710,9 +1710,9 @@
     "semantic_hash": ""
   },
   "installer/Uninstall-LightingStudio.ps1": {
-    "mtime": 1794901983.344686,
-    "seen": 1794902176.1078799,
-    "ast_hash": "332bd5bca945c6e811f6d6007291821d",
+    "mtime": 1794902820.8872526,
+    "seen": 1794902875.768813,
+    "ast_hash": "1b6ccd29c008ed59ad7fa25c9dbe1ba4",
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.cpp": {
