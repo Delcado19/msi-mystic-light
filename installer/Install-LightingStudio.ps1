@@ -3,7 +3,8 @@ param(
     [string]$Source,
     [string]$OwnerSid,
     [string]$PawnIOSetup,
-    [switch]$NoEditorAutostart
+    [switch]$NoEditorAutostart,
+    [switch]$Elevated
 )
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults of [CmdletBinding()] scripts,
@@ -24,6 +25,12 @@ foreach ($folder in @('profiles','components','platforms','imageformats','third_
 $uninstaller = Join-Path $PSScriptRoot 'Uninstall-LightingStudio.ps1'
 if (!(Test-Path -LiteralPath $uninstaller -PathType Leaf)) { throw 'Missing runtime input: installer/Uninstall-LightingStudio.ps1' }
 if (!$PSCmdlet.ShouldProcess($destination, 'Install Lighting Studio service, official PawnIO if missing, and editor logon task')) { return }
+$pawnIOKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO'
+$editor = Join-Path $destination 'msi_mystic_light.exe'
+# The logon task keeps the editor in the tray, so an update almost always finds it running. Ask before
+# UAC and before anything is stopped (2026-11-17: the check used to follow the service stop).
+function Test-EditorRunning { [bool](Get-Process msi_mystic_light -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $editor }) }
+if (Test-EditorRunning) { throw 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit), then start the installer again.' }
 $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 # A path ending in a backslash (e.g. D:\) would escape the closing quote of a command-line argument;
 # "D:\." names the same folder without that trailing backslash (audit 2026-11-14).
@@ -32,10 +39,44 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
     $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Quote-Argument $PSCommandPath),'-Source',(Quote-Argument $Source),'-OwnerSid',$OwnerSid)
     if ($PawnIOSetup) { $arguments += @('-PawnIOSetup',(Quote-Argument ([IO.Path]::GetFullPath($PawnIOSetup)))) }
     if ($NoEditorAutostart) { $arguments += '-NoEditorAutostart' }
+    $arguments += '-Elevated'
     foreach ($path in @($PSCommandPath,$Source,$PawnIOSetup)) { if ($path -match '["\r\n]') { throw 'Invalid installer path' } }
-    $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru -WindowStyle Hidden
-    if ($child.ExitCode -ne 0) { throw "Elevated installation failed ($($child.ExitCode)); inspect the installer output or rerun from an administrator console." }
+    # The elevated window is visible and shows each step (owner report 2026-11-17: a hidden child left
+    # only an empty window for minutes). Success is judged by the installed state, not the exit code,
+    # so closing that window early can neither hide nor fake the result.
+    Write-Host 'Installing in the administrator window that opens now. Confirm the Windows prompt (UAC).'
+    $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru
+    $service = Get-Service -Name LightingStudio -ErrorAction SilentlyContinue
+    if (!$service -or $service.Status -ne 'Running' -or !(Test-Path -LiteralPath $editor -PathType Leaf)) {
+        throw "Installation did not complete (exit code $($child.ExitCode)). The administrator window listed the failed step; run Install.cmd again to retry."
+    }
+    Write-Host 'Installed. Lighting starts with Windows; open Lighting Studio from the Start menu.' -ForegroundColor Green
+    Read-Host 'Press Enter to close' | Out-Null
     return
+}
+# Elevated part. A failure stays visible in this window; the parent re-checks the result anyway.
+trap {
+    Write-Host "`nInstallation failed: $($_.Exception.Message)" -ForegroundColor Red
+    if ($Elevated) { Read-Host 'Press Enter to close' | Out-Null }
+    break
+}
+$clock = [Diagnostics.Stopwatch]::StartNew()
+$stepCount = 8; $stepIndex = 0
+# The elapsed time per line shows which step is slow; no step has been timed on a real install yet.
+function Show-Step([string]$Text) {
+    $script:stepIndex++
+    Write-Progress -Activity 'Installing Lighting Studio' -Status "Step $script:stepIndex of ${stepCount}: $Text" -PercentComplete ([Math]::Min(100, 100 * ($script:stepIndex - 1) / $stepCount))
+    Write-Host ('[{0:mm\:ss}] {1}' -f $clock.Elapsed, $Text)
+}
+# A blocking -Wait looks like a hang; poll and count the seconds instead.
+function Wait-Visible($Process, [string]$Text) {
+    $null = $Process.Handle  # Cache the handle; otherwise ExitCode stays empty after the process ends.
+    $started = Get-Date
+    while (!$Process.HasExited) {
+        Write-Progress -Activity 'Installing Lighting Studio' -Status "Step $script:stepIndex of ${stepCount}: $Text ($([int]((Get-Date) - $started).TotalSeconds) s)" -PercentComplete ([Math]::Min(100, 100 * ($script:stepIndex - 1) / $stepCount))
+        Start-Sleep -Milliseconds 500
+    }
+    return $Process.ExitCode
 }
 function Protect-Directory([string]$Path, [bool]$Readable) {
     if (Test-Path -LiteralPath $Path) {
@@ -62,13 +103,21 @@ function Protect-Directory([string]$Path, [bool]$Readable) {
     if ($Readable) { $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule([Security.Principal.SecurityIdentifier]'S-1-5-32-545','ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow'))) }
     Set-Acl -LiteralPath $Path -AclObject $acl
 }
+Show-Step 'Checking the PawnIO driver'
+if (Test-EditorRunning) { throw 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit), then start the installer again.' }
 # Keep official signed binaries unchanged. An elevated parent supplies the only UAC prompt.
 # PawnIO 2.2.0 embeds this CLI contract: -install -silent (it is not an NSIS /S installer).
-if (!(Get-Service -Name PawnIO -ErrorAction SilentlyContinue)) {
+# PawnIO's own uninstaller removed its Apps entry but left the driver service registered
+# (observed 2026-11-17), so both must exist; otherwise the official setup runs again.
+if (!(Get-Service -Name PawnIO -ErrorAction SilentlyContinue) -or !(Test-Path -LiteralPath $pawnIOKey)) {
     $downloadedSetup = $null
     if (!$PawnIOSetup) {
+        Write-Host '        Downloading PawnIO 2.2.0 from github.com/namazso ...'
         $PawnIOSetup = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-PawnIO-' + [guid]::NewGuid().ToString() + '.exe')
-        Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe' -UseBasicParsing -OutFile $PawnIOSetup
+        # Windows PowerShell 5.1 downloads many times slower while it draws its own progress bar.
+        $previousProgress = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
+        try { Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe' -UseBasicParsing -OutFile $PawnIOSetup }
+        finally { $ProgressPreference = $previousProgress }
         $downloadedSetup = $PawnIOSetup
     }
     # Hash and run a copy in an administrators-only folder: a file in the user's temp folder could be
@@ -79,8 +128,8 @@ if (!(Get-Service -Name PawnIO -ErrorAction SilentlyContinue)) {
         $protectedSetup = Join-Path $setupFolder 'PawnIO_setup.exe'
         Copy-Item -LiteralPath $PawnIOSetup -Destination $protectedSetup
         if ((Get-FileHash -LiteralPath $protectedSetup -Algorithm SHA256).Hash.ToLowerInvariant() -ne '1f519a22e47187f70a1379a48ca604981c4fcf694f4e65b734aaa74a9fba3032') { throw 'PawnIO installer digest rejected' }
-        $result = Start-Process -FilePath $protectedSetup -ArgumentList @('-install','-silent') -Wait -PassThru -WindowStyle Hidden
-        if ($result.ExitCode -ne 0) { throw "PawnIO installation failed or needs attention ($($result.ExitCode))." }
+        $exitCode = Wait-Visible (Start-Process -FilePath $protectedSetup -ArgumentList @('-install','-silent') -PassThru -WindowStyle Hidden) 'Installing PawnIO'
+        if ($exitCode -ne 0) { throw "PawnIO installation failed or needs attention ($exitCode)." }
     } finally {
         Remove-Item -LiteralPath $setupFolder -Recurse -Force -ErrorAction SilentlyContinue
         # Only our own download is deleted; a setup file supplied with -PawnIOSetup belongs to the caller.
@@ -88,11 +137,20 @@ if (!(Get-Service -Name PawnIO -ErrorAction SilentlyContinue)) {
     }
     if (!(Get-Service -Name PawnIO -ErrorAction SilentlyContinue)) { throw 'PawnIO installation did not register its driver. Restart Windows if requested, then rerun installation.' }
 }
+Show-Step 'Stopping the running Lighting Studio service'
 $existing = Get-Service -Name LightingStudio -ErrorAction SilentlyContinue
 if ($existing) { Stop-Service LightingStudio; $existing.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(30)) }
+Show-Step 'Checking the installation folders'
 Protect-Directory $destination $true
 Protect-Directory $state $false
-if (Get-Process msi_mystic_light -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $destination 'msi_mystic_light.exe') }) { throw 'Close the installed editor before updating.' }
+Show-Step 'Copying program files'
+# Mirror the runtime folders: the service refuses to start when modules holds a DLL it does not expect,
+# and a profile or component dropped from the package must not stay active (audit 2026-11-17).
+# Protect-Directory above rejected reparse points inside the tree, so the recursive delete stays inside.
+foreach ($folder in @('modules','profiles','components','platforms','imageformats','third_party')) {
+    $old = Join-Path $destination $folder
+    if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
+}
 foreach ($relative in $required) {
     $target = Join-Path $destination $relative
     New-Item -ItemType Directory -Force -Path (Split-Path $target -Parent) | Out-Null
@@ -106,6 +164,7 @@ foreach ($folder in @('profiles','components','platforms','imageformats','third_
         Copy-Item -LiteralPath $entry.FullName -Destination $targetFolder -Recurse -Force
     }
 }
+Show-Step 'Securing file permissions'
 # Root ACLs are already protected; reset descendants without reopening the root to parent grants.
 foreach ($root in @($destination,$state)) {
     & icacls.exe $root /setowner '*S-1-5-32-544' /T /Q | Out-Null
@@ -115,6 +174,7 @@ foreach ($root in @($destination,$state)) {
         if ($LASTEXITCODE -ne 0) { throw "Cannot reset access permissions: $($entry.FullName)" }
     }
 }
+Show-Step 'Registering the service'
 $hashes = @{}
 foreach ($name in @('msi_gen1_module.dll','peripherals_module.dll','auxiliary_module.dll','asrock_polychrome_module.dll','lenovo_motherboard_module.dll','hp_omen_module.dll')) { $hashes[$name] = (Get-FileHash -LiteralPath (Join-Path $destination "modules/$name") -Algorithm SHA256).Hash.ToLowerInvariant() }
 @{ownerSid=$OwnerSid;modules=$hashes} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $destination 'service.json') -Encoding UTF8
@@ -130,6 +190,7 @@ else {
 if ($LASTEXITCODE -ne 0) { throw 'Service description update failed' }
 & sc.exe failure LightingStudio reset= 86400 actions= restart/10000/restart/30000/restart/60000 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Service recovery configuration failed' }
+Show-Step 'Registering editor autostart, Start menu entry and uninstaller'
 # An interactive task uses the installing user's ordinary token, never highest privileges.
 if (!$NoEditorAutostart) {
     $principal = New-ScheduledTaskPrincipal -UserId $OwnerSid -LogonType Interactive -RunLevel Limited
@@ -157,6 +218,9 @@ Set-ItemProperty -LiteralPath $uninstallKey -Name NoModify -Value 1 -Type DWord
 Set-ItemProperty -LiteralPath $uninstallKey -Name NoRepair -Value 1 -Type DWord
 & sc.exe failureflag LightingStudio 1 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Service failure recovery flag could not be set' }
+Show-Step 'Starting the Lighting Studio service'
 Start-Service LightingStudio
 (Get-Service LightingStudio).WaitForStatus('Running',[TimeSpan]::FromSeconds(30))
-Write-Host 'Installed. Lighting starts with Windows; open Lighting Studio to configure devices and effects.'
+Write-Progress -Activity 'Installing Lighting Studio' -Completed
+Write-Host ('[{0:mm\:ss}] Installed. This window closes in 5 seconds.' -f $clock.Elapsed) -ForegroundColor Green
+if ($Elevated) { Start-Sleep -Seconds 5 }
