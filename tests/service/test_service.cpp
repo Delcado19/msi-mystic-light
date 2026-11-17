@@ -74,6 +74,7 @@ private slots:
  void reopenReinitializesOutputs();
  void unprobedEndpointStaysClosed();
  void hungScanIsAbandoned();
+ void projectEditKeepsRunningOutput();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
 };
@@ -270,6 +271,23 @@ void ServiceTest::persistedPauseAndReconnect() {
     ServiceRuntime restored({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QCOMPARE(restored.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Paused"));
 }
+// Owner report 2026-11-17: dragging a component updated the lights only seconds later, because
+// every project edit closed all outputs until the next scan reopened them.
+void ServiceTest::projectEditKeepsRunningOutput() try {
+    QTemporaryDir folder;const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);auto record=std::make_shared<Recording>();
+    const auto output=[record,profile](const QVector<OutputFrame>& frames){
+        QVector<OutputConnection> result;for(const auto& frame:frames)result.append({frame,[record,profile]{
+            ModuleRegistry modules;QString error;if(!modules.load(TEST_MODULE_PATH,&error))throw std::runtime_error(error.toStdString());
+            auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
+        },[record]{return record->present.load();}});return result;
+    };
+    ServiceRuntime runtime({}, {profile},folder.path(),[profile]{return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
+    QVERIFY(runtime.command(project(profile)).value("ok").toBool());QTRY_VERIFY(record->writes>1);QCOMPARE(record->opens.load(),1);
+    // Same endpoint, profile and channel, different placement: the running output continues.
+    QVERIFY(runtime.command(project(profile)).value("ok").toBool());
+    const int writes=record->writes;QTRY_VERIFY_WITH_TIMEOUT(record->writes>writes,200);
+    QCOMPARE(record->opens.load(),1);
+} catch(const std::exception& e){QFAIL(e.what());}
 // A scan hung in the driver is given up at its deadline: callers get a reply with an error, no
 // second scan piles up while it hangs, and scanning resumes once it returns (CodeRabbit 2026-11-17).
 void ServiceTest::hungScanIsAbandoned() try {
@@ -344,13 +362,17 @@ void ServiceTest::hungDriverCallKeepsAnswering() try {
     };
     ServiceRuntime runtime({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QVERIFY(runtime.command(project(profile)).value("ok").toBool());QTRY_COMPARE(opens->load(),1);
-    // Reloading the project stops the hung worker; the command returns within its bounded wait.
+    // Switching output off stops the hung worker; the command returns within its bounded wait.
+    // (A project edit no longer stops running outputs at all, see projectEditKeepsRunningOutput.)
+    auto off=cmd("output");off["enabled"]=false;auto on=cmd("output");on["enabled"]=true;
     QElapsedTimer timer;timer.start();
-    QVERIFY(runtime.command(project(profile)).value("ok").toBool());
-    QVERIFY2(timer.elapsed()<5000,"project command blocked on the hung worker");
-    // A worker that hung in an earlier call is not waited for again on the next sync.
-    timer.restart();QVERIFY(runtime.command(project(profile)).value("ok").toBool());
-    QVERIFY2(timer.elapsed()<300,"project command waited again for an earlier hung worker");
+    QVERIFY(runtime.command(off).value("ok").toBool());
+    QVERIFY2(timer.elapsed()<5000,"output stop blocked on the hung worker");
+    QVERIFY(runtime.command(on).value("ok").toBool());
+    // A worker that hung in an earlier call is not waited for again on the next stop.
+    timer.restart();QVERIFY(runtime.command(off).value("ok").toBool());
+    QVERIFY2(timer.elapsed()<300,"output stop waited again for an earlier hung worker");
+    QVERIFY(runtime.command(on).value("ok").toBool());
     for(int i=0;i<3;++i)QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());
     QCOMPARE(opens->load(),1); // No second stuck worker on the same endpoint.
     QCOMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Not responding"));

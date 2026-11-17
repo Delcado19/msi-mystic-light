@@ -62,7 +62,10 @@ void ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     }
     auto saved=bundle;QJsonArray pausedJson;for(const auto& entry:paused)pausedJson.append(entry);saved["paused"]=pausedJson;
     if(save)writeFile(directory_+"/playback.json",StudioService::encode(saved).mid(4));
-    stopConnections();document_=std::move(candidate);project_=bundle.value("project").toObject();
+    // Running outputs stay open: tick() matches frames to connections by output scope, and the scan
+    // that follows a project command retires only connections whose scope changed. Closing all of
+    // them froze the lights for a whole scan on every drag (owner report 2026-11-17).
+    document_=std::move(candidate);project_=bundle.value("project").toObject();
     enabled_=bundle.value("enabled").toBool();playing_=bundle.value("playing").toBool();offset_=time;clock_.restart();paused_=paused;error_.clear();
 }
 void ServiceRuntime::persist() {
