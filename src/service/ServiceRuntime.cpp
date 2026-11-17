@@ -64,9 +64,27 @@ void ServiceRuntime::persist() {
     QJsonArray paused;for(const auto& id:paused_)paused.append(id);
     writeFile(directory_+"/playback.json",QJsonDocument(QJsonObject{{"project",project_},{"enabled",enabled_},{"playing",playing_},{"seconds",seconds()},{"paused",paused}}).toJson(QJsonDocument::Compact));
 }
+void ServiceRuntime::retire(int index) {
+    connections_[index]->stop();
+    retired_.push_back({std::move(connections_[index]),scopes_[index].endpoint});
+    connections_.erase(connections_.begin()+index);scopes_.removeAt(index);generations_.removeAt(index);
+}
+void ServiceRuntime::reap() {
+    // Only finished workers are destroyed here; their join returns at once.
+    retired_.erase(std::remove_if(retired_.begin(),retired_.end(),[](const Retired& retired) {
+        const auto state=retired.scheduler->status().state;
+        return state==OutputScheduler::State::Stopped || state==OutputScheduler::State::Faulted;
+    }),retired_.end());
+}
+bool ServiceRuntime::retiring(const QString& endpoint) const {
+    return std::any_of(retired_.cbegin(),retired_.cend(),[&](const Retired& retired){return retired.endpoint==endpoint;});
+}
 void ServiceRuntime::stopConnections() {
-    // Scheduler teardown joins its owner thread before a replacement can open the same endpoint.
-    for(auto& connection:connections_)connection->stop();connections_.clear();scopes_.clear();generations_.clear();
+    while(!connections_.empty())retire(int(connections_.size())-1);
+    // A healthy worker ends within one HID write; give all of them one bounded second so an immediate
+    // reconnect (project load, resume) can reopen their endpoints. A hung one stays retired.
+    QElapsedTimer waited;waited.start();
+    for(reap();!retired_.empty() && waited.elapsed()<1000;reap())std::this_thread::sleep_for(std::chrono::milliseconds(5));
 }
 void ServiceRuntime::suspend(bool value) {
     if(suspended_==value)return;
@@ -74,8 +92,15 @@ void ServiceRuntime::suspend(bool value) {
     if(!value)reconnect();
 }
 ServiceRuntime::~ServiceRuntime() {
-    // The worker posts its result to this object; wait for it before members disappear.
-    if(scanner_.joinable())scanner_.join();
+    stopConnections();
+    // shortcut: a worker still hung in a driver call is leaked instead of joined, so the service can
+    // stop (sc stop hung in STOP_PENDING, 2026-11-17); safe only because the process exits next.
+    for(auto& retired:retired_)(void)retired.scheduler.release();
+    // The worker posts its result to this object; wait for it before members disappear. hid_enumerate
+    // reads serial numbers too, so a scan can hang like an open; then it is abandoned the same way.
+    // shortcut: a detached scanner that returns after this point posts to a destroyed object; the
+    // process is exiting by then. Upgrade to a shared state object if the runtime ever outlives exit.
+    if(scanner_.joinable()) {if(scanning_)scanner_.detach();else scanner_.join();}
 }
 // Runs on the scan worker when background scanning is on: touches only its arguments.
 ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const Guard& guard,const QStringList& targets) {
@@ -95,7 +120,7 @@ QStringList ServiceRuntime::probeTargets() const {
     QStringList result;
     for(const auto& frame:outputScope(*document_)) {
         // Any state counts as held: a Starting worker may be opening the device right now.
-        const bool held=std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return scope.endpoint==frame.endpoint;});
+        const bool held=retiring(frame.endpoint) || std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return scope.endpoint==frame.endpoint;});
         if(!held && !result.contains(frame.endpoint))result.append(frame.endpoint);
     }
     return result;
@@ -143,11 +168,13 @@ void ServiceRuntime::applyScan(const ScanResult& result) {
             const auto state=connections_[i]->status().state;
             const bool wanted=std::any_of(frames.cbegin(),frames.cend(),[&](const auto& frame){return sameOutputScope(scopes_[i],frame);});
             if(wanted && (state==OutputScheduler::State::Starting || state==OutputScheduler::State::Running))continue;
-            connections_[i]->stop();connections_.erase(connections_.begin()+i);
-            scopes_.removeAt(i);generations_.removeAt(i);
+            retire(i);
         }
+        reap();
+        // An endpoint whose old worker is still alive is not reopened: a hung driver call would only
+        // gain a second stuck worker on every retry.
         QVector<OutputFrame> missing;
-        for(const auto& frame:frames)if(!std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return sameOutputScope(scope,frame);}))missing.append(frame);
+        for(const auto& frame:frames)if(!retiring(frame.endpoint) && !std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return sameOutputScope(scope,frame);}))missing.append(frame);
         if(missing.isEmpty())return;
         const auto prepared=connect_(missing);
         for(const auto& connection:prepared) {
@@ -178,6 +205,7 @@ QJsonObject ServiceRuntime::status() const {
     const auto frames=outputScope(*document_);
     for(const auto& frame:frames) {
         QString state=enabled_?"Offline":"Stopped",error;
+        if(retiring(frame.endpoint)) {state="Not responding";error="The device did not answer a driver call; it is retried once that call returns";}
         for(int i=0;i<scopes_.size();++i)if(scopes_[i].endpoint==frame.endpoint) {
             const auto s=connections_[i]->status();error=s.error;
             state=s.state==OutputScheduler::State::Running?"Running":s.state==OutputScheduler::State::Starting?"Connecting":s.state==OutputScheduler::State::Faulted?"Faulted":"Stopped";

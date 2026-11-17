@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QLocalSocket>
 #include <QtEndian>
+#include <QElapsedTimer>
 #include <atomic>
 #include <future>
 #include <memory>
@@ -69,6 +70,7 @@ private slots:
  void editorSynchronization();
  void persistedPauseAndReconnect();
  void offlineEndpointKeepsHealthyOutput();
+ void hungDriverCallKeepsAnswering();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
 };
@@ -249,6 +251,34 @@ void ServiceTest::persistedPauseAndReconnect() {
     ServiceRuntime restored({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QCOMPARE(restored.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Paused"));
 }
+// A driver call that never returns must not make the service deaf (dump 2026-11-17: the main
+// thread joined a worker stuck in HidD_GetSerialNumberString on the MSI controller).
+void ServiceTest::hungDriverCallKeepsAnswering() try {
+    QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    auto hold=std::make_shared<std::atomic_bool>(true);auto opens=std::make_shared<std::atomic_int>(0);
+    struct Release {std::shared_ptr<std::atomic_bool> hold;~Release(){hold->store(false);}} release{hold};
+    const auto output=[hold,opens](const QVector<OutputFrame>& frames) {
+        QVector<OutputConnection> result;
+        for(const auto& frame:frames)result.append({frame,[hold,opens]()->std::unique_ptr<OutputSession> {
+            opens->fetch_add(1);while(hold->load())std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            return nullptr;
+        },{}});
+        return result;
+    };
+    ServiceRuntime runtime({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
+    QVERIFY(runtime.command(project(profile)).value("ok").toBool());QTRY_COMPARE(opens->load(),1);
+    // Reloading the project stops the hung worker; the command returns within its bounded wait.
+    QElapsedTimer timer;timer.start();
+    QVERIFY(runtime.command(project(profile)).value("ok").toBool());
+    QVERIFY2(timer.elapsed()<5000,"project command blocked on the hung worker");
+    for(int i=0;i<3;++i)QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());
+    QCOMPARE(opens->load(),1); // No second stuck worker on the same endpoint.
+    QCOMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Not responding"));
+    // Once the call returns, the old worker is reaped and the endpoint is opened again.
+    hold->store(false);QTest::qWait(50);
+    QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());QTRY_COMPARE(opens->load(),2);
+    QVERIFY(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString()!="Not responding");
+} catch(const std::exception& e){QFAIL(e.what());}
 void ServiceTest::offlineEndpointKeepsHealthyOutput() {
     QTemporaryDir folder;const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
     auto first=std::make_shared<Recording>(),second=std::make_shared<Recording>();

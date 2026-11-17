@@ -4,6 +4,17 @@ Single maintainer, so no `dev` branch. Every feature gets its own branch and rea
 through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
 release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
 
+## Hung device open and project-only conflict check - 2026-11-17
+
+Dump of the deaf service: a worker hung in hidapi's `HidD_GetSerialNumberString` on 0DB0:0076 and
+the main thread joined it (`stopConnections` on a project command). ServiceRuntime now retires
+stopped workers (1 s bounded wait, hung ones keep their endpoint closed as "Not responding").
+The `conflicts` op checks every discovered HID device instead of `probeTargets()`, and reports an
+empty inventory as scanError. Build GS-06-R10 in `build/r10` (MSVC 14.52; `build/next` points to
+the removed 14.51). 22/22 tests pass; new test fails on the old code. Untested on the real system.
+Open: periodic guard still skips driven endpoints (a writer started later is only found via the
+dialog); hung discovery scan; portable mode keeps its name list; OutputPanel has the same join.
+
 ## Installed editor could not reach the service - 2026-11-17
 
 Owner report: empty conflict dialog ("Lighting service identity rejected"), SignalRGB effects stayed.

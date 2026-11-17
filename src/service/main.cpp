@@ -140,11 +140,18 @@ int run(int argc,char** argv,bool managed) {
         }
         // Detection takes seconds and service control can block; both run off the pipe thread.
         if(op=="conflicts") {
-            std::thread([monitor,answer,reply,targets=runtime.probeTargets(),inventory=runtime.inventory()] {
-                // Only devices the service discovered itself (see ServiceRuntime::runScan).
-                QStringList discovered;
-                for(const auto& target:targets)for(const auto& c:inventory)if(c.device.path.compare(target,Qt::CaseInsensitive)==0){discovered.append(target);break;}
-                QJsonArray list;QString error;const auto found=monitor->conflicts(discovered,&error);
+            std::thread([monitor,answer,reply,inventory=runtime.inventory()] {
+                // Every lighting device the service discovered itself, with or without a project and
+                // including the ones it drives (2026-11-17: project-only targets left the dialog empty
+                // after a reinstall, and held endpoints hid SignalRGB writing to the same controller).
+                // The USB trace drops this process's own writes; no executable name list is involved.
+                QStringList discovered;for(const auto& c:inventory)discovered.append(c.device.path);
+                discovered=probeableEndpoints(discovered);
+                QJsonArray list;QString error;
+                // "Could not check" must never look like "no conflict" (Fail visibly).
+                if(inventory.isEmpty())error="The lighting service has not discovered any devices yet; try again in a few seconds";
+                else if(discovered.isEmpty())error="None of the discovered lighting devices can be checked for other writers";
+                const auto found=error.isEmpty()?monitor->conflicts(discovered,&error):QVector<ConflictProcess>{};
                 // Creation time is a 64-bit FILETIME; a JSON number would lose precision.
                 for(const auto& p:found)list.append(QJsonObject{{"pid",qint64(p.pid)},{"started",QString::number(p.started)},
                     {"executable",p.executable},{"path",p.path},{"reason",p.reason},{"manualStop",p.manualStop}});

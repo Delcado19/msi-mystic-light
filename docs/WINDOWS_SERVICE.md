@@ -82,7 +82,10 @@ unavailable in Hardware and nothing is blocked. Known gaps: writes through inter
 transfers are not evaluated (SignalRGB writes the ROCCAT Vulcan that way, so that
 keyboard is not blocked), a program that writes only occasionally (LEDKeeper2 on
 "Apply") is usually missed in 5 s, and RAM (SMBus) and GPU endpoints are not
-covered. An endpoint the service already drives is not probed either. The service never stops
+covered. The periodic guard does not probe an endpoint the service already drives; the
+editor's conflict dialog checks every HID device the service discovered, with or without a
+project and including the driven ones (the trace drops the service's own writes). An empty
+inventory or a failed trace is shown in the dialog, never treated as "no conflict". The service never stops
 another application on its own; it stops one only on an explicit request from the
 editor's conflict dialog (see Diagnostics and removal). RAM discovery and endpoint
 failures are visible in Hardware.
@@ -92,6 +95,14 @@ time, so the pipe keeps answering while a scan takes seconds. Status commands
 reply immediately; scan, project and output-enable commands reply after a scan
 that started after the command. Connections are still opened on the service
 thread, between two scans.
+
+A device open or HID call can hang inside the driver without timeout (2026-11-17: the MSI
+controller never answered `HidD_GetSerialNumberString`). Stopped output workers are never
+joined on the service thread while alive: after one bounded second a hung worker is set
+aside, its endpoint reports **Not responding** and is not reopened until the call returns, and
+the pipe keeps answering. On service stop a still-hung worker is abandoned. A hung discovery
+scan (hidapi also reads serial numbers while enumerating) still delays scan and project replies
+until it returns.
 
 ## Security boundary
 

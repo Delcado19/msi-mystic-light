@@ -25,7 +25,8 @@ public:
     // stay closed; the others connect (device-based detection, owner decision 2026-11-16).
     using Guard=std::function<QStringList(const QStringList& endpoints,QString& message)>;
     void setOutputGuard(Guard guard) { guard_=std::move(guard); }
-    // Configured endpoints this service does not hold. Probing a held endpoint would only find ourselves.
+    // Configured endpoints this service does not hold (a hung retired worker counts as holding).
+    // Used by the periodic guard; the editor's conflict dialog checks the whole inventory instead.
     QStringList probeTargets() const;
     QVector<ProfileCandidate> inventory() const { return inventory_; }
 private:
@@ -38,6 +39,13 @@ private:
     void startScan();
     void applyScan(const ScanResult& result);
     void stopConnections();
+    // A worker can hang inside a driver call without timeout (dump 2026-11-17: hidapi's
+    // HidD_GetSerialNumberString on the MSI controller 0DB0:0076 never returned, and the main thread
+    // joined it forever, so the pipe stopped answering). Stopped workers are therefore never joined on
+    // this thread while alive: they wait in retired_ and keep their endpoint closed until they end.
+    void retire(int index);
+    void reap();
+    bool retiring(const QString& endpoint) const;
     double seconds() const;
     QString directory_, error_;
     ComponentCatalog catalog_;
@@ -50,6 +58,8 @@ private:
     std::vector<std::unique_ptr<OutputScheduler>> connections_;
     QVector<OutputFrame> scopes_;
     QVector<quint64> generations_;
+    struct Retired { std::unique_ptr<OutputScheduler> scheduler; QString endpoint; };
+    std::vector<Retired> retired_;
     QSet<QString> paused_;
     QJsonObject project_;
     QTimer render_,retry_;
