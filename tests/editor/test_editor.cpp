@@ -188,6 +188,7 @@ private slots:
     void globalColorControls();
     void integerDisplayRoundTrip();
     void liveColorPicker();
+    void hueSliderColorizesGrayStop();
     void hueTrackRetainsSpectrum();
     void screenEyedropperGeometry();
     void auditWorkspace();
@@ -4194,6 +4195,22 @@ void EditorTest::authoringControlsRegression()
     canvas.setTool(LightingCanvas::Tool::Pan);const auto before=canvas.canvasPoint({300,300});const auto revision=document.revision();
     QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,{300,300});QTest::mouseMove(&canvas,{350,320});QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,{350,320});
     QVERIFY(canvas.canvasPoint({300,300})!=before);QCOMPARE(document.revision(),revision);
+}
+
+// Owner report 2026-11-17: a stop added between complementary colors interpolates to gray; moving
+// only the hue slider changed nothing and Apply kept gray. Hue on an achromatic color must show.
+void EditorTest::hueSliderColorizesGrayStop()
+{
+    for(const QColor start:{QColor("#808080"),QColor(Qt::black)}) {
+        ColorEditor editor;applyStudioStyle(&editor);editor.setColor(start);editor.resize(400,80);editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));editor.findChild<QPushButton*>()->click();
+        auto* popup=editor.findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
+        popup->findChild<QSlider*>("pickerHue")->setValue(200);QCoreApplication::processEvents();
+        auto* buttons=popup->findChild<QDialogButtonBox*>();QVERIFY(buttons);
+        buttons->button(QDialogButtonBox::Apply)->click();QCoreApplication::processEvents();
+        QVERIFY2(editor.color().hsvSaturation()>0 && editor.color().value()>0,qPrintable(editor.color().name()));
+        QVERIFY(std::abs(editor.color().hsvHue()-200)<=1);
+    }
 }
 
 void EditorTest::hueTrackRetainsSpectrum()

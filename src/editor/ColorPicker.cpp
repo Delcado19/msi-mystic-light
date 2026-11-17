@@ -148,10 +148,17 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
     };
     const auto fromHsv=[=] {(*update)(QColor::fromHsv(square->hue,square->saturation,square->brightness));};
     square->changed=[=](int,int){fromHsv();};
-    QObject::connect(hue,&QSlider::valueChanged,popup,[=](int value){square->hue=value;fromHsv();});
+    // Hue alone cannot tint an achromatic color: a stop added between complementary colors
+    // interpolates to gray, and the slider then changed nothing (owner report 2026-11-17). Picking a
+    // hue on gray or black therefore also gives it full saturation and visible brightness.
+    const auto tintIfAchromatic=[=] {
+        if(square->saturation==0)square->saturation=255;
+        if(square->brightness==0)square->brightness=255;
+    };
+    QObject::connect(hue,&QSlider::valueChanged,popup,[=](int value){square->hue=value;tintIfAchromatic();fromHsv();});
     for(int i=0;i<3;++i) {
         QObject::connect(hsv[i],&QSpinBox::valueChanged,popup,[=](int value) {
-            if(i==0)square->hue=value%360;else if(i==1)square->saturation=qRound(value*255./100);else square->brightness=qRound(value*255./100);fromHsv();
+            if(i==0){square->hue=value%360;tintIfAchromatic();}else if(i==1)square->saturation=qRound(value*255./100);else square->brightness=qRound(value*255./100);fromHsv();
         });
         QObject::connect(rgb[i],&QSpinBox::valueChanged,popup,[=](int) {(*update)(QColor(rgb[0]->value(),rgb[1]->value(),rgb[2]->value()));});
     }
