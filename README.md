@@ -47,7 +47,8 @@ for the detailed, current qualification status and limits.
 
 Extract a Release build and run **`Install.cmd`** under `installer/` for automatic playback
 (a Windows service owns hardware output; the editor runs unelevated). Or run
-**`Start-Lighting.cmd`** directly for a portable run with no installation.
+**`msi_mystic_light.exe`** from the extracted folder for a portable run with no installation.
+In a source checkout, `Start-Lighting.cmd` starts the local `build\r10` Release build.
 
 Useful command-line flags on `msi_mystic_light.exe`:
 
