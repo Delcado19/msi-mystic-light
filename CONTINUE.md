@@ -17,6 +17,16 @@ TODO: effect previews in the library. TODO: operating-concept redesign (hardware
 like SignalRGB, duplicate/remove/pulse per component, custom strip by LED count, component lab);
 needs a spec via brainstorming first.
 
+## TODO: R16 owner review, half missing - 2026-11-17
+
+Owner tested R16 and rejected it as incomplete:
+- No real-time preview while dragging: lights still do not follow the drag live (R16 claimed the
+  output keeps running on project edits; that did not fix the visible latency).
+- Tools menu is still visible and enabled in the Devices workspace.
+- Effect library: bold category headings do not make it clearer; needs a different grouping.
+Open as well: push/PR of fix/editor-menu-cleanup (local only), CodeRabbit review of R15 (paused),
+delete .claude/settings.local.json.impeccable-backup (owner decision).
+
 ## CodeRabbit round 2 fixes, R12 - 2026-11-17
 
 R11 HW-confirmed by owner: dialog lists SignalRGB, Terminate all stops it, Vulcan no longer flickers.
