@@ -200,10 +200,12 @@ void ConflictDialog::verifyStopped(const QVector<ConflictProcess>& targets, QStr
         if (!errors.isEmpty()) status_->setText(status_->text() + "\n" + errors.join('\n'));
         return;
     }
+    // Retry errors count only from the final pass: an early "not stopping yet" must not outlive a
+    // stop that succeeded later (CodeRabbit review 2026-11-17).
+    QStringList stopErrors;
     for (const auto& target : targets) if (isSignalRgbService(target.executable)) {
         const auto error = processes_.stop(target, true);
-        const auto message = target.executable + ": " + error;
-        if (!error.isEmpty() && !errors.contains(message)) errors.append(message);
+        if (!error.isEmpty()) stopErrors.append(target.executable + ": " + error);
     }
     QStringList remaining;
     for (const auto& current : conflicts_) for (const auto& target : targets)
@@ -222,6 +224,7 @@ void ConflictDialog::verifyStopped(const QVector<ConflictProcess>& targets, QStr
     }
     busy_ = false;
     updateButtons();
+    for (const auto& message : stopErrors) if (!errors.contains(message)) errors.append(message);
     if (!remaining.isEmpty()) errors.append("Still running after termination: " + remaining.join(", ") + ". Retry or stop manually.");
     if (!errors.isEmpty()) status_->setText(errors.join('\n'));
     else if(conflicts_.isEmpty())accept();

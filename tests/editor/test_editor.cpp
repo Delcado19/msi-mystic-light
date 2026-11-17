@@ -4061,6 +4061,9 @@ void EditorTest::integerDisplayRoundTrip()
     field.setValue(.123456789);const auto exact=field.value();QCOMPARE(field.text(),QString("7 /min"));
     field.show();field.setFocus();QTest::keyClick(&field,Qt::Key_Tab);QCOMPARE(field.value(),exact);
     field.setFocus();QTest::keyClick(&field,Qt::Key_A,Qt::ControlModifier);QTest::keyClicks(&field,"30");QTest::keyClick(&field,Qt::Key_Return);QCOMPARE(field.value(),.5);
+    // Retyping the shown integer is an explicit edit and rounds (CodeRabbit review 2026-11-16).
+    field.setValue(.123456789);field.setFocus();QTest::keyClick(&field,Qt::Key_A,Qt::ControlModifier);QTest::keyClicks(&field,"7");
+    QTest::keyClick(&field,Qt::Key_Return);QCOMPARE(field.value(),7.0/60);
     field.setDisplayUnit(1000," ms");field.setValue(.375);QCOMPARE(field.text(),QString("375 ms"));
     QTest::keyClick(&field,Qt::Key_Up);QCOMPARE(field.value(),.376);
     LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});addEffect(window,EffectKind::Circle);

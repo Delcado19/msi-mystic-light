@@ -72,6 +72,7 @@ private slots:
  void offlineEndpointKeepsHealthyOutput();
  void hungDriverCallKeepsAnswering();
  void reopenReinitializesOutputs();
+ void unprobedEndpointStaysClosed();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
 };
@@ -268,6 +269,25 @@ void ServiceTest::persistedPauseAndReconnect() {
     ServiceRuntime restored({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QCOMPARE(restored.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Paused"));
 }
+// With a conflict guard, an endpoint is opened only after a scan probed it for other writers
+// (CodeRabbit review 2026-11-16: endpoints added or freed during a scan were opened unchecked).
+void ServiceTest::unprobedEndpointStaysClosed() try {
+    QTemporaryDir folder;const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);auto record=std::make_shared<Recording>();
+    auto discovered=std::make_shared<std::atomic_bool>(false);
+    const auto output=[record,profile](const QVector<OutputFrame>& frames){
+        QVector<OutputConnection> result;for(const auto& frame:frames)result.append({frame,[record,profile]{
+            ModuleRegistry modules;QString error;if(!modules.load(TEST_MODULE_PATH,&error))throw std::runtime_error(error.toStdString());
+            auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
+        },[record]{return record->present.load();}});return result;
+    };
+    const auto scan=[discovered,profile]{return discovered->load()?QVector<ProfileCandidate>{{identity(),profile.id}}:QVector<ProfileCandidate>{};};
+    ServiceRuntime runtime({}, {profile},folder.path(),scan,output);
+    QStringList probed;runtime.setOutputGuard([&probed](const QStringList& targets,QString&){probed=targets;return QStringList{};});
+    QVERIFY(runtime.command(project(profile)).value("ok").toBool());
+    QVERIFY(probed.isEmpty());QTest::qWait(100);QCOMPARE(record->opens.load(),0); // Not discovered, so not probed.
+    discovered->store(true);QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());
+    QCOMPARE(probed,QStringList{"fake-hid-path"});QTRY_COMPARE(record->opens.load(),1);
+} catch(const std::exception& e){QFAIL(e.what());}
 // After another program was stopped, every output is opened (and so initialized) again once,
 // however many stops arrive (owner report 2026-11-17: the Vulcan flickered after Terminate all).
 void ServiceTest::reopenReinitializesOutputs() try {

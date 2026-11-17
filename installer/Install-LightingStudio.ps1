@@ -4,7 +4,9 @@ param(
     [string]$OwnerSid,
     [string]$PawnIOSetup,
     [switch]$NoEditorAutostart,
-    [switch]$Elevated
+    [switch]$Elevated,
+    # Written by the elevated child only after it completed; proves this run, not a previous install.
+    [string]$ResultFile
 )
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults of [CmdletBinding()] scripts,
@@ -39,15 +41,20 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
     $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Quote-Argument $PSCommandPath),'-Source',(Quote-Argument $Source),'-OwnerSid',$OwnerSid)
     if ($PawnIOSetup) { $arguments += @('-PawnIOSetup',(Quote-Argument ([IO.Path]::GetFullPath($PawnIOSetup)))) }
     if ($NoEditorAutostart) { $arguments += '-NoEditorAutostart' }
-    $arguments += '-Elevated'
-    foreach ($path in @($PSCommandPath,$Source,$PawnIOSetup)) { if ($path -match '["\r\n]') { throw 'Invalid installer path' } }
+    $resultFile = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-install-' + [guid]::NewGuid().ToString('N') + '.result')
+    $arguments += @('-Elevated','-ResultFile',(Quote-Argument $resultFile))
+    foreach ($path in @($PSCommandPath,$Source,$PawnIOSetup,$resultFile)) { if ($path -match '["\r\n]') { throw 'Invalid installer path' } }
     # The elevated window is visible and shows each step (owner report 2026-11-17: a hidden child left
     # only an empty window for minutes). Success is judged by the installed state, not the exit code,
     # so closing that window early can neither hide nor fake the result.
     Write-Host 'Installing in the administrator window that opens now. Confirm the Windows prompt (UAC).'
     $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru
+    # During an update the old service and editor already satisfy the state check, so this run must
+    # also have reported completion (CodeRabbit review 2026-11-17).
+    $completed = (Test-Path -LiteralPath $resultFile -PathType Leaf) -and ((Get-Content -LiteralPath $resultFile -Raw).Trim() -eq 'installed')
+    Remove-Item -LiteralPath $resultFile -Force -ErrorAction SilentlyContinue
     $service = Get-Service -Name LightingStudio -ErrorAction SilentlyContinue
-    if (!$service -or $service.Status -ne 'Running' -or !(Test-Path -LiteralPath $editor -PathType Leaf)) {
+    if (!$completed -or !$service -or $service.Status -ne 'Running' -or !(Test-Path -LiteralPath $editor -PathType Leaf)) {
         throw "Installation did not complete (exit code $($child.ExitCode)). The administrator window listed the failed step; run Install.cmd again to retry."
     }
     Write-Host 'Installed. Lighting starts with Windows; open Lighting Studio from the Start menu.' -ForegroundColor Green
@@ -221,6 +228,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Service failure recovery flag could not be set
 Show-Step 'Starting the Lighting Studio service'
 Start-Service LightingStudio
 (Get-Service LightingStudio).WaitForStatus('Running',[TimeSpan]::FromSeconds(30))
+if ($ResultFile) { Set-Content -LiteralPath $ResultFile -Value 'installed' -Encoding ascii }
 Write-Progress -Activity 'Installing Lighting Studio' -Completed
 Write-Host ('[{0:mm\:ss}] Installed. This window closes in 5 seconds.' -f $clock.Elapsed) -ForegroundColor Green
 if ($Elevated) { Start-Sleep -Seconds 5 }

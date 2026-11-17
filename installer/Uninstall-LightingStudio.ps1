@@ -3,7 +3,10 @@ param(
     [switch]$RemovePawnIO,
     [switch]$RemoveUserData,
     [switch]$Quiet,
-    [switch]$Elevated
+    [switch]$Elevated,
+    # The elevated child writes 'removed' or its problems here, so the parent can tell a recorded
+    # failure from an interrupted child (CodeRabbit review 2026-11-17).
+    [string]$ResultFile
 )
 # Removes everything Install-LightingStudio.ps1 created. The shared PawnIO driver and the owner's
 # editor settings are removed only on request; saved project files are never touched.
@@ -59,16 +62,31 @@ if (!$Quiet -and !$Elevated) {
 }
 # This script may run from inside the folder it deletes; no process may keep that folder as its working directory.
 Set-Location -LiteralPath $env:SystemRoot
+# Set-Location moves only the runspace; the process working directory would still lock the folder
+# (CodeRabbit review 2026-11-16).
+[Environment]::CurrentDirectory = $env:SystemRoot
 $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     if ($PSCommandPath -match '["\r\n]') { throw 'Invalid uninstaller path' }
     $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $PSCommandPath + '"'),'-Elevated')
     if ($RemovePawnIO) { $arguments += '-RemovePawnIO' }
     if ($Quiet) { $arguments += '-Quiet' }
+    $resultFile = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-uninstall-' + [guid]::NewGuid().ToString('N') + '.result')
+    if ($resultFile -match '["\r\n]') { throw 'Invalid result path' }
+    $arguments += @('-ResultFile',('"' + $resultFile + '"'))
     # The elevated window stays visible: it lists every step and anything that could not be removed.
     if (!$Quiet) { Write-Host 'Removing in the administrator window that opens now. Confirm the Windows prompt (UAC).' }
-    $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru
-    # Judge the result by what is left, not by the exit code: closing the elevated window with X
+    $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru -WorkingDirectory $env:SystemRoot
+    $reported = if (Test-Path -LiteralPath $resultFile -PathType Leaf) { (Get-Content -LiteralPath $resultFile -Raw).Trim() } else { $null }
+    Remove-Item -LiteralPath $resultFile -Force -ErrorAction SilentlyContinue
+    # A failure the child recorded (state folder, PawnIO) counts even if the main items are gone.
+    if ($reported -and $reported -ne 'removed') {
+        Write-Host "`nLighting Studio was NOT removed completely: $reported" -ForegroundColor Red
+        Write-Host 'Your editor data was kept. Run the uninstaller again or check the administrator window.'
+        if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
+        exit 1
+    }
+    # Without a report (window closed, child interrupted), judge by what is left, not by the exit code: closing the elevated window with X
     # reported 0xC000013A although everything had been removed, and the user data step was skipped
     # (owner report 2026-11-17).
     $left = @()
@@ -153,6 +171,7 @@ if ($RemovePawnIO) {
     }
 } elseif (Test-Path -LiteralPath $pawnIOKey) { Write-Host 'Kept: PawnIO driver (shared with other hardware tools).' }
 Write-Progress -Activity 'Removing Lighting Studio' -Completed
+if ($ResultFile) { Set-Content -LiteralPath $ResultFile -Encoding UTF8 -Value $(if ($problems.Count) { $problems -join '; ' } else { 'removed' }) }
 if ($problems.Count) {
     Write-Host "`nLighting Studio was NOT removed completely:" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host "  $_" }

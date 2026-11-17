@@ -102,15 +102,15 @@ ServiceRuntime::~ServiceRuntime() {
     // shortcut: a worker still hung in a driver call is leaked instead of joined, so the service can
     // stop (sc stop hung in STOP_PENDING, 2026-11-17); safe only because the process exits next.
     for(auto& retired:retired_)(void)retired.scheduler.release();
-    // The worker posts its result to this object; wait for it before members disappear (a result
-    // posted but not yet delivered is dropped by ~QObject). hid_enumerate reads serial numbers too, so
-    // a scan can hang like an open; one still running after 10 s (a normal scan takes ~6.5 s) is abandoned.
-    // shortcut: an abandoned scanner that returns later posts to a destroyed object; the process is
-    // exiting by then. Upgrade to a shared state object if the runtime ever outlives a stuck scan.
+    // hid_enumerate reads serial numbers too, so a scan can hang like an open. Wait up to 10 s (a
+    // normal scan takes ~6.5 s); a scanner still running then is abandoned. It posts its result only
+    // through the shared mailbox, which no longer names this object (CodeRabbit review 2026-11-17).
+    // A result posted but not yet delivered is dropped by ~QObject.
     if(scanner_.joinable()) {
         QElapsedTimer waited;waited.start();
-        while(!scanFinished_->load() && waited.elapsed()<10000)std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        if(scanFinished_->load())scanner_.join();else scanner_.detach();
+        while(!mailbox_->finished.load() && waited.elapsed()<10000)std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        {const std::lock_guard<std::mutex> lock(mailbox_->mutex);mailbox_->owner=nullptr;}
+        if(mailbox_->finished.load())scanner_.join();else scanner_.detach();
     }
 }
 // Runs on the scan worker when background scanning is on: touches only its arguments.
@@ -123,6 +123,7 @@ ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const Guard&
     QStringList discovered;
     for(const auto& target:targets)if(std::any_of(result.inventory.cbegin(),result.inventory.cend(),
         [&](const ProfileCandidate& c){return c.device.path.compare(target,Qt::CaseInsensitive)==0;}))discovered.append(target);
+    result.probed=discovered;result.guarded=bool(guard);
     if(guard)try {result.blocked=guard(discovered,result.error);}
     catch(const std::exception& e) {result.scanFailed=true;result.error=QString::fromUtf8(e.what());}
     return result;
@@ -130,8 +131,13 @@ ServiceRuntime::ScanResult ServiceRuntime::runScan(const Scan& scan,const Guard&
 QStringList ServiceRuntime::probeTargets() const {
     QStringList result;
     for(const auto& frame:outputScope(*document_)) {
-        // Any state counts as held: a Starting worker may be opening the device right now.
-        const bool held=retiring(frame.endpoint) || std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return scope.endpoint==frame.endpoint;});
+        // A Starting worker may be opening the device right now, and a retired one may still hold it.
+        // A Faulted or Stopped one holds nothing and is probed before it is reopened (CodeRabbit 2026-11-16).
+        bool held=retiring(frame.endpoint);
+        for(int i=0;i<scopes_.size() && !held;++i)if(scopes_[i].endpoint==frame.endpoint) {
+            const auto state=connections_[i]->status().state;
+            held=state==OutputScheduler::State::Starting || state==OutputScheduler::State::Running;
+        }
         if(!held && !result.contains(frame.endpoint))result.append(frame.endpoint);
     }
     return result;
@@ -148,21 +154,25 @@ void ServiceRuntime::reconnect(std::function<void()> done) {
 void ServiceRuntime::startScan() {
     if(scanner_.joinable())scanner_.join();   // The previous worker has already posted its result.
     scanning_=true;waiting_=std::move(next_);next_.clear();
-    // The target snapshot is taken here: the worker must not read scopes_.
-    scanFinished_=std::make_shared<std::atomic_bool>(false);
-    scanner_=std::thread([this,scan=scan_,guard=simulation_?Guard{}:guard_,targets=probeTargets(),finished=scanFinished_] {
-        struct Done {std::shared_ptr<std::atomic_bool> flag;~Done(){flag->store(true);}} done{finished};
+    // The target snapshot is taken here: the worker must not read scopes_. It never touches `this`;
+    // the mailbox is cleared by the destructor before an abandoned worker could use it.
+    mailbox_=std::make_shared<ScanMailbox>();mailbox_->owner=this;
+    scanner_=std::thread([scan=scan_,guard=simulation_?Guard{}:guard_,targets=probeTargets(),mailbox=mailbox_] {
+        struct Done {std::shared_ptr<ScanMailbox> box;~Done(){box->finished.store(true);}} done{mailbox};
         auto result=runScan(scan,guard,targets);
-        QMetaObject::invokeMethod(this,[this,result=std::move(result)] {
-            scanning_=false;applyScan(result);
-            const auto done=std::move(waiting_);waiting_.clear();
-            for(const auto& answer:done)answer();
-            if(next_.empty())return;
-            if(!suspended_){startScan();return;}
-            const auto skipped=std::move(next_);next_.clear();
-            for(const auto& answer:skipped)answer();
-        },Qt::QueuedConnection);
+        const std::lock_guard<std::mutex> lock(mailbox->mutex);
+        if(auto* owner=mailbox->owner)
+            QMetaObject::invokeMethod(owner,[owner,result=std::move(result)]{owner->finishScan(result);},Qt::QueuedConnection);
     });
+}
+void ServiceRuntime::finishScan(const ScanResult& result) {
+    scanning_=false;applyScan(result);
+    const auto done=std::move(waiting_);waiting_.clear();
+    for(const auto& answer:done)answer();
+    if(next_.empty())return;
+    if(!suspended_){startScan();return;}
+    const auto skipped=std::move(next_);next_.clear();
+    for(const auto& answer:skipped)answer();
 }
 // connect_ opens hardware and must not overlap a scan; it only runs here, between two scans.
 void ServiceRuntime::applyScan(const ScanResult& result) {
@@ -187,7 +197,10 @@ void ServiceRuntime::applyScan(const ScanResult& result) {
         // An endpoint whose old worker is still alive is not reopened: a hung driver call would only
         // gain a second stuck worker on every retry.
         QVector<OutputFrame> missing;
-        for(const auto& frame:frames)if(!retiring(frame.endpoint) && !std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return sameOutputScope(scope,frame);}))missing.append(frame);
+        // An endpoint is opened only if this scan probed it for other writers; one added or freed while
+        // the scan ran waits for the next scan (CodeRabbit review 2026-11-16).
+        for(const auto& frame:frames)if(!retiring(frame.endpoint) && (!result.guarded || result.probed.contains(frame.endpoint)) &&
+            !std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const auto& scope){return sameOutputScope(scope,frame);}))missing.append(frame);
         if(missing.isEmpty())return;
         const auto prepared=connect_(missing);
         for(const auto& connection:prepared) {
@@ -235,7 +248,10 @@ void ServiceRuntime::command(const QJsonObject& request,const Reply& reply) {
         bool rescan=false;
         if(request.value("version").toInt()!=StudioService::protocolVersion)throw std::invalid_argument("Unsupported service protocol");
         const auto op=request.value("op").toString();
-        if(op=="project") {loadBundle(request,true);rescan=true;}
+        // The project is saved and loaded at once; its reply need not wait for the hardware scan,
+        // which could exceed the editor's 15 s deadline and trigger a needless resend (CodeRabbit
+        // review 2026-11-16). A fresh scan still runs; the editor's status poll shows its result.
+        if(op=="project") {loadBundle(request,true);reconnect([]{});}
         else if(op=="scan")rescan=true;
         else if(op=="playback") {
             if(!request.value("playing").isBool() || !request.value("seconds").isDouble())throw std::invalid_argument("Invalid playback command");

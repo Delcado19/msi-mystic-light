@@ -202,7 +202,8 @@ int main(int argc, char** argv)
         if(*resolving)return;
         if(serviceInstalled && !window.isVisible()) {
             struct Reset {bool& flag;~Reset(){flag=false;}} reset{*resolving};*resolving=true;
-            resolveConflicts(&window);
+            // Cancel in the conflict dialog means "do not open the editor" (CodeRabbit review 2026-11-17).
+            if(!resolveConflicts(&window))return;
         }
         window.showNormal(); window.raise(); window.activateWindow();
     };

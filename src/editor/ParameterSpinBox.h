@@ -1,5 +1,6 @@
 #pragma once
 #include <QDoubleSpinBox>
+#include <QLineEdit>
 #include "StudioWidgets.h"
 #include <cmath>
 #include <QEvent>
@@ -13,6 +14,10 @@ public:
     explicit ParameterSpinBox(QWidget* parent=nullptr) : QDoubleSpinBox(parent) {
         setDecimals(323); setKeyboardTracking(false); styleStudioNumericField(this);
         setProperty("displayScale",1.0);
+        // Only untouched text keeps the exact value; clearing and retyping the shown integer is an
+        // explicit edit and rounds (CodeRabbit review 2026-11-16).
+        connect(lineEdit(),&QLineEdit::textEdited,this,[this]{edited_=true;});
+        connect(this,&QAbstractSpinBox::editingFinished,this,[this]{edited_=false;});
     }
     void setDisplayUnit(double scale,const QString& unit) {
         scale_=scale; setProperty("displayScale",scale); setSuffix(unit);
@@ -31,7 +36,7 @@ protected:
         return QString::number(qRound64(shown));
     }
     double valueFromText(const QString& text) const override {
-        if(text==textFromValue(value())+suffix() || text==prefix()+textFromValue(value())+suffix())return value();
+        if(!edited_ && (text==textFromValue(value())+suffix() || text==prefix()+textFromValue(value())+suffix()))return value();
         QString number=text;number.remove(suffix());number.remove(prefix());
         bool ok=false;const double result=locale().toDouble(number.trimmed(),&ok);
         return ok ? result/scale_ : value();
@@ -48,4 +53,5 @@ protected:
     }
 private:
     double scale_=1;
+    bool edited_=false;
 };

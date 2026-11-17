@@ -119,6 +119,10 @@ private slots:
     void deviceConflictPolicy() {
         const QStringList own{"C:/Program Files/Lighting Studio/lighting_service_host.exe","C:/Program Files/Lighting Studio/msi_mystic_light.exe"};
         QVERIFY(isExcludedImage("C:\\Windows\\System32\\svchost.exe","C:\\WINDOWS",own));
+        // Interface path to device instance ID, used to tell identical controllers apart.
+        QCOMPARE(deviceInstanceFromPath("\\\\?\\USB#VID_0db0&PID_0076#a1b2#{a5dcbf10-6530-11d2-901f-00c04fb951ed}"),QString("USB\\VID_0DB0&PID_0076\\A1B2"));
+        QCOMPARE(deviceInstanceFromPath("\\\\?\\HID#VID_1532&PID_0099&MI_03#9&47bb1fe&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}"),
+            QString("HID\\VID_1532&PID_0099&MI_03\\9&47BB1FE&0&0000"));
         QVERIFY(isExcludedImage("C:/Program Files/Lighting Studio/LIGHTING_SERVICE_HOST.exe","C:\\Windows",own));
         QVERIFY(!isExcludedImage("C:/Program Files (x86)/MSI/MSI Center/Engine/CC_Engine_x64.exe","C:\\Windows",own));
         QVERIFY(!isExcludedImage("C:/WindowsApps/x.exe","C:\\Windows",own));   // Prefix only on a folder boundary.

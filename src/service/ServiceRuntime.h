@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QTimer>
 #include <atomic>
+#include <mutex>
 #include <thread>
 // Owns the persisted playback session. No client file paths or plugin paths enter this API.
 class ServiceRuntime : public QObject {
@@ -38,10 +39,14 @@ private:
     void loadBundle(const QJsonObject& bundle,bool persist);
     void persist();
     void tick();
-    struct ScanResult { QVector<ProfileCandidate> inventory; QString error; QStringList blocked; bool scanFailed=false; };
+    // probed: endpoints the guard checked in this scan; with a guard only those may be newly opened.
+    struct ScanResult { QVector<ProfileCandidate> inventory; QString error; QStringList blocked,probed; bool scanFailed=false,guarded=false; };
     static ScanResult runScan(const Scan& scan,const Guard& guard,const QStringList& targets);
     void reconnect(std::function<void()> done={});
     void startScan();
+    void finishScan(const ScanResult& result);
+    // Shared with the scan worker so it never needs `this`; owner is cleared by the destructor.
+    struct ScanMailbox { std::mutex mutex; ServiceRuntime* owner=nullptr; std::atomic_bool finished{false}; };
     void applyScan(const ScanResult& result);
     void stopConnections();
     // A worker can hang inside a driver call without timeout (dump 2026-11-17: hidapi's
@@ -75,7 +80,7 @@ private:
     // Background scan: one worker at a time. waiting_ is answered by the running scan, next_ by the
     // following one, so a reply never reports a scan that started before its command.
     std::thread scanner_;
-    std::shared_ptr<std::atomic_bool> scanFinished_=std::make_shared<std::atomic_bool>(true); // Set last by the scanner.
+    std::shared_ptr<ScanMailbox> mailbox_=std::make_shared<ScanMailbox>();
     std::vector<std::function<void()>> waiting_,next_;
     bool background_=false,scanning_=false;
 };

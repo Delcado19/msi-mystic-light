@@ -23,7 +23,12 @@ struct EndpointCheck {
 };
 
 // One HID SET_REPORT seen in a USB trace.
-struct UsbWrite { quint32 pid = 0; QString device; int interfaceNumber = -1; int count = 0; };
+// instance: the physical USB device ("USB\VID_..&PID_..\<serial or port>"), so two identical
+// controllers are told apart (CodeRabbit review 2026-11-16). lastSeen: FILETIME of the last write,
+// so a PID reused after the writer exited is not mistaken for the writer.
+struct UsbWrite { quint32 pid = 0; QString device; int interfaceNumber = -1; int count = 0; QString instance; quint64 lastSeen = 0; };
+// "\\?\USB#VID_0DB0&PID_0076#ABC#{guid}" -> "USB\VID_0DB0&PID_0076\ABC" (device instance ID).
+QString deviceInstanceFromPath(const QString& interfacePath);
 
 // Policy helpers, unit-tested.
 bool isExcludedImage(const QString& path, const QString& systemRoot, const QStringList& ownExecutables);
@@ -66,7 +71,8 @@ public:
     // Periodic guard: probes every endpoint; a busy one gets a 5 s USB capture at most once a minute.
     // Returns the endpoints another process writes to; message explains them or a failed capture.
     QStringList blocked(const QStringList& endpoints, QString& message);
-    // On demand for the dialog: fresh capture for all busy endpoints; writers plus their program family.
+    // On demand for the dialog: capture for every probeable endpoint (no busy gate); writers plus their
+    // program family. A result is reused for 3 s for the same endpoint set, with its error.
     QVector<ConflictProcess> conflicts(const QStringList& endpoints, QString* error = nullptr);
     // The last conflicts() result; the service stops only processes listed here.
     QVector<ConflictProcess> last() const;

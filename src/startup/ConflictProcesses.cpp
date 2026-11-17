@@ -12,6 +12,7 @@
 #include <tlhelp32.h>
 #include <memory>
 #include <thread>
+#include <vector>
 #include <atomic>
 #endif
 
@@ -243,6 +244,24 @@ QString stopMysticLightService()
     }).detach();
     return {};
 }
+// True only for the LEDKeeper2 that Mystic_Light_Service ships: both live in one folder (MSI Center,
+// verified 2026-11-17). A same-named program elsewhere must not make LocalSystem stop the MSI service
+// (CodeRabbit security review 2026-11-16, CWE-863).
+bool belongsToMysticLightService(const QString& processPath)
+{
+    ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    ScHandle service(manager ? OpenServiceW(manager.get(), L"Mystic_Light_Service", SERVICE_QUERY_CONFIG) : nullptr);
+    if (!service) return false;
+    DWORD needed = 0;
+    QueryServiceConfigW(service.get(), nullptr, 0, &needed);
+    std::vector<BYTE> buffer(needed);
+    auto* config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(buffer.data());
+    if (!needed || !QueryServiceConfigW(service.get(), config, needed, &needed) || !config->lpBinaryPathName) return false;
+    auto binary = QString::fromWCharArray(config->lpBinaryPathName).trimmed();
+    if (binary.startsWith('"')) binary = binary.mid(1, binary.indexOf('"', 1) - 1);
+    const auto folder = [](const QString& path) { return QFileInfo(QDir::fromNativeSeparators(path)).absolutePath(); };
+    return !processPath.isEmpty() && folder(binary).compare(folder(processPath), Qt::CaseInsensitive) == 0;
+}
 // Empty when Mystic_Light_Service is absent or fully stopped; LEDKeeper2 must not be terminated before that,
 // or the still-running service restarts it.
 QString mysticLightServiceStopped()
@@ -394,7 +413,7 @@ QString SystemConflictProcesses::stop(const ConflictProcess& process, bool force
         NativeServices services;
         return stopSignalRgbService(process, force, services);
     }
-    if (normalized(process.executable) == "ledkeeper2.exe") {
+    if (normalized(process.executable) == "ledkeeper2.exe" && belongsToMysticLightService(process.path)) {
         if (!force) return stopMysticLightService();
         if (const auto error = mysticLightServiceStopped(); !error.isEmpty()) return error;
     }

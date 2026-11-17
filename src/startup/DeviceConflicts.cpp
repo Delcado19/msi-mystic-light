@@ -22,6 +22,7 @@
 #include <tdh.h>
 #include <tlhelp32.h>
 #include <sddl.h>
+#include <cfgmgr32.h>
 #endif
 
 bool isExcludedImage(const QString& path, const QString& systemRoot, const QStringList& ownExecutables)
@@ -62,6 +63,15 @@ bool writeTargets(const QString& endpoint, const QString& device, int interfaceN
     // A composite device's endpoint names its interface (MI_03); a single-interface device has none.
     const auto mi = QRegularExpression("&MI_([0-9A-F]{2})").match(label);
     return !mi.hasMatch() || mi.captured(1).toInt(nullptr, 16) == interfaceNumber;
+}
+
+QString deviceInstanceFromPath(const QString& interfacePath)
+{
+    auto id = interfacePath;
+    if (id.startsWith("\\\\?\\")) id = id.mid(4);
+    const int guid = id.lastIndexOf("#{");
+    if (guid > 0) id = id.left(guid);
+    return id.replace('#', '\\').toUpper();
 }
 
 QStringList probeableEndpoints(const QStringList& endpoints)
@@ -178,8 +188,25 @@ quint64 pointerProperty(PEVENT_RECORD record, const wchar_t* name)
 }
 struct Capture {
     QHash<quint64, QString> devices;                       // fid_UsbDevice -> VID_xxxx&PID_yyyy
-    std::map<std::tuple<quint32, quint64, int>, int> writes; // (process, fid_UsbDevice, interface) -> count
+    QHash<quint64, QString> instances;                     // fid_UsbDevice -> USB device instance ID
+    struct Seen { int count = 0; quint64 last = 0; };
+    std::map<std::tuple<quint32, quint64, int>, Seen> writes; // (process, fid_UsbDevice, interface)
 };
+// The USB device (not an interface) that a HID collection belongs to, or empty.
+QString usbDeviceInstance(const QString& hidPath)
+{
+    const auto id = deviceInstanceFromPath(hidPath);
+    DEVINST node = 0;
+    if (CM_Locate_DevNodeW(&node, const_cast<DEVINSTID_W>(reinterpret_cast<const wchar_t*>(id.utf16())), CM_LOCATE_DEVNODE_NORMAL) != CR_SUCCESS) return {};
+    for (int depth = 0; depth < 8; ++depth) {
+        DEVINST parent = 0; wchar_t buffer[MAX_DEVICE_ID_LEN + 1];
+        if (CM_Get_Parent(&parent, node, 0) != CR_SUCCESS || CM_Get_Device_IDW(parent, buffer, MAX_DEVICE_ID_LEN + 1, 0) != CR_SUCCESS) return {};
+        const auto parentId = QString::fromWCharArray(buffer).toUpper();
+        if (parentId.startsWith("USB\\VID_") && !parentId.contains("&MI_")) return parentId;
+        node = parent;
+    }
+    return {};
+}
 // Runs on the single ProcessTrace thread.
 void WINAPI onUsbEvent(PEVENT_RECORD record)
 {
@@ -190,15 +217,18 @@ void WINAPI onUsbEvent(PEVENT_RECORD record)
         const auto device = pointerProperty(record, L"fid_UsbDevice");
         if (device && eventProperty(record, L"fid_DeviceInterfacePath", path) && path.size() >= 2) {
             path.push_back(0); path.push_back(0);
-            const auto identity = usbDeviceId(QString::fromWCharArray(reinterpret_cast<const wchar_t*>(path.data())));
-            if (!identity.isEmpty()) capture->devices.insert(device, identity);
+            const auto interfacePath = QString::fromWCharArray(reinterpret_cast<const wchar_t*>(path.data()));
+            const auto identity = usbDeviceId(interfacePath);
+            if (!identity.isEmpty()) { capture->devices.insert(device, identity); capture->instances.insert(device, deviceInstanceFromPath(interfacePath)); }
         }
     } else if (IsEqualGUID(record->EventHeader.ProviderId, ucxProvider) && id == 53 && record->UserDataLength >= 48) {
         const auto* setup = static_cast<const unsigned char*>(record->UserData) + record->UserDataLength - 8;
         int interfaceNumber = -1;
         if (!hidSetReport(setup, &interfaceNumber)) return;
-        if (const auto device = pointerProperty(record, L"fid_UsbDevice"))
-            ++capture->writes[{quint32(record->EventHeader.ProcessId), device, interfaceNumber}];
+        if (const auto device = pointerProperty(record, L"fid_UsbDevice")) {
+            auto& seen = capture->writes[{quint32(record->EventHeader.ProcessId), device, interfaceNumber}];
+            ++seen.count; seen.last = std::max(seen.last, quint64(record->EventHeader.TimeStamp.QuadPart));
+        }
     }
 }
 
@@ -213,7 +243,9 @@ QVector<UsbWrite> captureUsbWrites(int milliseconds, QString& error)
     const auto properties = [&buffer] {
         std::fill(buffer.begin(), buffer.end(), BYTE(0));
         auto* p = reinterpret_cast<EVENT_TRACE_PROPERTIES*>(buffer.data());
-        p->Wnode.BufferSize = ULONG(buffer.size()); p->Wnode.Flags = WNODE_FLAG_TRACED_GUID; p->Wnode.ClientContext = 1;
+        p->Wnode.BufferSize = ULONG(buffer.size()); p->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
+        // 2 = system time: event timestamps are FILETIMEs, comparable with process creation times.
+        p->Wnode.ClientContext = 2;
         p->LogFileMode = EVENT_TRACE_REAL_TIME_MODE; p->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
         return p;
     };
@@ -251,9 +283,10 @@ QVector<UsbWrite> captureUsbWrites(int milliseconds, QString& error)
     reader.join();
     if (capture.devices.isEmpty()) { error = "USB trace delivered no device events; write detection is unavailable on this Windows build"; return {}; }
     QVector<UsbWrite> result;
-    for (const auto& [key, count] : capture.writes) {
+    for (const auto& [key, seen] : capture.writes) {
         const auto device = capture.devices.value(std::get<1>(key));
-        if (!device.isEmpty()) result.append({std::get<0>(key), device, std::get<2>(key), count});
+        if (!device.isEmpty()) result.append({std::get<0>(key), device, std::get<2>(key), seen.count,
+            capture.instances.value(std::get<1>(key)), seen.last});
     }
     return result;
 }
@@ -269,16 +302,25 @@ QVector<EndpointCheck> findWriters(const QStringList& endpoints)
     if (!error.isEmpty()) { for (auto& check : checks) check.error = error; return checks; }
     const auto self = GetCurrentProcessId(); const auto root = systemRoot(); const auto ours = ownExecutables();
     QHash<quint32, ConflictProcess> processes;
+    QHash<QString, QString> parents; // endpoint -> USB device instance
+    for (const auto& check : checks) parents.insert(check.endpoint, usbDeviceInstance(check.endpoint));
     for (const auto& write : writes) {
         if (write.pid == self || write.pid <= 4) continue;
         for (auto& check : checks) {
             if (!writeTargets(check.endpoint, write.device, write.interfaceNumber)) continue;
+            // Same VID/PID is not the same controller. Compare physical devices when both sides are
+            // known; otherwise fall back to VID/PID. shortcut: event instance format unverified on HW.
+            const auto parent = parents.value(check.endpoint);
+            if (!parent.isEmpty() && write.instance.startsWith("USB\\VID_") && parent != write.instance) continue;
             if (!processes.contains(write.pid)) {
                 Handle handle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, write.pid));
                 ConflictProcess unknown; unknown.pid = write.pid; unknown.executable = QString("PID %1").arg(write.pid);
                 processes.insert(write.pid, handle ? processInfo(write.pid, handle.get()) : unknown);
             }
             auto writer = processes.value(write.pid);
+            // A process created after the last write is a reused PID, not the writer (CodeRabbit 2026-11-16,
+            // CWE-367); it gets no proof. The real writer has exited and needs no stop.
+            if (writer.started && write.lastSeen && writer.started > write.lastSeen) continue;
             if (isExcludedImage(writer.path, root, ours)) continue;
             if (std::any_of(check.holders.cbegin(), check.holders.cend(), [&](const auto& h) { return h.pid == writer.pid; })) continue;
             writer.provenHolder = true; check.holders.append(writer);
@@ -511,11 +553,13 @@ QStringList DeviceConflictMonitor::blocked(const QStringList& endpoints, QString
 
 QVector<ConflictProcess> DeviceConflictMonitor::conflicts(const QStringList& endpoints, QString* error)
 {
-    QStringList busy;
-    for (const auto& endpoint : probeableEndpoints(endpoints)) if (endpointBusy(endpoint)) busy.append(endpoint);
+    // Every endpoint is traced, not only the ones busy right now: a writer that opens the device only
+    // for each write can pass the instant probe unnoticed (CodeRabbit review 2026-11-17). The trace
+    // covers all devices at once, so this costs no extra time. The periodic guard keeps its busy gate.
+    const auto busy = probeableEndpoints(endpoints);
     {
-        // The dialog rescans every 100 ms while waiting for a stop; reuse a fresh capture while the same
-        // devices stay busy. Freed devices change the busy set and end the reuse at once.
+        // The dialog rescans every 100 ms while waiting for a stop; reuse a fresh capture for the same
+        // endpoint set. Stopped processes are dropped from the reused list below.
         QMutexLocker lock(&mutex_);
         if (busy == lastBusy_ && lastTime_.isValid() && lastTime_.elapsed() < 3000) {
 #ifdef Q_OS_WIN

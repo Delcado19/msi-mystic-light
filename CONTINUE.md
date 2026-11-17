@@ -4,6 +4,18 @@ Single maintainer, so no `dev` branch. Every feature gets its own branch and rea
 through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
 release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
 
+## CodeRabbit round 2 fixes, R12 - 2026-11-17
+
+R11 HW-confirmed by owner: dialog lists SignalRGB, Terminate all stops it, Vulcan no longer flickers.
+R12 fixes all open CodeRabbit points: dialog traces all endpoints; Faulted outputs probed and only
+probed endpoints opened; project replies without waiting for the scan; scanner never touches a
+destroyed runtime; LEDKeeper2 stops Mystic_Light_Service only from the service's own folder;
+writer proof bound to process creation time and physical USB instance; dialog Cancel/stale-error
+fixes; ParameterSpinBox retype rounds; installer/uninstaller report the child's own result and
+release the working directory. 22/22 tests. Untested on HW: USB instance format of the trace event
+(falls back to VID/PID if it is not `USB\VID_...`), installer result files.
+Note: the uninstaller's 'recovery data' was the owner's only copy of the layout (data loss today).
+
 ## TODO: shared LED colors are hard to find - 2026-11-17
 
 Owner report: could not find the setting "fan XY shows the same LEDs as fan AB" and had to ask.

@@ -84,7 +84,11 @@ keyboard is not blocked), a program that writes only occasionally (LEDKeeper2 on
 "Apply") is usually missed in 5 s, and RAM (SMBus) and GPU endpoints are not
 covered. The periodic guard does not probe an endpoint the service already drives; the
 editor's conflict dialog checks every HID device the service discovered, with or without a
-project and including the driven ones (the trace drops the service's own writes). An empty
+project and including the driven ones (the trace drops the service's own writes), without
+the busy pre-check, so a program that opens the device only per write is not missed. Writes are
+matched to the physical USB device (instance ID via the HID collection's parent), not only VID/PID,
+and a process created after the last captured write (reused PID) gets no writer proof. With a
+guard, an output is opened only after a scan probed its endpoint. An empty
 inventory or a failed trace is shown in the dialog, never treated as "no conflict". The service never stops
 another application on its own; it stops one only on an explicit request from the
 editor's conflict dialog (see Diagnostics and removal). RAM discovery and endpoint
@@ -137,6 +141,9 @@ low-privilege renderer. Further isolation can narrow this boundary later.
 ## Diagnostics and removal
 
 The service retains healthy output workers when other saved devices are offline.
+A project command replies once the project is saved and loaded; the hardware scan follows
+and its result appears in the next status poll.
+
 Five-second retries target missing or faulted output scopes rather than reopening
 every controller. Global discovery, conflict-guard or connection-preparation errors
 still stop all workers; they do not bypass the output guard.
