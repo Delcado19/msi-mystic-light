@@ -2,6 +2,7 @@
 #include "service/ServiceRuntime.h"
 #include "service/ServicePanel.h"
 #include <QPushButton>
+#include <QLabel>
 #include <QAction>
 #include <QDir>
 #include <QGuiApplication>
@@ -442,7 +443,9 @@ void ServiceTest::identifyKeepsQueuedEditorState() {
     ServicePanel panel(window,[state](const QJsonObject& request){
         std::lock_guard<std::mutex> lock(state->mutex);state->requests.append(request);
         return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}}};
-    });window.installOutputPanel(&panel);panel.activate();QTest::qWait(200);
+    });window.installOutputPanel(&panel);panel.activate();
+    // Wait for the processed snapshot, not a fixed delay: identify is dropped until then (CodeRabbit review 2026-11-18).
+    QTRY_VERIFY(panel.findChild<QLabel*>("outputStatus")->text().startsWith("Service connected"));
     const auto ops=[state](const QString& op){std::lock_guard<std::mutex> lock(state->mutex);QList<QJsonObject> found;for(const auto& r:state->requests)if(r.value("op")==op)found.append(r);return found;};
     QVERIFY(ops("project").isEmpty());
     // Stop is still queued when identify sends the pending project; the snapshot must keep output off.

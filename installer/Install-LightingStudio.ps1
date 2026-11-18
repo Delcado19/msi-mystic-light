@@ -118,20 +118,22 @@ if (Test-EditorRunning) { throw 'Lighting Studio is running. Quit it from its tr
 # (observed 2026-11-17), so both must exist; otherwise the official setup runs again.
 if (!(Get-Service -Name PawnIO -ErrorAction SilentlyContinue) -or !(Test-Path -LiteralPath $pawnIOKey)) {
     $downloadedSetup = $null
-    if (!$PawnIOSetup) {
-        Write-Host '        Downloading PawnIO 2.2.0 from github.com/namazso ...'
-        $PawnIOSetup = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-PawnIO-' + [guid]::NewGuid().ToString() + '.exe')
-        # Windows PowerShell 5.1 downloads many times slower while it draws its own progress bar.
-        $previousProgress = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-        try { Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe' -UseBasicParsing -OutFile $PawnIOSetup }
-        finally { $ProgressPreference = $previousProgress }
-        $downloadedSetup = $PawnIOSetup
-    }
     # Hash and run a copy in an administrators-only folder: a file in the user's temp folder could be
     # swapped by an unelevated process between the hash check and the start (audit 2026-11-14).
     $setupFolder = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) ('LightingStudio-PawnIO-' + [guid]::NewGuid().ToString())
-    Protect-Directory $setupFolder $false
+    # Download and staging run inside the cleanup scope: a failed download or folder setup must not
+    # leave the setup file behind (CodeRabbit review 2026-11-18).
     try {
+        if (!$PawnIOSetup) {
+            Write-Host '        Downloading PawnIO 2.2.0 from github.com/namazso ...'
+            $downloadedSetup = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-PawnIO-' + [guid]::NewGuid().ToString() + '.exe')
+            $PawnIOSetup = $downloadedSetup
+            # Windows PowerShell 5.1 downloads many times slower while it draws its own progress bar.
+            $previousProgress = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
+            try { Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe' -UseBasicParsing -OutFile $PawnIOSetup }
+            finally { $ProgressPreference = $previousProgress }
+        }
+        Protect-Directory $setupFolder $false
         $protectedSetup = Join-Path $setupFolder 'PawnIO_setup.exe'
         Copy-Item -LiteralPath $PawnIOSetup -Destination $protectedSetup
         if ((Get-FileHash -LiteralPath $protectedSetup -Algorithm SHA256).Hash.ToLowerInvariant() -ne '1f519a22e47187f70a1379a48ca604981c4fcf694f4e65b734aaa74a9fba3032') { throw 'PawnIO installer digest rejected' }
