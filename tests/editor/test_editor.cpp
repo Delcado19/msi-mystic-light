@@ -1,4 +1,4 @@
-﻿#include "editor/ParameterSpinBox.h"
+#include "editor/ParameterSpinBox.h"
 #include <QDialogButtonBox>
 #include <QMenuBar>
 #include <QMenu>
@@ -4237,6 +4237,10 @@ void EditorTest::menusFollowWorkspace()
 {
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
     const QStringList canvasEdits{"lockSelection","unlockSelection","duplicateSelection","deleteSelection"};
+    // Hardware is attached only in Devices; the Layout canvas menu offers no second entry (owner review 2026-11-18).
+    {auto* layout=window.findChild<LightingCanvas*>("layoutCanvas");window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();bool offered=true;
+     auto c=connect(layout,&LightingCanvas::contextMenuRequested,&window,[&](QMenu* menu,bool object){offered=object || std::any_of(menu->actions().cbegin(),menu->actions().cend(),[](QAction* a){return a->text().startsWith("Add components");});QTimer::singleShot(0,menu,&QMenu::close);});
+     QTest::mouseClick(layout,Qt::RightButton,Qt::NoModifier,QPoint(5,5));QVERIFY(!offered);disconnect(c);}
     window.findChild<QAction*>("workspaceHardware")->trigger();QCoreApplication::processEvents();
     for(const auto* name:{"saveProject","saveProjectAs"}) {
         auto* action=window.findChild<QAction*>(name);QVERIFY2(action->isVisible() && action->isEnabled(),name);

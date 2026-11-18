@@ -1280,7 +1280,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             if(tabs_->currentIndex()==1){menu->addAction(rename);menu->addAction(visibility);menu->addAction(findChild<QAction*>("moveLayerUp"));menu->addAction(findChild<QAction*>("moveLayerDown"));if(cropButton->isEnabled())menu->addAction(cropSelection);}
             if(tabs_->currentIndex()==0){const auto ids=layoutCanvas_->selections();flash->setEnabled(ids.size()==1 && document_.hasSoftwareChannel(*ids.begin()));menu->addAction(flash);}
             menu->addSeparator();menu->addAction(lock);menu->addAction(unlock);
-        }else{menu->addAction(fit);if(tabs_->currentIndex()==1){menu->addSeparator();menu->addAction(paintAction);menu->addAction(groupAction);}else{auto* add=menu->addAction("Add components...");connect(add,&QAction::triggered,this,[this]{addHeaderComponents();});}}
+        // Hardware is attached only in Devices: one entry point per function (owner review 2026-11-18).
+        }else{menu->addAction(fit);if(tabs_->currentIndex()==1){menu->addSeparator();menu->addAction(paintAction);menu->addAction(groupAction);}}
     };
     connect(effectsCanvas_,&LightingCanvas::contextMenuRequested,this,populateContext);connect(layoutCanvas_,&LightingCanvas::contextMenuRequested,this,populateContext);
     layers_->setContextMenuPolicy(Qt::CustomContextMenu);
