@@ -12,6 +12,7 @@
 #include <tlhelp32.h>
 #include <memory>
 #include <thread>
+#include <vector>
 #include <atomic>
 #endif
 
@@ -27,8 +28,7 @@ QString conflictReason(const QString& executable)
     // Exact executable names only: a vendor name does not imply RGB access.
     const auto name = normalized(executable);
     if (name == "signalrgbservice.exe") return "SignalRGB background service may control RAM and other RGB devices";
-    if (name == "signalrgb.exe") return "SignalRGB may control the same RGB devices";
-    if (name == "openrgb.exe") return "OpenRGB may control the same RGB devices";
+    if (name == "signalrgb.exe") return "SignalRGB may control the same RGB devices";    if (name == "openrgb.exe") return "OpenRGB may control the same RGB devices";
     if (name == "icue.exe") return "Corsair iCUE lighting controller";
     if (name == "lghub.exe" || name == "lghub_agent.exe") return "Logitech G HUB lighting controller";
     if (name == "armourycrate.exe" || name == "lightingservice.exe") return "ASUS lighting controller";
@@ -117,6 +117,14 @@ QString stopSignalRgbService(const ConflictProcess& process, bool verifyOnly, IC
     if (current.state != ConflictService::Running || !current.acceptsStop)
         return "SignalRGB service does not currently accept stop; stop it manually";
     return services.requestStop(current.name);
+}
+
+QString stopListedConflict(IConflictProcesses& processes, quint32 pid, quint64 started, bool force)
+{
+    if (!pid || !started) return "Refusing an invalid conflict target";
+    for (const auto& process : processes.scan())
+        if (process.pid == pid && process.started == started) return processes.stop(process, force);
+    return {}; // No longer listed: already exited, like stop() reports for an exited process.
 }
 
 bool matchesProcessIdentity(const ConflictProcess& expected, quint64 started, const QString& path)
@@ -235,6 +243,24 @@ QString stopMysticLightService()
             mysticStopError().store(GetLastError());
     }).detach();
     return {};
+}
+// True only for the LEDKeeper2 that Mystic_Light_Service ships: both live in one folder (MSI Center,
+// verified 2026-11-17). A same-named program elsewhere must not make LocalSystem stop the MSI service
+// (CodeRabbit security review 2026-11-16, CWE-863).
+bool belongsToMysticLightService(const QString& processPath)
+{
+    ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    ScHandle service(manager ? OpenServiceW(manager.get(), L"Mystic_Light_Service", SERVICE_QUERY_CONFIG) : nullptr);
+    if (!service) return false;
+    DWORD needed = 0;
+    QueryServiceConfigW(service.get(), nullptr, 0, &needed);
+    std::vector<BYTE> buffer(needed);
+    auto* config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(buffer.data());
+    if (!needed || !QueryServiceConfigW(service.get(), config, needed, &needed) || !config->lpBinaryPathName) return false;
+    auto binary = QString::fromWCharArray(config->lpBinaryPathName).trimmed();
+    if (binary.startsWith('"')) binary = binary.mid(1, binary.indexOf('"', 1) - 1);
+    const auto folder = [](const QString& path) { return QFileInfo(QDir::fromNativeSeparators(path)).absolutePath(); };
+    return !processPath.isEmpty() && folder(binary).compare(folder(processPath), Qt::CaseInsensitive) == 0;
 }
 // Empty when Mystic_Light_Service is absent or fully stopped; LEDKeeper2 must not be terminated before that,
 // or the still-running service restarts it.
@@ -387,7 +413,7 @@ QString SystemConflictProcesses::stop(const ConflictProcess& process, bool force
         NativeServices services;
         return stopSignalRgbService(process, force, services);
     }
-    if (normalized(process.executable) == "ledkeeper2.exe") {
+    if (normalized(process.executable) == "ledkeeper2.exe" && belongsToMysticLightService(process.path)) {
         if (!force) return stopMysticLightService();
         if (const auto error = mysticLightServiceStopped(); !error.isEmpty()) return error;
     }

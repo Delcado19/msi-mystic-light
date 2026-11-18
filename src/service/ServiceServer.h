@@ -8,14 +8,17 @@ class QWinEventNotifier;
 // Length-bounded single-request connections, authenticated before JSON parsing.
 class ServiceServer : public QObject {
 public:
-    ServiceServer(QString owner,std::function<QJsonObject(const QJsonObject&)> handler,QObject* parent=nullptr);
+    using Reply=std::function<void(const QJsonObject&)>;
+    // The handler answers through Reply, immediately or later from the server's thread; never twice.
+    using Handler=std::function<void(const QJsonObject&,const Reply&)>;
+    ServiceServer(QString owner,Handler handler,QObject* parent=nullptr);
     ~ServiceServer() override;
     bool listen(const QString& name);
     QString errorString() const { return error_; }
 private:
     void serve(QLocalSocket* socket);
     QString owner_,error_;
-    std::function<QJsonObject(const QJsonObject&)> handler_;
+    Handler handler_;
     int clients_=0;
 #ifdef Q_OS_WIN
     bool createInstance(bool first);

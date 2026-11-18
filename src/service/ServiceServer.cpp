@@ -1,6 +1,7 @@
 #include "ServiceServer.h"
 #include "ServiceProtocol.h"
 #include <QLocalSocket>
+#include <QPointer>
 #include <QTimer>
 #include <QtEndian>
 #include <memory>
@@ -13,7 +14,7 @@
 #else
 #include <QLocalServer>
 #endif
-ServiceServer::ServiceServer(QString owner,std::function<QJsonObject(const QJsonObject&)> handler,QObject* parent)
+ServiceServer::ServiceServer(QString owner,Handler handler,QObject* parent)
     :QObject(parent),owner_(std::move(owner)),handler_(std::move(handler))
 {
 }
@@ -36,12 +37,17 @@ void ServiceServer::serve(QLocalSocket* socket)
         if(!size || size>StudioService::maximumMessage || buffer->size()>size+4){socket->abort();return;}
         if(buffer->size()!=size+4)return;
         *done=true;
-        QJsonObject reply;
-        try{reply=handler_(StudioService::decode(buffer->mid(4)));}
-        catch(const std::exception& e){reply={{"ok",false},{"error",QString::fromUtf8(e.what())}};}
-        // Leave closing to the client: disconnecting here discards reply bytes the client has not read
-        // yet (CodeRabbit review 2026-11-15). The 15 s timer still aborts a client that never closes.
-        socket->write(StudioService::encode(reply));socket->flush();timer->start();
+        // The handler may answer later (a hardware scan runs on a worker), after the client has gone.
+        const auto respond=[guard=QPointer<QLocalSocket>(socket),timer](const QJsonObject& reply) {
+            if(!guard)return;
+            // Leave closing to the client: disconnecting here discards reply bytes the client has not read
+            // yet (CodeRabbit review 2026-11-15). The 15 s timer still aborts a client that never closes.
+            guard->write(StudioService::encode(reply));guard->flush();timer->start(15000);
+        };
+        // A deferred reply may wait for a running scan plus its own; the client gives up after 15 s anyway.
+        timer->start(30000);
+        try{handler_(StudioService::decode(buffer->mid(4)),respond);}
+        catch(const std::exception& e){respond({{"ok",false},{"error",QString::fromUtf8(e.what())}});}
     });
     if(socket->bytesAvailable())QMetaObject::invokeMethod(socket,"readyRead",Qt::QueuedConnection);
 }
@@ -51,7 +57,7 @@ void ServiceServer::serve(QLocalSocket* socket)
 // lets only SYSTEM, the server's own account (needed to add instances) and the configured owner
 // open it at all; authorizedClient below still checks the impersonated token as a second layer.
 // The owner keeps generic write, which includes FILE_CREATE_PIPE_INSTANCE: QLocalSocket opens with
-// GENERIC_WRITE, and clients reject foreign instances through trustedServer's process check.
+// GENERIC_WRITE, and clients reject foreign instances through trustedServer's SCM PID and binary-path check.
 bool ServiceServer::createInstance(bool first)
 {
     const auto self=StudioService::currentUserSid();

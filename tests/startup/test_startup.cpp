@@ -1,4 +1,5 @@
 #include "startup/ConflictDialog.h"
+#include "startup/DeviceConflicts.h"
 #include <QtTest>
 #include <QTableWidget>
 #include <QPushButton>
@@ -11,8 +12,12 @@ class FakeProcesses final : public IConflictProcesses {
 public:
     QVector<ConflictProcess> running{{11, "SignalRgb.exe", "C:/rgb/SignalRgb.exe", "Potential writer", 100, false},
         {22, "OpenRGB.exe", "C:/rgb/OpenRGB.exe", "Potential writer", 200, false}};
-    QVector<quint32> graceful, forced;
-    bool denied = false, failScan = false, restart = false;
+    QVector<quint32> graceful, forced, elevated;
+    QString stopElevated(const ConflictProcess& process) override {
+        elevated.append(process.pid); running.removeIf([&](const auto& p) { return p.pid == process.pid; }); return {};
+    }
+    bool denied = false, failScan = false, restart = false, services = false;
+    bool stopsServices() const override { return services; }
     int exitScanDelay = 0;
     QMap<quint32,int> pendingExits;
     ConflictService adminService{"SignalRgb.Service",42,true,ConflictService::Running,true,"\"C:/rgb/SignalRgbService.exe\""};
@@ -92,6 +97,85 @@ private slots:
         // The offscreen plugin does not populate the native Windows font database.
         QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR") + "/Fonts/segoeui.ttf");
         QApplication::setFont(QFont("Segoe UI", 9));
+#endif
+    }
+    // The LocalSystem service stops conflicts for the installed editor; it must only ever act on
+    // entries of its own scan, never on a PID the client merely names (2026-11-16).
+    void serviceStopsOnlyItsOwnScan() {
+        FakeProcesses processes;
+        QCOMPARE(stopListedConflict(processes,999,100,true),QString());   // Unknown PID.
+        QCOMPARE(stopListedConflict(processes,11,101,true),QString());    // Reused PID: creation time differs.
+        QVERIFY(!stopListedConflict(processes,11,0,true).isEmpty());
+        QVERIFY(processes.forced.isEmpty() && processes.graceful.isEmpty());
+        QCOMPARE(stopListedConflict(processes,11,100,false),QString());QCOMPARE(processes.graceful,QVector<quint32>{11});
+        QCOMPARE(stopListedConflict(processes,11,100,true),QString());QCOMPARE(processes.forced,QVector<quint32>{11});
+        // A service-backed dialog needs no separate administrator action.
+        processes.services=true;processes.running={{42,"SignalRgbService.exe","C:/rgb/SignalRgbService.exe","service",1,false}};
+        ConflictDialog dialog(processes);dialog.show();
+        QVERIFY(!button(dialog,"stopSignalRgbServiceAdmin")->isVisible());
+        QVERIFY(!dialog.findChild<QLabel*>("conflictStatus")->text().contains("Administrator"));
+    }
+    // Device-based detection policy (2026-11-16): Windows' own holders and Lighting Studio never count.
+    void deviceConflictPolicy() {
+        const QStringList own{"C:/Program Files/Lighting Studio/lighting_service_host.exe","C:/Program Files/Lighting Studio/msi_mystic_light.exe"};
+        QVERIFY(isExcludedImage("C:\\Windows\\System32\\svchost.exe","C:\\WINDOWS",own));
+        // Interface path to device instance ID, used to tell identical controllers apart.
+        QCOMPARE(deviceInstanceFromPath("\\\\?\\USB#VID_0db0&PID_0076#a1b2#{a5dcbf10-6530-11d2-901f-00c04fb951ed}"),QString("USB\\VID_0DB0&PID_0076\\A1B2"));
+        QCOMPARE(deviceInstanceFromPath("\\\\?\\HID#VID_1532&PID_0099&MI_03#9&47bb1fe&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}"),
+            QString("HID\\VID_1532&PID_0099&MI_03\\9&47BB1FE&0&0000"));
+        QVERIFY(isExcludedImage("C:/Program Files/Lighting Studio/LIGHTING_SERVICE_HOST.exe","C:\\Windows",own));
+        QVERIFY(!isExcludedImage("C:/Program Files (x86)/MSI/MSI Center/Engine/CC_Engine_x64.exe","C:\\Windows",own));
+        QVERIFY(!isExcludedImage("C:/WindowsApps/x.exe","C:\\Windows",own));   // Prefix only on a folder boundary.
+        QVERIFY(!isExcludedImage({},"C:\\Windows",own));                        // Unknown image is shown, not trusted.
+        QCOMPARE(endpointLabel("\\\\?\\HID#VID_1038&PID_161A&MI_03#9&174f911&0&0000#{4d1e55b2}"),QString("VID_1038&PID_161A&MI_03"));
+        // Setup packets seen in the USB trace 2026-11-16: SignalRGB's 90-byte SET_REPORT to interface 3, a GET_REPORT.
+        const unsigned char setReport[]{0x21,0x09,0x00,0x03,0x03,0x00,0x5A,0x00}, getReport[]{0xA1,0x01,0x00,0x03,0x00,0x00,0x40,0x00};
+        int interfaceNumber=-1;QVERIFY(hidSetReport(setReport,&interfaceNumber));QCOMPARE(interfaceNumber,3);
+        QVERIFY(!hidSetReport(getReport,&interfaceNumber));
+        QCOMPARE(usbDeviceId("\\??\\USB#VID_0db0&PID_0076#7E6224110401#{a5dcbf10}"),QString("VID_0DB0&PID_0076"));
+        QVERIFY(usbDeviceId("\\??\\ROOT#SYSTEM#0000").isEmpty());
+        const QString apex="\\\\?\\HID#VID_1038&PID_161A&MI_03#9&174f911&0&0000#{4d1e55b2}",msi="\\\\?\\HID#VID_0DB0&PID_0076#9&167f430f&0&0000#{4d1e55b2}";
+        QVERIFY(writeTargets(apex,"VID_1038&PID_161A",3));QVERIFY(!writeTargets(apex,"VID_1038&PID_161A",1));
+        QVERIFY(!writeTargets(apex,"VID_1532&PID_0099",3));QVERIFY(writeTargets(msi,"VID_0DB0&PID_0076",0));
+        QVERIFY(!writeTargets(msi,{},0));
+        QCOMPARE(probeableEndpoints({"\\\\?\\HID#a","pawnio://amd-piix4/0/0x71","nvapi://10de:2c02/1458:4179","\\\\?\\HID#a",
+            "\\\\server\\share\\x","\\\\.\\pipe\\x","\\\\?\\UNC\\server\\share","C:\\x","\\\\?\\HID#a/../x"}),QStringList{"\\\\?\\HID#a"});
+    }
+    // Layout seen on the owner's system 2026-11-16 (PIDs, folders); creation times are illustrative.
+    void processFamilyPolicy() {
+        const QString app="C:/Users/u/AppData/Local/VortxEngine/app-2.5.86";
+        const QVector<ProcessEntry> running{
+            {29612,1,50,app+"/Update.exe"},                 // Grandparent in the same folder.
+            {29636,29612,100,app+"/SignalRgbLauncher.exe"},
+            {32524,29636,200,app+"/Signal-x64/SignalRgb.exe"},
+            {3016,32524,300,app+"/Signal-x64/QtWebEngineProcess.exe"},
+            {36684,32524,300,app+"/Signal-x64/crashpad_handler.exe"},
+            {4000,32524,400,"C:/Program Files/Browser/browser.exe"},    // Child outside the folder.
+            {5000,32524,400,"C:/Windows/System32/conhost.exe"},          // Windows image.
+            {6000,6001,500,"C:/Program Files (x86)/MSI/MSI Center/Engine/CC_Engine_x64.exe"},
+            {6001,700,600,"C:/Windows/explorer.exe"},
+            {7000,7001,800,"C:/Tools/x.exe"},{7001,1,900,"C:/Tools/launcher.exe"}};   // Parent newer: reused PID.
+        const auto excluded=[](const QString& path){return path.startsWith("C:/Windows/");};
+        QCOMPARE(processFamily(running,32524,excluded),(QVector<quint32>{29612,29636,32524,3016,36684}));
+        QCOMPARE(processFamily(running,6000,excluded),QVector<quint32>{6000});
+        QCOMPARE(processFamily(running,7000,excluded),QVector<quint32>{7000});
+        QCOMPARE(processFamily(running,9999,excluded),QVector<quint32>{9999});
+    }
+    // Service privilege boundary (security review 2026-11-16).
+    void stopAllowedPolicy() {
+        ConflictProcess suspect{7,"Guard.exe","C:/Program Files/Guard/Guard.exe","May hold VID_0DB0&PID_0076",1,false};
+        QVERIFY(!stopAllowed(suspect,false).isEmpty());   // Privileged suspect: never stopped by the service.
+        QVERIFY(stopAllowed(suspect,true).isEmpty());     // Plain-user process: the user could stop it anyway.
+        suspect.provenHolder=true;QVERIFY(stopAllowed(suspect,false).isEmpty());
+        ConflictProcess known{8,"LEDKeeper2.exe","C:/MSI/LEDKeeper2.exe","related",1,false};
+        QVERIFY(stopAllowed(known,false).isEmpty());      // Known program: its own verified stop path.
+#ifdef Q_OS_WIN
+        // A family member that exited with its parent is reported as stopped, not as "higher rights"
+        // (owner report 2026-11-17: QtWebEngineProcess under SignalRgb.exe).
+        ConflictProcess gone{0x7ffffff0u,"QtWebEngineProcess.exe","C:/rgb/QtWebEngineProcess.exe","family",1,false}; // No process has this PID.
+        QVERIFY(!conflictProcessRunning(gone));
+        DetectedConflicts detected({gone},"S-1-5-21-1-2-3-4");
+        QCOMPARE(detected.stop(gone,true),QString());
 #endif
     }
     void exactNamesAndGuards() {
@@ -305,6 +389,18 @@ private slots:
         QCOMPARE(table->rowCount(), 1);
         button(dialog, "terminateAll")->click();
         QTRY_COMPARE_WITH_TIMEOUT(processes.forced.size(), 2, 2500);
+        QTRY_COMPARE(dialog.result(), int(QDialog::Accepted));
+    }
+    // UAC per stop (owner decision 2026-11-17): a row the service may not stop goes only through the
+    // administrator path, never through the service request.
+    void elevatedRowsUseAdministratorStop() {
+        FakeProcesses processes; processes.running[0].elevatedStop = true;
+        ConflictDialog dialog(processes); dialog.show();
+        auto* table = dialog.findChild<QTableWidget*>("conflictTable");
+        QVERIFY(table->item(0, 3)->text().contains("administrator approval"));
+        button(dialog, "terminateAll")->click();
+        QTRY_COMPARE_WITH_TIMEOUT(processes.elevated, (QVector<quint32>{11}), 2500);
+        QCOMPARE(processes.graceful, (QVector<quint32>{22})); QTRY_COMPARE_WITH_TIMEOUT(processes.forced, (QVector<quint32>{22}), 2500);
         QTRY_COMPARE(dialog.result(), int(QDialog::Accepted));
     }
     void asynchronousExitNeedsOneClick() {

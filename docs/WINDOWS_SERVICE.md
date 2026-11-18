@@ -67,9 +67,51 @@ connections and suspends retries; Resume all output reconnects. Pause/stop persi
 with the project and survive edits/restarts. Stops retain last applied device colors.
 Identity checks and latest-frame scheduling remain in force. Missing/faulted devices
 retry every five seconds. Suspend releases sessions; resume reopens/reverifies them.
-Conflicts are checked before connection and periodically; the service never kills
-another RGB application. Stop it explicitly, then rescan/resume. RAM discovery
-and endpoint failures are visible in Hardware.
+Conflicts are detected per device, not by program name. Before each connection
+attempt the service probes every configured HID endpoint it does not hold itself
+and has discovered itself as a supported lighting device (never a bare path from
+the project) with an exclusive open. A busy endpoint gets a 5 s real-time USB trace
+(Microsoft-Windows-USB-UCX and -USBHUB3) at most once a minute. Only a process other
+than Windows or Lighting Studio that dispatches a HID SET_REPORT to that device in
+the trace blocks it; holding the device open or reading from it does not (MSI
+Center's `CC_Engine_x64.exe` only reads the MSI controller). The trace names the
+sender even when it hides its handles, as SignalRGB does (verified on the owner's
+system 2026-11-16). The event layouts are undocumented and were observed on Windows
+11 build 26300; if a trace yields no device events, detection is reported as
+unavailable in Hardware and nothing is blocked. Known gaps: writes through interrupt
+transfers are not evaluated (SignalRGB writes the ROCCAT Vulcan that way, so that
+keyboard is not blocked), a program that writes only occasionally (LEDKeeper2 on
+"Apply") is usually missed in 5 s, and RAM (SMBus) and GPU endpoints are not
+covered. The periodic guard does not probe an endpoint the service already drives; the
+editor's conflict dialog checks every HID device the service discovered, with or without a
+project and including the driven ones (the trace drops the service's own writes), without
+the busy pre-check, so a program that opens the device only per write is not missed. Writes are
+matched to the physical USB device (instance ID via the HID collection's parent), not only VID/PID,
+and a process created after the last captured write (reused PID) gets no writer proof. With a
+guard, an output is opened only after a scan probed its endpoint. An empty
+inventory or a failed trace is shown in the dialog, never treated as "no conflict". The service never stops
+another application on its own; it stops one only on an explicit request from the
+editor's conflict dialog (see Diagnostics and removal). RAM discovery and endpoint
+failures are visible in Hardware.
+
+Hardware discovery and the conflict check run on a worker thread, one scan at a
+time, so the pipe keeps answering while a scan takes seconds. Status commands
+and project commands reply immediately (a project command still starts a fresh scan);
+scan and output-enable commands reply after a scan that started after the command. A
+scan still running after 12 s is abandoned: its callers get the reply with an error,
+and no new scan starts until the abandoned one returns. The deadline stays below the
+editor's 15 s request timeout so that reply arrives; a scan already queued behind a
+running one can still exceed it, and the error then shows in the next status poll. Connections are still opened on the service
+thread, between two scans.
+
+A device open or HID call can hang inside the driver without timeout (2026-11-17: the MSI
+controller never answered `HidD_GetSerialNumberString`). Stopped output workers are never
+joined on the service thread while alive: after one bounded second a hung worker is set
+aside, its endpoint reports **Not responding** and is not reopened until the call returns, and
+the pipe keeps answering. A worker that hung earlier is not waited for again. On service stop a
+still-hung worker is abandoned, and a discovery scan still running after 10 s too. A hung discovery
+scan (hidapi also reads serial numbers while enumerating) delays scan replies by at most the
+12 s scan deadline; meanwhile no devices are rescanned or reopened.
 
 ## Security boundary
 
@@ -77,8 +119,14 @@ Named-pipe requests authenticate the installation owner's Windows SID before JSO
 parsing, reject network logons, cap messages at 32 MiB, time out connections and
 limit concurrency. Clients verify server PID against SCM and its executable path.
 Commands are limited to status/snapshot, project, scan, playback, output enable,
-channel pause and identify (2 s flash of one known software component; the service
-expires it itself and never persists it). No client file/DLL/module/register/shell API exists.
+channel pause, identify (2 s flash of one known software component; the service
+expires it itself and never persists it), and the conflict list with its stop
+request. A stop request names a process by PID and creation time only; the service
+acts on it only if its last device detection listed that process. Any process of
+the owner's account can send that request, so the listed process must also either
+run as the owner without elevation (no rights gained), have been seen writing to one
+of our devices, or be a known lighting program with its own verified stop path.
+Family members with higher rights are refused with "stop it manually". No client file/DLL/module/register/shell API exists.
 
 Program Files and state ACLs protect runtime/configuration from normal-user writes.
 The six installed module DLLs (`msi_gen1`, `peripherals`, `auxiliary`,
@@ -97,9 +145,39 @@ low-privilege renderer. Further isolation can narrow this boundary later.
 ## Diagnostics and removal
 
 The service retains healthy output workers when other saved devices are offline.
+A project command replies once the project is saved and loaded; the hardware scan follows
+and its result appears in the next status poll.
+
 Five-second retries target missing or faulted output scopes rather than reopening
 every controller. Global discovery, conflict-guard or connection-preparation errors
 still stop all workers; they do not bypass the output guard.
+
+The installed editor shows the conflict dialog whenever its window is opened while
+another program writes to one of the configured devices: on a start from the Start
+menu and on **Show editor** from the tray, not on the silent logon start. While the
+editor is open, **Resolve conflicts...** in Devices opens the same dialog and then
+rescans; Hardware names the writers and points to that button. Each row names a
+writer and the devices it writes to, followed by the processes of the same program:
+its parent and child processes inside the same install folder (never Windows images
+or Lighting Studio), topmost first, so a launcher stops before the program it would
+restart. Program names never make a process a conflict. While a device is busy the
+dialog waits for one 5 s trace. The service performs the stops, because the unelevated editor cannot stop services
+such as `Mystic_Light_Service` (which restarts LEDKeeper2) or `SignalRgb.Service`.
+The editor first posts a normal close request to the program's windows; the service
+then stops a process that hosts its own service through the service manager and
+terminates any other. Known programs keep their dedicated paths (SignalRGB service,
+`Mystic_Light_Service` before LEDKeeper2). A row the service may not stop (a related
+process with higher rights that was not seen writing) is marked "administrator approval
+required to stop": Terminate then runs `lighting_service_host.exe --stop-process <pid>
+<started>` through UAC, one approval per process. The helper re-reads the live process,
+refuses Windows images and Lighting Studio, and stops it like the service would
+(exit 0 stopped, 1 failed, 2 bad arguments, 3 identity changed, 4 refused). After a
+successful stop (by the service or through UAC) the service reopens all outputs once,
+1.5 s later, so each device is initialized again; a stopped program can leave a device in
+its own mode (Roccat Vulcan flickered after SignalRGB was stopped, 2026-11-17). Every stop is for now only: start types,
+autostart entries and scheduled tasks are never changed, so the other software
+returns after a reboot or when its own launcher starts it. The portable editor
+still uses its name list.
 
 The portable startup dialog offers a separate **Stop SignalRGB service
 (administrator)** action. It reads the actual executable path from the Windows
@@ -112,8 +190,7 @@ service process, including a short stable-stop observation. Restarts, denied
 access, cancellation, query errors and timeouts remain visible. It never force
 kills the service, disables a task, changes its start mode or grants permissions.
 Canceling the dialog cannot recall a stop already approved through UAC. Automatic
-startup and vendor tasks may start SignalRGB again later. The installed service
-continues to report conflicts rather than stopping another controller itself.
+startup and vendor tasks may start SignalRGB again later.
 
 Fake service tests are not proof of an actual UAC stop. Microsoft documents the
 [service access rights](https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights)

@@ -1,5 +1,6 @@
 #include "ServicePanel.h"
 #include "ServiceProtocol.h"
+#include "startup/ConflictDialog.h"
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDoubleSpinBox>
@@ -15,7 +16,13 @@
 #include <QTemporaryDir>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QApplication>
 #include <stdexcept>
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
+#endif
 namespace {
 QString host() { const auto installed=StudioService::installedHost();return installed.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":installed; }
 QJsonObject command(const QString& op) {return {{"op",op},{"version",StudioService::protocolVersion}};}
@@ -30,6 +37,70 @@ QVector<ProfileCandidate> serviceInventory(const QString& executable) {
     }
     return result;
 }
+ServiceConflictProcesses::ServiceConflictProcesses(ServicePanel::Rpc rpc,Elevate elevate):rpc_(std::move(rpc)),elevate_(std::move(elevate)) {
+    if(!rpc_)rpc_=[](const QJsonObject& request){return StudioService::request(request,host());};
+    if(!elevate_)elevate_=[](const QStringList& arguments,quint32& exitCode)->QString {
+#ifdef Q_OS_WIN
+        // The protected Program Files host, never a path from the service reply or the project.
+        const auto executable=QDir::toNativeSeparators(host());const auto parameters=arguments.join(' ');
+        SHELLEXECUTEINFOW launch{};launch.cbSize=sizeof(launch);launch.fMask=SEE_MASK_NOCLOSEPROCESS|SEE_MASK_FLAG_NO_UI;
+        if(auto* owner=QApplication::activeModalWidget())launch.hwnd=reinterpret_cast<HWND>(owner->winId());
+        launch.lpVerb=L"runas";launch.lpFile=reinterpret_cast<LPCWSTR>(executable.utf16());
+        launch.lpParameters=reinterpret_cast<LPCWSTR>(parameters.utf16());launch.nShow=SW_HIDE;
+        if(!ShellExecuteExW(&launch)) {
+            const auto failure=GetLastError();
+            return failure==ERROR_CANCELLED?QString("Administrator approval was declined"):
+                "Cannot start the administrator stop (Windows error "+QString::number(failure)+")";
+        }
+        if(!launch.hProcess)return "Cannot track the administrator stop; rescan";
+        // A stop takes milliseconds; a service stop is only requested, not awaited.
+        const auto wait=WaitForSingleObject(launch.hProcess,15000);DWORD code=1;
+        const bool done=wait==WAIT_OBJECT_0 && GetExitCodeProcess(launch.hProcess,&code);CloseHandle(launch.hProcess);
+        if(!done)return "The administrator stop did not finish in 15 s; rescan";
+        exitCode=code;return {};
+#else
+        Q_UNUSED(arguments);Q_UNUSED(exitCode);return "Administrator stop is supported on Windows only";
+#endif
+    };
+}
+QString stopElevatedExitError(quint32 exitCode) {
+    switch(exitCode) {
+    case 0: return {};
+    case 3: return "Process identity changed; rescan before trying again";
+    case 4: return "Refused: Windows and Lighting Studio processes are never stopped";
+    default: return "Administrator stop failed (exit code "+QString::number(exitCode)+")";
+    }
+}
+QString ServiceConflictProcesses::stopElevated(const ConflictProcess& process) {
+    if(!process.elevatedStop || !process.pid || !process.started)return "Refusing an invalid administrator stop";
+    quint32 code=1;
+    const auto error=elevate_({"--stop-process",QString::number(process.pid),QString::number(process.started)},code);
+    const auto result=error.isEmpty()?stopElevatedExitError(code):error;
+    // The service did not see this stop; ask it to re-initialize its outputs (see reopenOutputs).
+    if(result.isEmpty())try{rpc_(command("reopen"));}catch(const std::exception&){}
+    return result;
+}
+QVector<ConflictProcess> ServiceConflictProcesses::scan() {
+    QVector<ConflictProcess> result;const auto reply=rpc_(command("conflicts"));
+    // A failed USB capture must not look like "nothing conflicts"; the dialog shows the error.
+    const auto list=reply.value("conflicts").toArray();
+    if(list.isEmpty() && !reply.value("scanError").toString().isEmpty())throw std::runtime_error(reply.value("scanError").toString().toStdString());
+    for(const auto& entry:list) {
+        const auto json=entry.toObject();ConflictProcess process;
+        process.pid=quint32(json.value("pid").toInteger());process.started=json.value("started").toString().toULongLong();
+        process.executable=json.value("executable").toString();process.path=json.value("path").toString();
+        process.reason=json.value("reason").toString();process.manualStop=json.value("manualStop").toBool();process.elevatedStop=json.value("elevatedStop").toBool();result.append(process);
+    }
+    return result;
+}
+QString ServiceConflictProcesses::stop(const ConflictProcess& process,bool force) {
+    // The service runs in session 0 and cannot post WM_CLOSE to desktop windows, so the polite close
+    // request comes from the editor; its result does not matter, the service step decides.
+    if(!force)requestClose(process);
+    auto request=command("stopConflict");request["pid"]=qint64(process.pid);request["started"]=QString::number(process.started);request["force"]=force;
+    try {return rpc_(request).value("stopError").toString();}
+    catch(const std::exception& e) {return QString::fromUtf8(e.what());}
+}
 ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_(std::move(rpc)),window_(window) {
     if(!rpc_)rpc_=[](const QJsonObject& request){return StudioService::request(request,host());};
     setObjectName("outputPanel");auto* layout=new QVBoxLayout(this);
@@ -39,6 +110,16 @@ ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_
     const auto button=[&](const QString& text,const std::function<void()>& action){auto* b=new QPushButton(text);buttons->addWidget(b);connect(b,&QPushButton::clicked,this,action);};
     button("Resume all output",[this]{auto c=command("output");c["enabled"]=true;send(c);});
     button("Stop all output",[this]{stopOutput();});
+    // A conflict can appear while the editor is open (another program starts later); the dialog must be
+    // reachable then too, not only when the window opens (owner request 2026-11-16).
+    button("Resolve conflicts...",[this]{
+        try {
+            ServiceConflictProcesses processes(rpc_);
+            if(processes.scan().isEmpty()){status_->setText("No other program holds a configured lighting device.");return;}
+            ConflictDialog dialog(processes,&window_);dialog.exec();
+        } catch(const std::exception& e){status_->setText(QString::fromUtf8(e.what()));return;}
+        send(command("scan"));
+    });
     for(const bool pause:{false,true})button(pause?"Pause selected":"Resume selected",[this,pause]{
         QJsonArray keys;for(const auto* row:outputs_->selectedItems())keys.append(row->data(0,Qt::UserRole).toString());
         if(keys.isEmpty()){status_->setText("Select one or more output channels first.");return;}

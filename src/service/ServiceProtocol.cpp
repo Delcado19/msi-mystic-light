@@ -7,6 +7,7 @@
 #include <QLocalSocket>
 #include <QElapsedTimer>
 #include <QtEndian>
+#include <algorithm>
 #include <stdexcept>
 #ifdef Q_OS_WIN
 #define NOMINMAX
@@ -58,22 +59,37 @@ bool authorizedClient(qintptr descriptor,const QString& owner) {
     if(!RevertToSelf())TerminateProcess(GetCurrentProcess(),ERROR_ACCESS_DENIED);
     return allowed;
 }
+bool samePath(const QString& actual,const QString& executable) {
+    return QDir::cleanPath(actual).compare(QDir::cleanPath(QFileInfo(executable).absoluteFilePath()),Qt::CaseInsensitive)==0;
+}
 bool trustedServer(qintptr descriptor,const QString& executable,bool simulation) {
     ULONG pid=0;if(!GetNamedPipeServerProcessId(reinterpret_cast<HANDLE>(descriptor),&pid))return false;
+    if(!simulation) {
+        // Installed mode (owner report 2026-11-17): an unelevated editor gets ERROR_ACCESS_DENIED from
+        // OpenProcess on the LocalSystem service, so every request failed with "identity rejected".
+        // The SCM is the authority instead: only it assigns the service PID, and its registered binary
+        // path is readable to normal users (SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG).
+        SC_HANDLE scm=OpenSCManagerW(nullptr,nullptr,SC_MANAGER_CONNECT);
+        SC_HANDLE service=scm?OpenServiceW(scm,L"LightingStudio",SERVICE_QUERY_STATUS|SERVICE_QUERY_CONFIG):nullptr;
+        SERVICE_STATUS_PROCESS status{};DWORD written=0;bool allowed=false;
+        if(service && QueryServiceStatusEx(service,SC_STATUS_PROCESS_INFO,reinterpret_cast<LPBYTE>(&status),sizeof(status),&written) && status.dwProcessId==pid) {
+            DWORD needed=0;QueryServiceConfigW(service,nullptr,0,&needed);
+            QByteArray buffer(int(std::min<DWORD>(needed,65536)),0);
+            auto* config=reinterpret_cast<QUERY_SERVICE_CONFIGW*>(buffer.data());
+            if(needed && needed<=65536 && QueryServiceConfigW(service,config,needed,&needed) && config->lpBinaryPathName) {
+                int count=0;LPWSTR* arguments=CommandLineToArgvW(config->lpBinaryPathName,&count);
+                allowed=arguments && count>0 && samePath(QString::fromWCharArray(arguments[0]),executable);
+                if(arguments)LocalFree(arguments);
+            }
+        }
+        if(service)CloseServiceHandle(service);if(scm)CloseServiceHandle(scm);
+        return allowed;
+    }
+    // Simulation hosts run as the current user, so opening them is permitted.
     HANDLE process=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,pid);if(!process)return false;
     wchar_t path[32768];DWORD size=32768;
-    bool identity=false;
-    if(simulation)identity=processSid(process)==currentUserSid();
-    else {
-        // SCM service status is readable without opening a SYSTEM process token.
-        SC_HANDLE scm=OpenSCManagerW(nullptr,nullptr,SC_MANAGER_CONNECT);
-        SC_HANDLE service=scm?OpenServiceW(scm,L"LightingStudio",SERVICE_QUERY_STATUS):nullptr;
-        SERVICE_STATUS_PROCESS status{};DWORD written=0;
-        identity=service && QueryServiceStatusEx(service,SC_STATUS_PROCESS_INFO,reinterpret_cast<LPBYTE>(&status),sizeof(status),&written) && status.dwProcessId==pid;
-        if(service)CloseServiceHandle(service);if(scm)CloseServiceHandle(scm);
-    }
-    const bool allowed=identity && QueryFullProcessImageNameW(process,0,path,&size) &&
-        QDir::cleanPath(QString::fromWCharArray(path,int(size))).compare(QDir::cleanPath(QFileInfo(executable).absoluteFilePath()),Qt::CaseInsensitive)==0;
+    const bool allowed=processSid(process)==currentUserSid() && QueryFullProcessImageNameW(process,0,path,&size) &&
+        samePath(QString::fromWCharArray(path,int(size)),executable);
     CloseHandle(process);return allowed;
 }
 #else

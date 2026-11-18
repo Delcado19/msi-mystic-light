@@ -4,6 +4,7 @@
 #include "backends/AuxiliaryHardware.h"
 #include "backends/PawnIoRam.h"
 #include "startup/ConflictProcesses.h"
+#include "startup/DeviceConflicts.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QCryptographicHash>
@@ -107,22 +108,75 @@ int run(int argc,char** argv,bool managed) {
         auto candidates=findProfileCandidates(HidApiDevice::enumerate(),readBoardIdentity(),profiles);
         candidates+=scanAuxiliaryHardware(profiles,true);return candidates;
     };
-    const auto guard=[simulation] {
-        if(simulation)return;
-        // Recheck periodically: another RGB controller can start after boot or user logon.
-        SystemConflictProcesses processes;const auto conflicts=processes.scan();
-        if(!conflicts.isEmpty()) {
-            QStringList names;for(const auto& item:conflicts)names.append(item.executable);
-            throw std::runtime_error(("Conflicting lighting software: "+names.join(", ")+". Stop it explicitly, then resume output.").toStdString());
-        }
+    // Device-based guard (owner decision 2026-11-16): an endpoint stays closed only while another program
+    // holds it. A running program name alone no longer blocks output. RAM and GPU endpoints are not probed.
+    const auto monitor=std::make_shared<DeviceConflictMonitor>();
+    const auto guard=[simulation,monitor](const QStringList& endpoints,QString& message) {
+        return simulation?QStringList{}:monitor->blocked(endpoints,message);
     };
-    const auto authorize=[profiles,root,simulation,guard](const QVector<OutputFrame>& frames) {
+    // The runtime applies the guard right before calling this, between two scans.
+    const auto authorize=[profiles,root,simulation](const QVector<OutputFrame>& frames) {
         if(simulation)return QVector<OutputConnection>{};
-        guard();return authorizeHardwareOutput(nullptr,profiles,frames,root+"/modules");
+        return authorizeHardwareOutput(nullptr,profiles,frames,root+"/modules");
     };
     ServiceRuntime runtime(loadComponentCatalog(root+"/components"),profiles,directory,scan,authorize,simulation);
     runtime.setOutputGuard(guard);
-    ServiceServer server(owner,[&runtime](const auto& request){auto reply=runtime.command(request);if(!pawnIoRamDiscoveryError().isEmpty())reply["discoveryError"]=pawnIoRamDiscoveryError();return reply;});
+    // Discovery blocked the pipe thread for seconds, so the editor's 1.5 s connect timed out (2026-11-16).
+    runtime.setBackgroundScan(true);
+    // Conflict dialog of the installed editor (2026-11-16): the unelevated editor cannot stop services
+    // such as Mystic_Light_Service, so the owner had to end LEDKeeper2 in Task Manager. This host can.
+    // Stops are for now only (start types and tasks stay untouched) and limited to processes the last
+    // detection found holding one of our devices; a client cannot name any other process.
+    const auto answer=[](const ServiceServer::Reply& reply,const QJsonObject& result) {
+        if(auto* app=QCoreApplication::instance())QMetaObject::invokeMethod(app,[reply,result]{reply(result);},Qt::QueuedConnection);
+    };
+    const auto conflicts=[simulation,monitor,answer,owner,&runtime](const QJsonObject& request,const ServiceServer::Reply& reply) {
+        const auto op=request.value("op").toString();
+        if(op!="conflicts" && op!="stopConflict")return false;
+        if(request.value("version").toInt()!=StudioService::protocolVersion)throw std::invalid_argument("Unsupported service protocol");
+        if(simulation) {
+            if(op=="stopConflict")throw std::invalid_argument("Conflict stop is unavailable in simulation");
+            reply({{"ok",true},{"conflicts",QJsonArray{}}});return true;
+        }
+        // Detection takes seconds and service control can block; both run off the pipe thread.
+        if(op=="conflicts") {
+            std::thread([monitor,answer,reply,owner,inventory=runtime.inventory()] {
+                // Every lighting device the service discovered itself, with or without a project and
+                // including the ones it drives (2026-11-17: project-only targets left the dialog empty
+                // after a reinstall, and held endpoints hid SignalRGB writing to the same controller).
+                // The USB trace drops this process's own writes; no executable name list is involved.
+                QStringList discovered;for(const auto& c:inventory)discovered.append(c.device.path);
+                discovered=probeableEndpoints(discovered);
+                QJsonArray list;QString error;
+                // "Could not check" must never look like "no conflict" (Fail visibly).
+                if(inventory.isEmpty())error="The lighting service has not discovered any devices yet; try again in a few seconds";
+                else if(discovered.isEmpty())error="None of the discovered lighting devices can be checked for other writers";
+                const auto found=error.isEmpty()?monitor->conflicts(discovered,&error):QVector<ConflictProcess>{};
+                // Creation time is a 64-bit FILETIME; a JSON number would lose precision.
+                for(const auto& p:found)list.append(QJsonObject{{"pid",qint64(p.pid)},{"started",QString::number(p.started)},
+                    {"executable",p.executable},{"path",p.path},{"reason",p.reason},{"manualStop",p.manualStop},
+                    {"elevatedStop",!stopAllowed(p,runsAsPlainUser(p,owner)).isEmpty()}});
+                answer(reply,{{"ok",true},{"conflicts",list},{"scanError",error}});
+            }).detach();
+            return true;
+        }
+        const auto pid=quint32(request.value("pid").toInteger());const auto started=request.value("started").toString().toULongLong();
+        const bool force=request.value("force").toBool();
+        std::thread([monitor,answer,reply,pid,started,force,owner,runtime=&runtime] {
+            QString error;
+            try {DetectedConflicts detected(monitor->last(),owner);error=stopListedConflict(detected,pid,started,force);}
+            catch(const std::exception& e) {error=QString::fromUtf8(e.what());}
+            // The stopped program may have left a device in its own mode; re-initialize our outputs.
+            if(force && error.isEmpty())if(auto* app=QCoreApplication::instance())
+                QMetaObject::invokeMethod(app,[runtime]{runtime->reopenOutputs();},Qt::QueuedConnection);
+            answer(reply,{{"ok",true},{"stopError",error}});
+        }).detach();
+        return true;
+    };
+    ServiceServer server(owner,[&runtime,conflicts](const QJsonObject& request,const ServiceServer::Reply& reply) {
+        if(conflicts(request,reply))return;
+        runtime.command(request,[reply](QJsonObject result){if(!pawnIoRamDiscoveryError().isEmpty())result["discoveryError"]=pawnIoRamDiscoveryError();reply(result);});
+    });
     const auto pipe=simulation?parser.value("pipe"):StudioService::pipeName();
     if(pipe.isEmpty() || !server.listen(pipe))throw std::runtime_error(("Cannot bind service pipe: "+server.errorString()).toStdString());
 #ifdef Q_OS_WIN
@@ -159,6 +213,18 @@ void WINAPI serviceMain(DWORD,wchar_t**) {
 }
 int main(int argc,char** argv) {
 #ifdef Q_OS_WIN
+    // Administrator stop of one conflict row, launched by the editor through UAC (owner decision
+    // 2026-11-17: UAC per stop instead of "stop it manually"). The approval itself is the
+    // authorization; the helper only re-verifies identity. Exit codes: see stopElevatedExitError().
+    if(argc==4 && QByteArray(argv[1])=="--stop-process") {
+        QCoreApplication app(argc,argv);
+        bool pidOk=false,startedOk=false;
+        const auto pid=QByteArray(argv[2]).toUInt(&pidOk);const auto started=QByteArray(argv[3]).toULongLong(&startedOk);
+        if(!pidOk || !startedOk)return 2;
+        const auto error=stopApprovedProcess(pid,started);
+        if(!error.isEmpty())fprintf(stderr,"%s\n",error.toUtf8().constData());
+        return error.isEmpty()?0:error.startsWith("Process identity changed")?3:error.startsWith("Refusing")?4:1;
+    }
     if(argc==2 && QByteArray(argv[1])=="--service") {
         SERVICE_TABLE_ENTRYW table[]={{const_cast<wchar_t*>(serviceName),serviceMain},{nullptr,nullptr}};
         return StartServiceCtrlDispatcherW(table)?0:int(GetLastError());

@@ -3,7 +3,10 @@ param(
     [switch]$RemovePawnIO,
     [switch]$RemoveUserData,
     [switch]$Quiet,
-    [switch]$Elevated
+    [switch]$Elevated,
+    # The elevated child writes 'removed' or its problems here, so the parent can tell a recorded
+    # failure from an interrupted child (CodeRabbit review 2026-11-17).
+    [string]$ResultFile
 )
 # Removes everything Install-LightingStudio.ps1 created. The shared PawnIO driver and the owner's
 # editor settings are removed only on request; files the user created are moved to a backup, never deleted.
@@ -28,10 +31,10 @@ function Remove-Tree([string]$Path) {
 }
 $editor = Join-Path $destination 'msi_mystic_light.exe'
 function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $editor } }
-# User data lives in a user-writable profile, so it is deleted by the process the user started, with
+# User data lives in a user-writable profile, so it is handled by the process the user started, with
 # that user's own token, never by the elevated child (security review 2026-11-15: a junction planted in
 # the profile must not redirect an administrator's delete). A console that is already elevated has no
-# such process; there both folders must be real directories or nothing is deleted.
+# such process; there both folders must be real directories or nothing is touched.
 # Organization / application name: QSettings in src/main.cpp.
 # The app itself writes only application.lock and recovery.lighting.json there. Everything else, and the
 # unsaved changes, is moved to a dated backup in the profile instead of being deleted (owner decision
@@ -77,7 +80,16 @@ function Remove-UserData(
 }
 if (!$PSCmdlet.ShouldProcess($destination, 'Remove Lighting Studio service, editor logon task, program files and service data')) { return }
 if (!$Quiet -and !$Elevated) {
-    if (!$RemoveUserData) { $RemoveUserData = (Read-Host 'Also delete your editor settings? Your own files and unsaved changes are moved to a backup folder in your profile. [y/N]') -match '^(y|j)' }
+    if (!$RemoveUserData) {
+        # The one-line question was misread by the owner (2026-11-17); name each item, where it lives
+        # and what happens to it (owner review 2026-11-18: the old text promised more than it kept).
+        Write-Host 'Your personal editor data can be removed too:'
+        Write-Host '  - window layout and editor preferences (registry: HKCU\Software\Delcado) are deleted'
+        Write-Host '  - your own files and the backup of unsaved changes (%LOCALAPPDATA%\Delcado) are moved'
+        Write-Host "    to $([Environment]::GetFolderPath('UserProfile'))\Lighting Studio - Backup - <date>"
+        Write-Host 'Projects you saved anywhere else are not touched.'
+        $RemoveUserData = (Read-Host 'Remove this personal editor data? [y/N]') -match '^(y|j)'
+    }
     if (!$RemovePawnIO -and (Test-Path -LiteralPath $pawnIOKey)) {
         Write-Host 'The PawnIO driver is shared. OpenRGB, Fan Control, LibreHardwareMonitor, ZenTimings and other'
         Write-Host 'hardware tools may need it and stop reading sensors or RAM if it is removed.'
@@ -88,14 +100,15 @@ if (!$Quiet -and !$Elevated) {
 # user closes it, so its own Save/Discard prompt runs. Removal never starts while it is open.
 if (!$Elevated) {
     while (Get-Editor) {
-        if ($Quiet) { throw 'Lighting Studio is running. Close it (also from the tray), then retry.' }
-        Write-Host 'Lighting Studio is running. Close it (also from the tray) so unsaved changes are not lost.' -ForegroundColor Yellow
+        if ($Quiet) { throw 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit), then retry.' }
+        Write-Host 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit) so unsaved changes are not lost.' -ForegroundColor Yellow
         Read-Host 'Press Enter once it is closed' | Out-Null
     }
 }
-# This script may run from inside the folder it deletes; no process may keep that folder as its working
-# directory. Set-Location alone moves only the runspace, not the process (CodeRabbit review 2026-11-18).
+# This script may run from inside the folder it deletes; no process may keep that folder as its working directory.
 Set-Location -LiteralPath $env:SystemRoot
+# Set-Location moves only the runspace; the process working directory would still lock the folder
+# (CodeRabbit review 2026-11-16).
 [Environment]::CurrentDirectory = $env:SystemRoot
 $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -103,20 +116,55 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
     $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $PSCommandPath + '"'),'-Elevated')
     if ($RemovePawnIO) { $arguments += '-RemovePawnIO' }
     if ($Quiet) { $arguments += '-Quiet' }
+    $resultFile = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-uninstall-' + [guid]::NewGuid().ToString('N') + '.result')
+    if ($resultFile -match '["\r\n]') { throw 'Invalid result path' }
+    $arguments += @('-ResultFile',('"' + $resultFile + '"'))
     # The elevated window stays visible: it lists every step and anything that could not be removed.
-    $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru
-    if ($child.ExitCode -ne 0) { throw "Removal was incomplete ($($child.ExitCode)); see the elevated window or rerun from an administrator console." }
+    if (!$Quiet) { Write-Host 'Removing in the administrator window that opens now. Confirm the Windows prompt (UAC).' }
+    $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru -WorkingDirectory $env:SystemRoot
+    $reported = if (Test-Path -LiteralPath $resultFile -PathType Leaf) { (Get-Content -LiteralPath $resultFile -Raw).Trim() } else { $null }
+    Remove-Item -LiteralPath $resultFile -Force -ErrorAction SilentlyContinue
+    # A failure the child recorded (state folder, PawnIO) counts even if the main items are gone.
+    if ($reported -and $reported -ne 'removed') {
+        Write-Host "`nLighting Studio was NOT removed completely: $reported" -ForegroundColor Red
+        Write-Host 'Your editor data was kept. Run the uninstaller again or check the administrator window.'
+        if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
+        exit 1
+    }
+    # Without a report (window closed, child interrupted), judge by what is left, not by the exit code: closing the elevated window with X
+    # reported 0xC000013A although everything had been removed, and the user data step was skipped
+    # (owner report 2026-11-17).
+    $left = @()
+    if (Get-Service -Name LightingStudio -ErrorAction SilentlyContinue) { $left += 'the LightingStudio service' }
+    if (Test-Path -LiteralPath $destination) { $left += $destination }
+    if (Test-Path -LiteralPath $uninstallKey) { $left += 'the Windows Apps entry' }
+    if ($left.Count) {
+        Write-Host "`nLighting Studio was NOT removed completely (exit code $($child.ExitCode)). Still present: $($left -join ', ')." -ForegroundColor Red
+        Write-Host 'Your editor data was kept. Run the uninstaller again or check the administrator window.'
+        if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
+        exit 1
+    }
     # Only after the program is gone, so a declined UAC prompt leaves the settings in place.
     if ($RemoveUserData -and !(Remove-UserData)) { if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1 }
+    if (!$Quiet) {
+        Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green
+        Read-Host 'Press Enter to close' | Out-Null
+    }
     return
 }
 $problems = New-Object Collections.Generic.List[string]
 $self = [IO.File]::ReadAllText($PSCommandPath)
+$clock = [Diagnostics.Stopwatch]::StartNew()
+$stepCount = 6 + [int][bool]$RemovePawnIO + [int]($RemoveUserData -and !$Elevated); $stepIndex = 0
+# Progress bar plus one timed line per step, so a slow step does not look like a hang (2026-11-17).
 function Invoke-Step([string]$Name, [scriptblock]$Action) {
-    try { & $Action; Write-Host "Done: $Name" } catch { $problems.Add("$Name - $($_.Exception.Message)"); Write-Warning "$Name - $($_.Exception.Message)" }
+    $script:stepIndex++
+    Write-Progress -Activity 'Removing Lighting Studio' -Status "Step $script:stepIndex of ${stepCount}: $Name" -PercentComplete ([Math]::Min(100, 100 * ($script:stepIndex - 1) / $stepCount))
+    try { & $Action; Write-Host ('[{0:mm\:ss}] Done: {1}' -f $clock.Elapsed, $Name) } catch { $problems.Add("$Name - $($_.Exception.Message)"); Write-Warning "$Name - $($_.Exception.Message)" }
 }
 if (Get-Editor) {
-    Write-Host 'Lighting Studio is running. Close it (also from the tray), then retry. Nothing was removed.' -ForegroundColor Red
+    Write-Host 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit), then retry. Nothing was removed.' -ForegroundColor Red
+    if ($ResultFile) { Set-Content -LiteralPath $ResultFile -Encoding UTF8 -Value 'Lighting Studio is still running; nothing was removed' }
     if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
     exit 1
 }
@@ -150,13 +198,21 @@ if ($RemovePawnIO) {
         $location = (Get-ItemProperty -LiteralPath $pawnIOKey).InstallLocation
         $uninstaller = Join-Path $location 'uninstall.exe'
         if (!$location -or !(Test-Path -LiteralPath $uninstaller -PathType Leaf)) { throw 'PawnIO uninstaller not found; remove PawnIO in Windows Settings > Apps' }
-        $result = Start-Process -FilePath $uninstaller -ArgumentList @('-uninstall','-silent') -Wait -PassThru -WindowStyle Hidden
+        $result = Start-Process -FilePath $uninstaller -ArgumentList @('-uninstall','-silent') -PassThru -WindowStyle Hidden
+        $null = $result.Handle  # Cache the handle; otherwise ExitCode stays empty after the process ends.
+        $started = Get-Date
+        while (!$result.HasExited) {
+            Write-Progress -Activity 'Removing Lighting Studio' -Status "Step $script:stepIndex of ${stepCount}: Uninstall PawnIO ($([int]((Get-Date) - $started).TotalSeconds) s)" -PercentComplete ([Math]::Min(100, 100 * ($script:stepIndex - 1) / $stepCount))
+            Start-Sleep -Milliseconds 500
+        }
         if ($result.ExitCode -ne 0) { throw "PawnIO uninstaller failed ($($result.ExitCode))" }
         if (Test-Path -LiteralPath $pawnIOKey) { throw 'PawnIO is still registered; remove it in Windows Settings > Apps' }
+        # Observed 2026-11-17: the Apps entry was gone but the driver service stayed registered.
+        if (Get-Service -Name PawnIO -ErrorAction SilentlyContinue) { Write-Host '        Note: the PawnIO driver service is still registered; Windows may remove it after a restart.' }
     }
 } elseif (Test-Path -LiteralPath $pawnIOKey) { Write-Host 'Kept: PawnIO driver (shared with other hardware tools).' }
-# The elevated child never touches the profile; its unelevated parent deletes user data afterwards.
-if ($RemoveUserData -and !$Elevated) { if (!(Remove-UserData)) { $problems.Add('Editor settings and user files were not removed completely') } }
+# Only an already elevated console runs this here; the usual unelevated parent handles user data itself.
+if ($RemoveUserData -and !$Elevated) { Invoke-Step 'Remove editor settings, back up user files' { if (!(Remove-UserData)) { throw 'not completed; your files were left in place' } } }
 elseif (!$RemoveUserData -and !$Elevated) { Write-Host 'Kept: editor settings and unsaved changes.' }
 # The retry entry point is decided last, after every other step: after any failure the Apps entry stays
 # and the script is put back, recreating its folder if needed. If removing the entry itself fails, the
@@ -170,9 +226,13 @@ if ($problems.Count) {
         catch { & $restore; throw }
     }
 }
+Write-Progress -Activity 'Removing Lighting Studio' -Completed
+if ($ResultFile) { Set-Content -LiteralPath $ResultFile -Encoding UTF8 -Value $(if ($problems.Count) { $problems -join '; ' } else { 'removed' }) }
 if ($problems.Count) {
     Write-Host "`nLighting Studio was NOT removed completely:" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host "  $_" }
-} else { Write-Host "`nLighting Studio was removed. Saved project files were not touched." }
-if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
+} else { Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green }
+# The elevated child no longer waits for Enter on success: the visible parent reports the result.
+if (!$Quiet -and ($problems.Count -or !$Elevated)) { Read-Host 'Press Enter to close' | Out-Null }
+elseif ($Elevated -and !$Quiet) { Write-Host 'This window closes in 5 seconds.'; Start-Sleep -Seconds 5 }
 if ($problems.Count) { exit 1 }
