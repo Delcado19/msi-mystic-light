@@ -4314,6 +4314,18 @@ void EditorTest::pickerApplyKeepsEveryInputPath()
         popup->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();QCoreApplication::processEvents();
         QCOMPARE(list.colors()[stop],chosen);
     }
+    // Owner decision 2026-11-18: an outside click (the popup closes itself) keeps the chosen color;
+    // Escape restores the original.
+    for(const bool escape:{false,true}) {
+        ColorListEditor list(1,8);list.setGradientMode();applyStudioStyle(&list);
+        list.setStops({QColor(Qt::red),QColor(Qt::cyan)},{0,1});list.resize(420,200);list.show();QVERIFY(QTest::qWaitForWindowExposed(&list));
+        auto* editor=list.findChild<ColorEditor*>("selectedStopColor");const QColor original=list.colors()[0];
+        editor->findChild<QPushButton*>()->click();QPointer<QDialog> popup=editor->findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
+        auto* hex=popup->findChild<QLineEdit*>("pickerHex");hex->setText("#12AB34");emit hex->editingFinished();
+        if(escape)QTest::keyClick(popup,Qt::Key_Escape);else popup->hide();
+        QTRY_VERIFY(!popup || !popup->isVisible());
+        QCOMPARE(list.colors()[0].name(),escape ? original.name() : QString("#12ab34"));
+    }
 }
 
 void EditorTest::hueSliderColorizesGrayStop()

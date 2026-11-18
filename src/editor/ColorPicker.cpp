@@ -107,8 +107,9 @@ public:
     void done(int result) override {if(sampling){hide();return;}finished=true;QDialog::done(result);}
     void hideEvent(QHideEvent* event) override {
         QDialog::hideEvent(event);
-        // Clicking outside a popup is Cancel, including restoration of live preview.
-        if(!finished && !sampling)done(QDialog::Rejected);
+        // Clicking outside keeps the chosen color; only Cancel and Escape restore the original
+        // (owner decision 2026-11-18, as planned for R16).
+        if(!finished && !sampling)done(QDialog::Accepted);
     }
 };
 }
@@ -226,7 +227,8 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
     {const QSignalBlocker block(editor);(*update)(original);}
     QObject::connect(popup,&QDialog::finished,editor,[=](int result) {
         if(result!=QDialog::Accepted){const bool changed=editor->color()!=original;editor->setColor(original);if(changed)emit editor->colorChanged(original);}
-        else {auto recent=QSettings().value("editor/recentColors").toStringList();recent.removeAll(editor->color().name());recent.prepend(editor->color().name());QSettings().setValue("editor/recentColors",recent.mid(0,8));}
+        // An outside click without a change is accepted too; it must not push the unchanged color into the recents.
+        else if(editor->color()!=original) {auto recent=QSettings().value("editor/recentColors").toStringList();recent.removeAll(editor->color().name());recent.prepend(editor->color().name());QSettings().setValue("editor/recentColors",recent.mid(0,8));}
         if(popup->gestureBegun)emit editor->gestureFinished(result==QDialog::Accepted && editor->color()!=original);
         editor->setFocus();
     });
