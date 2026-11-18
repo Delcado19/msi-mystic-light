@@ -37,35 +37,39 @@ function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue
 # unsaved changes, is moved to a dated backup in the profile instead of being deleted (owner decision
 # 2026-11-18; CodeRabbit review 2026-11-18: a project saved into this folder was deleted with it).
 $script:backup = $null
-function Remove-UserData {
+# Parameters exist for tests/service/test_installer.ps1, which runs this on a temporary folder and key.
+function Remove-UserData(
+    [string]$Parent = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Delcado'),
+    [string]$BackupRoot = [Environment]::GetFolderPath('UserProfile'),
+    [string]$Key = 'HKCU:\Software\Delcado\MSI Mystic Light Standalone') {
     $failed = $false
     try {
-        $key = 'HKCU:\Software\Delcado\MSI Mystic Light Standalone'
-        if (Test-Path -LiteralPath $key) { Remove-Item -LiteralPath $key -Recurse -Force }
-        $parentKey = Split-Path $key -Parent
-        if ((Test-Path -LiteralPath $parentKey) -and !(Get-ChildItem -LiteralPath $parentKey) -and !(Get-Item -LiteralPath $parentKey).Property) { Remove-Item -LiteralPath $parentKey -Force }
-        $parent = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Delcado'
-        $data = Join-Path $parent 'MSI Mystic Light Standalone'
-        foreach ($folder in @($parent,$data)) {
+        $data = Join-Path $Parent 'MSI Mystic Light Standalone'
+        foreach ($folder in @($Parent,$data)) {
             if ((Test-Path -LiteralPath $folder) -and ((Get-Item -LiteralPath $folder -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Not deleted, $folder is a link: remove it yourself" }
         }
+        # The move comes first and changes nothing else until it succeeded: a failed move leaves the
+        # folder, its recovery file and the settings exactly as they were (CodeRabbit review 2026-11-18).
         if (Test-Path -LiteralPath $data) {
             $lock = Join-Path $data 'application.lock'
             if (Test-Path -LiteralPath $lock) { Remove-Item -LiteralPath $lock -Force }
-            $recovery = Join-Path $data 'recovery.lighting.json'
-            if ((Test-Path -LiteralPath $recovery) -and !(Test-Path -LiteralPath (Join-Path $data 'Unsaved changes.lighting.json'))) {
-                Rename-Item -LiteralPath $recovery -NewName 'Unsaved changes.lighting.json'
-            }
             if (Get-ChildItem -LiteralPath $data -Force) {
-                $base = Join-Path ([Environment]::GetFolderPath('UserProfile')) ('Lighting Studio - Backup - ' + (Get-Date -Format 'yyyy_MM_dd'))
+                $base = Join-Path $BackupRoot ('Lighting Studio - Backup - ' + (Get-Date -Format 'yyyy_MM_dd'))
                 $target = $base; $number = 2
                 while (Test-Path -LiteralPath $target) { $target = "$base ($number)"; $number++ }
-                # A move across volumes fails and leaves every file where it was; nothing is deleted then.
+                # A move across volumes fails and leaves every file where it was.
                 Move-Item -LiteralPath $data -Destination $target
                 $script:backup = $target
+                $recovery = Join-Path $target 'recovery.lighting.json'
+                if ((Test-Path -LiteralPath $recovery) -and !(Test-Path -LiteralPath (Join-Path $target 'Unsaved changes.lighting.json'))) {
+                    Rename-Item -LiteralPath $recovery -NewName 'Unsaved changes.lighting.json'
+                }
             } else { Remove-Item -LiteralPath $data -Force }
         }
-        if ((Test-Path -LiteralPath $parent) -and !(Get-ChildItem -LiteralPath $parent -Force)) { Remove-Item -LiteralPath $parent -Force }
+        if ((Test-Path -LiteralPath $Parent) -and !(Get-ChildItem -LiteralPath $Parent -Force)) { Remove-Item -LiteralPath $Parent -Force }
+        if (Test-Path -LiteralPath $Key) { Remove-Item -LiteralPath $Key -Recurse -Force }
+        $parentKey = Split-Path $Key -Parent
+        if ((Test-Path -LiteralPath $parentKey) -and !(Get-ChildItem -LiteralPath $parentKey) -and !(Get-Item -LiteralPath $parentKey).Property) { Remove-Item -LiteralPath $parentKey -Force }
         Write-Host 'Done: Delete editor settings'
         if ($script:backup) { Write-Host "Your own files and unsaved changes were moved to: $($script:backup)" -ForegroundColor Yellow }
     } catch { $failed = $true; Write-Warning "Editor settings and user files - $($_.Exception.Message)" }
@@ -139,21 +143,6 @@ if ($script:serviceGone) {
     Invoke-Step "Delete $destination" { Remove-Tree $destination }
     Invoke-Step "Delete $state" { Remove-Tree $state }
 } else { $problems.Add('Program files and service data were kept because the service is still registered') }
-# After any failure the Apps entry stays and the script is put back, recreating its folder if needed,
-# so the removal can be retried from Settings > Apps (CodeRabbit reviews 2026-11-15 and 2026-11-18).
-if ($problems.Count) {
-    Invoke-Step 'Keep the uninstaller for a retry' {
-        New-Item -ItemType Directory -Force -Path $destination | Out-Null
-        [IO.File]::WriteAllText((Join-Path $destination 'Uninstall-LightingStudio.ps1'), $self)
-    }
-} else {
-    Invoke-Step 'Remove the Windows Apps entry' {
-        if (Test-Path -LiteralPath $uninstallKey) { Remove-Item -LiteralPath $uninstallKey -Recurse -Force }
-    }
-}
-# The elevated child never touches the profile; its unelevated parent deletes user data afterwards.
-if ($RemoveUserData -and !$Elevated) { if (!(Remove-UserData)) { $problems.Add('Editor settings and user files were not removed completely') } }
-elseif (!$RemoveUserData -and !$Elevated) { Write-Host 'Kept: editor settings and unsaved changes.' }
 if ($RemovePawnIO) {
     Invoke-Step 'Uninstall PawnIO' {
         if (!(Test-Path -LiteralPath $pawnIOKey)) { Write-Host 'PawnIO is not installed.'; return }
@@ -166,6 +155,21 @@ if ($RemovePawnIO) {
         if (Test-Path -LiteralPath $pawnIOKey) { throw 'PawnIO is still registered; remove it in Windows Settings > Apps' }
     }
 } elseif (Test-Path -LiteralPath $pawnIOKey) { Write-Host 'Kept: PawnIO driver (shared with other hardware tools).' }
+# The elevated child never touches the profile; its unelevated parent deletes user data afterwards.
+if ($RemoveUserData -and !$Elevated) { if (!(Remove-UserData)) { $problems.Add('Editor settings and user files were not removed completely') } }
+elseif (!$RemoveUserData -and !$Elevated) { Write-Host 'Kept: editor settings and unsaved changes.' }
+# The retry entry point is decided last, after every other step: after any failure the Apps entry stays
+# and the script is put back, recreating its folder if needed. If removing the entry itself fails, the
+# script is put back too, so the entry never points to a missing script (CodeRabbit reviews 2026-11-15/18).
+$restore = { New-Item -ItemType Directory -Force -Path $destination | Out-Null; [IO.File]::WriteAllText((Join-Path $destination 'Uninstall-LightingStudio.ps1'), $self) }
+if ($problems.Count) {
+    Invoke-Step 'Keep the uninstaller for a retry' $restore
+} else {
+    Invoke-Step 'Remove the Windows Apps entry' {
+        try { if (Test-Path -LiteralPath $uninstallKey) { Remove-Item -LiteralPath $uninstallKey -Recurse -Force } }
+        catch { & $restore; throw }
+    }
+}
 if ($problems.Count) {
     Write-Host "`nLighting Studio was NOT removed completely:" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host "  $_" }
