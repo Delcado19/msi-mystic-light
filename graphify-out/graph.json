@@ -27159,7 +27159,7 @@
       "community": 44,
       "community_name": "test_output_ui.cpp",
       "definition_file": "src/output/OutputScheduler.cpp",
-      "definition_location": "L44",
+      "definition_location": "L48",
       "file_type": "code",
       "norm_label": ".devicechanged()",
       "source_file": "src/output/OutputScheduler.h",
@@ -28297,7 +28297,7 @@
       "community": 56,
       "community_name": "test_scheduler.cpp",
       "definition_file": "src/output/OutputScheduler.cpp",
-      "definition_location": "L57",
+      "definition_location": "L61",
       "file_type": "code",
       "norm_label": ".status()",
       "source_file": "src/output/OutputScheduler.h",
@@ -28311,7 +28311,7 @@
       "community": 56,
       "community_name": "test_scheduler.cpp",
       "definition_file": "src/output/OutputScheduler.cpp",
-      "definition_location": "L84",
+      "definition_location": "L86",
       "file_type": "code",
       "norm_label": ".submit()",
       "source_file": "src/output/OutputScheduler.h",
@@ -28325,7 +28325,7 @@
       "community": 56,
       "community_name": "test_scheduler.cpp",
       "definition_file": "src/output/OutputScheduler.cpp",
-      "definition_location": "L91",
+      "definition_location": "L93",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -28333,7 +28333,7 @@
             "callee": "currentThread",
             "receiver_type": "QThread",
             "lang": "cpp",
-            "line": "L93"
+            "line": "L95"
           }
         ]
       },
@@ -32701,7 +32701,7 @@
       "community": 70,
       "community_name": "OutputScheduler.cpp",
       "definition_file": "src/output/OutputScheduler.cpp",
-      "definition_location": "L101",
+      "definition_location": "L103",
       "file_type": "code",
       "norm_label": ".finish()",
       "source_file": "src/output/OutputScheduler.h",
@@ -32715,7 +32715,7 @@
       "community": 70,
       "community_name": "OutputScheduler.cpp",
       "definition_file": "src/output/OutputScheduler.cpp",
-      "definition_location": "L110",
+      "definition_location": "L112",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -32723,13 +32723,13 @@
             "callee": "isEmpty",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L118"
+            "line": "L120"
           },
           {
             "callee": "fromUtf8",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L152"
+            "line": "L156"
           }
         ]
       },
@@ -32745,7 +32745,7 @@
       "community": 70,
       "community_name": "OutputScheduler.cpp",
       "definition_file": "src/output/OutputScheduler.cpp",
-      "definition_location": "L42",
+      "definition_location": "L46",
       "file_type": "code",
       "norm_label": ".devicenotifications()",
       "source_file": "src/output/OutputScheduler.h",
@@ -32759,7 +32759,7 @@
       "community": 70,
       "community_name": "OutputScheduler.cpp",
       "definition_file": "src/output/OutputScheduler.cpp",
-      "definition_location": "L61",
+      "definition_location": "L65",
       "file_type": "code",
       "metadata": {
         "unresolved_calls": [
@@ -32767,19 +32767,19 @@
             "callee": "currentThread",
             "receiver_type": "QThread",
             "lang": "cpp",
-            "line": "L63"
+            "line": "L67"
           },
           {
             "callee": "fromUtf8",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L81"
+            "line": "L83"
           },
           {
             "callee": "what",
             "receiver_type": "QString",
             "lang": "cpp",
-            "line": "L81"
+            "line": "L83"
           }
         ]
       },
@@ -32809,7 +32809,7 @@
       "file_type": "code",
       "norm_label": "outputscheduler::outputscheduler()",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L51"
+      "source_location": "L55"
     },
     {
       "id": "src_output_outputscheduler_watchdevices",
@@ -32821,7 +32821,7 @@
       "file_type": "code",
       "norm_label": "watchdevices()",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L24"
+      "source_location": "L27"
     },
     {
       "id": "src_editor_appsession_appsession_persist",
@@ -91306,19 +91306,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L42",
+      "source_location": "L46",
       "weight": 1.0
     },
     {
-      "source": "src_output_outputscheduler_outputscheduler_start",
-      "target": "src_output_outputscheduler_watchdevices",
+      "source": "src_output_outputscheduler_watchdevices",
+      "target": "src_output_outputscheduler_outputscheduler_devicechanged",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L78",
+      "source_location": "L36",
       "weight": 1.0
     },
     {
@@ -129994,7 +129994,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L101",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -130006,7 +130006,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L101",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -130018,7 +130018,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L51",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -130030,7 +130030,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L110",
+      "source_location": "L112",
       "weight": 1.0
     },
     {
@@ -130042,7 +130042,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L110",
+      "source_location": "L112",
       "weight": 1.0
     },
     {
@@ -130054,7 +130054,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L110",
+      "source_location": "L112",
       "weight": 1.0
     },
     {
@@ -130066,7 +130066,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L61",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -130078,7 +130078,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L61",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -130090,7 +130090,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L84",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -130102,7 +130102,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L84",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -134590,7 +134590,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L61",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -134602,7 +134602,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L57",
+      "source_location": "L61",
       "weight": 1.0
     },
     {
@@ -160548,7 +160548,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L101",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -160559,7 +160559,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L110",
+      "source_location": "L112",
       "weight": 1.0
     },
     {
@@ -160592,7 +160592,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L24",
+      "source_location": "L27",
       "weight": 1.0
     },
     {
@@ -160603,7 +160603,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L42",
+      "source_location": "L46",
       "weight": 1.0
     },
     {
@@ -160614,7 +160614,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L44",
+      "source_location": "L48",
       "weight": 1.0
     },
     {
@@ -160625,7 +160625,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L51",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -160636,7 +160636,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L57",
+      "source_location": "L61",
       "weight": 1.0
     },
     {
@@ -160647,7 +160647,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L61",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -160658,7 +160658,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L84",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -160669,7 +160669,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L91",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -194149,7 +194149,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L115",
+      "source_location": "L117",
       "weight": 1.0
     },
     {
@@ -194161,7 +194161,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L171",
+      "source_location": "L175",
       "weight": 1.0
     },
     {
@@ -194173,7 +194173,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L183",
+      "source_location": "L187",
       "weight": 1.0
     },
     {
@@ -194185,7 +194185,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L80",
+      "source_location": "L82",
       "weight": 1.0
     },
     {
@@ -194197,7 +194197,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/output/OutputScheduler.cpp",
-      "source_location": "L81",
+      "source_location": "L83",
       "weight": 1.0
     },
     {
@@ -199662,5 +199662,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "3ac74cc85e86d6d85ae3c55430276aea7f7470f0"
+  "built_at_commit": "6d7f0b44c643ce28d9f83918e6faaa8ad7f2c857"
 }

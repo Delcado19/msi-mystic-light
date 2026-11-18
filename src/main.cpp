@@ -204,8 +204,8 @@ int main(int argc, char** argv)
         servicePanel=new ServicePanel(window);window.installOutputPanel(servicePanel);
     } else {
         // Register HID notifications on a helper thread at startup: CM_Register_Notification does not promise
-        // to return quickly, and the first OutputScheduler::start() would otherwise run it on the event loop
-        // (CodeRabbit review PR #4). start() only waits if it comes before this finishes.
+        // to return quickly and must stay off the event loop. Until it finishes, outputs use the one-second
+        // check; start() never waits for it (CodeRabbit review PR #4).
         std::thread([]{(void)OutputScheduler::deviceNotifications();}).detach();
         outputPanel=new OutputPanel(window,[availableProfiles,directory=parser.value("module-dir")](QWidget* parent,const QVector<OutputFrame>& frames) {
             return authorizeHardwareOutput(parent,availableProfiles,frames,directory);

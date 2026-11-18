@@ -1,7 +1,7 @@
 # Graph Report - msi-mystic-light  (2026-11-18)
 
 ## Corpus Check
-- 268 files · ~1,862,249 words
+- 268 files · ~1,862,281 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 23 file(s) not represented in the graph (top: .csv 6, .cmd 4, (none) 3)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `3ac74cc8`
+- Built from commit: `6d7f0b44`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -500,7 +500,7 @@ Cohesion: 0.14
 Nodes (12): Completed: HID transport (2026-10-23), Task 2: `IHidDevice` gains `write()` and interface-aware `open()`, FakeHidDevice, featureReportResponse, getFeatureReportCalls, inputReportResponse, opened_, openSucceeds (+4 more)
 
 ### Community 70 - "OutputScheduler.cpp"
-Cohesion: 0.10
+Cohesion: 0.09
 Nodes (7): DeviceChanges, generation, mutex, wake, onHidInterface(), OutputScheduler::OutputScheduler(), watchDevices()
 
 ### Community 71 - "Windows RGB access investigation"

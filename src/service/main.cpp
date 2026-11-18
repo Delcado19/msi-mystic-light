@@ -105,8 +105,8 @@ int run(int argc,char** argv,bool managed) {
     parser.addOption({"owner","Simulation authorized SID.","sid"});parser.process(app);
     const bool simulation=parser.isSet("simulate");
     // Register HID notifications on a helper thread at startup: CM_Register_Notification does not promise
-    // to return quickly, and the first OutputScheduler::start() would otherwise run it on the event loop
-    // (CodeRabbit review PR #4). start() only waits if it comes before this finishes.
+    // to return quickly and must stay off the event loop. Until it finishes, outputs use the one-second
+    // check; start() never waits for it (CodeRabbit review PR #4).
     std::thread([]{(void)OutputScheduler::deviceNotifications();}).detach();
     if(managed && simulation)throw std::runtime_error("Simulation is unavailable in service mode");
     if(!managed && (!simulation || StudioService::isSystem()))throw std::runtime_error("Console use requires --simulate and a non-SYSTEM account");

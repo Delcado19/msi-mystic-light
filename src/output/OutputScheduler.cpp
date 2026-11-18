@@ -20,7 +20,10 @@ DWORD CALLBACK onHidInterface(HCMNOTIFICATION, PVOID, CM_NOTIFY_ACTION, PCM_NOTI
     OutputScheduler::deviceChanged(); return ERROR_SUCCESS; // Threadpool callback: only signal, never probe here.
 }
 #endif
-// False: no notifications, so probes fall back to the old one-second check.
+// Set once registration succeeded. Probes read it without waiting; until then (or if registration
+// fails) they use the one-second check (CodeRabbit review PR #4: start() must never wait on it).
+std::atomic_bool watching{false};
+// Blocking one-time registration; only the startup helper thread (and tests) call it.
 bool watchDevices()
 {
 #ifdef Q_OS_WIN
@@ -29,8 +32,9 @@ bool watchDevices()
         filter.u.DeviceInterface.ClassGuid = {0x4d1e55b2, 0xf16f, 0x11cf, {0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30}}; // GUID_DEVINTERFACE_HID
         HCMNOTIFICATION handle = nullptr; // Never unregistered: it lives as long as the process.
         const bool ok = CM_Register_Notification(&filter, nullptr, onHidInterface, &handle) == CR_SUCCESS;
-        if (!ok) qWarning("HID device notifications unavailable; presence check falls back to once a second");
-        return ok;
+        if (!ok) { qWarning("HID device notifications unavailable; presence check falls back to once a second"); return false; }
+        watching = true; OutputScheduler::deviceChanged(); // One check covers changes made before registration.
+        return true;
     }();
     return registered;
 #else
@@ -73,11 +77,9 @@ quint64 OutputScheduler::start(SessionFactory factory, std::function<bool()> pre
         pending_.reset(); stopRequested_.store(false);
         status_.state = State::Starting; status_.error.clear(); generation = ++status_.generation;
     }
-    // Register and snapshot on the owner thread, before the device opens: a removal during the open still
-    // triggers a check, and workers never wait on the one-time registration (CodeRabbit review PR #4).
-    const bool events = watchDevices();
+    // Snapshot before the device opens, so a removal during the open still triggers a check.
     const quint64 seen = [] { auto& changes = deviceChanges(); const std::lock_guard<std::mutex> lock(changes.mutex); return changes.generation; }();
-    try { worker_ = std::thread([this, factory = std::move(factory), present = std::move(present), events, seen]() mutable { run(std::move(factory), std::move(present), events, seen); }); }
+    try { worker_ = std::thread([this, factory = std::move(factory), present = std::move(present), seen]() mutable { run(std::move(factory), std::move(present), seen); }); }
     catch (const std::exception& error) { finish(State::Faulted, QString::fromUtf8(error.what())); return 0; }
     emit statusChanged(); return generation;
 }
@@ -107,7 +109,7 @@ void OutputScheduler::finish(State state, const QString& error)
     }
     emit statusChanged();
 }
-void OutputScheduler::run(SessionFactory factory, std::function<bool()> present, bool events, quint64 seenAtStart)
+void OutputScheduler::run(SessionFactory factory, std::function<bool()> present, quint64 seenAtStart)
 {
     std::unique_ptr<OutputSession> session;
     QString error;
@@ -133,14 +135,16 @@ void OutputScheduler::run(SessionFactory factory, std::function<bool()> present,
             const auto probe = std::make_shared<Probe>();
             struct Finish { std::shared_ptr<Probe> probe;
                 ~Finish() { auto& changes = deviceChanges(); { const std::lock_guard<std::mutex> lock(changes.mutex); probe->done = true; } changes.wake.notify_all(); } } finish{probe};
-            if (present) std::thread([probe, present, seen = seenAtStart, events]() mutable {
+            if (present) std::thread([probe, present, seen = seenAtStart]() mutable {
                 auto& changes = deviceChanges();
                 for (;;) {
                     {
                         std::unique_lock<std::mutex> lock(changes.mutex);
                         const auto changed = [&] { return probe->done.load() || changes.generation != seen; };
-                        if (!events) { if (changes.wake.wait_for(lock, std::chrono::seconds(1), [&] { return probe->done.load(); })) return; }
-                        else {
+                        if (!watching) {
+                            if (changes.wake.wait_for(lock, std::chrono::seconds(1), [&] { return probe->done.load(); })) return;
+                            seen = changes.generation; // This timed check covers every earlier event.
+                        } else {
                             changes.wake.wait(lock, changed);
                             // One plug-in raises several interface events: probe once after they settle.
                             do { seen = changes.generation; if (probe->done) return; }
