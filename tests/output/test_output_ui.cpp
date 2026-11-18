@@ -263,7 +263,7 @@ void OutputUiTest::independentConnections()
         return result;
     });
     panel.enableAutomaticOutput(); QTRY_COMPARE(firstRecord->writes(),2); QTRY_COMPARE(secondRecord->writes(),2);
-    present->store(false); QTRY_VERIFY(state(panel,"Faulted"));
+    present->store(false); OutputScheduler::deviceChanged(); QTRY_VERIFY(state(panel,"Faulted"));
     rejectResume=true; panel.findChild<QPushButton*>("startOutput")->click();
     QVERIFY(panel.findChild<QLabel*>("outputStatus")->text().contains("rejected"));
     const int before=secondRecord->writes();
@@ -293,7 +293,7 @@ void OutputUiTest::automaticMixedRecovery() try {
     });
     auto* retry=panel.findChild<QTimer*>();QVERIFY(retry);QCOMPARE(retry->interval(),2000);
     panel.enableAutomaticOutput();QTRY_VERIFY(state(panel,"Running"));QTRY_VERIFY(state(panel,"Running",peer.endpoint));
-    present->store(false);QTRY_VERIFY(state(panel,"Faulted"));
+    present->store(false);OutputScheduler::deviceChanged();QTRY_VERIFY(state(panel,"Faulted"));
     QCOMPARE(authorizations.value(identity().path),1);QVERIFY(state(panel,"Running",peer.endpoint));
     present->store(true);QTRY_VERIFY_WITH_TIMEOUT(state(panel,"Running"),4000);
     QCOMPARE(authorizations.value(identity().path),2);QCOMPARE(authorizations.value(peer.endpoint),1);QCOMPARE(closes(healthy),0);
@@ -303,7 +303,7 @@ void OutputUiTest::automaticMixedRecovery() try {
     auto* endpoints=panel.findChild<QTreeWidget*>("outputEndpoints");
     for(int i=0;i<endpoints->topLevelItemCount();++i)if(endpoints->topLevelItem(i)->data(0,Qt::UserRole).toString()==identity().path)endpoints->setCurrentItem(endpoints->topLevelItem(i));
     panel.findChild<QPushButton*>("stopOutput")->click();QVERIFY(state(panel,"Stopped"));
-    present->store(false);QTRY_VERIFY(closes(ram)>=2);present->store(true);
+    present->store(false);OutputScheduler::deviceChanged();QTRY_VERIFY(closes(ram)>=2);present->store(true);
     // A later hardware fault must not turn an explicit channel pause into a background resume.
     QTest::qWait(retry->interval()+100);QCOMPARE(authorizations.value(identity().path),2);QVERIFY(state(panel,"Stopped"));
     QVERIFY(state(panel,"Running",peer.endpoint));QCOMPARE(closes(healthy),0);
@@ -508,7 +508,7 @@ void OutputUiTest::unplugAndRestart()
     });
     auto* start=panel.findChild<QPushButton*>("startOutput"); start->click(); QTRY_COMPARE(record->writes(),2);
     QSignalSpy summaries(&panel,&OutputPanel::outputStateChanged);
-    present->store(false); QTRY_VERIFY(state(panel,"Faulted")); QCOMPARE(reviews,1);
+    present->store(false); OutputScheduler::deviceChanged(); QTRY_VERIFY(state(panel,"Faulted")); QCOMPARE(reviews,1);
     QVERIFY(!summaries.isEmpty());QVERIFY(summaries.last()[0].toString().contains("1 errors"));
     QVERIFY(panel.findChild<QLabel*>("outputChannelDetails")->text().contains("Faulted"));
     QVERIFY(panel.findChild<QLabel*>("outputStatus")->text().contains("disappeared"));

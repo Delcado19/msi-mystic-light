@@ -89,6 +89,16 @@ The uninstall removed the editor data including the current layout (recovered fr
 snapshot and an old `default.lighting.json`). Projects and custom hardware must only be deleted
 after an unambiguous question, with a backup offered first. Wording of today's prompt unchecked.
 
+## Event-driven presence check - 2026-11-18
+
+Branch fix/event-driven-presence-check. The presence check (HID enumeration, board identity,
+auxiliary scan, 112-453 ms) ran once a second per output. Owner decision: hardware is installed
+with the PC off, so it now runs only after a Windows HID arrival/removal (`CM_Register_Notification`,
+debounced 500 ms); it falls back to once a second if registration fails. It cannot be removed:
+native-only outputs write once, so a replugged device would never fail a write. Kept: 5 s retry of
+faulted outputs, suspend/resume reconnect. Tests green (output_scheduler, output_ui, service).
+Untested on HW: replug keyboard with native and software effect, sleep/wake, service log at rest.
+
 ## Hung device open and project-only conflict check - 2026-11-17
 
 Dump of the deaf service: a worker hung in hidapi's `HidD_GetSerialNumberString` on 0DB0:0076 and

@@ -21,10 +21,13 @@ public:
     bool submit(quint64 generation, OutputFrame frame);
     void stop(); // Nonblocking; an in-flight factory/module call may finish.
     Status status() const;
+    // Wakes every presence check; called on Windows HID arrival/removal, and by tests.
+    static void deviceChanged();
+    static bool deviceNotifications(); // Registers once (blocking); false: probes use the one-second check.
 signals:
     void statusChanged(); // Read status(); queued notifications may refer to an older generation.
 private:
-    void run(SessionFactory factory, std::function<bool()> present);
+    void run(SessionFactory factory, std::function<bool()> present, quint64 seenAtStart);
     void finish(State state, const QString& error = {});
     mutable std::mutex mutex_;
     std::condition_variable wake_;

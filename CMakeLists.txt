@@ -113,6 +113,9 @@ target_sources(lighting_editor PRIVATE ${HARDWARE_RESOURCES})
 add_library(lighting_output src/output/OutputSession.cpp src/output/OutputScheduler.cpp)
 target_include_directories(lighting_output PUBLIC src)
 target_link_libraries(lighting_output PUBLIC lighting_editor Threads::Threads)
+if(WIN32)
+    target_link_libraries(lighting_output PRIVATE cfgmgr32) # HID arrival/removal notifications
+endif()
 
 add_library(lighting_output_ui src/output/OutputPanel.cpp src/output/HardwareOutput.cpp)
 target_include_directories(lighting_output_ui PUBLIC src)
