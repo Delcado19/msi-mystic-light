@@ -18,7 +18,9 @@ public:
         // explicit edit and rounds (CodeRabbit review 2026-11-16). The typed text itself is kept, not a
         // flag: a refresh under QSignalBlocker replaces the text without any signal, and then the
         // field no longer shows what was typed (CodeRabbit review 2026-11-17).
-        connect(lineEdit(),&QLineEdit::textEdited,this,[this](const QString& text){typed_=text;});
+        // The value at typing time detects a later refresh even when it shows the same text: keyboard
+        // tracking is off, so only a refresh changes value() while text is typed (CodeRabbit review 2026-11-18).
+        connect(lineEdit(),&QLineEdit::textEdited,this,[this](const QString& text){typed_=text;typedAt_=value();});
         connect(this,&QAbstractSpinBox::editingFinished,this,[this]{typed_.clear();});
     }
     void setDisplayUnit(double scale,const QString& unit) {
@@ -38,7 +40,7 @@ protected:
         return QString::number(qRound64(shown));
     }
     double valueFromText(const QString& text) const override {
-        if((typed_.isEmpty() || text!=typed_) && (text==textFromValue(value())+suffix() || text==prefix()+textFromValue(value())+suffix()))return value();
+        if((typed_.isEmpty() || text!=typed_ || value()!=typedAt_) && (text==textFromValue(value())+suffix() || text==prefix()+textFromValue(value())+suffix()))return value();
         QString number=text;number.remove(suffix());number.remove(prefix());
         bool ok=false;const double result=locale().toDouble(number.trimmed(),&ok);
         return ok ? result/scale_ : value();
@@ -56,4 +58,5 @@ protected:
 private:
     double scale_=1;
     QString typed_; // The field's text as last typed by the user, until editing finishes.
+    double typedAt_=0; // value() when typed_ was set.
 };

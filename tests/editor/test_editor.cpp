@@ -4073,6 +4073,10 @@ void EditorTest::integerDisplayRoundTrip()
     field.setFocus();QTest::keyClick(&field,Qt::Key_A,Qt::ControlModifier);QTest::keyClicks(&field,"9");
     {const QSignalBlocker blocker(&field);field.setValue(.123456789);}
     QTest::keyClick(&field,Qt::Key_Return);QCOMPARE(field.value(),.123456789);
+    // A refresh whose display equals the typed text still wins over it (CodeRabbit review 2026-11-18).
+    field.setFocus();QTest::keyClick(&field,Qt::Key_A,Qt::ControlModifier);QTest::keyClicks(&field,"7");
+    {const QSignalBlocker blocker(&field);field.setValue(.12);}QCOMPARE(field.text(),QString("7 /min"));
+    QTest::keyClick(&field,Qt::Key_Return);QCOMPARE(field.value(),.12);
     field.setDisplayUnit(1000," ms");field.setValue(.375);QCOMPARE(field.text(),QString("375 ms"));
     QTest::keyClick(&field,Qt::Key_Up);QCOMPARE(field.value(),.376);
     LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});addEffect(window,EffectKind::Circle);
