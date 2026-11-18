@@ -293,6 +293,10 @@ void ServiceTest::projectEditKeepsRunningOutput() try {
     QVERIFY(runtime.command(project(profile)).value("ok").toBool());
     const int writes=record->writes;QTRY_VERIFY_WITH_TIMEOUT(record->writes>writes,200);
     QCOMPARE(record->opens.load(),1);QCOMPARE(*scans,scansBefore);
+    // The 5 s retry scans nothing while every output runs (owner report 2026-11-18, color jumps at rest).
+    QTest::qWait(5600);QCOMPARE(*scans,scansBefore);
+    // Once the output is gone, the retry scans again to reopen it.
+    record->present=false;QTRY_VERIFY_WITH_TIMEOUT(*scans>scansBefore,8000);
 } catch(const std::exception& e){QFAIL(e.what());}
 // Final review 2026-11-17: a project edit that changes a device's output scope (another channel)
 // must reopen that device after one scan, not two, and never report it as hung meanwhile.

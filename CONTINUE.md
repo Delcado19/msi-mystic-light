@@ -33,6 +33,15 @@ R17 package: Downloads/LightingStudio-local-r17.zip (GS-06-R17).
 Effect library: categories are submenus (sorted) in the add-effect button and again under
 Tools > Add effect (R16 had wrongly dropped it from Tools); the flat list shows only while searching.
 
+R19 (2026-11-18, untested on HW, package Downloads/LightingStudio-local-r19.zip): owner confirmed R18
+drag streaming works, but reports subtle color jumps with the editor closed (smooth, then a hard step).
+Plasma is continuous in time, so the LEDs likely stall and then catch up. The owner's slow-motion clip
+could not show it: its freezes are duplicate camera frames (background froze at the same 45 frames).
+Candidates: the 5 s retry scanned the USB bus although all outputs ran (now skipped while all run),
+and the 1 s presence check (HID enumerate + board identity + auxiliary scan) runs on the output worker
+between writes. Presence, stage and write calls over 50 ms are now logged to
+C:\ProgramData\LightingStudio\service-warnings.log (elevated shell needed). Next: read that log.
+
 R18 (2026-11-18, untested on HW, package Downloads/LightingStudio-local-r18.zip): R17 sent a drag
 only on release because the canvas keeps a gesture out of the document until then; the canvas now
 exposes its working state and the service panel streams it. Menus follow the toolbar per view:

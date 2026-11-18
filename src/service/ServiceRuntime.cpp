@@ -27,7 +27,9 @@ ServiceRuntime::ServiceRuntime(ComponentCatalog catalog,QVector<DeviceProfile> p
         loadBundle(StudioService::decode(saved.readAll()),false);
     } catch(const std::exception& e) {error_=QString("Saved project rejected: ")+e.what();enabled_=false;}
     render_.setInterval(33);render_.setTimerType(Qt::PreciseTimer);QObject::connect(&render_,&QTimer::timeout,this,[this]{tick();});render_.start();
-    retry_.setInterval(5000);QObject::connect(&retry_,&QTimer::timeout,this,[this]{reconnect();});retry_.start();
+    // The retry reopens missing or faulted outputs. While every output runs, a scan only enumerated the USB
+    // bus beside the 33 ms writes; it is skipped then (owner report 2026-11-18, color jumps at rest).
+    retry_.setInterval(5000);QObject::connect(&retry_,&QTimer::timeout,this,[this]{if(!outputsRunning())reconnect();});retry_.start();
     // A normal scan takes ~6.5 s. 12 s stays below the editor's 15 s request timeout, so a caller
     // receives the "did not finish" reply instead of timing out (owner decision 2026-11-17).
     scanDeadline_.setSingleShot(true);scanDeadline_.setInterval(12000);
@@ -72,6 +74,17 @@ bool ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     return enabled_ && std::all_of(keep.cbegin(),keep.cend(),[this](const OutputFrame& frame){
         return std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const OutputFrame& scope){return sameOutputScope(scope,frame);});
     });
+}
+bool ServiceRuntime::outputsRunning() const {
+    if(!enabled_ || suspended_ || connections_.empty())return false;
+    try {
+        const auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
+        return std::all_of(frames.cbegin(),frames.cend(),[this](const OutputFrame& frame){
+            for(int i=0;i<scopes_.size();++i)
+                if(sameOutputScope(scopes_[i],frame) && connections_[i]->status().state==OutputScheduler::State::Running)return true;
+            return false;
+        });
+    } catch(const std::exception&) {return false;}
 }
 void ServiceRuntime::persist() {
     if(project_.isEmpty())return;

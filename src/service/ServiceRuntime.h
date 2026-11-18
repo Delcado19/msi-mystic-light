@@ -64,6 +64,7 @@ private:
     void retire(int index);
     void reap();
     bool retiring(const QString& endpoint) const;
+    bool outputsRunning() const; // Every wanted output scope has a Running worker.
     double seconds() const;
     QString directory_, error_;
     ComponentCatalog catalog_;

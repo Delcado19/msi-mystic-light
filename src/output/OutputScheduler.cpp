@@ -83,12 +83,21 @@ void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
                     if (stopRequested_.load()) break;
                     frame = std::move(pending_); pending_.reset();
                 }
+                // Diagnostics (owner report 2026-11-18, subtle color jumps at rest): calls on this worker
+                // delay the next frame, so any call over 50 ms is logged with its duration.
+                const auto timed = [](const char* what, auto&& call) {
+                    const auto started = std::chrono::steady_clock::now();
+                    const bool ok = call();
+                    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+                    if (ms > 50) qWarning("Output stall: %s took %lld ms", what, static_cast<long long>(ms));
+                    return ok;
+                };
                 if (present && std::chrono::steady_clock::now() >= nextPresence) {
-                    if (!present()) { error = "Selected endpoint disappeared or changed identity"; break; }
+                    if (!timed("presence check", present)) { error = "Selected endpoint disappeared or changed identity"; break; }
                     nextPresence = std::chrono::steady_clock::now() + std::chrono::seconds(1);
                 }
-                if (frame && !session->stage(std::move(*frame))) { error = session->error(); break; }
-                if (!session->flush([this] { return stopRequested_.load(); })) { error = session->error(); break; }
+                if (frame && !timed("stage", [&] { return session->stage(std::move(*frame)); })) { error = session->error(); break; }
+                if (!timed("write", [&] { return session->flush([this] { return stopRequested_.load(); }); })) { error = session->error(); break; }
             }
         }
     } catch (const std::exception& failure) { error = QString::fromUtf8(failure.what()); }
