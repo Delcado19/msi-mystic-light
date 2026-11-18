@@ -32,6 +32,12 @@ so nothing left during a drag; and every project started a ~6.5 s hardware scan.
 R17 package: Downloads/LightingStudio-local-r17.zip (GS-06-R17).
 Effect library: categories are submenus (sorted) in the add-effect button and again under
 Tools > Add effect (R16 had wrongly dropped it from Tools); the flat list shows only while searching.
+
+R18 (2026-11-18, untested on HW, package Downloads/LightingStudio-local-r18.zip): R17 sent a drag
+only on release because the canvas keeps a gesture out of the document until then; the canvas now
+exposes its working state and the service panel streams it. Menus follow the toolbar per view:
+Components lists only Move/Pan under Tools; Devices hides Tools, Preview, canvas/align/view-mode
+submenus, panels, split preview and the canvas edits.
 Open as well: push/PR of fix/editor-menu-cleanup (local only), CodeRabbit review of R15 (paused),
 delete .claude/settings.local.json.impeccable-backup (owner decision).
 

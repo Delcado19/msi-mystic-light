@@ -542,10 +542,10 @@ QImage LightingDocument::cachedRender(double seconds,const QUuid& channel) const
     const auto result=render(state_,local,channel);frameCache_.insert(key,result);return result;
 }
 
-void LightingDocument::save(const QString& fileName, bool markClean)
+void LightingDocument::save(const QString& fileName, bool markClean, const LightingState* state)
 {
     // Autosave must not persist an unaccepted picker preview.
-    const auto& saved=colorPreviewBefore_ ? *colorPreviewBefore_ : state_;
+    const auto& saved=state ? *state : colorPreviewBefore_ ? *colorPreviewBefore_ : state_;
     QJsonArray layers, placements, components, assignments;
     validateChannelAssignments(saved, profiles_);
     for (const auto& assignment : saved.assignments) assignments.append(channelAssignmentJson(assignment));

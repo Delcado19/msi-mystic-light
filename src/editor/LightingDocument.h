@@ -128,7 +128,8 @@ public:
     QImage render(double seconds = 0) const;
     static QImage render(const LightingState& state, double seconds = 0, const QUuid& channel = {});
     static QImage whiteMask();
-    void save(const QString& fileName, bool markClean = true);
+    // state: write this state instead of the document's (the service streams an uncommitted drag).
+    void save(const QString& fileName, bool markClean = true, const LightingState* state = nullptr);
     void load(const QString& fileName);
     static void paintMask(QImage& mask, QPointF from, QPointF to,
         double radius, double hardness, double opacity, int gray);

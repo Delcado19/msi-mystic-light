@@ -4243,8 +4243,18 @@ void EditorTest::menusFollowWorkspace()
     }
     for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
     auto* toolsMenu=window.findChild<QMenu*>("drawingToolsMenu");QVERIFY(!toolsMenu->menuAction()->isVisible());
+    // Devices has no canvas, so canvas-only entries leave the menus (owner review 2026-11-18).
+    QVERIFY(!window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
+    for(const auto& name:canvasEdits+QStringList{"splitHardwarePreview","resetWorkspace","toggleNavigator"})QVERIFY2(!window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
     window.findChild<QAction*>("workspaceEditor")->trigger();QCoreApplication::processEvents();
-    QVERIFY(toolsMenu->menuAction()->isVisible());
+    QVERIFY(toolsMenu->menuAction()->isVisible());QVERIFY(window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
+    for(const auto& name:canvasEdits)QVERIFY2(window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
+    // Components: the strip offers only Move and Pan, so the Tools menu lists only those.
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(0);QCoreApplication::processEvents();emit toolsMenu->aboutToShow();
+    QVERIFY(window.findChild<QAction*>("choose_moveEffectTool")->isVisible());QVERIFY(window.findChild<QAction*>("choose_panCanvasTool")->isVisible());
+    QVERIFY(!window.findChild<QAction*>("choose_pencilTool")->isVisible());QVERIFY(!window.findChild<QMenu*>("toolsAddEffectMenu")->menuAction()->isVisible());
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(1);QCoreApplication::processEvents();emit toolsMenu->aboutToShow();
+    QVERIFY(window.findChild<QAction*>("choose_pencilTool")->isVisible());QVERIFY(window.findChild<QMenu*>("toolsAddEffectMenu")->menuAction()->isVisible());
     // Back in Design with nothing selected they still have no effect (final review 2026-11-17).
     for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
     // One entry point for new effects: the library button, not a second full menu under Edit.

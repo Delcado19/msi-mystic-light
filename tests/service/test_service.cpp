@@ -79,6 +79,7 @@ private slots:
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
  void continuousEditsStreamToService();
+ void canvasDragStreamsBeforeRelease();
 };
 void ServiceTest::protocolBounds(){
     const auto encoded=StudioService::encode(cmd("status"));QCOMPARE(qFromBigEndian<quint32>(encoded.constData()),quint32(encoded.size()-4));
@@ -479,6 +480,34 @@ void ServiceTest::continuousEditsStreamToService() {
     QElapsedTimer drag;drag.start();
     while(drag.elapsed()<1000){window.document().addEmptyLayer();QTest::qWait(30);}
     QVERIFY2(projects->load()>=4,qPrintable(QString::number(projects->load())+" project updates during 1 s of edits"));
+    window.closing();
+}
+// Owner review 2026-11-18: R17 sent the drag only on release, because the canvas keeps a drag out of
+// the document until then. The service must get the moved effect while the button is still down.
+void ServiceTest::canvasDragStreamsBeforeRelease() {
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});
+    window.resize(1200,800);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    struct State{std::mutex mutex;QList<double> centers;};auto state=std::make_shared<State>();
+    ServicePanel panel(window,[state](const QJsonObject& request){
+        if(request.value("op")=="project") {
+            const auto layers=request.value("project").toObject().value("layers").toArray();
+            std::lock_guard<std::mutex> lock(state->mutex);
+            if(!layers.isEmpty())state->centers.append(layers[0].toObject().value("effect").toObject().value("centerX").toDouble());
+        }
+        return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}}};
+    });window.installOutputPanel(&panel);panel.activate();QTest::qWait(200);
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");QVERIFY(canvas->isVisible());
+    window.findChild<QAction*>("create_circle")->trigger();QTest::qWait(50); // Adds and selects it like the menu.
+    const double before=window.document().state().layers[0].center.x();
+    const auto start=canvas->viewportPoint(window.document().state().layers[0].center).toPoint();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,start);
+    for(int step=1;step<=6;++step){QTest::mouseMove(canvas,start+QPoint(step*15,0));QTest::qWait(60);}
+    QTest::qWait(300); // Still pressed: the document holds the old center, the service must not.
+    QCOMPARE(window.document().state().layers[0].center.x(),before);
+    bool streamed=false;{std::lock_guard<std::mutex> lock(state->mutex);for(double center:state->centers)if(center>before+1)streamed=true;}
+    QVERIFY(streamed);
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,start+QPoint(90,0));
     window.closing();
 }
 

@@ -70,8 +70,8 @@
 #include <QRegularExpression>
 
 namespace {
-// R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus.
-constexpr auto studioBuildId="GS-06-R17";
+// R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus. R18: canvas drags stream live, menus show only what acts in the current view.
+constexpr auto studioBuildId="GS-06-R18";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -1176,7 +1176,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         if(!control->shortcut().isEmpty())action->setText(action->text()+"\t"+control->shortcut().toString());
         connect(action,&QAction::triggered,control,&QAbstractButton::click);
         connect(control,&QAbstractButton::toggled,action,&QAction::setChecked);
-        const auto sync=[this,control,action]{action->setEnabled(tabs_->currentIndex()<2 && control->isVisible() && control->isEnabled());};
+        // The menu mirrors the strip: Components shows only Move and Pan there, so only those are listed (owner review 2026-11-18).
+        const auto sync=[this,control,action,tools]{action->setVisible(control->isVisibleTo(tools));action->setEnabled(tabs_->currentIndex()<2 && control->isEnabled());};
         connect(toolsMenu,&QMenu::aboutToShow,action,sync);
         connect(tabs_,&QTabWidget::currentChanged,action,[sync](int){sync();});
     }
@@ -1184,6 +1185,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     toolsMenu->addSeparator();auto* addEffectMenu=toolsMenu->addMenu(studioToolIcon("add-effect"),"Add effect");addEffectMenu->setObjectName("toolsAddEffectMenu");
     for(auto* category:effectCategories)addEffectMenu->addMenu(category);
     addEffectMenu->addSeparator();addEffectMenu->addAction(imageAction);
+    connect(toolsMenu,&QMenu::aboutToShow,addEffectMenu,[addEffectMenu,sources,tools]{addEffectMenu->menuAction()->setVisible(sources->isVisibleTo(tools));});
     auto* resetWorkspace=viewMenu->addAction("Reset workspace"); resetWorkspace->setObjectName("resetWorkspace");panelsMenu->addSeparator();panelsMenu->addAction(resetWorkspace);
     // The default follows the Windows animation setting; this is the only in-app way to change a stored
     // editor/reduceMotion value (restored after the R6 menu cleanup, CodeRabbit review 2026-11-15).
@@ -1338,6 +1340,12 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             action->setVisible((index<2 || historyCommands.contains(action)) && action->objectName()!="projectNameAction");
     });
     tabs_->tabBar()->hide();
+    // Devices has no canvas: entries that act on one leave the menus there, as their toolbar
+    // counterparts already do (owner review 2026-11-18).
+    const QList<QAction*> canvasOnly{canvasMenu->menuAction(),canvasViews->menuAction(),alignMenu->menuAction(),previewMenu->menuAction(),
+        panAction,resetWorkspace,split,findChild<QAction*>("toggleNavigator"),findChild<QAction*>("toggleInspector"),
+        findChild<QAction*>("lockSelection"),findChild<QAction*>("unlockSelection"),findChild<QAction*>("duplicateSelection"),findChild<QAction*>("deleteSelection")};
+    connect(tabs_,&QTabWidget::currentChanged,this,[canvasOnly](int index){for(auto* action:canvasOnly)action->setVisible(index<2);});
     tabs_->setCurrentIndex(1);tabs_->setCurrentIndex(0);editorAction->setChecked(true);
     menuBar()->removeAction(help->menuAction());menuBar()->addMenu(help);
     resizeDocks({sidebarDock,dock},{280,340},Qt::Horizontal);
