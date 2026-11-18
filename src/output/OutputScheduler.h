@@ -21,6 +21,8 @@ public:
     bool submit(quint64 generation, OutputFrame frame);
     void stop(); // Nonblocking; an in-flight factory/module call may finish.
     Status status() const;
+    // Wakes every presence check; called on Windows HID arrival/removal, and by tests.
+    static void deviceChanged();
 signals:
     void statusChanged(); // Read status(); queued notifications may refer to an older generation.
 private:

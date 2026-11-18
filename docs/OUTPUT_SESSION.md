@@ -136,7 +136,10 @@ Topology/native-command changes stop the old workers and automatically rebuild
 connections with the new validated configuration. A project load closes old
 connections before replacing state, then resumes using the new assignments.
 
-Presence is checked approximately once per second. Faults stop the affected endpoint worker;
+Presence is checked only when Windows reports a HID device arriving or leaving
+(owner decision 2026-11-18: hardware is installed with the PC off; events are
+debounced for 500 ms, and without notifications the check falls back to once per
+second). Resume is handled by power events, write failures fault directly. Faults stop the affected endpoint worker;
 automatic mode retries connection preparation every two seconds. Tray Stop and accepted close disable automatic retries and queued restarts.
 Hardware Stop pauses selected channels while preserving their shared connection;
 Resume output resumes that selection. Global stopOutput disables automatic retries. The next app launch defaults to automatic output.

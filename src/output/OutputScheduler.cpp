@@ -2,6 +2,49 @@
 #include <QThread>
 #include <chrono>
 #include <exception>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <cfgmgr32.h>
+#endif
+
+namespace {
+// Owner decision 2026-11-18: hardware is installed with the PC off, so the presence check runs only
+// when Windows reports a HID device arriving or leaving, not once a second per output. Resume is
+// handled by the power events (service/main.cpp, main.cpp), write failures by the fault path.
+struct DeviceChanges { std::mutex mutex; std::condition_variable wake; quint64 generation = 0; };
+// shortcut: never freed, because detached probes can outlive every scheduler; fine for one per process.
+DeviceChanges& deviceChanges() { static auto* changes = new DeviceChanges; return *changes; }
+#ifdef Q_OS_WIN
+DWORD CALLBACK onHidInterface(HCMNOTIFICATION, PVOID, CM_NOTIFY_ACTION, PCM_NOTIFY_EVENT_DATA, DWORD)
+{
+    OutputScheduler::deviceChanged(); return ERROR_SUCCESS; // Threadpool callback: only signal, never probe here.
+}
+#endif
+// False: no notifications, so probes fall back to the old one-second check.
+bool watchDevices()
+{
+#ifdef Q_OS_WIN
+    static const bool registered = [] {
+        CM_NOTIFY_FILTER filter{}; filter.cbSize = sizeof(filter); filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
+        filter.u.DeviceInterface.ClassGuid = {0x4d1e55b2, 0xf16f, 0x11cf, {0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30}}; // GUID_DEVINTERFACE_HID
+        HCMNOTIFICATION handle = nullptr; // Never unregistered: it lives as long as the process.
+        const bool ok = CM_Register_Notification(&filter, nullptr, onHidInterface, &handle) == CR_SUCCESS;
+        if (!ok) qWarning("HID device notifications unavailable; presence check falls back to once a second");
+        return ok;
+    }();
+    return registered;
+#else
+    return false;
+#endif
+}
+}
+
+void OutputScheduler::deviceChanged()
+{
+    auto& changes = deviceChanges();
+    { const std::lock_guard<std::mutex> lock(changes.mutex); ++changes.generation; }
+    changes.wake.notify_all();
+}
 
 OutputScheduler::OutputScheduler(QObject* parent) : QObject(parent) {}
 OutputScheduler::~OutputScheduler()
@@ -62,6 +105,8 @@ void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
 {
     std::unique_ptr<OutputSession> session;
     QString error;
+    // Read before the device opens, so a removal during the open still triggers a check.
+    const quint64 seenAtStart = [] { auto& changes = deviceChanges(); const std::lock_guard<std::mutex> lock(changes.mutex); return changes.generation; }();
     try {
         if (!stopRequested_.load()) session = factory();
         if (!stopRequested_.load() && (!session || session->state() != OutputSession::State::Connected)) {
@@ -73,22 +118,30 @@ void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
                 if (!stopRequested_.load()) status_.state = State::Running;
             }
             emit statusChanged();
-            // The presence check (HID enumeration, board identity, auxiliary scan) took 112-453 ms, once a
-            // second per output. On this worker it froze the LEDs that long each time; the service log showed
-            // 15,888 such stalls in 45 minutes (owner report 2026-11-18, subtle color jumps at rest). It runs
-            // on its own thread now and only reports its verdict.
+            // The presence check (HID enumeration, board identity, auxiliary scan) took 112-453 ms. On this
+            // worker it froze the LEDs that long (owner report 2026-11-18), so it runs on its own thread and
+            // only reports its verdict. It waits for a HID arrival/removal (see deviceChanges) and is still
+            // needed: native-only outputs write once, so a replugged device never fails a write.
             // The probe is detached and owns its state: HID enumeration can hang, and teardown must neither
             // wait for it nor let a late verdict reach a replacement session (CodeRabbit review 2026-11-18).
             // shortcut: a probe hung in the driver stays parked until the process ends; one per reopened output.
-            struct Probe { std::mutex mutex; std::condition_variable wake; bool done = false; std::atomic_bool gone{false}; QString error; };
+            struct Probe { std::mutex mutex; std::atomic_bool done{false}; std::atomic_bool gone{false}; QString error; };
             const auto probe = std::make_shared<Probe>();
             struct Finish { std::shared_ptr<Probe> probe;
-                ~Finish() { { const std::lock_guard<std::mutex> lock(probe->mutex); probe->done = true; } probe->wake.notify_all(); } } finish{probe};
-            if (present) std::thread([probe, present] {
+                ~Finish() { auto& changes = deviceChanges(); { const std::lock_guard<std::mutex> lock(changes.mutex); probe->done = true; } changes.wake.notify_all(); } } finish{probe};
+            if (present) std::thread([probe, present, seen = seenAtStart, events = watchDevices()]() mutable {
+                auto& changes = deviceChanges();
                 for (;;) {
                     {
-                        std::unique_lock<std::mutex> lock(probe->mutex);
-                        if (probe->wake.wait_for(lock, std::chrono::seconds(1), [&] { return probe->done; })) return;
+                        std::unique_lock<std::mutex> lock(changes.mutex);
+                        const auto changed = [&] { return probe->done.load() || changes.generation != seen; };
+                        if (!events) { if (changes.wake.wait_for(lock, std::chrono::seconds(1), [&] { return probe->done.load(); })) return; }
+                        else {
+                            changes.wake.wait(lock, changed);
+                            // One plug-in raises several interface events: probe once after they settle.
+                            do { seen = changes.generation; if (probe->done) return; }
+                            while (changes.wake.wait_for(lock, std::chrono::milliseconds(500), changed));
+                        }
                     }
                     QString failure;
                     try { if (present()) continue; failure = "Selected endpoint disappeared or changed identity"; }
