@@ -4241,7 +4241,9 @@ void EditorTest::menusFollowWorkspace()
         auto* action=window.findChild<QAction*>(name);QVERIFY2(action->isVisible() && action->isEnabled(),name);
     }
     for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
+    auto* toolsMenu=window.findChild<QMenu*>("drawingToolsMenu");QVERIFY(!toolsMenu->menuAction()->isVisible());
     window.findChild<QAction*>("workspaceEditor")->trigger();QCoreApplication::processEvents();
+    QVERIFY(toolsMenu->menuAction()->isVisible());
     // Back in Design with nothing selected they still have no effect (final review 2026-11-17).
     for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
     // One entry point for new effects: the library button, not a second full menu under Edit.

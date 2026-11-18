@@ -1163,6 +1163,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(previousPanel,&QAction::triggered,this,[this]{cyclePanelFocus(true);});
     connect(tabs_,&QTabWidget::currentChanged,this,[nextPanel,previousPanel](int index){nextPanel->setEnabled(index<2);previousPanel->setEnabled(index<2);});
     auto* toolsMenu=menuBar()->addMenu("Tools");toolsMenu->setObjectName("drawingToolsMenu");
+    // Drawing tools only act on a canvas, so the whole menu leaves Devices (owner review 2026-11-17).
+    connect(tabs_,&QTabWidget::currentChanged,toolsMenu,[toolsMenu](int index){toolsMenu->menuAction()->setVisible(index<2);});
     auto* toolActions=new QActionGroup(toolsMenu);toolActions->setExclusive(true);
     for(auto* control:toolGroup->buttons()) {
         auto* action=toolsMenu->addAction(control->icon(),control->accessibleName());
