@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "src/main.cpp": {
-    "mtime": 1795017587.961731,
-    "seen": 1795021563.5288029,
-    "ast_hash": "d60a61e57f380ca5f35d66730432b7d7",
+    "mtime": 1795026925.4308646,
+    "seen": 1795027046.559247,
+    "ast_hash": "a0968da0a57cad9ace1f54b3d3ec14e5",
     "semantic_hash": ""
   },
   "src/protocol/MsiProtocol.cpp": {
@@ -1158,9 +1158,9 @@
     "semantic_hash": ""
   },
   "src/service/main.cpp": {
-    "mtime": 1795017587.9687307,
-    "seen": 1795021563.5310154,
-    "ast_hash": "43b3962108d41164dd0c00558315d242",
+    "mtime": 1795026925.4308646,
+    "seen": 1795027046.5615227,
+    "ast_hash": "d1b1d6626c1d7400d052bc059ca36ba2",
     "semantic_hash": ""
   },
   "tests/service/test_installer.ps1": {
