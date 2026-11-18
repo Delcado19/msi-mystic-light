@@ -78,6 +78,7 @@ private slots:
  void scopeChangeReopensAfterOneScan();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
+ void continuousEditsStreamToService();
 };
 void ServiceTest::protocolBounds(){
     const auto encoded=StudioService::encode(cmd("status"));QCOMPARE(qFromBigEndian<quint32>(encoded.constData()),quint32(encoded.size()-4));
@@ -282,12 +283,15 @@ void ServiceTest::projectEditKeepsRunningOutput() try {
             auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
         },[record]{return record->present.load();}});return result;
     };
-    ServiceRuntime runtime({}, {profile},folder.path(),[profile]{return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
+    auto scans=std::make_shared<int>(0);
+    ServiceRuntime runtime({}, {profile},folder.path(),[profile,scans]{++*scans;return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
     QVERIFY(runtime.command(project(profile)).value("ok").toBool());QTRY_VERIFY(record->writes>1);QCOMPARE(record->opens.load(),1);
-    // Same endpoint, profile and channel, different placement: the running output continues.
+    // Same endpoint, profile and channel, different placement: the running output continues, and no
+    // hardware scan starts (a drag sends one project per step; owner review 2026-11-17).
+    const int scansBefore=*scans;
     QVERIFY(runtime.command(project(profile)).value("ok").toBool());
     const int writes=record->writes;QTRY_VERIFY_WITH_TIMEOUT(record->writes>writes,200);
-    QCOMPARE(record->opens.load(),1);
+    QCOMPARE(record->opens.load(),1);QCOMPARE(*scans,scansBefore);
 } catch(const std::exception& e){QFAIL(e.what());}
 // Final review 2026-11-17: a project edit that changes a device's output scope (another channel)
 // must reopen that device after one scan, not two, and never report it as hung meanwhile.
@@ -462,6 +466,20 @@ void ServiceTest::editorSynchronization() {
     window.document().addEmptyLayer();const int before=count("project");
     // A close immediately after an edit must synchronously confirm the last project.
     window.closing();QVERIFY(count("project")>before);
+}
+// Owner review 2026-11-17: during a drag the lights must follow, so edits that never pause still
+// reach the service while they happen, not only after the drag ends.
+void ServiceTest::continuousEditsStreamToService() {
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});
+    auto projects=std::make_shared<std::atomic_int>(0);
+    ServicePanel panel(window,[projects](const QJsonObject& request){
+        if(request.value("op")=="project")++*projects;
+        return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}}};
+    });window.installOutputPanel(&panel);panel.activate();QTest::qWait(200);
+    QElapsedTimer drag;drag.start();
+    while(drag.elapsed()<1000){window.document().addEmptyLayer();QTest::qWait(30);}
+    QVERIFY2(projects->load()>=4,qPrintable(QString::number(projects->load())+" project updates during 1 s of edits"));
+    window.closing();
 }
 
 void ServiceTest::editorRestoresServiceSnapshot() {

@@ -38,7 +38,8 @@ public:
     // the Roccat Vulcan flickered until a project change reopened it (cause inferred, not proven).
     void reopenOutputs() { reopen_.start(); }
 private:
-    void loadBundle(const QJsonObject& bundle,bool persist);
+    // Returns true when output is enabled and every scope of the new project already has a running output.
+    bool loadBundle(const QJsonObject& bundle,bool persist);
     void persist();
     void tick();
     // probed: endpoints the guard checked in this scan; with a guard only those may be newly opened.

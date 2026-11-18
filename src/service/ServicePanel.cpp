@@ -131,7 +131,7 @@ ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_
     outputs_->header()->setSectionResizeMode(0,QHeaderView::Stretch);
     outputs_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
     outputs_->header()->setSectionResizeMode(2,QHeaderView::ResizeToContents);layout->addWidget(outputs_,1);
-    connect(&window_.document(),&LightingDocument::changed,this,[this]{if(active_ && !restoring_){dirty_=true;changedAt_=QDateTime::currentMSecsSinceEpoch();}});
+    connect(&window_.document(),&LightingDocument::changed,this,[this]{if(active_ && !restoring_)dirty_=true;});
     connect(window_.findChild<QPushButton*>("playPreview"),&QPushButton::toggled,this,[this]{if(ready_)clockDirty_=true;});
     // Clock value changes during normal playback need no IPC; the service advances its own clock.
     connect(window_.findChild<QDoubleSpinBox*>("previewTime"),&QDoubleSpinBox::editingFinished,this,[this]{if(ready_)clockDirty_=true;});
@@ -210,8 +210,10 @@ void ServicePanel::poll() {
     }
     const auto now=QDateTime::currentMSecsSinceEpoch();QJsonObject next;
     if(!commands_.isEmpty())next=commands_.takeFirst();
-    else if(ready_ && dirty_ && now>=nextPoll_ && now-changedAt_>=200) {
-        try{next=project();dirty_=false;clockDirty_=false;}
+    // Edits stream while they happen, one in flight at a time and at most every 80 ms. Waiting for
+    // 200 ms of quiet plus the 1 s status interval sent nothing during a drag (owner review 2026-11-17).
+    else if(ready_ && dirty_ && now-projectSentAt_>=80) {
+        try{next=project();dirty_=false;clockDirty_=false;projectSentAt_=now;}
         catch(const std::exception& e){status_->setText(QString::fromUtf8(e.what()));dirty_=false;return;}
     } else if(ready_ && clockDirty_) {
         next=command("playback");next["playing"]=window_.findChild<QPushButton*>("playPreview")->isChecked();next["seconds"]=window_.previewSeconds();clockDirty_=false;

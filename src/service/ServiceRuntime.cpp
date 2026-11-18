@@ -41,7 +41,7 @@ double ServiceRuntime::seconds() const {
     // Keep the document's bounded clock while allowing a service to animate beyond one day.
     return playing_ && !suspended_ ? std::fmod(time,86400.0):time;
 }
-void ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
+bool ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     if(!bundle.value("project").isObject() || !bundle.value("enabled").isBool() || !bundle.value("playing").isBool() || !bundle.value("seconds").isDouble())
         throw std::invalid_argument("Project, enabled, playing and seconds are required");
     const double time=bundle.value("seconds").toDouble();if(!std::isfinite(time)||time<0||time>86400)throw std::invalid_argument("Invalid playback time");
@@ -69,6 +69,9 @@ void ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     retireAndWait([&](int i){return std::none_of(keep.cbegin(),keep.cend(),[&](const OutputFrame& frame){return sameOutputScope(scopes_[i],frame);});});
     document_=std::move(candidate);project_=bundle.value("project").toObject();
     enabled_=bundle.value("enabled").toBool();playing_=bundle.value("playing").toBool();offset_=time;clock_.restart();paused_=paused;error_.clear();
+    return enabled_ && std::all_of(keep.cbegin(),keep.cend(),[this](const OutputFrame& frame){
+        return std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const OutputFrame& scope){return sameOutputScope(scope,frame);});
+    });
 }
 void ServiceRuntime::persist() {
     if(project_.isEmpty())return;
@@ -289,7 +292,9 @@ void ServiceRuntime::command(const QJsonObject& request,const Reply& reply) {
         // The project is saved and loaded at once; its reply need not wait for the hardware scan,
         // which could exceed the editor's 15 s deadline and trigger a needless resend (CodeRabbit
         // review 2026-11-16). A fresh scan still runs; the editor's status poll shows its result.
-        if(op=="project") {loadBundle(request,true);reconnect([]{});}
+        // A project whose scopes all run already needs no discovery: a drag sends one project per step,
+        // and each started a ~6.5 s hardware scan (owner review 2026-11-17, no live drag preview).
+        if(op=="project") {if(!loadBundle(request,true))reconnect([]{});}
         else if(op=="scan")rescan=true;
         else if(op=="playback") {
             if(!request.value("playing").isBool() || !request.value("seconds").isDouble())throw std::invalid_argument("Invalid playback command");

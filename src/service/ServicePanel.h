@@ -29,7 +29,7 @@ private:
     QJsonObject pendingCommand_;
     bool enabled_=true,preferLocal_=false,restoring_=false;
     bool active_=false,ready_=false,dirty_=false,clockDirty_=false;
-    qint64 changedAt_=0,nextPoll_=0;
+    qint64 projectSentAt_=0,nextPoll_=0;
 };
 QVector<ProfileCandidate> serviceInventory(const QString& host);
 // Conflict scan and stop through the installed service: LocalSystem can stop services and elevated
