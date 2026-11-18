@@ -44,6 +44,7 @@ public:
     const QImage& previewFrame() const { return previewFrame_; }
 signals:
     void previewFrameChanged(const QImage& frame);
+    void identifyRequested(const QUuid& placement); // ServicePanel forwards it to the installed service.
     void hardwareDiscovered();
     void closing();
     void projectLoading();
@@ -66,6 +67,8 @@ private:
     void refreshProperties();
     void refreshToolOptions();
     void updatePreview();
+    void flashComponent(const QUuid& placement);
+    quint64 identifyGeneration_ = 0; // Newest identify flash; older expiry timers do nothing.
     void refreshPlacement();
     void syncSelectionTrees();
     void updateWorkspacePanels();

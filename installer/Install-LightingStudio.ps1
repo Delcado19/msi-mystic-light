@@ -1,11 +1,14 @@
 [CmdletBinding(SupportsShouldProcess=$true)]
 param(
-    [string]$Source = (Split-Path $PSScriptRoot -Parent),
+    [string]$Source,
     [string]$OwnerSid,
     [string]$PawnIOSetup,
     [switch]$NoEditorAutostart
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 leaves $PSScriptRoot empty in param() defaults of [CmdletBinding()] scripts,
+# which broke Install.cmd from the CI package; resolve the default here, where it is populated.
+if (!$Source) { $Source = Split-Path $PSScriptRoot -Parent }
 # Capture the interactive owner before elevation, including credential-based UAC.
 if (!$OwnerSid) { $OwnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value }
 if ($OwnerSid -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$') { throw 'Select a local or domain user SID, not a service account.' }
@@ -18,11 +21,16 @@ $required = @('msi_mystic_light.exe','lighting_service_host.exe','Qt6Core.dll','
     'third_party/pawnio/SmbusPIIX4.bin','third_party/pawnio/source-0.2.11.zip','LICENSE','THIRD_PARTY_NOTICES.md','PORTABLE_README.txt')
 foreach ($relative in $required) { if (!(Test-Path -LiteralPath (Join-Path $Source $relative) -PathType Leaf)) { throw "Missing runtime input: $relative" } }
 foreach ($folder in @('profiles','components','platforms','imageformats','third_party/licenses')) { if (!(Test-Path -LiteralPath (Join-Path $Source $folder) -PathType Container)) { throw "Missing runtime folder: $folder" } }
+$uninstaller = Join-Path $PSScriptRoot 'Uninstall-LightingStudio.ps1'
+if (!(Test-Path -LiteralPath $uninstaller -PathType Leaf)) { throw 'Missing runtime input: installer/Uninstall-LightingStudio.ps1' }
 if (!$PSCmdlet.ShouldProcess($destination, 'Install Lighting Studio service, official PawnIO if missing, and editor logon task')) { return }
 $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+# A path ending in a backslash (e.g. D:\) would escape the closing quote of a command-line argument;
+# "D:\." names the same folder without that trailing backslash (audit 2026-11-14).
+function Quote-Argument([string]$Path) { if ($Path.EndsWith('\')) { $Path += '.' }; return '"' + $Path + '"' }
 if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $PSCommandPath + '"'),'-Source',('"' + $Source + '"'),'-OwnerSid',$OwnerSid)
-    if ($PawnIOSetup) { $arguments += @('-PawnIOSetup',('"' + [IO.Path]::GetFullPath($PawnIOSetup) + '"')) }
+    $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Quote-Argument $PSCommandPath),'-Source',(Quote-Argument $Source),'-OwnerSid',$OwnerSid)
+    if ($PawnIOSetup) { $arguments += @('-PawnIOSetup',(Quote-Argument ([IO.Path]::GetFullPath($PawnIOSetup)))) }
     if ($NoEditorAutostart) { $arguments += '-NoEditorAutostart' }
     foreach ($path in @($PSCommandPath,$Source,$PawnIOSetup)) { if ($path -match '["\r\n]') { throw 'Invalid installer path' } }
     $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru -WindowStyle Hidden
@@ -57,13 +65,29 @@ function Protect-Directory([string]$Path, [bool]$Readable) {
 # Keep official signed binaries unchanged. An elevated parent supplies the only UAC prompt.
 # PawnIO 2.2.0 embeds this CLI contract: -install -silent (it is not an NSIS /S installer).
 if (!(Get-Service -Name PawnIO -ErrorAction SilentlyContinue)) {
-    if (!$PawnIOSetup) {
-        $PawnIOSetup = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-PawnIO-' + [guid]::NewGuid().ToString() + '.exe')
-        Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe' -UseBasicParsing -OutFile $PawnIOSetup
+    $downloadedSetup = $null
+    # Hash and run a copy in an administrators-only folder: a file in the user's temp folder could be
+    # swapped by an unelevated process between the hash check and the start (audit 2026-11-14).
+    $setupFolder = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) ('LightingStudio-PawnIO-' + [guid]::NewGuid().ToString())
+    # Download and staging run inside the cleanup scope: a failed download or folder setup must not
+    # leave the setup file behind (CodeRabbit review 2026-11-18).
+    try {
+        if (!$PawnIOSetup) {
+            $downloadedSetup = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-PawnIO-' + [guid]::NewGuid().ToString() + '.exe')
+            $PawnIOSetup = $downloadedSetup
+            Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe' -UseBasicParsing -OutFile $PawnIOSetup
+        }
+        Protect-Directory $setupFolder $false
+        $protectedSetup = Join-Path $setupFolder 'PawnIO_setup.exe'
+        Copy-Item -LiteralPath $PawnIOSetup -Destination $protectedSetup
+        if ((Get-FileHash -LiteralPath $protectedSetup -Algorithm SHA256).Hash.ToLowerInvariant() -ne '1f519a22e47187f70a1379a48ca604981c4fcf694f4e65b734aaa74a9fba3032') { throw 'PawnIO installer digest rejected' }
+        $result = Start-Process -FilePath $protectedSetup -ArgumentList @('-install','-silent') -Wait -PassThru -WindowStyle Hidden
+        if ($result.ExitCode -ne 0) { throw "PawnIO installation failed or needs attention ($($result.ExitCode))." }
+    } finally {
+        Remove-Item -LiteralPath $setupFolder -Recurse -Force -ErrorAction SilentlyContinue
+        # Only our own download is deleted; a setup file supplied with -PawnIOSetup belongs to the caller.
+        if ($downloadedSetup) { Remove-Item -LiteralPath $downloadedSetup -Force -ErrorAction SilentlyContinue }
     }
-    if ((Get-FileHash -LiteralPath $PawnIOSetup -Algorithm SHA256).Hash.ToLowerInvariant() -ne '1f519a22e47187f70a1379a48ca604981c4fcf694f4e65b734aaa74a9fba3032') { throw 'PawnIO installer digest rejected' }
-    $result = Start-Process -FilePath $PawnIOSetup -ArgumentList @('-install','-silent') -Wait -PassThru -WindowStyle Hidden
-    if ($result.ExitCode -ne 0) { throw "PawnIO installation failed or needs attention ($($result.ExitCode))." }
     if (!(Get-Service -Name PawnIO -ErrorAction SilentlyContinue)) { throw 'PawnIO installation did not register its driver. Restart Windows if requested, then rerun installation.' }
 }
 $existing = Get-Service -Name LightingStudio -ErrorAction SilentlyContinue
@@ -122,6 +146,17 @@ $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Comm
 $shortcut.TargetPath = Join-Path $destination 'msi_mystic_light.exe'
 $shortcut.WorkingDirectory = $destination
 $shortcut.Save()
+# Complete removal: the uninstaller is installed with the program and registered in Windows Settings > Apps.
+Copy-Item -LiteralPath $uninstaller -Destination $destination -Force
+$uninstallKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\LightingStudio'
+New-Item -Path $uninstallKey -Force | Out-Null
+Set-ItemProperty -LiteralPath $uninstallKey -Name DisplayName -Value 'Lighting Studio'
+Set-ItemProperty -LiteralPath $uninstallKey -Name DisplayIcon -Value (Join-Path $destination 'msi_mystic_light.exe')
+Set-ItemProperty -LiteralPath $uninstallKey -Name Publisher -Value 'Delcado'
+Set-ItemProperty -LiteralPath $uninstallKey -Name InstallLocation -Value $destination
+Set-ItemProperty -LiteralPath $uninstallKey -Name UninstallString -Value ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $destination 'Uninstall-LightingStudio.ps1') + '"')
+Set-ItemProperty -LiteralPath $uninstallKey -Name NoModify -Value 1 -Type DWord
+Set-ItemProperty -LiteralPath $uninstallKey -Name NoRepair -Value 1 -Type DWord
 & sc.exe failureflag LightingStudio 1 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Service failure recovery flag could not be set' }
 Start-Service LightingStudio

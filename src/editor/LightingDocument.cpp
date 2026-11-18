@@ -1,5 +1,6 @@
 #include "LightingDocument.h"
 #include "HardwareIdentity.h"
+#include "HardwareArtwork.h"
 #include <QPainter>
 #include <QTransform>
 #include <QUndoCommand>
@@ -321,7 +322,17 @@ QRectF LightingDocument::layoutBounds(const QVector<ComponentPlacement>* placeme
             const double margin=std::max(12.0,std::max(std::abs(points[i].x()),std::abs(points[i].y()))*1e-12);
             bounds=bounds.united(QRectF(points[i]-QPointF(margin,margin),QSizeF(2*margin,2*margin)));
         }
+        // Housings are part of the component too; they must not stick out of the effect area.
+        QTransform body;body.translate(placement.origin.x(),placement.origin.y());body.rotate(placement.rotation);
+        body.scale(20*placement.scale.width(),20*placement.scale.height());
+        const auto housing=body.mapRect(hardwareBodyBounds(definition));
+        if(housing.isValid() && std::isfinite(housing.width()) && std::isfinite(housing.height()))bounds=bounds.united(housing);
     }
+    // Keep the raster's 640:400 aspect: growing in one direction pads the other instead of
+    // stretching or squashing the effect (owner report 2026-11-14).
+    const double aspect=640.0/400.0;
+    if(bounds.width()>bounds.height()*aspect){const double pad=(bounds.width()/aspect-bounds.height())/2;bounds.adjust(0,-pad,0,pad);}
+    else if(bounds.width()<bounds.height()*aspect){const double pad=(bounds.height()*aspect-bounds.width())/2;bounds.adjust(-pad,0,pad,0);}
     return bounds;
 }
 
@@ -378,13 +389,130 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
     for (const auto& assignment : state_.assignments) if (assignment.software) {
         const auto raster=(restricted || assignment.timeScale!=1 || assignment.timeOffset!=0)
             ? renderForChannel(assignment.id,seconds) : rgb;
-        QVector<QColor> chain;
+        QVector<QVector<QColor>> sampled;
+        QVector<int> counts;
+        QVector<QUuid> ids;
         for (const auto& id : assignment.placements)
-            for (const auto& placement : placements ? *placements : state_.placements) if (placement.id == id)
-                chain.append(sampleComponent(placement, raster, bounds));
+            for (const auto& placement : placements ? *placements : state_.placements) if (placement.id == id) {
+                ids.append(id); sampled.append(sampleComponent(placement, raster, bounds)); counts.append(int(sampled.last().size()));
+            }
+        // A preview subset may omit placements; positions then fall back to the serial order.
+        const auto starts = counts.size() == assignment.placements.size() ? chainStarts(assignment) : QVector<int>{};
+        const auto offsets = chainOffsets(counts, starts);
+        QVector<QColor> chain;
+        QVector<bool> owned;
+        // Shared output positions have one physical color: the earlier chain item supplies it,
+        // later components mirror it. Unaddressed gaps stay black.
+        for (qsizetype index = 0; index < sampled.size(); ++index) {
+            const auto end = offsets[index] + counts[index];
+            if (chain.size() < end) { chain.resize(end, QColor(Qt::black)); owned.resize(end, false); }
+            for (int led = 0; led < counts[index]; ++led) if (!owned[offsets[index] + led]) {
+                chain[offsets[index] + led] = sampled[index][led]; owned[offsets[index] + led] = true;
+            }
+        }
+        // Identify: only the flashed component's outputs light (shared outputs light with it); other chains go dark.
+        if (!identify_.isNull()) {
+            chain.fill(QColor(Qt::black));
+            const auto at = ids.indexOf(identify_);
+            if (at >= 0) for (int led = 0; led < counts[at]; ++led) chain[offsets[at] + led] = QColor(Qt::white);
+        }
         result.insert(assignment.id, chain);
     }
     return result; // Native channels are deliberately absent, never overwritten with sampled colors.
+}
+
+QMap<QUuid, QVector<QColor>> LightingDocument::previewComponentColors(const QImage& frame, double seconds, const QVector<ComponentPlacement>* placements, const QImage* channelFrame) const
+{
+    auto sampled = sampleComponents(frame, placements);
+    // Output colors come from the global composition, not from one selected channel's raster
+    // (CodeRabbit review 2026-11-15); clocked channels re-render themselves in sampleChannels.
+    const auto channels = sampleChannels(channelFrame ? *channelFrame : frame, seconds, placements);
+    for (const auto& assignment : state_.assignments) {
+        if (!assignment.software) {
+            QColor color = Qt::black;
+            if (assignment.native.id != "off" && !assignment.native.colors.isEmpty()) {
+                const auto rgb = assignment.native.colors.first(); color = QColor(rgb.r, rgb.g, rgb.b);
+            }
+            for (const auto& id : assignment.placements) if (sampled.contains(id)) sampled[id].fill(color);
+            continue;
+        }
+        // Same offsets as sampleChannels; a preview subset falls back to serial order there too.
+        QVector<int> counts;
+        for (const auto& id : assignment.placements) if (sampled.contains(id)) counts.append(int(sampled[id].size()));
+        const bool complete = counts.size() == assignment.placements.size();
+        const auto offsets = chainOffsets(counts, complete ? chainStarts(assignment) : QVector<int>{});
+        const auto colors = channels.value(assignment.id);
+        int index = 0;
+        for (const auto& id : assignment.placements) if (sampled.contains(id)) {
+            sampled[id] = colors.mid(offsets[index], counts[index]); ++index;
+        }
+    }
+    return sampled;
+}
+
+QMap<QUuid, int> LightingDocument::componentLedOffsets() const
+{
+    QMap<QUuid, int> result;
+    for (const auto& assignment : state_.assignments) if (assignment.software) {
+        QVector<int> counts;
+        for (const auto& id : assignment.placements)
+            for (const auto& placement : state_.placements) if (placement.id == id)
+                counts.append(int(catalog()[placement.componentId].mapping.size()));
+        if (counts.size() != assignment.placements.size()) continue;
+        const auto offsets = chainOffsets(counts, chainStarts(assignment));
+        for (int item = 0; item < offsets.size(); ++item) result.insert(assignment.placements[item], offsets[item]);
+    }
+    return result;
+}
+
+int LightingDocument::outputLedsUsed(const ChannelAssignment& assignment) const
+{
+    QVector<int> counts;
+    int sum = 0;
+    for (const auto& id : assignment.placements)
+        for (const auto& placement : state_.placements) if (placement.id == id) {
+            counts.append(int(catalog()[placement.componentId].mapping.size()));
+            sum += counts.last();
+        }
+    // Native channels and incomplete lists have no chain positions; fall back to the plain sum.
+    if (!assignment.software || counts.size() != assignment.placements.size()) return sum;
+    const auto offsets = chainOffsets(counts, chainStarts(assignment));
+    int end = 0;
+    for (int item = 0; item < offsets.size(); ++item) end = std::max(end, offsets[item] + counts[item]);
+    return end;
+}
+
+void LightingDocument::setIdentifyPlacement(const QUuid& placement) { identify_ = placement; }
+
+bool LightingDocument::hasSoftwareChannel(const QUuid& placement) const
+{
+    for (const auto& assignment : state_.assignments) if (assignment.software && assignment.placements.contains(placement)) return true;
+    return false;
+}
+
+QMap<QUuid, QString> LightingDocument::sharedColorNotes() const
+{
+    QMap<QUuid, QString> result;
+    for (const auto& assignment : state_.assignments) {
+        const auto starts = chainStarts(assignment);
+        if (!assignment.software || starts.isEmpty()) continue;
+        QVector<int> counts; QStringList names;
+        for (const auto& id : assignment.placements)
+            for (const auto& placement : state_.placements) if (placement.id == id) {
+                counts.append(int(catalog()[placement.componentId].mapping.size())); names.append(componentName(placement));
+            }
+        if (counts.size() != assignment.placements.size() || counts.contains(0)) continue;
+        const auto sharing = chainSharing(counts, starts);
+        for (int item = 0; item < sharing.size(); ++item) {
+            const auto note = sharedColorNote(sharing[item], item, names, true);
+            if (!note.isEmpty()) result.insert(assignment.placements[item], note);
+        }
+        for (int item = 0; item < sharing.size(); ++item)
+            for (const auto& run : sharing[item])
+                if (run.source != item && !result.contains(assignment.placements[run.source]))
+                    result.insert(assignment.placements[run.source], "Color source");
+    }
+    return result;
 }
 
 double LightingDocument::channelTime(const QUuid& id, double seconds) const
@@ -466,7 +594,11 @@ void LightingDocument::save(const QString& fileName, bool markClean)
     // Version 16 adds native patterns and their controls; earlier parameter defaults remain readable.
     // Version 20 adds branching Lightning and perspective Starfield sources.
     // Version 22 adds procedural spatial controls; old files retain their original defaults.
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", 22}, {"width", 640}, {"height", 400},
+    // Version 23 adds shared chain positions. Files without them stay at 22 so an
+    // installed service host that predates this change keeps loading existing projects.
+    const bool sharedPositions = std::any_of(saved.assignments.cbegin(), saved.assignments.cend(),
+        [](const auto& assignment) { return !chainStarts(assignment).isEmpty(); });
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", sharedPositions ? 23 : 22}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -486,7 +618,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22 && schema != 23) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();

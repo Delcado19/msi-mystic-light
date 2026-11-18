@@ -55,20 +55,32 @@ ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_
     // Clock value changes during normal playback need no IPC; the service advances its own clock.
     connect(window_.findChild<QDoubleSpinBox*>("previewTime"),&QDoubleSpinBox::editingFinished,this,[this]{if(ready_)clockDirty_=true;});
     connect(&window_,&LightingWindow::closing,this,[this]{flushOnClose();});
+    // The service owns output, so it must flash too; it expires the flash itself (CodeRabbit review 2026-11-15).
+    connect(&window_,&LightingWindow::identifyRequested,this,[this](const QUuid& placement){
+        if(!ready_)return;
+        // A just-attached component is unknown to the service until the pending project update arrives, so queue it first.
+        // Clear the flags only once the queue accepted the project, so poll()/flushOnClose() can retry it (CodeRabbit review 2026-11-15).
+        if(dirty_){try{if(!send(project()))return;dirty_=false;clockDirty_=false;}catch(const std::exception& e){status_->setText(QString::fromUtf8(e.what()));return;}}
+        auto c=command("identify");c["placement"]=placement.toString();send(c);});
     timer_.setInterval(50);connect(&timer_,&QTimer::timeout,this,[this]{poll();});
 }
 void ServicePanel::activate(bool preferLocal) {preferLocal_=preferLocal;active_=true;send(command("snapshot"));timer_.start();}
 void ServicePanel::stopOutput(){auto c=command("output");c["enabled"]=false;send(c);}
-void ServicePanel::send(QJsonObject c) {
-    if(commands_.size()>=16){status_->setText("Service command queue full; wait for the current operation.");return;}
-    commands_.append(c);
+bool ServicePanel::send(QJsonObject c) {
+    if(commands_.size()>=16){status_->setText("Service command queue full; wait for the current operation.");return false;}
+    commands_.append(c);return true;
 }
 QJsonObject ServicePanel::project() {
     QTemporaryDir folder;if(!folder.isValid())throw std::runtime_error("Cannot stage editor project");
     const auto path=folder.path()+"/project.json";window_.document().save(path,false);
     QFile input(path);if(!input.open(QIODevice::ReadOnly))throw std::runtime_error("Cannot read staged editor project");
     auto result=command("project");result["project"]=StudioService::decode(input.readAll());
-    result["enabled"]=enabled_;result["playing"]=window_.findChild<QPushButton*>("playPreview")->isChecked();result["seconds"]=window_.previewSeconds();return result;
+    // The service applies the snapshot's enabled flag, so an unconfirmed Stop/Resume must win over the
+    // last reported state; otherwise a project sent after Stop re-enables output (CodeRabbit review 2026-11-15).
+    bool enabled=enabled_;
+    if(pending_.valid() && pendingCommand_.value("op")=="output")enabled=pendingCommand_.value("enabled").toBool();
+    for(const auto& queued:commands_)if(queued.value("op")=="output")enabled=queued.value("enabled").toBool();
+    result["enabled"]=enabled;result["playing"]=window_.findChild<QPushButton*>("playPreview")->isChecked();result["seconds"]=window_.previewSeconds();return result;
 }
 void ServicePanel::display(const QJsonObject& reply) {
     enabled_=reply.value("enabled").toBool();

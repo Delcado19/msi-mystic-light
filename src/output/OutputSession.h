@@ -19,6 +19,8 @@ bool sameOutputScope(const OutputFrame& approved, const OutputFrame& candidate);
 
 // Data preparation only; transient layout placements can drive live sampling before gesture commit.
 QVector<OutputFrame> prepareOutput(const LightingDocument& document, const QImage& composed, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr);
+// Same endpoints and channels as prepareOutput, validated the same way, but without rendering or colors.
+QVector<OutputFrame> outputScope(const LightingDocument& document);
 
 // Single-thread owned. The host schedules flush(); stage() replaces rather than queues frames.
 // The host must resolve conflicts, confirm output and open the exact path before handing over a transport.

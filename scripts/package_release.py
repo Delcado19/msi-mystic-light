@@ -19,7 +19,7 @@ def package(root: Path, runtime: Path, archive: Path) -> str:
     for name in ("LICENSE", "PORTABLE_README.txt", "THIRD_PARTY_NOTICES.md",
                  "third_party/pawnio/SmbusPIIX4.bin", "third_party/pawnio/source-0.2.11.zip"):
         files[name] = root / name
-    for name in ("Install.cmd", "Install-LightingStudio.ps1"):
+    for name in ("Install.cmd", "Install-LightingStudio.ps1", "Uninstall.cmd", "Uninstall-LightingStudio.ps1"):
         files["installer/" + name] = root / "installer" / name
     # Use source catalogs to avoid stale profiles and user files in a reused build folder.
     for folder, pattern in (("profiles", "*.json"), ("components", "*.json"),

@@ -133,20 +133,64 @@ ComponentCatalog loadComponentCatalog(const QString& directory)
     return catalog;
 }
 
+QVector<int> chainOffsets(const QVector<int>& counts, const QVector<int>& starts)
+{
+    if (!starts.isEmpty() && starts.size() != counts.size())
+        throw std::invalid_argument("Chain positions do not match the component chain");
+    QVector<int> offsets;
+    int cursor = 0;
+    for (qsizetype i = 0; i < counts.size(); ++i) {
+        const int start = starts.value(i, 0);
+        if (start < 0 || start > 65535 || counts[i] < 1 || counts[i] > 65535)
+            throw std::invalid_argument("Invalid chain position");
+        offsets.append(start ? start - 1 : cursor);
+        cursor = offsets.last() + counts[i];
+    }
+    return offsets;
+}
+
+QVector<QVector<SharedRun>> chainSharing(const QVector<int>& counts, const QVector<int>& starts)
+{
+    const auto offsets = chainOffsets(counts, starts);
+    QVector<int> owner;
+    for (qsizetype item = 0; item < counts.size(); ++item) {
+        if (owner.size() < offsets[item] + counts[item]) owner.resize(offsets[item] + counts[item], -1);
+        for (int led = 0; led < counts[item]; ++led)
+            if (owner[offsets[item] + led] < 0) owner[offsets[item] + led] = int(item);
+    }
+    QVector<QVector<SharedRun>> result(counts.size());
+    for (qsizetype item = 0; item < counts.size(); ++item)
+        for (int led = 0; led < counts[item]; ++led) {
+            const int source = owner[offsets[item] + led];
+            auto& runs = result[item];
+            if (!runs.isEmpty() && runs.last().source == source) runs.last().lastLed = led + 1;
+            else runs.append({led + 1, led + 1, source});
+        }
+    return result;
+}
+
 QVector<int> channelMapping(const ChannelProfile& channel, const QStringList& componentIds,
-                           const ComponentCatalog& catalog)
+                           const ComponentCatalog& catalog, const QVector<int>& starts)
 {
     if (channel.maxLeds < 1 || channel.maxLeds > 65535 || channel.fixedLeds < 0 ||
         channel.fixedLeds > channel.maxLeds)
         throw std::invalid_argument("Invalid channel capacity");
-    QVector<int> result;
+    QVector<int> counts;
     for (const auto& id : componentIds) {
         const auto component = catalog.constFind(id);
         if (component == catalog.cend()) throw std::invalid_argument("Unknown component ID");
-        const int count = static_cast<int>(component->mapping.size());
-        if (count < 1 || count > channel.maxLeds - result.size())
+        counts.append(static_cast<int>(component->mapping.size()));
+        if (counts.last() < 1) throw std::invalid_argument("Component chain exceeds channel capacity");
+    }
+    const auto offsets = chainOffsets(counts, starts);
+    QVector<int> result;
+    int extent = 0;
+    for (qsizetype index = 0; index < componentIds.size(); ++index) {
+        const auto component = catalog.constFind(componentIds[index]);
+        const int count = counts[index], offset = offsets[index];
+        if (count > channel.maxLeds - offset)
             throw std::invalid_argument("Component chain exceeds channel capacity");
-        const int offset = static_cast<int>(result.size());
+        extent = qMax(extent, offset + count);
         QSet<int> seen;
         // Definitions can also be assembled in memory; validate before indexing frames.
         for (const int wire : component->mapping) {
@@ -156,7 +200,8 @@ QVector<int> channelMapping(const ChannelProfile& channel, const QStringList& co
             result.append(offset + wire);
         }
     }
-    if (channel.fixedLeds && result.size() != channel.fixedLeds)
+    // Shared positions count once: the fixed size is the occupied address range.
+    if (channel.fixedLeds && extent != channel.fixedLeds)
         throw std::invalid_argument("Component chain differs from fixed channel count");
     return result;
 }

@@ -32,6 +32,7 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QWheelEvent>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <cmath>
@@ -167,6 +168,8 @@ void applyStudioStyle(QWidget* window)
         QCheckBox { spacing: 8px; padding: 4px 0; }
         QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid @border; border-radius: 3px; background: @panel; }
         QCheckBox::indicator:checked { background: @accent; border-color: @text; }
+        QRadioButton::indicator { width: 13px; height: 13px; border: 1px solid @border; border-radius: 7px; background: @panel; }
+        QRadioButton::indicator:checked { background: @accent; border-color: @text; }
         QLabel { background: transparent; }
         QLabel[muted="true"] { color: @secondary; }
         QLabel[heading="true"] { font-size: 16px; font-weight: 600; padding: 6px 0; }
@@ -214,11 +217,28 @@ int sliderPosition(QDoubleSpinBox* value) {
     return qRound(fraction*1000);
 }
 }
+namespace {
+class SliderWheelStep final : public QObject {
+    QDoubleSpinBox* value_; int remainder_=0;
+public:
+    SliderWheelStep(QSlider* slider,QDoubleSpinBox* value):QObject(slider),value_(value) {}
+    bool eventFilter(QObject*,QEvent* event) override {
+        if(event->type()!=QEvent::Wheel)return false;
+        auto* wheel=static_cast<QWheelEvent*>(event);
+        // Accumulate high-resolution wheels; every full 120-unit notch moves the field by one displayed unit.
+        remainder_+=wheel->angleDelta().y()!=0 ? wheel->angleDelta().y() : wheel->angleDelta().x();
+        const int notches=remainder_/120;remainder_-=notches*120;
+        if(notches && value_->isEnabled())value_->stepBy(notches);
+        wheel->accept();return true;
+    }
+};
+}
 QWidget* sliderField(QDoubleSpinBox* value)
 {
     auto* row=new QWidget;auto* layout=new QVBoxLayout(row);layout->setContentsMargins(0,0,0,0);layout->setSpacing(2);
     auto* top=new QHBoxLayout;top->setSpacing(6);top->addWidget(value);layout->addLayout(top);
     auto* slider=new QSlider(Qt::Horizontal);slider->setRange(0,1000);
+    slider->installEventFilter(new SliderWheelStep(slider,value));
     slider->setAccessibleName(value->accessibleName().isEmpty() ? value->objectName() : value->accessibleName());
     slider->setProperty("numericField",QVariant::fromValue(static_cast<QObject*>(value)));
     styleStudioNumericField(value);

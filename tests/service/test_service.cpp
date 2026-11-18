@@ -2,6 +2,7 @@
 #include "service/ServiceRuntime.h"
 #include "service/ServicePanel.h"
 #include <QPushButton>
+#include <QLabel>
 #include <QAction>
 #include <QDir>
 #include <QGuiApplication>
@@ -19,6 +20,12 @@
 #include <atomic>
 #include <future>
 #include <memory>
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+#include <aclapi.h>
+#include <sddl.h>
+#endif
 namespace {
 QJsonObject cmd(const QString& op) {return {{"version",1},{"op",op}};}
 QJsonObject project(const DeviceProfile& profile, bool secondEndpoint=false) {
@@ -54,12 +61,14 @@ class ServiceTest:public QObject {
 private slots:
  void protocolBounds();
  void persistedPlaybackAndAtomicReject();
+ void identifyCommand();
  void fakeOutputPauseAndResume();
  void authenticatedPipe();
  void editorSynchronization();
  void persistedPauseAndReconnect();
  void offlineEndpointKeepsHealthyOutput();
  void editorRestoresServiceSnapshot();
+ void identifyKeepsQueuedEditorState();
 };
 void ServiceTest::protocolBounds(){
     const auto encoded=StudioService::encode(cmd("status"));QCOMPARE(qFromBigEndian<quint32>(encoded.constData()),quint32(encoded.size()-4));
@@ -68,6 +77,18 @@ void ServiceTest::protocolBounds(){
     QVERIFY_EXCEPTION_THROWN(StudioService::decode("{"),std::invalid_argument);
     QVERIFY_EXCEPTION_THROWN(StudioService::decode(QByteArray(StudioService::maximumMessage+1,'x')),std::invalid_argument);
 }
+void ServiceTest::identifyCommand() try {
+    QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    ServiceRuntime runtime({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};},true);
+    const auto request=project(profile);QVERIFY(runtime.command(request).value("ok").toBool());
+    const auto id=request.value("project").toObject().value("placements").toArray()[0].toObject().value("id").toString();
+    auto identify=cmd("identify");identify["placement"]=id;QVERIFY(runtime.command(identify).value("ok").toBool());
+    // Transient: the stored project snapshot does not change.
+    QCOMPARE(runtime.command(cmd("snapshot")).value("project"),request.value("project"));
+    identify["placement"]=QUuid::createUuid().toString();QVERIFY(!runtime.command(identify).value("ok").toBool());
+    identify["placement"]="not-a-uuid";QVERIFY(!runtime.command(identify).value("ok").toBool());
+    identify.remove("placement");QVERIFY(!runtime.command(identify).value("ok").toBool());
+} catch(const std::exception& e){QFAIL(e.what());}
 void ServiceTest::persistedPlaybackAndAtomicReject() try {
     QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
     const auto scan=[] {return QVector<ProfileCandidate>{};};const auto output=[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};};
@@ -131,6 +152,26 @@ void ServiceTest::authenticatedPipe(){
     QLocalSocket malformed;malformed.connectToServer(pipe);QVERIFY(malformed.waitForConnected(1500));
     QByteArray oversized(4,0);qToBigEndian<quint32>(StudioService::maximumMessage+1,oversized.data());malformed.write(oversized);malformed.waitForBytesWritten(1500);QVERIFY(malformed.waitForDisconnected(1500));
     QVERIFY(StudioService::request(cmd("status"),SERVICE_HOST_PATH,true,pipe).value("ok").toBool());
+    {
+        // The pipe DACL admits only SYSTEM, the server account and the owner: no Everyone/Users entries.
+        QLocalSocket probe;probe.connectToServer(pipe);QVERIFY(probe.waitForConnected(1500));
+        PACL dacl=nullptr;PSECURITY_DESCRIPTOR descriptor=nullptr;
+        QCOMPARE(GetSecurityInfo(reinterpret_cast<HANDLE>(probe.socketDescriptor()),SE_KERNEL_OBJECT,DACL_SECURITY_INFORMATION,nullptr,nullptr,&dacl,nullptr,&descriptor),DWORD(ERROR_SUCCESS));
+        LPWSTR text=nullptr;QVERIFY(ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor,SDDL_REVISION_1,DACL_SECURITY_INFORMATION,&text,nullptr));
+        const auto sddl=QString::fromWCharArray(text);LocalFree(text);
+        QVERIFY2(sddl.startsWith("D:P"),qPrintable(sddl));
+        for(const auto* broad:{";;;WD)",";;;AU)",";;;BU)",";;;AN)"})QVERIFY2(!sddl.contains(broad),qPrintable(sddl));
+        // Compare SIDs, not SDDL text: Windows prints well-known accounts as aliases (CI runs as LA).
+        PSID owner=nullptr;QVERIFY(ConvertStringSidToSidW(reinterpret_cast<LPCWSTR>(StudioService::currentUserSid().utf16()),&owner));
+        bool ownerListed=false;
+        for(DWORD i=0;i<dacl->AceCount;++i){void* ace=nullptr;if(GetAce(dacl,i,&ace) && static_cast<ACE_HEADER*>(ace)->AceType==ACCESS_ALLOWED_ACE_TYPE && EqualSid(&static_cast<ACCESS_ALLOWED_ACE*>(ace)->SidStart,owner))ownerListed=true;}
+        LocalFree(owner);LocalFree(descriptor);
+        QVERIFY2(ownerListed,qPrintable(sddl));
+        // A second host cannot take over a pipe name that is already served (pipe squatting).
+        Child squatter;squatter.process.setProgram(SERVICE_HOST_PATH);squatter.process.setArguments({"--simulate","--state-dir",folder.path()+"/squat","--pipe",pipe});
+        squatter.process.start();QVERIFY(squatter.process.waitForFinished(10000));QVERIFY(squatter.process.exitCode()!=0);
+        QVERIFY2(squatter.process.readAllStandardError().contains("Cannot bind service pipe"),"squatter failed for another reason");
+    }
     Child unauthorized;const auto other=pipe+".denied";unauthorized.process.setProgram(SERVICE_HOST_PATH);unauthorized.process.setArguments({"--simulate","--state-dir",folder.path()+"/other","--pipe",other,"--owner","S-1-5-21-1-2-3-9999"});unauthorized.process.start();QVERIFY(unauthorized.process.waitForStarted());QTest::qWait(400);
     QVERIFY_EXCEPTION_THROWN(StudioService::request(cmd("status"),SERVICE_HOST_PATH,true,other),std::runtime_error);
 #else
@@ -233,6 +274,28 @@ void ServiceTest::editorRestoresServiceSnapshot() {
     QTRY_COMPARE(window.document().state().assignments.size(),1);QVERIFY(window.projectFile().isEmpty());
     QCOMPARE(window.previewSeconds(),7.);QVERIFY(window.document().history()->isClean());
     QCOMPARE(uploads.load(),0);QVERIFY(original.open(QIODevice::ReadOnly));QCOMPARE(original.readAll(),oldBytes);
+    window.closing();
+}
+// CodeRabbit review 2026-11-15: identify must not re-enable a queued Stop or drop a project the full queue rejected.
+void ServiceTest::identifyKeepsQueuedEditorState() {
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});
+    struct State{std::mutex mutex;QList<QJsonObject> requests;};auto state=std::make_shared<State>();
+    ServicePanel panel(window,[state](const QJsonObject& request){
+        std::lock_guard<std::mutex> lock(state->mutex);state->requests.append(request);
+        return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}}};
+    });window.installOutputPanel(&panel);panel.activate();
+    // Wait for the processed snapshot, not a fixed delay: identify is dropped until then (CodeRabbit review 2026-11-18).
+    QTRY_VERIFY(panel.findChild<QLabel*>("outputStatus")->text().startsWith("Service connected"));
+    const auto ops=[state](const QString& op){std::lock_guard<std::mutex> lock(state->mutex);QList<QJsonObject> found;for(const auto& r:state->requests)if(r.value("op")==op)found.append(r);return found;};
+    QVERIFY(ops("project").isEmpty());
+    // Stop is still queued when identify sends the pending project; the snapshot must keep output off.
+    window.document().addEmptyLayer();panel.stopOutput();emit window.identifyRequested(QUuid::createUuid());
+    QTRY_COMPARE(ops("identify").size(),1);QVERIFY(!ops("project").first().value("enabled").toBool());
+    // With a full queue identify cannot queue the project; it must stay dirty and reach the service later.
+    const int before=ops("project").size();window.document().addEmptyLayer();
+    for(int i=0;i<16;++i)panel.stopOutput();
+    emit window.identifyRequested(QUuid::createUuid());
+    QTRY_VERIFY_WITH_TIMEOUT(ops("project").size()>before,5000);
     window.closing();
 }
 QTEST_MAIN(ServiceTest)

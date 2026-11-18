@@ -19,8 +19,59 @@ try {
         [IO.File]::WriteAllText($path,'offline plan fixture')
     }
     & $Installer -Source $fixture -OwnerSid 'S-1-5-21-1-2-3-1001' -WhatIf
+    # Install.cmd path: no -Source, run by Windows PowerShell 5.1 via -File from another working
+    # directory. The default must be the package (the installer's parent folder), not the working
+    # directory: a copy inside the complete fixture must plan successfully (CodeRabbit review 2026-11-18).
+    $packaged = Join-Path $fixture 'installer'
+    New-Item -ItemType Directory -Force -Path $packaged | Out-Null
+    foreach ($script in @($Installer,(Join-Path (Split-Path $Installer -Parent) 'Uninstall-LightingStudio.ps1'))) { Copy-Item -LiteralPath $script -Destination $packaged }
+    # 'Stop' would turn the child's stderr into a terminating NativeCommandError.
+    $ErrorActionPreference='Continue'
+    Push-Location -LiteralPath $temporaryRoot
+    try { $output = & "$PSHOME/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File (Join-Path $packaged (Split-Path $Installer -Leaf)) -OwnerSid 'S-1-5-21-1-2-3-1001' -WhatIf 2>&1 | Out-String; $code = $LASTEXITCODE }
+    finally { Pop-Location; $ErrorActionPreference='Stop' }
+    if ($code -ne 0) { throw "Default -Source did not resolve to the package: $output" }
 } finally {
     if (!$fixture.StartsWith($temporaryRoot,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path $fixture -Leaf) -notlike 'LightingStudio-plan-*') { throw 'Unsafe fixture cleanup path' }
     if (Test-Path -LiteralPath $fixture) { Remove-Item -LiteralPath $fixture -Recurse -Force }
 }
-Write-Host 'Installer parses and WhatIf validates a complete runtime without installing.'
+# The uninstaller must parse, use PawnIO's own registered quiet-uninstall arguments, and return on
+# WhatIf before any prompt, elevation or deletion.
+$uninstaller = Join-Path (Split-Path $Installer -Parent) 'Uninstall-LightingStudio.ps1'
+[Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$tokens,[ref]$errors) | Out-Null
+if ($errors.Count) { throw ($errors | Out-String) }
+if ((Get-Content -LiteralPath $uninstaller -Raw) -notmatch "-ArgumentList @\('-uninstall','-silent'\)") { throw 'PawnIO silent removal arguments differ from its registered QuietUninstallString' }
+& $uninstaller -RemoveUserData -RemovePawnIO -Quiet -WhatIf
+# User data (owner decision and CodeRabbit review 2026-11-18): a successful removal moves the user's
+# own files and the unsaved changes to a dated backup; a failed move changes nothing at all.
+$ast=[Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$null,[ref]$null)
+. ([scriptblock]::Create(($ast.FindAll({$args[0] -is [Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Remove-UserData'},$true) | Select-Object -First 1).Extent.Text))
+$userRoot=[IO.Path]::GetFullPath((Join-Path $temporaryRoot ('LightingStudio-userdata-'+[guid]::NewGuid().ToString())))
+$keyRoot='HKCU:\Software\LightingStudioTest-'+[guid]::NewGuid().ToString()
+try {
+    foreach ($case in 'moved','failed') {
+        $parent=Join-Path $userRoot "$case\Delcado"; $data=Join-Path $parent 'MSI Mystic Light Standalone'; $key="$keyRoot\$case\MSI Mystic Light Standalone"
+        New-Item -ItemType Directory -Force -Path (Join-Path $data 'sub') | Out-Null
+        foreach ($file in 'project.lighting.json','recovery.lighting.json','application.lock','sub\notes.txt') { [IO.File]::WriteAllText((Join-Path $data $file),$file) }
+        New-Item -Path $key -Force | Out-Null
+        $backupRoot = if ($case -eq 'moved') { Join-Path $userRoot 'profile' } else { Join-Path $userRoot 'missing\profile' }
+        if ($case -eq 'moved') { New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null }
+        $script:backup=$null
+        $ok = Remove-UserData -Parent $parent -BackupRoot $backupRoot -Key $key 3>$null 6>$null
+        if ($case -eq 'moved') {
+            $backup=Join-Path $backupRoot ('Lighting Studio - Backup - '+(Get-Date -Format 'yyyy_MM_dd'))
+            if (!$ok -or (Test-Path -LiteralPath $parent) -or (Test-Path -LiteralPath $key)) { throw 'User data removal left the folder or settings behind' }
+            foreach ($file in 'project.lighting.json','Unsaved changes.lighting.json','sub\notes.txt') { if (!(Test-Path -LiteralPath (Join-Path $backup $file))) { throw "Backup lacks $file" } }
+            if (Test-Path -LiteralPath (Join-Path $backup 'application.lock')) { throw 'Backup contains the app lock' }
+        } else {
+            if ($ok) { throw 'A failed backup move reported success' }
+            foreach ($file in 'project.lighting.json','recovery.lighting.json','sub\notes.txt') { if (!(Test-Path -LiteralPath (Join-Path $data $file))) { throw "Failed move lost $file" } }
+            if (!(Test-Path -LiteralPath $key)) { throw 'Failed move deleted the settings' }
+        }
+    }
+} finally {
+    if (!$userRoot.StartsWith($temporaryRoot,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe user data cleanup path' }
+    if (Test-Path -LiteralPath $userRoot) { Remove-Item -LiteralPath $userRoot -Recurse -Force }
+    if (Test-Path -LiteralPath $keyRoot) { Remove-Item -LiteralPath $keyRoot -Recurse -Force }
+}
+Write-Host 'Installer and uninstaller parse; WhatIf validates a complete runtime without installing or removing.'

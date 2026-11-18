@@ -1,3 +1,81 @@
+## Branching and releases - 2026-11-15
+
+Single maintainer, so no `dev` branch. Every feature gets its own branch and reaches `master`
+through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
+release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
+
+## Uninstaller and CI package - 2026-11-15
+
+`installer/Uninstall-LightingStudio.ps1` removes everything the installer creates and is registered
+in Windows Settings > Apps; PawnIO and editor settings only on request (docs/WINDOWS_SERVICE.md
+"Removal"). Parse/WhatIf test only, never run against a real installation. Every CI run attaches
+the installable ZIP; `release.yml` drafts a release on a `v*` tag. The editor executable has an
+icon (`src/app.rc`). Open: PawnIO/app update check (not started), DisplayVersion in the Apps entry.
+
+## GS-06-R9 - 2026-11-15
+
+Hardware view has an LEDs column: header rows show used / max output positions (shared outputs once),
+component rows their output range. Build ID GS-06-R9. Column not checked visually yet.
+
+## Header LED count - 2026-11-15
+
+Header summary now counts output positions instead of summing every component's LEDs, so shared
+(splitter) outputs count once. Document test outputLedCount passes; not checked against the real
+header yet. Card view with per-component photos and the component library are still open.
+
+## Identify flash - 2026-11-15
+
+Layout context menu "Flash component (identify)" lights one software component white for 2 s
+(see docs/LIGHTING_EDITOR.md). Document-level test passes (22/22 ctest, build/r4). Confirmed by the owner on real hardware (2026-11-15: "flash funktioniert").
+Details of the observed lighting were not recorded.
+
+## LEDKeeper2 stop - 2026-11-14
+
+Conflict dialog now stops `Mystic_Light_Service` (session only, start type unchanged) and then
+terminates LEDKeeper2; before, LEDKeeper2 was manual-stop only. Owner test as admin confirmed the
+service is what restarts LEDKeeper2. Needs the editor running as administrator. Dialog flow untested
+on hardware.
+
+## Service pipe access list - 2026-11-14 (Windows only)
+
+`ServiceServer` creates its own named pipe instead of QLocalServer: DACL grants only SYSTEM,
+the server account and the configured owner (no Everyone), remote clients rejected, first-instance
+flag makes a pre-created pipe name fail the bind. Impersonation check stays as second layer.
+Tested in simulation (DACL read back, squatting host fails); other Windows accounts untested.
+The installed service keeps the old pipe until it is reinstalled. Linux: QLocalServer unchanged,
+SO_PEERCRED owner check deferred until Linux is targeted (owner decision).
+
+## Editor fixes and small audit fixes - 2026-11-14 (GS-06-R7, build/r4)
+
+Branch `feat/jargb2-shared-routing`, launcher prefers build/r4. Editor: Header settings
+rows aligned, Space panning, drawing options only in Layers, logo right and trimmed
+(window state version 6 discards older toolbar layouts), auto-fit follows Layout edits,
+effect area covers housings and keeps the 640:400 aspect (changes LED sampling for
+layouts outside 640x400), all LEDs/keys numbered, lock moved to Edit with padlock,
+one wheel notch = one unit on sliders, Help > Keyboard shortcuts.
+Audit fixes: PawnIO DLL path from the Windows known folder; padded hid_write accepted;
+Apex 3 brightness once per session; SMBus port restore retried once; service skips
+rendering without connections and lists status from a black frame; portable editor
+reconnects 3 s after Windows resume; installer quotes root paths and runs the PawnIO
+setup from an administrators-only copy. Not done (needs a decision): lower-privilege
+service account or separate project processing, pipe ownership check before accept.
+Only software tests (22/22) and offscreen screenshots; no hardware, resume or real
+installer run was performed.
+
+## JARGB2 shared routing - 2026-11-14
+
+Branch `feat/jargb2-shared-routing`: chain items accept an explicit one-based
+start position (`ChannelAssignment::starts`, Hardware > Header settings: wiring
+choice One after another / Splitter cable plus a Starts at LED field per row);
+`sampleChannels` resolves overlaps (earlier chain item wins). Layout uses
+`LightingDocument::previewComponentColors`, shows LED numbers on shared headers
+and Color source / Same as #n badges. Window build ID is GS-06-R3. Projects using it save as schema 23, others
+stay at 22. See docs/LIGHTING_EDITOR.md "Shared output positions" and the status
+section of docs/JARGB2_TOPOLOGY_TEST.md for what is not done (16-LED strip
+definition, personal layout, Hardware LED summary, hardware confirmation).
+The installed service host must be updated together with the editor before a
+schema-23 project is sent to it.
+
 ## JARGB2 topology follow-up - updated 2026-11-14
 
 See docs/JARGB2_TOPOLOGY_TEST.md for packets, observations and limitations.

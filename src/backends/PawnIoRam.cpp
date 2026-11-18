@@ -11,13 +11,22 @@
 #ifdef Q_OS_WIN
 #define NOMINMAX
 #include <windows.h>
+#include <shlobj.h>
 #endif
 
 namespace {
 QString libraryPath() {
     // Official PawnIO installs here; never load a driver DLL from PATH or the working directory.
-    const auto programFiles=qEnvironmentVariable("ProgramW6432",qEnvironmentVariable("ProgramFiles","C:/Program Files"));
+    // Audit 2026-11-14: the folder comes from Windows, not from ProgramW6432/ProgramFiles variables,
+    // which an elevated portable process may inherit from a manipulated environment.
+#ifdef Q_OS_WIN
+    PWSTR folder=nullptr;
+    if(FAILED(SHGetKnownFolderPath(FOLDERID_ProgramFiles,0,nullptr,&folder))) {CoTaskMemFree(folder);return {};}
+    const auto programFiles=QString::fromWCharArray(folder);CoTaskMemFree(folder);
     return QDir(programFiles).filePath("PawnIO/PawnIOLib.dll");
+#else
+    return {};
+#endif
 }
 QMutex cacheMutex;
 QVector<int> verifiedAddresses;
@@ -64,7 +73,11 @@ struct PawnIoRam::Impl {
                 return call("ioctl_smbus_xfer",in.data(),in.size(),out.data(),count,count);
             });
             const bool result=operation(protocol);
-            const bool restored=call("ioctl_piix4_port_sel",&previous,1,&primary,1,1);
+            // A failed restore attempt must not replace the operation's own error and transient flag.
+            const bool transient=temporaryFailure;const auto operationError=error;
+            // Another SMBus user expects its port back; one retry covers a transient controller busy state.
+            const bool restored=call("ioctl_piix4_port_sel",&previous,1,&primary,1,1) || call("ioctl_piix4_port_sel",&previous,1,&primary,1,1);
+            if(!result){temporaryFailure=transient;error=operationError;}
             return result && restored;
         });
     }

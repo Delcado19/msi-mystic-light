@@ -14,7 +14,7 @@ public:
     void stopOutput();
 private:
     void poll();
-    void send(QJsonObject command);
+    bool send(QJsonObject command); // false when the queue is full and the command was dropped
     QJsonObject project();
     void display(const QJsonObject& status);
     void flushOnClose();

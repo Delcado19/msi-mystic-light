@@ -24,6 +24,27 @@
 #include "editor/AppSession.h"
 #include "service/ServicePanel.h"
 #include "service/ServiceProtocol.h"
+#include <QAbstractNativeEventFilter>
+#include <QTimer>
+#include <functional>
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+namespace {
+class PowerResumeFilter final : public QAbstractNativeEventFilter {
+    std::function<void()> resumed_;
+public:
+    explicit PowerResumeFilter(std::function<void()> resumed) : resumed_(std::move(resumed)) {}
+    bool nativeEventFilter(const QByteArray& type, void* message, qintptr*) override {
+        if(type=="windows_generic_MSG") {
+            const auto* msg=static_cast<const MSG*>(message);
+            if(msg->message==WM_POWERBROADCAST && msg->wParam==PBT_APMRESUMEAUTOMATIC) resumed_();
+        }
+        return false;
+    }
+};
+}
+#endif
 
 int main(int argc, char** argv)
 {
@@ -151,6 +172,11 @@ int main(int argc, char** argv)
         },&window);
         window.installOutputPanel(outputPanel);
         QObject::connect(outputPanel,&OutputPanel::outputStateChanged,&window,&LightingWindow::setOutputState);
+#ifdef Q_OS_WIN
+        // Portable mode has no service to handle power events; USB devices need a moment after resume.
+        static PowerResumeFilter resume([outputPanel]{QTimer::singleShot(3000,outputPanel,&OutputPanel::reconnectAfterResume);});
+        app.installNativeEventFilter(&resume);
+#endif
     }
     auto* view=window.findChild<QMenu*>("workspaceViewMenu");
     QSystemTrayIcon tray(window.style()->standardIcon(QStyle::SP_ComputerIcon),&window);

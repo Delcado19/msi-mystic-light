@@ -33,7 +33,9 @@ certificate is installed. Driver repairs and protected updates can require UAC
 again. The exact one-prompt flow still needs observation on clean Windows, including
 reboot/policy conditions. Shared PawnIO device permissions are not changed.
 
-Start-Lighting.cmd prefers the installed editor, then the latest prepared development package.
+Start-Lighting.cmd (development launcher) starts the newest local build of build/r4, build/routing
+and build/aurora; without one it starts the installed editor. Older build/dist packages are no
+longer used as fallbacks.
 Current portable builds also detect a registered service and route to it, preventing
 a second direct hardware writer. Installed mode fails closed when service access
 fails. Older portable binaries cannot provide that protection; close them before
@@ -74,8 +76,9 @@ and endpoint failures are visible in Hardware.
 Named-pipe requests authenticate the installation owner's Windows SID before JSON
 parsing, reject network logons, cap messages at 32 MiB, time out connections and
 limit concurrency. Clients verify server PID against SCM and its executable path.
-Commands are limited to status/snapshot, project, scan, playback, output enable and
-channel pause. No client file/DLL/module/register/shell API exists.
+Commands are limited to status/snapshot, project, scan, playback, output enable,
+channel pause and identify (2 s flash of one known software component; the service
+expires it itself and never persists it). No client file/DLL/module/register/shell API exists.
 
 Program Files and state ACLs protect runtime/configuration from normal-user writes.
 The six installed module DLLs (`msi_gen1`, `peripherals`, `auxiliary`,
@@ -119,17 +122,25 @@ and the [ShellExecuteEx runas/handle contract](https://learn.microsoft.com/en-us
 Hardware shows service/per-channel failures. Startup failures reach SCM and, when
 writable, `%ProgramData%/LightingStudio/service-error.log` (administrator-readable).
 Administrators can inspect Get-Service LightingStudio and sc.exe qc LightingStudio.
-To remove automatic operation from an administrator console:
+## Removal
 
-```powershell
-Stop-Service LightingStudio
-sc.exe delete LightingStudio
-Unregister-ScheduledTask -TaskName 'Lighting Studio Editor' -Confirm:$false
-```
+Remove Lighting Studio in Windows Settings > Apps, or run `installer/Uninstall.cmd` from the
+package. Both start `Uninstall-LightingStudio.ps1`, which requests elevation once and removes the
+LightingStudio service, the `Lighting Studio Editor` logon task, the Start menu shortcut,
+`%ProgramFiles%/Lighting Studio`, `%ProgramData%/LightingStudio` and the Apps entry.
 
-These commands retain installed files/playback data and shared PawnIO. User projects
-are never deleted. The installed copy retains service mode while service.json
-exists; a portable copy can use direct output after the service is removed.
+Two things are removed only on request (prompt, or `-RemoveUserData` / `-RemovePawnIO`; `-Quiet`
+skips the prompts):
+
+- the owner's editor settings (`HKCU/Software/Delcado/MSI Mystic Light Standalone`) and recovery
+  data (`%LOCALAPPDATA%/Delcado/MSI Mystic Light Standalone`) of the user who starts the
+  uninstaller, deleted with that user's rights and not by the elevated step; a portable copy shares them;
+- the PawnIO driver, through PawnIO's own registered `uninstall.exe -uninstall -silent`. It is
+  shared: OpenRGB, Fan Control, LibreHardwareMonitor and ZenTimings use it too.
+
+Saved project files are never deleted. Steps that fail are listed and the script exits non-zero.
+The removal is covered by a parse/WhatIf test only; it has not been run against a real
+installation yet.
 
 ## Verification boundaries
 

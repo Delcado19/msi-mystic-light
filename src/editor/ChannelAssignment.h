@@ -1,6 +1,8 @@
 #pragma once
 #include "modules/IDriverModule.h"
+#include "components/ComponentCatalog.h"
 #include <QJsonObject>
+#include <QMap>
 #include <QUuid>
 
 struct ChannelAssignment {
@@ -8,6 +10,9 @@ struct ChannelAssignment {
     QString endpoint, profileId, channelId;
     bool software = false; // Native channels never enter the per-frame sampling path.
     QVector<QUuid> placements; // Physical chain order; standalone outputs have at most one component.
+    // Explicit one-based output position per placement; absent = directly after the previous one.
+    // Keyed by placement so chain edits cannot misalign it; entries for removed placements are ignored.
+    QMap<QUuid, int> starts;
     // shortcut: current drivers use 1..4 colors, brightness 0..5 and speed 0..2; add capability ranges for a different driver.
     NativeEffect native;
     double timeScale = 1, timeOffset = 0; // Channel clock: clamp(global * scale + offset, 0, 86400); zero scale holds.
@@ -18,5 +23,12 @@ const ChannelProfile& assignmentChannel(const DeviceProfile& profile, const QStr
 // A componentId identifies an integrated device, not a header accepting a chain.
 bool channelHasFixedComponent(const ChannelProfile& channel);
 void validateChannelAssignments(const LightingState& state, const QVector<DeviceProfile>& profiles);
+// Start positions in chain order for channelMapping/chainOffsets; empty when the chain is serial.
+QVector<int> chainStarts(const ChannelAssignment& assignment);
+// Plain-language description of where a chain item's colors come from, for people who have
+// never configured LED addresses: empty when it shows only its own colors, otherwise e.g.
+// "Same colors as Fan #2" or "LEDs 1-6 same as Fan #2". names are in chain order.
+// compact is for the Layout badge: "Same as #2". Within one product family the source is named by its "#n" suffix.
+QString sharedColorNote(const QVector<SharedRun>& runs, int item, const QStringList& names, bool compact = false);
 QJsonObject channelAssignmentJson(const ChannelAssignment& assignment);
 ChannelAssignment parseChannelAssignment(const QJsonObject& json, int schema = 9);

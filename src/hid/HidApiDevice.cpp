@@ -94,7 +94,9 @@ bool HidApiDevice::sendFeatureReport(const std::uint8_t* report, std::size_t len
 bool HidApiDevice::writeOutputReport(const std::uint8_t* report, std::size_t length)
 {
     if (!handle_ || !report || length == 0 || length > static_cast<std::size_t>(std::numeric_limits<int>::max())) return false;
-    return hid_write(handle_, report, length) == static_cast<int>(length);
+    // Windows hidapi pads a report shorter than the device's output report length and returns the
+    // padded size; that is a complete write, not a failure (audit 2026-11-14, HP Omen 58-byte reports).
+    return hid_write(handle_, report, length) >= static_cast<int>(length);
 }
 
 std::size_t HidApiDevice::getFeatureReport(std::uint8_t* buffer, std::size_t length)

@@ -11,6 +11,8 @@
 #include <shellapi.h>
 #include <tlhelp32.h>
 #include <memory>
+#include <thread>
+#include <atomic>
 #endif
 
 namespace {
@@ -40,7 +42,8 @@ bool requiresManualStop(const QString& executable)
 {
     const auto name = normalized(executable);
     // Service-owned helpers can restart immediately; do not kill their host.
-    return name == "lightingservice.exe" || name == "ledkeeper2.exe";
+    // LEDKeeper2 is handled: its monitor service is stopped first (see stopMysticLightService).
+    return name == "lightingservice.exe";
 }
 
 bool isSignalRgbService(const QString& executable)
@@ -209,6 +212,48 @@ public:
         return {};
     }
 };
+// Mystic_Light_Service restarts LEDKeeper2.exe through Task Scheduler (docs/ARCHITECTURE.md;
+// owner test 2026-11-14: after stopping the service a killed LEDKeeper2 stayed gone). Stop the
+// service for this session only; its start type is unchanged, so MSI Center returns after reboot.
+// Last ControlService failure of the detached stop worker; 0 = none (yet).
+std::atomic<DWORD>& mysticStopError() { static std::atomic<DWORD> error{0}; return error; }
+QString stopMysticLightService()
+{
+    ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    if (!manager) return winError("Cannot access service manager; run as administrator");
+    ScHandle service(OpenServiceW(manager.get(), L"Mystic_Light_Service", SERVICE_STOP | SERVICE_QUERY_STATUS));
+    if (!service) return GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST ? QString{} :
+        winError("Cannot stop Mystic_Light_Service; run as administrator");
+    // ControlService can block up to 30 s while the service handles another control, so it runs on a
+    // detached worker that owns its handles; the dialog thread never waits on it. The force step checks
+    // SERVICE_STOPPED before terminating LEDKeeper2 (CodeRabbit review 2026-11-15).
+    mysticStopError().store(0);
+    std::thread([manager = std::move(manager), service = std::move(service)] {
+        SERVICE_STATUS status{};
+        // A refused stop (e.g. ERROR_DEPENDENT_SERVICES_RUNNING) is reported by the force step; retrying cannot help.
+        if (!ControlService(service.get(), SERVICE_CONTROL_STOP, &status) && GetLastError() != ERROR_SERVICE_NOT_ACTIVE)
+            mysticStopError().store(GetLastError());
+    }).detach();
+    return {};
+}
+// Empty when Mystic_Light_Service is absent or fully stopped; LEDKeeper2 must not be terminated before that,
+// or the still-running service restarts it.
+QString mysticLightServiceStopped()
+{
+    ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    if (!manager) return winError("Cannot access service manager; run as administrator");
+    ScHandle service(OpenServiceW(manager.get(), L"Mystic_Light_Service", SERVICE_QUERY_STATUS));
+    if (!service) return GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST ? QString{} :
+        winError("Cannot query Mystic_Light_Service; run as administrator");
+    SERVICE_STATUS status{};
+    if (!QueryServiceStatus(service.get(), &status)) return winError("Cannot query Mystic_Light_Service");
+    if (status.dwCurrentState == SERVICE_STOPPED) return {};
+    if (const auto error = mysticStopError().load()) {
+        SetLastError(error);
+        return winError("Mystic_Light_Service refused to stop; LEDKeeper2 left running");
+    }
+    return "Mystic_Light_Service has not stopped yet; LEDKeeper2 left running so it is not restarted. Try again";
+}
 BOOL CALLBACK closeWindow(HWND window, LPARAM pid)
 {
     DWORD owner = 0;
@@ -341,6 +386,10 @@ QString SystemConflictProcesses::stop(const ConflictProcess& process, bool force
     if (isSignalRgbService(process.executable)) {
         NativeServices services;
         return stopSignalRgbService(process, force, services);
+    }
+    if (normalized(process.executable) == "ledkeeper2.exe") {
+        if (!force) return stopMysticLightService();
+        if (const auto error = mysticLightServiceStopped(); !error.isEmpty()) return error;
     }
     if (force) {
         // The checked handle, not a fresh PID lookup, is the termination target.

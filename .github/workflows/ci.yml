@@ -56,3 +56,24 @@ jobs:
       - name: Test (Release)
         shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure --timeout 600
+
+      # Every green run also produces the installable ZIP as a run artifact, so a PR build can be
+      # downloaded and installed for hardware testing without a release. release.yml publishes tags.
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $label = ($env:GITHUB_HEAD_REF, $env:GITHUB_REF_NAME | Where-Object { $_ } | Select-Object -First 1) -replace '[^A-Za-z0-9._-]', '-'
+          $name = "LightingStudio-$label-$($env:GITHUB_SHA.Substring(0, 7))-windows-x64"
+          python scripts/package_release.py --runtime build/Release --archive "build/dist/$name.zip"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "name=$name" >> $env:GITHUB_OUTPUT
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            build/dist/${{ steps.package.outputs.name }}.zip
+            build/dist/${{ steps.package.outputs.name }}.zip.sha256
+          if-no-files-found: error

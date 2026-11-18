@@ -14,6 +14,10 @@
 #include <QToolButton>
 #include <QAction>
 #include <QResizeEvent>
+#include <QLineEdit>
+#include <QTextEdit>
+#include <QAbstractSpinBox>
+#include <QEnterEvent>
 #include <QLineF>
 #include <QPolygonF>
 #include <algorithm>
@@ -68,7 +72,9 @@ LightingCanvas::LightingCanvas(LightingDocument& document, Context context, QWid
     setAccessibleName(context == Context::Layout ? "Component layout canvas" : "Effect and layer mask canvas");
     connect(&document_, &LightingDocument::changed, this, [this] {
         cancelGesture();
-        if(previewOnly_ || (context_==Context::Effects && autoFit_)) fitToView();
+        // Automatic fit must follow content changes in Layout too, otherwise moved, added or grown
+        // components end up outside the visible area (owner report 2026-11-14). Manual zoom/pan clears autoFit_.
+        if(previewOnly_ || autoFit_) fitToView();
         rendered_ = previewChannel_.isNull() ? document_.render(seconds_) : LightingDocument::render(document_.state(),seconds_,previewChannel_);
         emptyAction_->setVisible(!previewOnly_ && (context_==Context::Effects ? document_.state().layers.isEmpty() : document_.state().placements.isEmpty()));
         update();
@@ -131,9 +137,9 @@ void LightingCanvas::resizeEvent(QResizeEvent*)
     emptyAction_->move((width()-emptyAction_->width())/2,height()/2+32);
 }
 
-void LightingCanvas::setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel)
+void LightingCanvas::setPreviewFrame(const QImage& frame, double seconds, const QUuid& channel, double componentSeconds)
 {
-    seconds_ = seconds; previewChannel_=channel; rendered_ = frame; update();
+    seconds_ = seconds; componentSeconds_ = componentSeconds; previewChannel_=channel; rendered_ = frame; update();
 }
 
 QSizeF LightingCanvas::displayScale() const
@@ -226,12 +232,14 @@ void LightingCanvas::paintEvent(QPaintEvent*)
             painter.fillRect(QRectF(x,y,tile,tile),std::fmod(std::floor(x/tile)+std::floor(y/tile),2.0)!=0 ? QColor("#484b50") : QColor("#35383d"));
     }
     auto frame = rendered_;
+    std::optional<LightingState> working; // The uncommitted state behind frame, if any.
     if (context_ == Context::Effects) {
         if (workingEffect_) {
             auto state=document_.state();
             if(createdObject_)state.layers.append(*workingEffect_);
             else for (auto& layer : state.layers) if (selections().contains(layer.id)) layer=transformedSelection(layer);
             frame=LightingDocument::render(state,seconds_,previewChannel_);
+            working=std::move(state);
         }
         if (maskTarget_) {
             auto state=document_.state();
@@ -239,11 +247,13 @@ void LightingCanvas::paintEvent(QPaintEvent*)
                 if (!workingMask_.isNull()) layer.mask=workingMask_;
             }
             frame=LightingDocument::render(state,seconds_,previewChannel_); // Mask inspection must not freeze the live composition.
+            working=std::move(state);
         }
         if (!workingMask_.isNull() && !maskTarget_) {
             auto state = document_.state();
             for (auto& layer : state.layers) if (layer.id == selected_) layer.mask = workingMask_;
             frame = LightingDocument::render(state, seconds_,previewChannel_);
+            working=std::move(state);
         }
         if (showMask_ && maskTarget_) {
             for (const auto& layer : document_.state().layers)
@@ -256,7 +266,7 @@ void LightingCanvas::paintEvent(QPaintEvent*)
         if(showComponents_) {
             painter.save();const auto bounds=document_.layoutBounds();
             painter.scale(640/bounds.width(),400/bounds.height());painter.translate(-bounds.topLeft());
-            paintComponents(painter,frame,bounds);painter.restore();
+            paintComponents(painter,frame,bounds,working ? &*working : nullptr);painter.restore();
         }
         SnapGrid::load().paint(painter,QRectF(0,0,640,400).intersected(QRectF(canvasPoint({0,0}),canvasPoint({double(width()),double(height())}))),zoom_);
         if(underMouse() && !panning_ && !spaceHeld_ && !cropTool_ && (drawingTool_==Tool::Pencil || drawingTool_==Tool::Eraser)) {
@@ -327,26 +337,21 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     paintMinimap(painter);
 }
 
-void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const QRectF& world)
+void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const QRectF& world,const LightingState* working)
 {
     painter.setRenderHint(QPainter::Antialiasing);
     const auto placements=previewPlacements();
-    auto sampled=document_.sampleComponents(frame,&placements);
-    const auto channels=document_.sampleChannels(frame,seconds_,&placements);
-    for(const auto& assignment:document_.state().assignments) {
-        int index=0;
-        for(const auto& id:assignment.placements) {
-            if(assignment.software) {
-                const auto count=sampled[id].size();const auto colors=channels.value(assignment.id);
-                sampled[id]=colors.mid(index,count);index+=count;
-            }
-            else {
-                QColor color=Qt::black;
-                if(assignment.native.id!="off" && !assignment.native.colors.isEmpty()) { const auto rgb=assignment.native.colors.first(); color=QColor(rgb.r,rgb.g,rgb.b); }
-                if(sampled.contains(id)) sampled[id].fill(color);
-            }
-        }
-    }
+    // Layout shows what the hardware shows, including components that share LED outputs.
+    // sampleChannels applies each channel clock itself, so it needs the global time; passing the
+    // Effects canvas's channel-local time applied the clock twice (CodeRabbit review 2026-11-15).
+    const double globalSeconds=componentSeconds_<0?seconds_:componentSeconds_;
+    // With a channel selected, frame shows only that channel; the global composition must still include an
+    // uncommitted drag or mask stroke, or component colors freeze until release (CodeRabbit review 2026-11-15).
+    const auto global=previewChannel_.isNull() ? QImage{} : working ? LightingDocument::render(*working,globalSeconds) : document_.render(globalSeconds);
+    auto sampled=document_.previewComponentColors(frame,globalSeconds,&placements,global.isNull()?nullptr:&global);
+    // Numbers show the physical output position, so serial and shared chain items number correctly.
+    const auto ledOffsets=document_.componentLedOffsets();
+    const auto shared=(!previewOnly_ && context_==Context::Layout) ? document_.sharedColorNotes() : QMap<QUuid,QString>{};
     for (auto placement : document_.state().placements) {
         painter.save();
         bool dimmed=false;
@@ -388,9 +393,22 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
                 painter.drawEllipse(point,ledRadius,ledRadius);
                 if(ledRadius*zoom_*devicePixelRatioF()<2.) {
                     // Subpixel circles blend with their outline; keep the sampled center color exact when zoomed out.
-                    const double dpr=devicePixelRatioF();const auto pixel=(viewportPoint(point)*dpr).toPoint();
+                    // The painter transform includes the Effects world-to-raster mapping; viewportPoint does not.
+                    const double dpr=devicePixelRatioF();const auto pixel=(painter.transform().map(point)*dpr).toPoint();
                     painter.save();painter.resetTransform();painter.setRenderHint(QPainter::Antialiasing,false);
                     painter.fillRect(QRectF(QPointF(pixel)/dpr,QSizeF(1/dpr,1/dpr)),light);painter.restore();
+                }
+            }
+            {
+                // Every LED and keyboard key shows its number once it is large enough to read; same number = same output.
+                const double screenRadius=keyboard ? std::min(keySize.width(),keySize.height())*zoom_/2 : ledRadius*zoom_;
+                if(!previewOnly_ && screenRadius>=6) {
+                    // Drawn in screen pixels so numbers stay readable at every zoom level.
+                    painter.save();const auto center=painter.transform().map(point);painter.resetTransform();
+                    auto numberFont=font();numberFont.setPixelSize(int(std::clamp(screenRadius*1.05,8.,14.)));numberFont.setBold(true);painter.setFont(numberFont);
+                    painter.setPen(light.lightnessF()>.55 ? QColor("#0b1220") : QColor("#f4f8ff"));
+                    painter.drawText(QRectF(center-QPointF(screenRadius,screenRadius),QSizeF(2*screenRadius,2*screenRadius)),Qt::AlignCenter,QString::number(ledOffsets.value(placement.id)+definition.mapping[i]+1));
+                    painter.restore();
                 }
             }
 
@@ -413,6 +431,23 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
         if(context_==Context::Layout && !chained) {
             painter.setBrush(Qt::NoBrush);painter.setPen(QPen(QColor("#8196b8"),1/zoom_,Qt::DashLine));
             painter.drawRoundedRect(componentBounds(placement).adjusted(-8,-8,8,8),8,8);
+        }
+        if(placement.locked) {
+            // Padlock: explains why a component cannot be dragged.
+            painter.save();const auto corner=viewportPoint(componentBounds(placement).topRight());painter.resetTransform();
+            const QRectF body(corner.x()-15,corner.y()+4,11,8);painter.setRenderHint(QPainter::Antialiasing);
+            painter.setPen(QPen(QColor("#dce7ff"),1.6));painter.setBrush(Qt::NoBrush);painter.drawArc(QRectF(body.left()+2,body.top()-6,7,9),0,180*16);
+            painter.setPen(Qt::NoPen);painter.setBrush(QColor("#dce7ff"));painter.drawRoundedRect(body,1.5,1.5);painter.restore();
+        }
+        if(shared.contains(placement.id)) {
+            // Plain-language badge: this component cannot have its own colors, it repeats another one.
+            painter.save();painter.setFont(componentLabelFont());const QFontMetrics metrics(componentLabelFont());
+            const auto body=componentBounds(placement);
+            const auto text=metrics.elidedText(shared.value(placement.id),Qt::ElideRight,int(std::max(60.,body.width()+6)));
+            const double below=showLabels_ ? componentLabel(placement).height()+4 : 0, width=metrics.horizontalAdvance(text)+10.;
+            const QRectF badge(body.center().x()-width/2,body.bottom()+8+below,width,metrics.height()+2.);
+            painter.setPen(Qt::NoPen);painter.setBrush(QColor(32,39,53,235));painter.drawRoundedRect(badge,4,4);
+            painter.setPen(QColor("#7fe3ff"));painter.drawText(badge,Qt::AlignCenter,text);painter.restore();
         }
         if(showLabels_) {
             const auto label=componentLabel(placement);
@@ -1283,9 +1318,19 @@ void LightingCanvas::scrollAtEdge()
     mouseMoveEvent(&move);
 }
 
+void LightingCanvas::enterEvent(QEnterEvent* event)
+{
+    // Space and tool shortcuts reach the canvas under the pointer, unless the user is typing elsewhere.
+    auto* focused=QApplication::focusWidget();
+    if(focusPolicy()!=Qt::NoFocus && isActiveWindow() && !qobject_cast<QLineEdit*>(focused) && !qobject_cast<QAbstractSpinBox*>(focused) && !qobject_cast<QTextEdit*>(focused))
+        setFocus(Qt::MouseFocusReason);
+    QWidget::enterEvent(event);
+}
+
 void LightingCanvas::keyReleaseEvent(QKeyEvent* event)
 {
-    if(event->key()==Qt::Key_Space){spaceHeld_=false;updateCursor();event->accept();return;}
+    // Holding Space sends auto-repeated release/press pairs; only the real release ends panning.
+    if(event->key()==Qt::Key_Space){if(!event->isAutoRepeat()){spaceHeld_=false;updateCursor();}event->accept();return;}
     QWidget::keyReleaseEvent(event);
 }
 

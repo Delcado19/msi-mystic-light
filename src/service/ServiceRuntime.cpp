@@ -103,7 +103,9 @@ void ServiceRuntime::reconnect() {
     } catch(const std::exception& e) {error_=QString::fromUtf8(e.what());stopConnections();}
 }
 void ServiceRuntime::tick() {
-    if(!enabled_ || suspended_)return;
+    if(!document_->identifyPlacement().isNull() && identifyClock_.elapsed()>=2000)document_->setIdentifyPlacement({});
+    // Rendering 30 frames per second for no connected device only costs CPU (audit 2026-11-14).
+    if(!enabled_ || suspended_ || connections_.empty())return;
     try {
         const auto time=seconds();auto frames=prepareOutput(*document_,document_->render(time),time);
         for(int i=0;i<int(connections_.size());++i)for(auto frame:frames)if(sameOutputScope(scopes_[i],frame)) {
@@ -116,7 +118,8 @@ void ServiceRuntime::tick() {
 QJsonObject ServiceRuntime::status() const {
     QJsonArray devices,outputs;
     for(const auto& item:inventory_)devices.append(QJsonObject{{"profileId",item.profileId},{"path",item.device.path},{"transport",item.device.transport},{"vendorId",item.device.vendorId},{"productId",item.device.productId},{"interfaceNumber",item.device.interfaceNumber},{"usagePage",item.device.usagePage},{"usage",item.device.usage}});
-    const auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
+    // Status lists channels only; outputScope neither renders nor samples.
+    const auto frames=outputScope(*document_);
     for(const auto& frame:frames) {
         QString state=enabled_?"Offline":"Stopped",error;
         for(int i=0;i<scopes_.size();++i)if(scopes_[i].endpoint==frame.endpoint) {
@@ -146,12 +149,18 @@ QJsonObject ServiceRuntime::command(const QJsonObject& request) {
             if(enabled_)reconnect();else stopConnections();
         } else if(op=="channels") {
             if(!request.value("keys").isArray() || !request.value("paused").isBool())throw std::invalid_argument("Invalid channel command");
-            QSet<QString> valid;for(const auto& f:prepareOutput(*document_,document_->render(0)))for(const auto& c:f.channels)valid.insert(key(f,c));
+            QSet<QString> valid;for(const auto& f:outputScope(*document_))for(const auto& c:f.channels)valid.insert(key(f,c));
             auto next=paused_;for(const auto& id:request.value("keys").toArray()) {
                 if(!id.isString() || !valid.contains(id.toString()))throw std::invalid_argument("Unknown channel");
                 if(request.value("paused").toBool())next.insert(id.toString());else next.remove(id.toString());
             }
             const auto before=paused_;paused_=next;try{persist();}catch(...){paused_=before;throw;}
+        } else if(op=="identify") {
+            // Transient 2 s flash of one software component; never persisted or part of the snapshot.
+            const QUuid placement(request.value("placement").toString());
+            bool known=false;for(const auto& item:document_->state().placements)if(item.id==placement)known=true;
+            if(placement.isNull() || !known || !document_->hasSoftwareChannel(placement))throw std::invalid_argument("Unknown identify component");
+            document_->setIdentifyPlacement(placement);identifyClock_.start();
         } else if(op!="status" && op!="snapshot")throw std::invalid_argument("Unknown service command");
         auto reply=status();if(op=="snapshot" && !project_.isEmpty())reply["project"]=project_;return reply;
     } catch(const std::exception& e) {return {{"ok",false},{"error",QString::fromUtf8(e.what())}};}

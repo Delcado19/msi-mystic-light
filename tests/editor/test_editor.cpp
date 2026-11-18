@@ -35,6 +35,8 @@
 #include <QPushButton>
 #include <QSlider>
 #include <QSpinBox>
+#include <QWheelEvent>
+#include <QRadioButton>
 #include <QTabWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -151,6 +153,12 @@ private slots:
     void dedicatedDeviceIsNotAChain();
     void fixedDeviceSettings_data();
     void fixedDeviceSettings();
+    void sharedOutputsLayout();
+    void identifyFlash();
+    void outputLedCount();
+    void layoutAutoFitKeepsComponentsVisible();
+    void sliderWheelStepsOneUnit();
+    void savedLayoutKeepsLogoRightAndEffectAspect();
     void fixedDeviceRejectsChain();
     void scrollbarAppearance();
     void effectPreviewDivider();
@@ -822,8 +830,11 @@ void EditorTest::windowBackgroundResizes()
         window.resize(size);QCoreApplication::processEvents();
         auto* logo=window.findChild<QLabel*>("studioBrand");QVERIFY(logo && logo->isVisible());
         QVERIFY(logo->width()>=logo->pixmap().width());
-        QCOMPARE(logo->pixmap().size(),QSize(360,120));
-        QVERIFY(logo->height()>=120);
+        QCOMPARE(logo->pixmap().height(),140); // Transparent margins trimmed, visible logo fills its row.
+        QVERIFY(logo->height()>=140);
+        // The logo sits at the right end of its row.
+        auto* row=window.findChild<QToolBar*>("workspaceNavigation");
+        QVERIFY(logo->mapTo(row,QPoint(logo->width(),0)).x()>row->width()-80);
         // Render the window itself without children to exercise cover cropping and overlay.
         QPixmap actual(window.size());actual.fill(Qt::magenta);
         window.render(&actual,QPoint(),QRegion(),QWidget::DrawWindowBackground);
@@ -939,6 +950,35 @@ void EditorTest::channelAssignments()
     auto reversed=direct; reversed.placements={first,second}; document.assignChannel(reversed);
     QCOMPARE(document.sampleChannels(frame)[direct.id][0],QColor(Qt::blue));
     document.history()->undo(); QCOMPARE(document.sampleChannels(frame),samples);
+    // Shared positions (docs/JARGB2_TOPOLOGY_TEST.md): the earlier chain item supplies overlapping outputs.
+    auto shared=direct; shared.starts={{second,1},{first,1}}; document.assignChannel(shared);
+    QCOMPARE(document.sampleChannels(frame)[direct.id],samples[direct.id].mid(0,3));
+    {
+        // Layout shows exactly what the hardware gets: both strips repeat the first one's colors.
+        const auto preview=document.previewComponentColors(frame);
+        QCOMPARE(preview[first],preview[second]); QCOMPARE(preview[second],document.sampleChannels(frame)[direct.id]);
+        QString secondName; for(const auto& placement:document.state().placements) if(placement.id==second) secondName=document.componentName(placement);
+        QCOMPARE(document.sharedColorNotes().value(first),"Same as "+secondName.mid(secondName.lastIndexOf('#')));
+        QCOMPARE(document.sharedColorNotes().value(second),QString("Color source"));
+        QCOMPARE(sharedColorNote(chainSharing({6,15},{1,1})[1],1,{"Fan","Strip"}),QString("LEDs 1-6 same as Fan"));
+        QCOMPARE(sharedColorNote(chainSharing({6,6},{1,1})[1],1,{"Fan #2","Fan #3"}),QString("Same colors as #2"));
+        QVERIFY(sharedColorNote(chainSharing({6,15},{})[1],1,{"Fan","Strip"}).isEmpty());
+    }
+    {
+        QTemporaryDir sharedDirectory; const auto sharedPath=sharedDirectory.filePath("shared.lighting.json"); document.save(sharedPath,false);
+        QFile sharedFile(sharedPath); QVERIFY(sharedFile.open(QIODevice::ReadOnly));
+        QCOMPARE(QJsonDocument::fromJson(sharedFile.readAll()).object().value("schemaVersion").toInt(),23); sharedFile.close();
+        LightingDocument reloaded({},nullptr,{profile}); reloaded.load(sharedPath);
+        QCOMPARE(reloaded.sampleChannels(frame),document.sampleChannels(frame));
+    }
+    // An explicit position equal to the serial one, and a stale entry for a removed placement, change nothing.
+    shared.starts={{first,4},{QUuid::createUuid(),2}}; document.assignChannel(shared);
+    QCOMPARE(document.sampleChannels(frame),samples);
+    // Positions before an explicit start are unaddressed and stay black.
+    shared.placements={second}; shared.starts={{second,3}}; document.assignChannel(shared);
+    QCOMPARE(document.sampleChannels(frame)[direct.id],QVector<QColor>({Qt::black,Qt::black})+samples[direct.id].mid(0,3));
+    for(int i=0;i<3;++i) document.history()->undo();
+    QCOMPARE(document.sampleChannels(frame),samples);
     const int before=document.history()->index();
     auto reject=[&](ChannelAssignment invalid) {
         QVERIFY_EXCEPTION_THROWN(document.assignChannel(invalid),std::invalid_argument);
@@ -955,6 +995,7 @@ void EditorTest::channelAssignments()
     invalid=native; invalid.native.speed=3; reject(invalid);
     invalid=native; invalid.native.colors.clear(); reject(invalid);
     invalid=direct; invalid.endpoint.clear(); reject(invalid);
+    invalid=direct; invalid.starts={{first,5}}; reject(invalid); // 5..7 exceeds the six-LED channel.
     QVERIFY_EXCEPTION_THROWN(document.edit("Delete assigned instance",[&](LightingState& state) {
         state.placements.removeIf([&](const auto& item){return item.id==first;});
     }),std::invalid_argument);
@@ -973,6 +1014,7 @@ void EditorTest::channelAssignments()
     QVERIFY_EXCEPTION_THROWN(unavailable.load(path),std::invalid_argument); QCOMPARE(unavailable.history()->index(),unchanged);
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     const auto original=QJsonDocument::fromJson(file.readAll()).object(); file.close();
+    QCOMPARE(original.value("schemaVersion").toInt(),22); // Serial chains remain readable by schema-22 hosts.
     auto write=[&](QJsonObject root) { QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(root).toJson()); file.close(); };
     auto root=original; auto assignments=root.value("assignments").toArray();
     auto malformed=assignments[0].toObject(); malformed.insert("software","true"); assignments[0]=malformed;
@@ -988,6 +1030,9 @@ void EditorTest::channelAssignments()
     QVERIFY_EXCEPTION_THROWN(fixed.assignChannel(configured),std::invalid_argument);
     const auto two=fixed.addComponent("test.strip"); configured.placements.append(two); fixed.assignChannel(configured);
     QCOMPARE(fixed.sampleChannels(frame)[configured.id].size(),6);
+    auto positioned=direct; positioned.starts={{first,1}}; const auto positionedJson=channelAssignmentJson(positioned);
+    QCOMPARE(parseChannelAssignment(positionedJson,23).starts,positioned.starts);
+    QVERIFY_EXCEPTION_THROWN(parseChannelAssignment(positionedJson,22),std::invalid_argument);
     auto bad=channelAssignmentJson(native); auto badNative=bad.value("native").toObject();
     badNative.insert("colors",QJsonArray{QJsonArray{1.5,0,0}}); bad.insert("native",badNative);
     QVERIFY_EXCEPTION_THROWN(parseChannelAssignment(bad),std::invalid_argument);
@@ -1012,6 +1057,26 @@ void EditorTest::channelControls()
     editor.findChild<QComboBox*>("availableInstances")->setCurrentIndex(1); append->click();
     editor.findChild<QPushButton*>("instanceUp")->click();
     QCOMPARE(editor.assignment().placements,QVector<QUuid>({second,first}));
+    // Every row shows its own visible start control; nothing depends on a hidden selection.
+    auto* chainList=editor.findChild<QListWidget*>("channelChain");
+    auto row=[chainList](int index) { return chainList->itemWidget(chainList->item(index)); };
+    QCOMPARE(row(0)->findChild<QSpinBox*>("chainStart")->text(),QString("Auto"));
+    QVERIFY(editor.findChild<QRadioButton*>("wiringSerial")->isChecked());
+    row(0)->findChild<QToolButton*>("chainStartUp")->click();
+    QCOMPARE(editor.assignment().starts,(QMap<QUuid,int>{{second,1}}));
+    QVERIFY(editor.findChild<QLabel*>("wiringCustom")->isVisible());
+    editor.findChild<QRadioButton*>("wiringSplitter")->click();
+    QCOMPARE(editor.assignment().starts,(QMap<QUuid,int>{{second,1},{first,1}}));
+    const auto firstName=row(0)->findChildren<QLabel*>().first()->text();
+    QCOMPARE(row(1)->findChild<QLabel*>("chainResult")->text(),"Same colors as "+firstName.mid(firstName.lastIndexOf('#')));
+    int visibleRows=0; for(auto* spin:chainList->viewport()->findChildren<QSpinBox*>("chainStart")) visibleRows+=spin->isVisibleTo(chainList);
+    QCOMPARE(visibleRows,2); // No stale rows remain painted after add/remove/move.
+    QVERIFY(editor.findChild<QLabel*>("chainSummary")->text().startsWith("Uses LED 1-3 of 6 on Direct."));
+    QVERIFY(editor.grab().save(artifactDirectory()+"/editor-channel-shared.png"));
+    row(1)->findChild<QSpinBox*>("chainStart")->setValue(5);
+    QVERIFY(editor.findChild<QLabel*>("chainSummary")->text().startsWith("Too many LEDs"));
+    editor.findChild<QRadioButton*>("wiringSerial")->click(); QVERIFY(editor.assignment().starts.isEmpty());
+    QCOMPARE(row(1)->findChild<QLabel*>("chainResult")->text(),QString("LED 4-6"));
     QVERIFY(editor.grab().save(artifactDirectory()+"/editor-channel.png"));
     buttons->button(QDialogButtonBox::Ok)->click(); QCOMPARE(editor.result(),int(QDialog::Accepted));
     window.document().assignChannel(editor.assignment());
@@ -2448,20 +2513,21 @@ void EditorTest::expandingLayoutAndFullscreen()
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()});
     const auto id=window.document().addComponent("test.strip");
     window.document().edit("Expanded layout",[](auto& state){state.placements[0].origin={-200,500};});
-    // Independently calculated: LED centers -200,-180,-160 at y=500, with 12px margin.
-    QCOMPARE(window.document().layoutBounds(),QRectF(-212,0,852,512));
-    const QRectF bounds(-212,0,852,512);
+    // Independently calculated: LED centers -200,-180,-160 at y=500, with 12px margin -> -212,0 852x512,
+    // then padded to the 640:400 raster aspect: height 852/1.6=532.5, 10.25 above and below.
+    QCOMPARE(window.document().layoutBounds(),QRectF(-212,-10.25,852,532.5));
+    const QRectF bounds(-212,-10.25,852,532.5);
     QImage frame(LightingDocument::canvasSize(),QImage::Format_ARGB32);frame.fill(Qt::black);
-    frame.setPixelColor(9,390,Qt::red);frame.setPixelColor(24,390,Qt::green);frame.setPixelColor(39,390,Qt::blue);
+    frame.setPixelColor(9,383,Qt::red);frame.setPixelColor(24,383,Qt::green);frame.setPixelColor(39,383,Qt::blue); // y=(500+10.25)/532.5*400
     const QVector<QColor> expected{Qt::blue,Qt::green,Qt::red}; // Wire order 2,1,0.
     QCOMPARE(window.document().sampleComponents(frame)[id],expected);
     ChannelAssignment assignment;assignment.endpoint="test";assignment.profileId="test.device";assignment.channelId="Direct";assignment.software=true;assignment.placements={id};
     window.document().assignChannel(assignment);
     QCOMPARE(window.document().sampleChannels(frame)[assignment.id],expected);
     auto preview=window.document().state().placements;preview[0].origin={900,-100};
-    QCOMPARE(window.document().layoutBounds(&preview),QRectF(0,-112,952,512));
+    QCOMPARE(window.document().layoutBounds(&preview),QRectF(0,-153.5,952,595)); // 0,-112 952x512 padded to height 952/1.6
     QImage draftFrame(frame.size(),frame.format());draftFrame.fill(Qt::black);
-    draftFrame.setPixelColor(605,9,Qt::red);draftFrame.setPixelColor(618,9,Qt::green);draftFrame.setPixelColor(631,9,Qt::blue);
+    draftFrame.setPixelColor(605,35,Qt::red);draftFrame.setPixelColor(618,35,Qt::green);draftFrame.setPixelColor(631,35,Qt::blue); // y=(-100+153.5)/595*400
     QCOMPARE(window.document().sampleChannels(draftFrame,0,&preview)[assignment.id],expected);
     QImage white(frame.size(),frame.format());white.fill(Qt::white);
     const auto previewColors=window.document().sampleComponents(white,&preview).value(id);
@@ -2507,6 +2573,7 @@ void EditorTest::canvasScrollbars()
     auto* horizontal=canvas->findChild<QScrollBar*>("canvasHorizontalScroll");
     auto* vertical=canvas->findChild<QScrollBar*>("canvasVerticalScroll");
     canvas->repaint();QVERIFY(!horizontal->isVisible());QVERIFY(!vertical->isVisible());
+    canvas->zoomBy(1); // A manual camera stops automatic fit, so content can overflow into scrollbars.
     window.document().edit("Move outside canvas",[](auto& state){state.placements[0].origin={1800,-1200};});
     canvas->repaint();QVERIFY(horizontal->isVisible());QVERIFY(vertical->isVisible());
     horizontal->setValue(horizontal->maximum());vertical->setValue(vertical->maximum());canvas->repaint();
@@ -2514,7 +2581,8 @@ void EditorTest::canvasScrollbars()
     // The body starts at 1790; text needs its measured width and 12px label padding.
     auto captionFont=canvas->font();captionFont.setPointSizeF(std::max(7.,captionFont.pointSizeF()*.75));const QFontMetrics captionMetrics(captionFont);
     const auto abbreviated=captionMetrics.elidedText("Generic Test strip",Qt::ElideRight,100);
-    const double rightEdge=std::max(1852.,1790.+captionMetrics.horizontalAdvance(abbreviated)+8.);
+    // The effect area keeps the 640:400 aspect, so its padded right edge can lie beyond the LEDs.
+    const double rightEdge=std::max(window.document().layoutBounds().right(),1790.+captionMetrics.horizontalAdvance(abbreviated)+8.);
     QVERIFY(qAbs(canvas->viewportPoint({rightEdge,400}).x()-(canvas->width()-16-vertical->width()))<=1.0);
     canvas->select(window.document().state().placements[0].id);canvas->repaint();horizontal->setValue(horizontal->maximum());canvas->repaint();
     const double fullRightEdge=rightEdge; // Selection never changes the caption size or anchor.
@@ -2524,7 +2592,9 @@ void EditorTest::canvasScrollbars()
         qPrintable(QString("bottom=%1 viewport=%2 hbar=%3 v=%4/%5 units/world=%6")
         .arg(canvas->viewportPoint({1852,400}).y()).arg(canvas->height()).arg(horizontal->height()).arg(vertical->value()).arg(vertical->maximum()).arg(window.document().layoutBounds().height())));
     horizontal->setValue(horizontal->minimum());vertical->setValue(vertical->minimum());canvas->repaint();
-    QVERIFY(qAbs(canvas->viewportPoint({0,-1212}).x()-16)<=1.0);QVERIFY(qAbs(canvas->viewportPoint({0,-1212}).y()-48)<=1.0);
+    // Scrolled to the start: the padded effect area's top-left sits at the content corner.
+    const auto topLeft=window.document().layoutBounds().topLeft();
+    QVERIFY(qAbs(canvas->viewportPoint(topLeft).x()-16)<=1.0);QVERIFY(qAbs(canvas->viewportPoint(topLeft).y()-48)<=1.0);
     vertical->setValue(vertical->maximum()/2);canvas->repaint();
     const auto old=canvas->canvasPoint(QPointF(100,100));
     horizontal->setValue(horizontal->maximum());vertical->setValue(vertical->minimum());canvas->repaint();
@@ -2592,7 +2662,7 @@ void EditorTest::scrollbarMouseInteraction()
 {
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });window.document().addComponent("test.strip");
     window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
-    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->fitToView();
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->fitToView();canvas->zoomBy(1);
     window.document().edit("Overflow on both axes",[](auto& state){state.placements[0].origin={1800,-1200};});canvas->repaint();
     for(auto* bar:canvas->findChildren<QScrollBar*>()) {
         QVERIFY(bar->isVisible());QVERIFY(bar->isEnabled());
@@ -3792,6 +3862,160 @@ void EditorTest::fixedDeviceSettings_data()
     QTest::newRow("gpu")<<QString("gigabyte-aero-5080.json")<<QString("GigabyteAero5080");
     QTest::newRow("integrated-zone")<<QString("msi-mpg-b850-edge-ti-wifi.json")<<QString("IOShield");
 }
+void EditorTest::savedLayoutKeepsLogoRightAndEffectAspect()
+{
+    // Owner report 2026-11-14: a restored window layout kept the logo on the left.
+    QTemporaryDir dir;QSettings settings(dir.filePath("saved.ini"),QSettings::IniFormat);
+    const auto logoAtRight=[](LightingWindow& window) {
+        auto* logo=window.findChild<QLabel*>("studioBrand");auto* row=window.findChild<QToolBar*>("workspaceNavigation");
+        return logo->isVisible() && logo->mapTo(row,QPoint(logo->width(),0)).x()>row->width()-80;
+    };
+    {
+        LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+        AppSession session(window,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+        window.resize(1440,900);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTRY_VERIFY(logoAtRight(window));
+        settings.setValue("window/state",window.saveState(6));settings.setValue("window/geometry",window.saveGeometry());settings.sync();
+    }
+    LightingWindow restored(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    AppSession session(restored,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+    restored.show();QVERIFY(QTest::qWaitForWindowExposed(&restored));QTRY_VERIFY(logoAtRight(restored));
+    // The effect area keeps the 640:400 aspect and covers every housing, however components are placed.
+    LightingDocument document(catalog());const auto far=document.addComponent("test.strip");
+    document.edit("Far",[&](LightingState& state){for(auto& placement:state.placements)if(placement.id==far){placement.origin={1500,90};placement.scale={4,4};}});
+    const auto bounds=document.layoutBounds();QVERIFY(qAbs(bounds.width()/bounds.height()-1.6)<1e-9);
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);
+    for(const auto& placement:document.state().placements) for(const auto& point:document.componentPoints(placement)) QVERIFY(bounds.contains(point));
+    restored.document().history()->setClean();
+}
+
+void EditorTest::sliderWheelStepsOneUnit()
+{
+    // Owner report 2026-11-14: one wheel notch on a slider jumped 3-4 units.
+    auto* field=new ParameterSpinBox;field->setRange(-500,500);field->setValue(10);auto* row=sliderField(field);row->show(); // row owns field
+    auto& value=*field;
+    auto* slider=row->findChild<QSlider*>();QVERIFY(slider);
+    const auto wheel=[slider](int delta) {
+        QWheelEvent event(QPointF(5,5),slider->mapToGlobal(QPointF(5,5)),QPoint(),QPoint(0,delta),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
+        QApplication::sendEvent(slider,&event);
+    };
+    wheel(120);QCOMPARE(value.value(),11.);wheel(-120);wheel(-120);QCOMPARE(value.value(),9.);
+    wheel(60);QCOMPARE(value.value(),9.);wheel(60);QCOMPARE(value.value(),10.); // High-resolution wheels accumulate.
+    delete row;
+}
+
+void EditorTest::outputLedCount()
+{
+    // The header summary counts output positions, so shared outputs are not counted twice.
+    ComponentDefinition fan; fan.id="test.fan"; fan.name="Test fan"; fan.category="Fans";
+    for(int i=0;i<6;++i){const double angle=i*3.14159265358979/3;fan.positions.append({1.27*std::sin(angle),-1.27*std::cos(angle)});fan.mapping.append(i);}
+    DeviceProfile profile=channelProfile(); profile.channels[0].maxLeds=120;
+    LightingDocument document({{fan.id,fan}},nullptr,{profile});
+    QVector<QUuid> fans; for(int i=0;i<3;++i) fans.append(document.addComponent(fan.id));
+    ChannelAssignment assignment; assignment.endpoint="fake://one"; assignment.profileId=profile.id; assignment.channelId="Direct";
+    assignment.software=true; assignment.placements=fans;
+    QCOMPARE(document.outputLedsUsed(assignment),18);
+    for(const auto& id:fans) assignment.starts.insert(id,1);
+    QCOMPARE(document.outputLedsUsed(assignment),6);
+}
+
+void EditorTest::identifyFlash()
+{
+    // Identify lights one placement's outputs; shared outputs light with it. Document-level only, no hardware.
+    ComponentDefinition fan; fan.id="test.fan"; fan.name="Test fan"; fan.category="Fans";
+    for(int i=0;i<6;++i){const double angle=i*3.14159265358979/3;fan.positions.append({1.27*std::sin(angle),-1.27*std::cos(angle)});fan.mapping.append(i);}
+    DeviceProfile profile=channelProfile(); profile.channels[0].maxLeds=120;
+    LightingDocument document({{fan.id,fan}},nullptr,{profile});
+    QVector<QUuid> fans; for(int i=0;i<3;++i) fans.append(document.addComponent(fan.id));
+    ChannelAssignment assignment; assignment.endpoint="fake://one"; assignment.profileId=profile.id; assignment.channelId="Direct";
+    assignment.software=true; assignment.placements=fans;
+    document.assignChannel(assignment);
+    QVERIFY(document.hasSoftwareChannel(fans[0]));
+    QVERIFY(!document.hasSoftwareChannel(QUuid::createUuid()));
+    const auto frame=document.render(.4);
+    const auto before=document.sampleChannels(frame,.4)[assignment.id];
+    const auto revision=document.revision(); const auto undo=document.history()->count();
+    // Serial chain: fan 2 owns outputs 7-12 (1-based), so only indexes 6-11 turn white.
+    document.setIdentifyPlacement(fans[1]);
+    QCOMPARE(document.identifyPlacement(),fans[1]);
+    QCOMPARE(document.revision(),revision); QCOMPARE(document.history()->count(),undo);
+    const auto serial=document.sampleChannels(frame,.4)[assignment.id];
+    QCOMPARE(serial.size(),18);
+    for(int led=0;led<18;++led) QCOMPARE(serial[led],QColor(led>=6 && led<12 ? Qt::white : Qt::black));
+    // Shared outputs: every fan starts at LED 1, so identifying one lights all three.
+    for(const auto& id:fans) assignment.starts.insert(id,1);
+    document.assignChannel(assignment);
+    const auto shared=document.sampleChannels(frame,.4)[assignment.id];
+    QCOMPARE(shared.size(),6);
+    for(const auto& color:shared) QCOMPARE(color,QColor(Qt::white));
+    // Clearing the identify target restores the normal output exactly.
+    document.setIdentifyPlacement({});
+    assignment.starts.clear(); document.assignChannel(assignment);
+    QCOMPARE(document.sampleChannels(frame,.4)[assignment.id],before);
+}
+
+void EditorTest::layoutAutoFitKeepsComponentsVisible()
+{
+    // Owner report 2026-11-14: with automatic fit active, components extended past the canvas edge.
+    LightingDocument document(catalog());const auto near=document.addComponent("test.strip");
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);applyStudioStyle(&canvas);canvas.resize(900,560);canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();QCoreApplication::processEvents();
+    const auto inside=[&](const QString& step) {
+        const auto content=canvas.contentRect();
+        for(const auto& placement:document.state().placements) for(const auto& point:document.componentPoints(placement)) {
+            const auto view=canvas.viewportPoint(point);
+            QVERIFY2(content.contains(view),qPrintable(QString("%1: LED at %2,%3 outside %4,%5 %6x%7").arg(step).arg(view.x()).arg(view.y())
+                .arg(content.x()).arg(content.y()).arg(content.width()).arg(content.height())));
+        }
+    };
+    inside("initial fit");
+    // Content grows beyond the previous fit (a component moved far right, another added far below).
+    document.edit("Move far",[&](LightingState& state){state.placements[0].origin={1800,90};});QCoreApplication::processEvents();inside("moved");
+    const auto far=document.addComponent("test.strip");
+    document.edit("Place far",[&](LightingState& state){for(auto& placement:state.placements)if(placement.id==far)placement.origin={120,1300};});
+    QCoreApplication::processEvents();inside("added");Q_UNUSED(near);
+    document.history()->setClean();
+}
+
+void EditorTest::sharedOutputsLayout()
+{
+    // docs/JARGB2_TOPOLOGY_TEST.md: four six-zone fans and a 15-LED strip all start at LED 1.
+    ComponentDefinition fan; fan.id="test.fan"; fan.name="Test fan"; fan.category="Fans";
+    for(int i=0;i<6;++i){const double angle=i*3.14159265358979/3;fan.positions.append({1.27*std::sin(angle),-1.27*std::cos(angle)});fan.mapping.append(i);}
+    ComponentDefinition strip; strip.id="test.strip15"; strip.name="Test strip"; strip.category="Strips";
+    for(int i=0;i<15;++i){strip.positions.append({i*.29,0});strip.mapping.append(i);}
+    DeviceProfile profile=channelProfile(); profile.channels[0].maxLeds=120;
+    LightingDocument document({{fan.id,fan},{strip.id,strip}},nullptr,{profile});
+    QVector<QUuid> fans; for(int i=0;i<4;++i) fans.append(document.addComponent(fan.id));
+    const auto bar=document.addComponent(strip.id);
+    document.edit("Arrange",[&](LightingState& state) {
+        for(int i=0;i<4;++i){state.placements[i].origin={120.+i*80,260};state.placements[i].rotation=90;}
+        state.placements[4].origin={90,170};state.placements[4].scale={6,6};
+    });
+    ChannelAssignment assignment; assignment.endpoint="fake://one"; assignment.profileId=profile.id; assignment.channelId="Direct";
+    assignment.software=true; assignment.placements=fans; assignment.placements.append(bar);
+    for(const auto& id:assignment.placements) assignment.starts.insert(id,1);
+    document.assignChannel(assignment); document.addLayer(EffectKind::Ripples);
+    const auto frame=document.render(.4); const auto preview=document.previewComponentColors(frame,.4);
+    for(const auto& id:fans) QCOMPARE(preview[id],preview[fans[0]]);
+    QCOMPARE(preview[bar].mid(0,6),preview[fans[0]]); QCOMPARE(preview[bar].size(),15);
+    QCOMPARE(document.sampleChannels(frame,.4)[assignment.id],preview[bar]);
+    const auto notes=document.sharedColorNotes(); QCOMPARE(notes.value(fans[0]),QString("Color source"));
+    for(int i=1;i<4;++i) QCOMPARE(notes.value(fans[i]),QString("Same as #1"));
+    QVERIFY(notes.value(bar).startsWith("LEDs 1-6 same as "));
+    // LED numbers on the canvas use these offsets: shared items all start at output 1.
+    for(const auto& id:assignment.placements) QCOMPARE(document.componentLedOffsets().value(id,-1),0);
+    {
+        LightingDocument serial({{fan.id,fan},{strip.id,strip}},nullptr,{profile});
+        QVector<QUuid> items{serial.addComponent(fan.id),serial.addComponent(fan.id),serial.addComponent(strip.id)};
+        ChannelAssignment chain=assignment; chain.placements=items; chain.starts.clear(); serial.assignChannel(chain);
+        const auto offsets=serial.componentLedOffsets();
+        QCOMPARE(offsets.value(items[0],-1),0); QCOMPARE(offsets.value(items[1],-1),6); QCOMPARE(offsets.value(items[2],-1),12);
+    }
+    LightingCanvas canvas(document,LightingCanvas::Context::Layout);applyStudioStyle(&canvas);canvas.resize(1100,700);canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));canvas.fitToView();QCoreApplication::processEvents();
+    QVERIFY(canvas.grab().save(artifactDirectory()+"/shared-outputs-layout.png"));document.history()->setClean();
+}
+
 void EditorTest::fixedDeviceSettings()
 {
     QFETCH(QString,profileFile);QFETCH(QString,channelId);
@@ -3834,7 +4058,7 @@ void EditorTest::integerDisplayRoundTrip()
 {
     ParameterSpinBox field;field.setRange(0,10);field.setDisplayUnit(60," /min");field.setValue(.25);
     QCOMPARE(field.text(),QString("15 /min"));QCOMPARE(field.value(),.25);
-    field.setValue(.123456789);const auto exact=field.value();QVERIFY(field.text().contains(QChar(0x2248)));
+    field.setValue(.123456789);const auto exact=field.value();QCOMPARE(field.text(),QString("7 /min"));
     field.show();field.setFocus();QTest::keyClick(&field,Qt::Key_Tab);QCOMPARE(field.value(),exact);
     field.setFocus();QTest::keyClick(&field,Qt::Key_A,Qt::ControlModifier);QTest::keyClicks(&field,"30");QTest::keyClick(&field,Qt::Key_Return);QCOMPARE(field.value(),.5);
     field.setDisplayUnit(1000," ms");field.setValue(.375);QCOMPARE(field.text(),QString("375 ms"));
@@ -3861,7 +4085,7 @@ void EditorTest::integerDisplayRoundTrip()
     seed.ensurePolished();QCOMPARE(seed.width(),numericWidth);QCOMPARE(numericWidth,64);
     QCOMPARE(seed.text(),QString("7654321"));
     seed.setValue(-500);QCOMPARE(seed.width(),numericWidth);QCOMPARE(seed.text(),QString("-500"));
-    seed.setValue(.12345678901234567);QVERIFY(seed.text().contains(QChar(0x2248)));
+    seed.setValue(.12345678901234567);QCOMPARE(seed.text(),QString("0"));
     QCOMPARE(seed.value(),.12345678901234567);QCOMPARE(seed.width(),numericWidth);
     QSpinBox integer;styleStudioNumericField(&integer);integer.ensurePolished();QCOMPARE(integer.width(),numericWidth);
     auto larger=seed.font();larger.setPointSizeF(16);seed.setFont(larger);integer.setFont(larger);

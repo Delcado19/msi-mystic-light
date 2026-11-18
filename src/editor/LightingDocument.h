@@ -107,6 +107,22 @@ public:
     QMap<QUuid, QVector<QColor>> sampleComponents(const QImage& frame, const QVector<ComponentPlacement>* placements = nullptr) const;
     void assignChannel(const ChannelAssignment& assignment);
     QMap<QUuid, QVector<QColor>> sampleChannels(const QImage& frame, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr) const;
+    // Colors each component shows in Layout, derived from the channel output: components sharing
+    // output positions show the shared colors, native channels their first firmware color.
+    // channelFrame: global composition for default-clock channels when frame shows one selected channel.
+    QMap<QUuid, QVector<QColor>> previewComponentColors(const QImage& frame, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr, const QImage* channelFrame = nullptr) const;
+    // Zero-based output position of each software-assigned component's first LED in its chain.
+    QMap<QUuid, int> componentLedOffsets() const;
+    // Identify flash: the software chain holding this placement shows white over its LEDs and every
+    // other software chain goes dark. Transient: not in undo history, revision or saved files.
+    void setIdentifyPlacement(const QUuid& placement);
+    QUuid identifyPlacement() const { return identify_; }
+    bool hasSoftwareChannel(const QUuid& placement) const;
+    // Output positions a channel occupies: shared outputs count once, serial chains add up.
+    int outputLedsUsed(const ChannelAssignment& assignment) const;
+    // Placement -> short Layout badge: "Same as #2" / "LEDs 1-6 same as ..." for components repeating
+    // another component's colors, "Color source" for the component they repeat.
+    QMap<QUuid, QString> sharedColorNotes() const;
     double channelTime(const QUuid& assignment, double seconds) const;
     QImage renderForChannel(const QUuid& assignment, double seconds) const;
     QImage render(double seconds = 0) const;
@@ -129,6 +145,7 @@ private:
     const ComponentCatalog initialCatalog_;
     LightingState state_;
     std::optional<LightingState> colorPreviewBefore_;
+    QUuid identify_;
     QUndoStack history_;
     quint64 revision_ = 0; // Session-only monotonic invalidation for confirmed output snapshots.
     mutable quint64 nameRevision_ = std::numeric_limits<quint64>::max();

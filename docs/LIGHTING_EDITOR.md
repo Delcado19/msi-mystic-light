@@ -339,8 +339,34 @@ Save/Open uses `.lighting.json` schema 22, including editing locks, layer contai
 IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
 linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
 and advanced persistence. Schemas 1..19 remain readable with their original
-semantics; missing newer settings get disabled/default values. Saves always use
+semantics; missing newer settings get disabled/default values. Saves use
 schema 22; older versions reject it instead of silently losing effects.
+A project that sets a chain start position (below) is saved as schema 23, which
+editors and service hosts older than that feature reject; projects without one
+stay at schema 22.
+
+### Shared output positions
+
+Some headers drive several components from the same addresses, for example fans
+mirrored on one ARGB header (measured case: `docs/JARGB2_TOPOLOGY_TEST.md`).
+In Hardware, select the header and open **Header settings** with Output mode
+**Software canvas**. The dialog asks how the devices are plugged in:
+**One after another** (each device gets its own LEDs, the default) or
+**Splitter cable** (all devices start at LED 1 and show the same colors).
+Every device row also has its own **Starts at LED** field with - and + buttons;
+**Auto** means directly after the device above. Changing a single row turns the
+choice into **Custom**. Next to each row the dialog states the result in plain
+words, for example "LED 1-6: decides the shared colors" or
+"Same colors as #2", and below the list how many LEDs of the connector are used.
+
+Devices whose LEDs overlap share those outputs: the device higher in the list
+supplies the colors, because the hardware can show only one color per LED.
+Layout shows the same: devices on a shared header display their LED numbers
+(same number = same color), the supplying device is labelled **Color source**
+and the others **Same as #2** or, for a partial overlap, **LEDs 1-6 same as ...**.
+Moving a device that only repeats colors therefore does not change its colors.
+LEDs that no device covers are sent as black. The used range, not the sum of the
+devices, must fit the connector capacity.
 
 QSaveFile replaces files atomically. Load parses/validates the entire candidate
 before replacing the document/history. Unknown component IDs, unsupported effect
@@ -695,6 +721,18 @@ component coordinates and draft placements are validated before sampling. Finite
 coordinates must leave arithmetic headroom for world spans and navigation zoom.
 Scrollbar camera and thumb positions are synchronized at both endpoints; camera
 clamping waits for the current drag/pan/minimap gesture to finish.
+### Identify flash (2026-11-15)
+
+Right-click one component in Layout (its chain must be a software channel) and choose
+"Flash component (identify)". For 2 seconds its outputs show white and every other software
+chain goes dark. Shared outputs light with it, so one fan on a splitter lights its siblings too.
+The flash is transient: no undo entry, no revision change, not saved. Hardware receives it only
+while output runs; otherwise only the Layout preview shows it. With the installed service the
+editor sends an `identify` command and the service flashes and expires it on its own (the
+component must already be synchronized to the service). Native channels cannot be flashed
+per component and are left unchanged. Unit-tested at document level (serial and shared chains);
+confirmed by the owner on the real fans (2026-11-15); shared-output siblings and native channels as described above.
+
 ## Snap to grid
 
 The Preview toolbar provides a persistent Snap to grid toggle (default enabled)

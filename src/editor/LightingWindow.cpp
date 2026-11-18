@@ -69,7 +69,8 @@
 #include <QVBoxLayout>
 
 namespace {
-constexpr auto studioBuildId="GS-06-R2";
+// R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges.
+constexpr auto studioBuildId="GS-06-R9";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -206,6 +207,17 @@ QIcon colorIcon(QColor color)
 }
 }
 
+namespace {
+// The header artwork carries wide transparent margins; trimming them lets the visible logo use the
+// row height instead of floating with ~46 px empty space above and below (owner report 2026-11-14).
+QPixmap studioLogo()
+{
+    QImage image(":/branding/lighting-studio-header.png");image=image.convertToFormat(QImage::Format_ARGB32);
+    QRect used;for(int y=0;y<image.height();++y)for(int x=0;x<image.width();++x)if(qAlpha(image.pixel(x,y))>8)used=used.united(QRect(x,y,1,1));
+    if(!used.isEmpty())image=image.copy(used.adjusted(-4,-4,4,4).intersected(image.rect()));
+    return QPixmap::fromImage(image.scaled(760,140,Qt::KeepAspectRatio,Qt::SmoothTransformation));
+}
+}
 LightingWindow::LightingWindow(ComponentCatalog catalog,
     std::function<QVector<ProfileCandidate>()> scan, QWidget* parent, QVector<DeviceProfile> profiles, bool automaticDiscovery)
     : QMainWindow(parent), document_(std::move(catalog), nullptr, std::move(profiles))
@@ -231,6 +243,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         if (!saveDocument()) { fileName_ = previous; refreshProjectName(); }
     });
     auto* help=menuBar()->addMenu("Help");
+    auto* shortcuts=help->addAction("Keyboard shortcuts");shortcuts->setObjectName("keyboardShortcuts");
+    connect(shortcuts,&QAction::triggered,this,[this]{QMessageBox::information(this,"Keyboard shortcuts",
+        "Space + drag: move the canvas view\nH: Pan tool    V: Move tool\nB, I, U, O, G, F, E: Pencil, Line, Rectangle, Ellipse, Gradient, Fill, Eraser\n"
+        "Hold L: show component names\nCtrl+D: duplicate selection\nCtrl+Shift+G: snap to grid on/off (hold Alt to place freely)\n"
+        "Alt+R: reset the focused number field to its default\nF6 / Shift+F6: move keyboard focus to the next / previous panel");});
     auto* about=help->addAction("About Lighting Studio");about->setObjectName("aboutLightingStudio");
     connect(about,&QAction::triggered,this,[this]{QDialog dialog(this);dialog.setWindowTitle("Lighting Studio");auto* stack=new QVBoxLayout(&dialog);stack->addWidget(studioBanner(&dialog,210));auto* description=new QLabel(QString("Lighting Studio — build %1\nRGB layout, effects and hardware control.\nBanner artwork depicts a conceptual interface.").arg(studioBuildId));description->setWordWrap(true);stack->addWidget(description);auto* executable=new QLabel(QCoreApplication::applicationFilePath());executable->setObjectName("runningExecutablePath");executable->setWordWrap(true);executable->setTextFormat(Qt::PlainText);executable->setTextInteractionFlags(Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard);stack->addWidget(executable);auto* close=new QDialogButtonBox(QDialogButtonBox::Close);stack->addWidget(close);connect(close,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);dialog.resize(800,300);dialog.exec();});
     auto* artworkCredits=help->addAction("Artwork credits");artworkCredits->setObjectName("artworkCredits");
@@ -251,7 +268,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     editMenu->addAction(redo);
     auto* toolbar = studioHeaderToolbar("History",this);addToolBar(toolbar); toolbar->setObjectName("historyToolbar");
     toolbar->setMovable(false);
-    auto* brand=new QLabel;brand->setObjectName("studioBrand");brand->setAccessibleName("Lighting Studio");brand->setPixmap(QPixmap(":/branding/lighting-studio-header.png").scaled(360,120,Qt::KeepAspectRatio,Qt::SmoothTransformation));toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    auto* brand=new QLabel;brand->setObjectName("studioBrand");brand->setAccessibleName("Lighting Studio");brand->setPixmap(studioLogo());toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
     open->setIcon(studioToolIcon("open")); save->setIcon(studioToolIcon("save"));
     undo->setIcon(studioToolIcon("undo")); redo->setIcon(studioToolIcon("redo"));
     toolbar->addAction(open); toolbar->addAction(save);
@@ -434,13 +451,15 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardwareScroll=new QScrollArea; hardwareScroll->setWidgetResizable(true); hardwareScroll->setWidget(hardwarePage);
     tabs_->addTab(hardwareScroll,"Hardware");
     components_=new QTreeWidget; components_->setObjectName("layoutComponents");
-    components_->setHeaderLabels({"Header / component","Manufacturer"});
+    components_->setHeaderLabels({"Header / component","Manufacturer","LEDs"});
     auto* hardwareTree=new QTreeView; hardwareTree->setObjectName("hardwareComponents"); hardwareTree->setMinimumHeight(220);
     // Both workspaces share the same inventory model and selection; editing never maintains a second hardware list.
     hardwareTree->setModel(components_->model()); hardwareTree->setSelectionModel(components_->selectionModel()); hardwareControls->insertWidget(2,hardwareTree,1);
     hardwareTree->header()->setStretchLastSection(false);
     hardwareTree->header()->setSectionResizeMode(0,QHeaderView::Stretch); hardwareTree->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
+    hardwareTree->header()->setSectionResizeMode(2,QHeaderView::ResizeToContents);
     components_->setColumnHidden(1,true); // Keep the narrow Layout sidebar focused on names; Hardware exposes the manufacturer column.
+    components_->setColumnHidden(2,true); // LED usage column: Hardware view only.
     components_->setSelectionMode(QAbstractItemView::ExtendedSelection);components_->setHeaderHidden(true); components_->setRootIsDecorated(true); componentStack->insertWidget(0,components_,1);
     connect(components_,&QTreeWidget::currentItemChanged,this,[this](QTreeWidgetItem* item) {
         if(item) {
@@ -1043,7 +1062,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* toolOptions=new QToolBar("Tool options",this); toolOptions->setObjectName("drawingOptions"); toolOptions->setMinimumHeight(34);toolOptions->setMovable(false); addToolBarBreak(); addToolBar(toolOptions);
     appearanceControls->removeWidget(color_); color_->setMaximumWidth(190); auto* colorSlot=new QWidget;auto* colorLayout=new QHBoxLayout(colorSlot);colorLayout->setContentsMargins(0,0,0,0);colorSlot->setFixedWidth(190);color_->setFixedWidth(190);auto colorPolicy=color_->sizePolicy();colorPolicy.setRetainSizeWhenHidden(true);color_->setSizePolicy(colorPolicy);colorLayout->addWidget(color_);
     toolOptions->addWidget(colorSlot)->setObjectName("foregroundColorAction");
-    auto* shapeFill=new QCheckBox("Filled shapes"); shapeFill->setObjectName("shapeFill"); shapeFill->setChecked(true); toolOptions->addWidget(shapeFill)->setObjectName("shapeFillAction");
+    auto* shapeFill=new QCheckBox("Fill rectangle/ellipse"); shapeFill->setObjectName("shapeFill"); shapeFill->setChecked(true); toolOptions->addWidget(shapeFill)->setObjectName("shapeFillAction");
     tools->hide(); toolOptions->hide();
     connect(tabs_,&QTabWidget::currentChanged,this,[this,tools](int index) { tools->setVisible(index<2);
         for(auto* action:tools->actions()){auto* widget=tools->widgetForAction(action);action->setVisible(index==1 || (widget && (widget->objectName()=="moveEffectTool" || widget->objectName()=="panCanvasTool")));}
@@ -1129,8 +1148,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     }
     auto* panelsButton=new QToolButton;panelsButton->setText("Panels");panelsButton->setObjectName("workspacePanels");
     panelsButton->setPopupMode(QToolButton::InstantPopup);panelsButton->setMenu(panelsMenu);
-    auto* nextPanel=viewMenu->addAction("Focus next panel");nextPanel->setObjectName("focusNextPanel");nextPanel->setShortcut(QKeySequence(Qt::Key_F6));
-    auto* previousPanel=viewMenu->addAction("Focus previous panel");previousPanel->setObjectName("focusPreviousPanel");previousPanel->setShortcut(QKeySequence(Qt::SHIFT|Qt::Key_F6));
+    // Keyboard-only navigation: window shortcuts, not menu entries (listed under Help > Keyboard shortcuts).
+    auto* nextPanel=new QAction("Focus next panel",this);nextPanel->setObjectName("focusNextPanel");nextPanel->setShortcut(QKeySequence(Qt::Key_F6));addAction(nextPanel);
+    auto* previousPanel=new QAction("Focus previous panel",this);previousPanel->setObjectName("focusPreviousPanel");previousPanel->setShortcut(QKeySequence(Qt::SHIFT|Qt::Key_F6));addAction(previousPanel);
     connect(nextPanel,&QAction::triggered,this,[this]{cyclePanelFocus(false);});
     connect(previousPanel,&QAction::triggered,this,[this]{cyclePanelFocus(true);});
     connect(tabs_,&QTabWidget::currentChanged,this,[nextPanel,previousPanel](int index){nextPanel->setEnabled(index<2);previousPanel->setEnabled(index<2);});
@@ -1147,8 +1167,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         connect(tabs_,&QTabWidget::currentChanged,action,[sync](int){sync();});
     }
     toolsMenu->addSeparator();toolsMenu->addMenu(addMenu);
-    auto* reduceMotion=viewMenu->addAction("Reduce UI motion");reduceMotion->setCheckable(true);reduceMotion->setChecked(!studioMotionEnabled());connect(reduceMotion,&QAction::toggled,this,[](bool on){QSettings().setValue("editor/reduceMotion",on);});
     auto* resetWorkspace=viewMenu->addAction("Reset workspace"); resetWorkspace->setObjectName("resetWorkspace");panelsMenu->addSeparator();panelsMenu->addAction(resetWorkspace);
+    // The default follows the Windows animation setting; this is the only in-app way to change a stored
+    // editor/reduceMotion value (restored after the R6 menu cleanup, CodeRabbit review 2026-11-15).
+    auto* reduceMotion=viewMenu->addAction("Reduce UI motion");reduceMotion->setObjectName("reduceMotion");reduceMotion->setCheckable(true);reduceMotion->setChecked(!studioMotionEnabled());
+    connect(reduceMotion,&QAction::toggled,this,[](bool on){QSettings().setValue("editor/reduceMotion",on);});
     connect(resetWorkspace,&QAction::triggered,this,[this,sidebarDock,dock] {
         navigatorShown_=inspectorShown_=inspectorBeforeCompact_=true;updateWorkspacePanels();resizeDocks({sidebarDock,dock},{280,340},Qt::Horizontal);
         layoutCanvas_->fitToView(); effectsCanvas_->fitToView();
@@ -1211,8 +1234,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* guides=alignMenu->addAction("Smart guides");guides->setObjectName("smartGuides");guides->setCheckable(true);guides->setChecked(true);
     layoutCanvas_->setSmartGuides(true);effectsCanvas_->setSmartGuides(true);
     connect(guides,&QAction::toggled,this,[this](bool on){layoutCanvas_->setSmartGuides(on);effectsCanvas_->setSmartGuides(on);});
-    auto* lock=viewMenu->addAction("Lock selection");lock->setObjectName("lockSelection");
-    auto* unlock=viewMenu->addAction("Unlock selection");unlock->setObjectName("unlockSelection");
+    auto* lock=editMenu->addAction("Lock position (cannot be moved)");lock->setObjectName("lockSelection");
+    lock->setToolTip("Locked items cannot be moved, resized or rotated until unlocked. A padlock marks them on the canvas.");
+    auto* unlock=editMenu->addAction("Unlock position");unlock->setObjectName("unlockSelection");
     connect(lock,&QAction::triggered,this,[this]{if(tabs_->currentIndex()!=2)(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->lockSelection(true);});
     connect(unlock,&QAction::triggered,this,[this]{if(tabs_->currentIndex()!=2)(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->lockSelection(false);});
     auto* duplicate=editMenu->addAction("Duplicate selection");duplicate->setObjectName("duplicateSelection");duplicate->setShortcut(QKeySequence("Ctrl+D"));
@@ -1224,12 +1248,16 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         const auto id=selectedLayer_;document_.edit("Toggle visibility",[id](auto& state){for(auto& layer:state.layers)if(layer.id==id)layer.visible=!layer.visible;});
     });
     auto* cropSelection=new QAction(studioToolIcon("crop"),"Crop image",this);cropSelection->setObjectName("cropSelectedImage");connect(cropSelection,&QAction::triggered,cropButton,&QToolButton::click);
-    const auto populateContext=[this,duplicate,remove,rename,visibility,cropSelection,cropButton,lock,unlock,fit,groupAction,paintAction](QMenu* menu,bool onObject){
+    auto* flash=new QAction("Flash component (identify)",this);flash->setObjectName("flashComponent");
+    flash->setToolTip("Lights only this component for 2 seconds. Hardware lights only while output is running; otherwise the Layout preview shows it.");
+    connect(flash,&QAction::triggered,this,[this]{const auto ids=layoutCanvas_->selections();if(ids.size()==1)flashComponent(*ids.begin());});
+    const auto populateContext=[this,duplicate,remove,rename,visibility,cropSelection,cropButton,lock,unlock,fit,groupAction,paintAction,flash](QMenu* menu,bool onObject){
         if(onObject){
             auto* canvas=tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_;bool editable=!canvas->selections().isEmpty();if(tabs_->currentIndex()==1)for(const auto& layer:document_.state().layers)if(layer.id==selectedLayer_ && layer.container && !layer.locked)editable=true;
             duplicate->setEnabled(editable);remove->setEnabled(editable);
             menu->addAction(duplicate);menu->addAction(remove);
             if(tabs_->currentIndex()==1){menu->addAction(rename);menu->addAction(visibility);menu->addAction(findChild<QAction*>("moveLayerUp"));menu->addAction(findChild<QAction*>("moveLayerDown"));if(cropButton->isEnabled())menu->addAction(cropSelection);}
+            if(tabs_->currentIndex()==0){const auto ids=layoutCanvas_->selections();flash->setEnabled(ids.size()==1 && document_.hasSoftwareChannel(*ids.begin()));menu->addAction(flash);}
             menu->addSeparator();menu->addAction(lock);menu->addAction(unlock);
         }else{menu->addAction(fit);if(tabs_->currentIndex()==1){menu->addSeparator();menu->addAction(paintAction);menu->addAction(groupAction);}else{auto* add=menu->addAction("Add components...");connect(add,&QAction::triggered,this,[this]{addHeaderComponents();});}}
     };
@@ -1262,7 +1290,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         if(index<2){const QSignalBlocker block(targetTabs);targetTabs->setCurrentIndex(index);}
     });
     // Keep branding separate; every workspace command lives in the shared Edit Mode row.
-    const auto brandAction=navigation->actions().first();
+    // Find the logo's own action: the first action is a workspace button that moves away below,
+    // and a spacer inserted before a removed action ended up after the logo (logo on the left).
+    QAction* brandAction=nullptr;for(auto* action:navigation->actions())if(navigation->widgetForAction(action)==brand)brandAction=action;
     const auto firstEdit=previewToolbar->actions().first();
     for(auto* action:{editorAction,hardwareAction}) {navigation->removeAction(action);previewToolbar->insertAction(firstEdit,action);}
     previewToolbar->insertSeparator(firstEdit);
@@ -1506,17 +1536,24 @@ void LightingWindow::refreshHeader()
     const auto& channel=assignmentChannel(profile,assignment.channelId);
     findChild<QPushButton*>("headerSettings")->setText(channelHasFixedComponent(channel) ? "Device settings" : "Header settings");
     findChild<QPushButton*>("addHeaderComponents")->setEnabled(profile.driverId!="lighting.peripherals" && profile.driverId!="lighting.auxiliary" && !channelHasFixedComponent(channel));
-    int leds=0;
-    for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements)
-        if(placement.id==id) leds+=document_.catalog()[placement.componentId].positions.size();
+    const int leds=document_.outputLedsUsed(assignment);
     if(auto* empty=findChild<QLabel*>("hardwareEmptyState"))empty->setText(QString("No compatible controller detected\n\nSaved selection: %1 / %2\n%3 components / %4 LED addresses configured.\n\nChoose Refresh to check connections. Layouts remain editable offline.").arg(profile.name,channel.id).arg(assignment.placements.size()).arg(leds));
     for(const auto& placement:document_.state().placements) if(placement.id==layoutCanvas_->selection()) {
         const auto& component=document_.catalog()[placement.componentId]; headerTitle_->setText(document_.componentName(placement));
         headerSummary_->setText(QString("%1 / %2 LEDs\nDrag this component on the layout canvas.").arg(assignment.channelId).arg(component.positions.size())); return;
     }
     headerTitle_->setText(assignment.channelId);
+    // One row per attached component: its output range on this header (shared outputs repeat the range).
+    const auto offsets=document_.componentLedOffsets();
+    QStringList rows;
+    for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements) if(placement.id==id) {
+        const int count=int(document_.catalog()[placement.componentId].mapping.size());
+        const int start=offsets.value(id,-1);
+        rows.append(start<0 ? QString("%1: %2 LEDs").arg(document_.componentName(placement)).arg(count)
+                            : QString("%1: LEDs %2-%3").arg(document_.componentName(placement)).arg(start+1).arg(start+count));
+    }
     headerSummary_->setText(QString("%1\n%2 components / %3 of %4 LEDs\n%5").arg(profile.name).arg(assignment.placements.size()).arg(leds).arg(channel.maxLeds)
-        .arg(channel.direct ? "Effects canvas supported" : "Native lighting only"));
+        .arg(channel.direct ? "Effects canvas supported" : "Native lighting only") + (rows.isEmpty() ? QString() : "\n" + rows.join("\n")));
 }
 
 void LightingWindow::addHeaderComponents()
@@ -1528,9 +1565,10 @@ void LightingWindow::addHeaderComponents()
         if(profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary") continue; // Dedicated devices are detected, never attached to ARGB headers.
         const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
         if(channelHasFixedComponent(channel)) continue; // Integrated output, not an attachable fan header.
+        // Shared outputs count once, matching the header summary (CodeRabbit review 2026-11-15).
         int used=0;
         for(const auto& assignment:document_.state().assignments) if(assignment.profileId==profile.id && assignment.endpoint==data.value("path") && assignment.channelId==channel.id)
-            for(const auto& id:assignment.placements) for(const auto& placement:document_.state().placements) if(placement.id==id) used+=document_.catalog()[placement.componentId].positions.size();
+            used=document_.outputLedsUsed(assignment);
         choices.append({profile.name+" / "+channel.id,data,channel.maxLeds-used,channel.fixedLeds ? channel.fixedLeds-used : 0});
     }
     HardwarePicker picker(document_.catalog(),choices,selectedHeader_,this);
@@ -1605,6 +1643,8 @@ void LightingWindow::refresh()
         // Saved chains stay editable while disconnected; discovery never rewrites their exact endpoint.
         for(const auto& assignment:document_.state().assignments) append(assignment.profileId,assignment.endpoint,assignment.channelId);
         QSet<QUuid> assigned;
+        // LEDs column: header usage "used / max" (shared outputs count once) and each component's output range.
+        const auto ledOffsets=document_.componentLedOffsets();
         for(const auto& data:headers) {
             bool online=false;
             for(const auto& candidate:discovered_) if(candidate.profileId==data["profileId"] && candidate.device.path==data["path"]) online=true;
@@ -1616,6 +1656,7 @@ void LightingWindow::refresh()
             for(const auto& assignment:document_.state().assignments)
                 if(assignment.profileId==data["profileId"] && assignment.endpoint==data["path"] && assignment.channelId==data["channelId"]) {
                     group->setData(0,Qt::UserRole,assignment.id);
+                    group->setText(2,QString("%1 / %2").arg(document_.outputLedsUsed(assignment)).arg(assignmentChannel(profile,assignment.channelId).maxLeds));
                     for(int i=0;i<assignment.placements.size();++i)
                         for(const auto& placement:document_.state().placements) if(placement.id==assignment.placements[i]) {
                             assigned.insert(placement.id);
@@ -1624,6 +1665,8 @@ void LightingWindow::refresh()
                             child->setText(0,document_.componentName(placement));
                             child->setData(0,Qt::UserRole,placement.id);
                             child->setText(1,hardwareManufacturer(document_.catalog()[placement.componentId]));
+                            const int count=int(document_.catalog()[placement.componentId].mapping.size()), start=ledOffsets.value(placement.id,-1);
+                            child->setText(2,standalone || start<0 ? QString::number(count) : QString("%1-%2").arg(start+1).arg(start+count));
                             if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);
                         }
                 }
@@ -1720,8 +1763,22 @@ void LightingWindow::updatePreview()
     previewFrame_=document_.render(seconds); // Canonical global composition for default-clock output channels.
     const auto displayed=channel.isNull() ? previewFrame_ : document_.renderForChannel(channel,seconds);
     const double localTime=channel.isNull() ? seconds : document_.channelTime(channel,seconds);
-    layoutCanvas_->setPreviewFrame(displayed,seconds,channel); effectsCanvas_->setPreviewFrame(displayed,localTime,channel); hardwarePreview_->setPreviewFrame(previewFrame_,seconds,channel);
+    layoutCanvas_->setPreviewFrame(displayed,seconds,channel); effectsCanvas_->setPreviewFrame(displayed,localTime,channel,seconds); hardwarePreview_->setPreviewFrame(previewFrame_,seconds,channel);
     emit previewFrameChanged(previewFrame_);
+}
+
+void LightingWindow::flashComponent(const QUuid& placement)
+{
+    // Hardware receives the flash only while output runs (OutputPanel::dispatch); the preview always shows it.
+    document_.setIdentifyPlacement(placement);
+    updatePreview();
+    emit identifyRequested(placement);
+    const auto generation = ++identifyGeneration_;
+    QTimer::singleShot(2000, this, [this, generation] {
+        if (generation != identifyGeneration_) return;
+        document_.setIdentifyPlacement({});
+        updatePreview();
+    });
 }
 
 void LightingWindow::refreshToolOptions()
@@ -1743,6 +1800,9 @@ void LightingWindow::refreshToolOptions()
     const bool stroke=editing && !panning && (editingMask_ || tool!=LightingCanvas::Tool::Move) && tool!=LightingCanvas::Tool::Gradient && tool!=LightingCanvas::Tool::Fill;
     const bool shape=editing && (tool==LightingCanvas::Tool::Rectangle || tool==LightingCanvas::Tool::Ellipse);
     color_->setVisible(true);color_->setEnabled(color);
+    // Color, fill and stroke only paint in Layers; Components and Devices never use them.
+    for(const auto* name:{"foregroundColorAction","shapeFillAction","strokeLabelAction","strokeSizeAction"})
+        if(auto* action=findChild<QAction*>(name))action->setVisible(editing);
     findChild<QAction*>("shapeFillAction")->setEnabled(shape);
     findChild<QAction*>("strokeLabelAction")->setEnabled(stroke);
     findChild<QAction*>("strokeSizeAction")->setEnabled(stroke);
