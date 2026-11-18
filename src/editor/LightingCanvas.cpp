@@ -234,27 +234,8 @@ void LightingCanvas::paintEvent(QPaintEvent*)
     auto frame = rendered_;
     std::optional<LightingState> working; // The uncommitted state behind frame, if any.
     if (context_ == Context::Effects) {
-        if (workingEffect_) {
-            auto state=document_.state();
-            if(createdObject_)state.layers.append(*workingEffect_);
-            else for (auto& layer : state.layers) if (selections().contains(layer.id)) layer=transformedSelection(layer);
-            frame=LightingDocument::render(state,seconds_,previewChannel_);
-            working=std::move(state);
-        }
-        if (maskTarget_) {
-            auto state=document_.state();
-            for (auto& layer : state.layers) if (layer.id==selected_) {
-                if (!workingMask_.isNull()) layer.mask=workingMask_;
-            }
-            frame=LightingDocument::render(state,seconds_,previewChannel_); // Mask inspection must not freeze the live composition.
-            working=std::move(state);
-        }
-        if (!workingMask_.isNull() && !maskTarget_) {
-            auto state = document_.state();
-            for (auto& layer : state.layers) if (layer.id == selected_) layer.mask = workingMask_;
-            frame = LightingDocument::render(state, seconds_,previewChannel_);
-            working=std::move(state);
-        }
+        // Mask inspection must not freeze the live composition either.
+        if ((working=workingState()) || maskTarget_) frame=LightingDocument::render(working ? *working : document_.state(),seconds_,previewChannel_);
         if (showMask_ && maskTarget_) {
             for (const auto& layer : document_.state().layers)
                 if (layer.id == selected_) {
@@ -610,6 +591,24 @@ QRectF LightingCanvas::selectionBounds() const
     }
     return bounds.isEmpty() ? QRectF() : bounds.adjusted(-15,-15,15,15).united(housings.adjusted(-5,-5,5,5));
 }
+std::optional<LightingState> LightingCanvas::workingState() const
+{
+    if(context_==Context::Layout) {
+        if(!dragging_)return {};
+        auto state=document_.state();state.placements=previewPlacements();return state;
+    }
+    if(!workingEffect_ && workingMask_.isNull())return {};
+    auto state=document_.state();
+    if(workingEffect_) {
+        if(createdObject_)state.layers.append(*workingEffect_);
+        else for(auto& layer:state.layers) if(selections().contains(layer.id)) layer=transformedSelection(layer);
+    }
+    // A Pencil stroke on a mask sets both; the stroke must reach the lights before release too
+    // (CodeRabbit review 2026-11-18).
+    if(!workingMask_.isNull())for(auto& layer:state.layers) if(layer.id==selected_) layer.mask=workingMask_;
+    return state;
+}
+
 QVector<ComponentPlacement> LightingCanvas::previewPlacements() const
 {
     auto placements=document_.state().placements;
@@ -1037,7 +1036,7 @@ void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
         }
         point+=correction;if(!guides_.isEmpty())snapGesture_=false;
     }
-    if(drawing_) { updateDrawing(point); last_=point; update(); return; }
+    if(drawing_) { updateDrawing(point); last_=point; update(); emit workingStateChanged(); return; }
     if (context_ == Context::Effects && maskTarget_ && tool_ == MaskTool::Brush)
         LightingDocument::paintMask(workingMask_, last_, point, radius_, hardness_, opacity_, gray_);
     last_ = point;
@@ -1063,7 +1062,7 @@ void LightingCanvas::mouseMoveEvent(QMouseEvent* event)
             if (layer.id == selected_) workingMask_ = layer.mask;
         LightingDocument::gradientMask(workingMask_, start_, last_);
     }
-    update();
+    update();emit workingStateChanged();
 }
 
 void LightingCanvas::updateEffectGesture(QPointF point)
@@ -1387,6 +1386,13 @@ QSet<QUuid> LightingCanvas::selections() const
             (selectedIds_.contains(item.id) || (selectedIds_.contains(item.parentId) && editable(item.parentId))) && !item.container)ids.insert(item.id);
     }
     return ids;
+}
+bool LightingCanvas::selectionHasLocked() const
+{
+    const auto picked=[this](const QUuid& id){return id==selected_ || selectedIds_.contains(id);};
+    if(context_==Context::Layout)
+        return std::any_of(document_.state().placements.cbegin(),document_.state().placements.cend(),[&](const auto& item){return item.locked && picked(item.id);});
+    return std::any_of(document_.state().layers.cbegin(),document_.state().layers.cend(),[&](const auto& item){return item.locked && picked(item.id);});
 }
 QRectF LightingCanvas::effectBounds(const EffectLayer& layer) const
 {

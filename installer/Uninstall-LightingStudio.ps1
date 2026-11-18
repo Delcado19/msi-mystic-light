@@ -42,12 +42,12 @@ function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue
 $script:backup = $null
 # Parameters exist for tests/service/test_installer.ps1, which runs this on a temporary folder and key.
 function Remove-UserData(
-    [string]$Parent = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Delcado'),
+    [string]$Parent = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Lighting Studio'),
     [string]$BackupRoot = [Environment]::GetFolderPath('UserProfile'),
-    [string]$Key = 'HKCU:\Software\Delcado\MSI Mystic Light Standalone') {
+    [string]$Key = 'HKCU:\Software\Lighting Studio\Editor') {
     $failed = $false
     try {
-        $data = Join-Path $Parent 'MSI Mystic Light Standalone'
+        $data = Join-Path $Parent 'Editor'
         foreach ($folder in @($Parent,$data)) {
             if ((Test-Path -LiteralPath $folder) -and ((Get-Item -LiteralPath $folder -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Not deleted, $folder is a link: remove it yourself" }
         }
@@ -84,8 +84,8 @@ if (!$Quiet -and !$Elevated) {
         # The one-line question was misread by the owner (2026-11-17); name each item, where it lives
         # and what happens to it (owner review 2026-11-18: the old text promised more than it kept).
         Write-Host 'Your personal editor data can be removed too:'
-        Write-Host '  - window layout and editor preferences (registry: HKCU\Software\Delcado) are deleted'
-        Write-Host '  - your own files and the backup of unsaved changes (%LOCALAPPDATA%\Delcado) are moved'
+        Write-Host '  - window layout and editor preferences (registry: HKCU\Software\Lighting Studio) are deleted'
+        Write-Host '  - your own files and the backup of unsaved changes (%LOCALAPPDATA%\Lighting Studio) are moved'
         Write-Host "    to $([Environment]::GetFolderPath('UserProfile'))\Lighting Studio - Backup - <date>"
         Write-Host 'Projects you saved anywhere else are not touched.'
         $RemoveUserData = (Read-Host 'Remove this personal editor data? [y/N]') -match '^(y|j)'

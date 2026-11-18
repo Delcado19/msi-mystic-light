@@ -75,8 +75,12 @@ private slots:
  void reopenReinitializesOutputs();
  void unprobedEndpointStaysClosed();
  void hungScanIsAbandoned();
+ void projectEditKeepsRunningOutput();
+ void scopeChangeReopensAfterOneScan();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
+ void continuousEditsStreamToService();
+ void canvasDragStreamsBeforeRelease();
 };
 void ServiceTest::protocolBounds(){
     const auto encoded=StudioService::encode(cmd("status"));QCOMPARE(qFromBigEndian<quint32>(encoded.constData()),quint32(encoded.size()-4));
@@ -271,6 +275,56 @@ void ServiceTest::persistedPauseAndReconnect() {
     ServiceRuntime restored({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QCOMPARE(restored.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Paused"));
 }
+// Owner report 2026-11-17: dragging a component updated the lights only seconds later, because
+// every project edit closed all outputs until the next scan reopened them.
+void ServiceTest::projectEditKeepsRunningOutput() try {
+    QTemporaryDir folder;const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);auto record=std::make_shared<Recording>();
+    const auto output=[record,profile](const QVector<OutputFrame>& frames){
+        QVector<OutputConnection> result;for(const auto& frame:frames)result.append({frame,[record,profile]{
+            ModuleRegistry modules;QString error;if(!modules.load(TEST_MODULE_PATH,&error))throw std::runtime_error(error.toStdString());
+            auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
+        },[record]{return record->present.load();}});return result;
+    };
+    auto scans=std::make_shared<int>(0);
+    ServiceRuntime runtime({}, {profile},folder.path(),[profile,scans]{++*scans;return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
+    QVERIFY(runtime.command(project(profile)).value("ok").toBool());QTRY_VERIFY(record->writes>1);QCOMPARE(record->opens.load(),1);
+    // Same endpoint, profile and channel, different placement: the running output continues, and no
+    // hardware scan starts (a drag sends one project per step; owner review 2026-11-17).
+    const int scansBefore=*scans;
+    QVERIFY(runtime.command(project(profile)).value("ok").toBool());
+    const int writes=record->writes;QTRY_VERIFY_WITH_TIMEOUT(record->writes>writes,200);
+    QCOMPARE(record->opens.load(),1);QCOMPARE(*scans,scansBefore);
+    // The 5 s retry scans nothing while every output runs (owner report 2026-11-18, color jumps at rest).
+    QTest::qWait(5600);QCOMPARE(*scans,scansBefore);
+    // Once the output is gone, the retry scans again to reopen it.
+    record->present=false;QTRY_VERIFY_WITH_TIMEOUT(*scans>scansBefore,8000);
+} catch(const std::exception& e){QFAIL(e.what());}
+// Final review 2026-11-17: a project edit that changes a device's output scope (another channel)
+// must reopen that device after one scan, not two, and never report it as hung meanwhile.
+void ServiceTest::scopeChangeReopensAfterOneScan() try {
+    QTemporaryDir folder;const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);auto record=std::make_shared<Recording>();
+    const auto output=[record,profile](const QVector<OutputFrame>& frames){
+        QVector<OutputConnection> result;for(const auto& frame:frames)result.append({frame,[record,profile]{
+            ModuleRegistry modules;QString error;if(!modules.load(TEST_MODULE_PATH,&error))throw std::runtime_error(error.toStdString());
+            auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
+        },[record]{return record->present.load();}});return result;
+    };
+    // Scans are counted, not only opens: two back-to-back scans could also open the output once (CodeRabbit review 2026-11-18).
+    auto scans=std::make_shared<std::atomic_int>(0);
+    ServiceRuntime runtime({}, {profile},folder.path(),[profile,scans]{++*scans;return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
+    runtime.setOutputGuard([](const QStringList&,QString&){return QStringList{};});runtime.setBackgroundScan(true);
+    runtime.command(project(profile),[](const QJsonObject&){});QTRY_COMPARE(record->opens.load(),1);
+    QTRY_COMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Running"));
+    const int scansBefore=scans->load();
+    auto moved=project(profile);auto document=moved["project"].toObject();auto assignments=document["assignments"].toArray();
+    auto first=assignments[0].toObject();first["channelId"]="JARGB2";assignments[0]=first;document["assignments"]=assignments;moved["project"]=document;
+    QJsonObject reply;runtime.command(moved,[&reply](const QJsonObject& r){reply=r;});QVERIFY(reply.value("ok").toBool());
+    // The 5 s retry would be the second scan; one scan must be enough.
+    QTRY_COMPARE_WITH_TIMEOUT(record->opens.load(),2,3000);
+    QTRY_COMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Running"));
+    QCOMPARE(scans->load(),scansBefore+1);
+    QVERIFY(runtime.status().value("outputs").toArray()[0].toObject().value("channel").toString()=="JARGB2");
+} catch(const std::exception& e){QFAIL(e.what());}
 // A scan hung in the driver is given up at its deadline: callers get a reply with an error, no
 // second scan piles up while it hangs, and scanning resumes once it returns (CodeRabbit 2026-11-17).
 void ServiceTest::hungScanIsAbandoned() try {
@@ -345,13 +399,17 @@ void ServiceTest::hungDriverCallKeepsAnswering() try {
     };
     ServiceRuntime runtime({}, {profile},folder.path(),[]{return QVector<ProfileCandidate>{};},output);
     QVERIFY(runtime.command(project(profile)).value("ok").toBool());QTRY_COMPARE(opens->load(),1);
-    // Reloading the project stops the hung worker; the command returns within its bounded wait.
+    // Switching output off stops the hung worker; the command returns within its bounded wait.
+    // (A project edit no longer stops running outputs at all, see projectEditKeepsRunningOutput.)
+    auto off=cmd("output");off["enabled"]=false;auto on=cmd("output");on["enabled"]=true;
     QElapsedTimer timer;timer.start();
-    QVERIFY(runtime.command(project(profile)).value("ok").toBool());
-    QVERIFY2(timer.elapsed()<5000,"project command blocked on the hung worker");
-    // A worker that hung in an earlier call is not waited for again on the next sync.
-    timer.restart();QVERIFY(runtime.command(project(profile)).value("ok").toBool());
-    QVERIFY2(timer.elapsed()<300,"project command waited again for an earlier hung worker");
+    QVERIFY(runtime.command(off).value("ok").toBool());
+    QVERIFY2(timer.elapsed()<5000,"output stop blocked on the hung worker");
+    QVERIFY(runtime.command(on).value("ok").toBool());
+    // A worker that hung in an earlier call is not waited for again on the next stop.
+    timer.restart();QVERIFY(runtime.command(off).value("ok").toBool());
+    QVERIFY2(timer.elapsed()<300,"output stop waited again for an earlier hung worker");
+    QVERIFY(runtime.command(on).value("ok").toBool());
     for(int i=0;i<3;++i)QVERIFY(runtime.command(cmd("scan")).value("ok").toBool());
     QCOMPARE(opens->load(),1); // No second stuck worker on the same endpoint.
     QCOMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Not responding"));
@@ -420,6 +478,48 @@ void ServiceTest::editorSynchronization() {
     window.document().addEmptyLayer();const int before=count("project");
     // A close immediately after an edit must synchronously confirm the last project.
     window.closing();QVERIFY(count("project")>before);
+}
+// Owner review 2026-11-17: during a drag the lights must follow, so edits that never pause still
+// reach the service while they happen, not only after the drag ends.
+void ServiceTest::continuousEditsStreamToService() {
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});
+    auto projects=std::make_shared<std::atomic_int>(0);
+    ServicePanel panel(window,[projects](const QJsonObject& request){
+        if(request.value("op")=="project")++*projects;
+        return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}}};
+    });window.installOutputPanel(&panel);panel.activate();QTest::qWait(200);
+    QElapsedTimer drag;drag.start();
+    while(drag.elapsed()<1000){window.document().addEmptyLayer();QTest::qWait(30);}
+    QVERIFY2(projects->load()>=4,qPrintable(QString::number(projects->load())+" project updates during 1 s of edits"));
+    window.closing();
+}
+// Owner review 2026-11-18: R17 sent the drag only on release, because the canvas keeps a drag out of
+// the document until then. The service must get the moved effect while the button is still down.
+void ServiceTest::canvasDragStreamsBeforeRelease() {
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});
+    window.resize(1200,800);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    struct State{std::mutex mutex;QList<double> centers;};auto state=std::make_shared<State>();
+    ServicePanel panel(window,[state](const QJsonObject& request){
+        if(request.value("op")=="project") {
+            const auto layers=request.value("project").toObject().value("layers").toArray();
+            std::lock_guard<std::mutex> lock(state->mutex);
+            if(!layers.isEmpty())state->centers.append(layers[0].toObject().value("effect").toObject().value("centerX").toDouble());
+        }
+        return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}}};
+    });window.installOutputPanel(&panel);panel.activate();QTest::qWait(200);
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");QVERIFY(canvas->isVisible());
+    window.findChild<QAction*>("create_circle")->trigger();QTest::qWait(50); // Adds and selects it like the menu.
+    const double before=window.document().state().layers[0].center.x();
+    const auto start=canvas->viewportPoint(window.document().state().layers[0].center).toPoint();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,start);
+    for(int step=1;step<=6;++step){QTest::mouseMove(canvas,start+QPoint(step*15,0));QTest::qWait(60);}
+    QTest::qWait(300); // Still pressed: the document holds the old center, the service must not.
+    QCOMPARE(window.document().state().layers[0].center.x(),before);
+    bool streamed=false;{std::lock_guard<std::mutex> lock(state->mutex);for(double center:state->centers)if(center>before+1)streamed=true;}
+    QVERIFY(streamed);
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,start+QPoint(90,0));
+    window.closing();
 }
 
 void ServiceTest::editorRestoresServiceSnapshot() {

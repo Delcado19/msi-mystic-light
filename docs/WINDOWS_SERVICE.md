@@ -209,13 +209,15 @@ LightingStudio service, the `Lighting Studio Editor` logon task, the Start menu 
 Two things are removed only on request (prompt, or `-RemoveUserData` / `-RemovePawnIO`; `-Quiet`
 skips the prompts):
 
-- the owner's editor settings (`HKCU/Software/Delcado/MSI Mystic Light Standalone`) and recovery
-  data (`%LOCALAPPDATA%/Delcado/MSI Mystic Light Standalone`) of the user who starts the
-  uninstaller, deleted with that user's rights and not by the elevated step; a portable copy shares them;
+- the owner's editor settings (`HKCU/Software/Lighting Studio/Editor`), deleted, and the files in
+  `%LOCALAPPDATA%/Lighting Studio/Editor` (recovery data and anything the user saved there), moved to
+  `%USERPROFILE%/Lighting Studio - Backup - yyyy_MM_dd`. Both happen with the rights of the user who
+  starts the uninstaller, not in the elevated step; a portable copy shares them;
 - the PawnIO driver, through PawnIO's own registered `uninstall.exe -uninstall -silent`. It is
   shared: OpenRGB, Fan Control, LibreHardwareMonitor and ZenTimings use it too.
 
-Saved project files are never deleted. Steps that fail are listed and the script exits non-zero.
+Saved project files are never deleted. The uninstaller refuses to start while the editor runs, so its
+own Save/Discard prompt is never skipped. Steps that fail are listed and the script exits non-zero.
 The removal is covered by a parse/WhatIf test only; it has not been run against a real
 installation yet.
 

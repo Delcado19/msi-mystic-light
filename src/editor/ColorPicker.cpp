@@ -107,8 +107,9 @@ public:
     void done(int result) override {if(sampling){hide();return;}finished=true;QDialog::done(result);}
     void hideEvent(QHideEvent* event) override {
         QDialog::hideEvent(event);
-        // Clicking outside a popup is Cancel, including restoration of live preview.
-        if(!finished && !sampling)done(QDialog::Rejected);
+        // Clicking outside keeps the chosen color; only Cancel and Escape restore the original
+        // (owner decision 2026-11-18, as planned for R16).
+        if(!finished && !sampling)done(QDialog::Accepted);
     }
 };
 }
@@ -148,10 +149,20 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
     };
     const auto fromHsv=[=] {(*update)(QColor::fromHsv(square->hue,square->saturation,square->brightness));};
     square->changed=[=](int,int){fromHsv();};
-    QObject::connect(hue,&QSlider::valueChanged,popup,[=](int value){square->hue=value;fromHsv();});
+    // Hue alone cannot tint an achromatic color: a stop added between complementary colors
+    // interpolates to gray, and the slider then changed nothing (owner report 2026-11-17). Picking a
+    // hue on gray or black therefore also gives it full saturation and visible brightness.
+    const auto tintIfAchromatic=[=] {
+        if(square->saturation==0)square->saturation=255;
+        if(square->brightness==0)square->brightness=255;
+    };
+    QObject::connect(hue,&QSlider::valueChanged,popup,[=](int value){square->hue=value;tintIfAchromatic();fromHsv();});
+    // Clicking the handle where it already is (0 degrees on a fresh gray stop) selects that hue without
+    // a value change; it must tint the stop too (CodeRabbit review 2026-11-18).
+    QObject::connect(hue,&QSlider::sliderReleased,popup,[=]{if(square->saturation==0 || square->brightness==0){square->hue=hue->value();tintIfAchromatic();fromHsv();}});
     for(int i=0;i<3;++i) {
         QObject::connect(hsv[i],&QSpinBox::valueChanged,popup,[=](int value) {
-            if(i==0)square->hue=value%360;else if(i==1)square->saturation=qRound(value*255./100);else square->brightness=qRound(value*255./100);fromHsv();
+            if(i==0){square->hue=value%360;tintIfAchromatic();}else if(i==1)square->saturation=qRound(value*255./100);else square->brightness=qRound(value*255./100);fromHsv();
         });
         QObject::connect(rgb[i],&QSpinBox::valueChanged,popup,[=](int) {(*update)(QColor(rgb[0]->value(),rgb[1]->value(),rgb[2]->value()));});
     }
@@ -206,12 +217,18 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
     });
     auto* buttons=new QDialogButtonBox(QDialogButtonBox::Apply|QDialogButtonBox::Cancel);stack->addWidget(buttons);
     QObject::connect(buttons->button(QDialogButtonBox::Apply),&QPushButton::clicked,popup,&QDialog::accept);
+    // Return in a number or hex field clicked the first auto-default button, the swatch of the original
+    // color, and undid the typed value (found by the CodeRabbit-requested typing test, 2026-11-18).
+    // Return now applies, like the dialog's Apply button.
+    for(auto* button:popup->findChildren<QPushButton*>())button->setAutoDefault(false);
+    buttons->button(QDialogButtonBox::Apply)->setDefault(true);
     QObject::connect(buttons,&QDialogButtonBox::rejected,popup,&QDialog::reject);
     // Initialization must not create a document edit or an undo command.
     {const QSignalBlocker block(editor);(*update)(original);}
     QObject::connect(popup,&QDialog::finished,editor,[=](int result) {
         if(result!=QDialog::Accepted){const bool changed=editor->color()!=original;editor->setColor(original);if(changed)emit editor->colorChanged(original);}
-        else {auto recent=QSettings().value("editor/recentColors").toStringList();recent.removeAll(editor->color().name());recent.prepend(editor->color().name());QSettings().setValue("editor/recentColors",recent.mid(0,8));}
+        // An outside click without a change is accepted too; it must not push the unchanged color into the recents.
+        else if(editor->color()!=original) {auto recent=QSettings().value("editor/recentColors").toStringList();recent.removeAll(editor->color().name());recent.prepend(editor->color().name());QSettings().setValue("editor/recentColors",recent.mid(0,8));}
         if(popup->gestureBegun)emit editor->gestureFinished(result==QDialog::Accepted && editor->color()!=original);
         editor->setFocus();
     });

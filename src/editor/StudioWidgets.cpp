@@ -356,6 +356,12 @@ QIcon studioToolIcon(const QString& name)
         painter.drawLine(5,19,16,8);painter.drawLine(8,22,19,11);painter.drawLine(5,19,4,23);painter.drawLine(4,23,8,22);painter.drawLine(13,5,22,14);painter.drawEllipse(QRectF(16,2,6,6));
     }
     else if(name=="add") {painter.drawLine(12,4,12,20);painter.drawLine(4,12,20,12);}
+    // Effect library: a large and a small sparkle, read as "add an effect" rather than a bare plus.
+    else if(name=="add-effect") {
+        painter.setBrush(QColor("#e0e8fc"));
+        painter.drawPolygon(QPolygonF{QPointF(10,2),QPointF(12.2,8.8),QPointF(19,11),QPointF(12.2,13.2),QPointF(10,20),QPointF(7.8,13.2),QPointF(1,11),QPointF(7.8,8.8)});
+        painter.drawPolygon(QPolygonF{QPointF(19,14),QPointF(20,17),QPointF(23,18),QPointF(20,19),QPointF(19,22),QPointF(18,19),QPointF(15,18),QPointF(18,17)});
+    }
     else if(name=="sources") { painter.drawRect(QRectF(3,6,12,14));painter.drawLine(6,3,18,3);painter.drawLine(18,3,18,11);painter.drawLine(15,15,23,15);painter.drawLine(19,11,19,19); }
     else if(name=="gradient") { QLinearGradient gradient(4,12,20,12); gradient.setColorAt(0,Qt::white); gradient.setColorAt(1,QColor("#414957")); painter.setBrush(gradient); painter.drawRect(QRectF(3,5,18,14)); }
     else if(name=="fill") { QPolygonF bucket; bucket<<QPointF(5,10)<<QPointF(12,3)<<QPointF(20,11)<<QPointF(12,19); painter.drawPolygon(bucket); painter.drawLine(4,10,14,10); painter.drawLine(19,15,21,20); }

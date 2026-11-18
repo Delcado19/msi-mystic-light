@@ -2,6 +2,7 @@
 #include "protocol/MsiProtocol.h"
 #include <QTimer>
 #include <QtTest>
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -108,7 +109,46 @@ private slots:
     void cancelFactoryAndRestart();
     void faultsAndExplicitReconnect();
     void destruction();
+    void slowPresenceCheckKeepsWriting();
 };
+
+// Owner report 2026-11-18: a 112-453 ms presence check ran between two writes once a second and
+// froze the LEDs that long. Writes continue while it runs, a write failure faults the output even
+// while the check hangs, and a failed check still faults the output (CodeRabbit review 2026-11-18).
+void SchedulerTest::slowPresenceCheckKeepsWriting()
+{
+    struct Gate { std::mutex mutex; std::condition_variable wake; bool open = false; int entered = 0; bool result = true; };
+    const auto gate = std::make_shared<Gate>();
+    struct Opener { std::shared_ptr<Gate> gate; ~Opener() { { const std::lock_guard<std::mutex> lock(gate->mutex); gate->open = true; } gate->wake.notify_all(); } } opener{gate};
+    const auto entered = [gate] { const std::lock_guard<std::mutex> lock(gate->mutex); return gate->entered; };
+    const auto present = [gate] {
+        std::unique_lock<std::mutex> lock(gate->mutex); ++gate->entered;
+        gate->wake.wait(lock, [&] { return gate->open; }); return gate->result;
+    };
+    {
+        auto record = std::make_shared<Record>(); ReleaseGate release{record};
+        OutputScheduler scheduler;
+        const auto generation = scheduler.start(factory(record), present);
+        QVERIFY(scheduler.submit(generation, frame(1))); QTRY_COMPARE(record->writes(), 3);
+        QTRY_VERIFY_WITH_TIMEOUT(entered() == 1, 3000);
+        // The check is blocked now; a fresh frame still reaches the transport.
+        QVERIFY(scheduler.submit(generation, frame(2))); QTRY_VERIFY_WITH_TIMEOUT(record->writes() > 3, 1000);
+        // A failing write ends the output although the check still hangs.
+        { const std::lock_guard<std::mutex> lock(record->mutex); record->failAt = int(record->reports.size()) + 1; }
+        QVERIFY(scheduler.submit(generation, frame(3)));
+        QTRY_COMPARE_WITH_TIMEOUT(scheduler.status().state, OutputScheduler::State::Faulted, 1000);
+        QCOMPARE(entered(), 1); assertClosedOnWorker(record);
+    }
+    auto record = std::make_shared<Record>(); ReleaseGate release{record};
+    { const std::lock_guard<std::mutex> lock(gate->mutex); gate->open = true; gate->result = false; }
+    gate->wake.notify_all();
+    OutputScheduler scheduler;
+    const auto generation = scheduler.start(factory(record), present);
+    QVERIFY(scheduler.submit(generation, frame(4)));
+    QTRY_COMPARE_WITH_TIMEOUT(scheduler.status().state, OutputScheduler::State::Faulted, 4000);
+    QCOMPARE(scheduler.status().error, QString("Selected endpoint disappeared or changed identity"));
+    assertClosedOnWorker(record);
+}
 
 void SchedulerTest::latestWhileStarting()
 {

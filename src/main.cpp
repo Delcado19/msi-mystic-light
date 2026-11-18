@@ -19,6 +19,9 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
+#include <QIcon>
+#include <QImage>
+#include <QPixmap>
 #include <QStyle>
 #include <QLockFile>
 #include "editor/AppSession.h"
@@ -43,14 +46,28 @@ public:
         return false;
     }
 };
+// The tray showed a generic computer icon named "MSI Mystic Light" (owner report 2026-11-18). The
+// executable's own icon (src/app.rc, IDI_ICON1) is read directly: no ICO image plugin is deployed.
+QIcon applicationIcon() {
+    QIcon icon;
+    for(const int size:{16,24,32,48})
+        if(auto* handle=static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr),L"IDI_ICON1",IMAGE_ICON,size,size,LR_DEFAULTCOLOR))) {
+            icon.addPixmap(QPixmap::fromImage(QImage::fromHICON(handle)));DestroyIcon(handle);
+        }
+    return icon;
+}
 }
 #endif
 
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
-    app.setOrganizationName("Delcado");
-    app.setApplicationName("MSI Mystic Light Standalone");
+    // Product name since 2026-11-18 (owner review): settings live in HKCU\Software\Lighting Studio\Editor
+    // and session data in %LOCALAPPDATA%\Lighting Studio\Editor. Data under the old names
+    // ("Delcado\MSI Mystic Light Standalone") is not migrated; the owner reinstalled.
+    // Uninstall-LightingStudio.ps1 uses the same names.
+    app.setOrganizationName("Lighting Studio");
+    app.setApplicationName("Editor");
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addOption({"module-dir", "Load trusted local driver modules from this directory.", "directory",
@@ -154,8 +171,13 @@ int main(int argc, char** argv)
     // The tray icon appears as soon as this instance owns the lock (owner report 2026-11-17): the
     // conflict scan below blocks for seconds, and a second start meanwhile said "Open it from the tray"
     // while no icon existed yet. Its menu is attached once the window exists.
-    QSystemTrayIcon tray(app.style()->standardIcon(QStyle::SP_ComputerIcon));
-    tray.setToolTip("MSI Mystic Light - starting...");
+    QIcon trayIcon;
+#ifdef Q_OS_WIN
+    trayIcon=applicationIcon();
+#endif
+    if(trayIcon.isNull())trayIcon=app.style()->standardIcon(QStyle::SP_ComputerIcon);
+    QSystemTrayIcon tray(trayIcon);
+    tray.setToolTip("Lighting Studio - starting...");
     if(QSystemTrayIcon::isSystemTrayAvailable())tray.show();
     // Opening the editor means "Lighting Studio controls the lighting now", so conflicts are offered
     // for stopping in the installed mode too (owner decision 2026-11-16); there the service stops them.
@@ -193,7 +215,7 @@ int main(int argc, char** argv)
 #endif
     }
     auto* view=window.findChild<QMenu*>("workspaceViewMenu");
-    tray.setToolTip("MSI Mystic Light");
+    tray.setToolTip("Lighting Studio");
     auto* trayMenu=new QMenu(&window);
     // Installed editors usually live in the tray since logon; opening the window is the deliberate start.
     // The dialog's nested event loop can deliver another tray double-click; never open a second dialog.

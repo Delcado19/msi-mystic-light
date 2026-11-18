@@ -4,6 +4,57 @@ Single maintainer, so no `dev` branch. Every feature gets its own branch and rea
 through a PR once CI and review pass. A hardware-tested `master` state gets a tag and GitHub
 release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `master`.
 
+## Editor fixes and menu cleanup, R16 - 2026-11-17
+
+Branch fix/editor-menu-cleanup (off fix/service-responsive-conflict-stop), plan
+docs/superpowers/plans/2026-11-17-editor-fixes-and-menu-cleanup.md. Gray color stop: complementary
+neighbors interpolate to gray and the hue slider could not tint it; hue now adds saturation.
+Project edits keep running outputs (drag updated the lights only after a scan). Save/Undo work in
+Devices; canvas edits disabled there; Add layer removed from Edit and Tools; output status is a
+traffic light (green active, gray idle, red errors). Effect library sorted, Images heading, sparkle
+button. Portable start = msi_mystic_light.exe. Untested on HW.
+TODO: effect previews in the library. TODO: operating-concept redesign (hardware cards per header
+like SignalRGB, duplicate/remove/pulse per component, custom strip by LED count, component lab);
+needs a spec via brainstorming first.
+
+## TODO: R16 owner review, half missing - 2026-11-17
+
+Owner tested R16 and rejected it as incomplete:
+- No real-time preview while dragging: lights still do not follow the drag live (R16 claimed the
+  output keeps running on project edits; that did not fix the visible latency).
+- Tools menu is still visible and enabled in the Devices workspace.
+- Effect library: bold category headings do not make it clearer; needs a different grouping.
+
+R17 (2026-11-18, untested on HW): Tools menu hidden in Devices. Drag latency had two causes: the
+editor sent a project only after 200 ms without edits and at most once per status interval (1 s),
+so nothing left during a drag; and every project started a ~6.5 s hardware scan. Now edits stream
+(one in flight, at most every 80 ms) and a project whose scopes all run already skips the scan.
+R17 package: Downloads/LightingStudio-local-r17.zip (GS-06-R17).
+Effect library: categories are submenus (sorted) in the add-effect button and again under
+Tools > Add effect (R16 had wrongly dropped it from Tools); the flat list shows only while searching.
+
+R20 (2026-11-18, untested on HW, package Downloads/LightingStudio-local-r20.zip): the R19 log proved
+the cause: 15,888 presence-check stalls of 112-453 ms (avg 149 ms) in 45 min, about one per second
+per output; stage and write never exceeded 50 ms. The presence check now runs on its own thread per
+scheduler and only reports its verdict. The warning log restarts past 1 MB instead of going silent.
+
+R19 (2026-11-18, package Downloads/LightingStudio-local-r19.zip): owner confirmed R18
+drag streaming works, but reports subtle color jumps with the editor closed (smooth, then a hard step).
+Plasma is continuous in time, so the LEDs likely stall and then catch up. The owner's slow-motion clip
+could not show it: its freezes are duplicate camera frames (background froze at the same 45 frames).
+Candidates: the 5 s retry scanned the USB bus although all outputs ran (now skipped while all run),
+and the 1 s presence check (HID enumerate + board identity + auxiliary scan) runs on the output worker
+between writes. Presence, stage and write calls over 50 ms are now logged to
+C:\ProgramData\LightingStudio\service-warnings.log (elevated shell needed). Next: read that log.
+
+R18 (2026-11-18, untested on HW, package Downloads/LightingStudio-local-r18.zip): R17 sent a drag
+only on release because the canvas keeps a gesture out of the document until then; the canvas now
+exposes its working state and the service panel streams it. Menus follow the toolbar per view:
+Components lists only Move/Pan under Tools; Devices hides Tools, Preview, canvas/align/view-mode
+submenus, panels, split preview and the canvas edits.
+Open as well: push/PR of fix/editor-menu-cleanup (local only), CodeRabbit review of R15 (paused),
+delete .claude/settings.local.json.impeccable-backup (owner decision).
+
 ## CodeRabbit round 2 fixes, R12 - 2026-11-17
 
 R11 HW-confirmed by owner: dialog lists SignalRGB, Terminate all stops it, Vulcan no longer flickers.

@@ -1,6 +1,7 @@
 #include "ServicePanel.h"
 #include "ServiceProtocol.h"
 #include "startup/ConflictDialog.h"
+#include "editor/LightingCanvas.h"
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDoubleSpinBox>
@@ -131,7 +132,10 @@ ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_
     outputs_->header()->setSectionResizeMode(0,QHeaderView::Stretch);
     outputs_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
     outputs_->header()->setSectionResizeMode(2,QHeaderView::ResizeToContents);layout->addWidget(outputs_,1);
-    connect(&window_.document(),&LightingDocument::changed,this,[this]{if(active_ && !restoring_){dirty_=true;changedAt_=QDateTime::currentMSecsSinceEpoch();}});
+    connect(&window_.document(),&LightingDocument::changed,this,[this]{if(active_ && !restoring_)dirty_=true;});
+    // A drag changes the document only on release; its working state streams meanwhile (owner review 2026-11-18).
+    for(auto* canvas:window_.findChildren<LightingCanvas*>())
+        connect(canvas,&LightingCanvas::workingStateChanged,this,[this]{if(active_ && !restoring_)dirty_=true;});
     connect(window_.findChild<QPushButton*>("playPreview"),&QPushButton::toggled,this,[this]{if(ready_)clockDirty_=true;});
     // Clock value changes during normal playback need no IPC; the service advances its own clock.
     connect(window_.findChild<QDoubleSpinBox*>("previewTime"),&QDoubleSpinBox::editingFinished,this,[this]{if(ready_)clockDirty_=true;});
@@ -153,7 +157,9 @@ bool ServicePanel::send(QJsonObject c) {
 }
 QJsonObject ServicePanel::project() {
     QTemporaryDir folder;if(!folder.isValid())throw std::runtime_error("Cannot stage editor project");
-    const auto path=folder.path()+"/project.json";window_.document().save(path,false);
+    std::optional<LightingState> live;
+    for(auto* canvas:window_.findChildren<LightingCanvas*>())if(!live)live=canvas->workingState();
+    const auto path=folder.path()+"/project.json";window_.document().save(path,false,live ? &*live : nullptr);
     QFile input(path);if(!input.open(QIODevice::ReadOnly))throw std::runtime_error("Cannot read staged editor project");
     auto result=command("project");result["project"]=StudioService::decode(input.readAll());
     // The service applies the snapshot's enabled flag, so an unconfirmed Stop/Resume must win over the
@@ -176,7 +182,8 @@ void ServicePanel::display(const QJsonObject& reply) {
     }
     messages.removeDuplicates();
     status_->setText(messages.isEmpty()?"Service connected. Playback continues when the editor closes.":messages.join("\n"));
-    window_.setOutputState(QString("%1 active / %2 configured / %3 errors").arg(running).arg(outputs_->topLevelItemCount()).arg(errors+(!error.isEmpty()?1:0)));
+    // A service-wide error counts as an error but is no faulted channel: idle channels stay idle (CodeRabbit review 2026-11-18).
+    window_.setOutputState(QString("%1 active / %2 configured / %3 errors / %4 faulted").arg(running).arg(outputs_->topLevelItemCount()).arg(errors+(!error.isEmpty()?1:0)).arg(errors));
 }
 void ServicePanel::poll() {
     if(!active_)return;
@@ -210,8 +217,11 @@ void ServicePanel::poll() {
     }
     const auto now=QDateTime::currentMSecsSinceEpoch();QJsonObject next;
     if(!commands_.isEmpty())next=commands_.takeFirst();
-    else if(ready_ && dirty_ && now>=nextPoll_ && now-changedAt_>=200) {
-        try{next=project();dirty_=false;clockDirty_=false;}
+    // Edits stream while they happen, one in flight at a time and at most every 80 ms. Waiting for
+    // 200 ms of quiet plus the 1 s status interval sent nothing during a drag (owner review 2026-11-17).
+    else if(ready_ && dirty_ && now-projectSentAt_>=80) {
+        // Measured from dispatch, after staging: a slow staging must not shorten the next gap (CodeRabbit review 2026-11-18).
+        try{next=project();dirty_=false;clockDirty_=false;projectSentAt_=QDateTime::currentMSecsSinceEpoch();}
         catch(const std::exception& e){status_->setText(QString::fromUtf8(e.what()));dirty_=false;return;}
     } else if(ready_ && clockDirty_) {
         next=command("playback");next["playing"]=window_.findChild<QPushButton*>("playPreview")->isChecked();next["seconds"]=window_.previewSeconds();clockDirty_=false;

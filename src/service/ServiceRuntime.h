@@ -38,7 +38,8 @@ public:
     // the Roccat Vulcan flickered until a project change reopened it (cause inferred, not proven).
     void reopenOutputs() { reopen_.start(); }
 private:
-    void loadBundle(const QJsonObject& bundle,bool persist);
+    // Returns true when output is enabled and every scope of the new project already has a running output.
+    bool loadBundle(const QJsonObject& bundle,bool persist);
     void persist();
     void tick();
     // probed: endpoints the guard checked in this scan; with a guard only those may be newly opened.
@@ -55,6 +56,7 @@ private:
     struct ScanMailbox { std::mutex mutex; ServiceRuntime* owner=nullptr; std::atomic_bool finished{false}; };
     void applyScan(const ScanResult& result);
     void stopConnections();
+    void retireAndWait(const std::function<bool(int)>& unwanted); // Retire matching connections, bounded wait.
     // A worker can hang inside a driver call without timeout (dump 2026-11-17: hidapi's
     // HidD_GetSerialNumberString on the MSI controller 0DB0:0076 never returned, and the main thread
     // joined it forever, so the pipe stopped answering). Stopped workers are therefore never joined on
@@ -62,6 +64,7 @@ private:
     void retire(int index);
     void reap();
     bool retiring(const QString& endpoint) const;
+    bool outputsRunning() const; // Every wanted output scope has a Running worker.
     double seconds() const;
     QString directory_, error_;
     ComponentCatalog catalog_;

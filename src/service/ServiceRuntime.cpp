@@ -27,7 +27,9 @@ ServiceRuntime::ServiceRuntime(ComponentCatalog catalog,QVector<DeviceProfile> p
         loadBundle(StudioService::decode(saved.readAll()),false);
     } catch(const std::exception& e) {error_=QString("Saved project rejected: ")+e.what();enabled_=false;}
     render_.setInterval(33);render_.setTimerType(Qt::PreciseTimer);QObject::connect(&render_,&QTimer::timeout,this,[this]{tick();});render_.start();
-    retry_.setInterval(5000);QObject::connect(&retry_,&QTimer::timeout,this,[this]{reconnect();});retry_.start();
+    // The retry reopens missing or faulted outputs. While every output runs, a scan only enumerated the USB
+    // bus beside the 33 ms writes; it is skipped then (owner report 2026-11-18, color jumps at rest).
+    retry_.setInterval(5000);QObject::connect(&retry_,&QTimer::timeout,this,[this]{if(!outputsRunning())reconnect();});retry_.start();
     // A normal scan takes ~6.5 s. 12 s stays below the editor's 15 s request timeout, so a caller
     // receives the "did not finish" reply instead of timing out (owner decision 2026-11-17).
     scanDeadline_.setSingleShot(true);scanDeadline_.setInterval(12000);
@@ -41,7 +43,7 @@ double ServiceRuntime::seconds() const {
     // Keep the document's bounded clock while allowing a service to animate beyond one day.
     return playing_ && !suspended_ ? std::fmod(time,86400.0):time;
 }
-void ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
+bool ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     if(!bundle.value("project").isObject() || !bundle.value("enabled").isBool() || !bundle.value("playing").isBool() || !bundle.value("seconds").isDouble())
         throw std::invalid_argument("Project, enabled, playing and seconds are required");
     const double time=bundle.value("seconds").toDouble();if(!std::isfinite(time)||time<0||time>86400)throw std::invalid_argument("Invalid playback time");
@@ -62,8 +64,33 @@ void ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     }
     auto saved=bundle;QJsonArray pausedJson;for(const auto& entry:paused)pausedJson.append(entry);saved["paused"]=pausedJson;
     if(save)writeFile(directory_+"/playback.json",StudioService::encode(saved).mid(4));
-    stopConnections();document_=std::move(candidate);project_=bundle.value("project").toObject();
+    // Running outputs whose scope is unchanged stay open: tick() matches frames to connections by
+    // output scope. Closing all of them froze the lights for a whole scan on every drag (owner report
+    // 2026-11-17). Changed scopes, and everything when output is disabled, are released right here.
+    const auto keep=bundle.value("enabled").toBool() ? frames : QVector<OutputFrame>{}; // Same shape as scopes_.
+    retireAndWait([&](int i){return std::none_of(keep.cbegin(),keep.cend(),[&](const OutputFrame& frame){return sameOutputScope(scopes_[i],frame);});});
+    document_=std::move(candidate);project_=bundle.value("project").toObject();
     enabled_=bundle.value("enabled").toBool();playing_=bundle.value("playing").toBool();offset_=time;clock_.restart();paused_=paused;error_.clear();
+    // Only a worker that is opening or running makes discovery unnecessary; a Faulted one needs the
+    // scan now, not at the next 5 s retry (CodeRabbit review 2026-11-18).
+    return enabled_ && std::all_of(keep.cbegin(),keep.cend(),[this](const OutputFrame& frame){
+        for(int i=0;i<scopes_.size();++i)if(sameOutputScope(scopes_[i],frame)) {
+            const auto state=connections_[i]->status().state;
+            if(state==OutputScheduler::State::Starting || state==OutputScheduler::State::Running)return true;
+        }
+        return false;
+    });
+}
+bool ServiceRuntime::outputsRunning() const {
+    if(!enabled_ || suspended_ || connections_.empty())return false;
+    try {
+        const auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
+        return std::all_of(frames.cbegin(),frames.cend(),[this](const OutputFrame& frame){
+            for(int i=0;i<scopes_.size();++i)
+                if(sameOutputScope(scopes_[i],frame) && connections_[i]->status().state==OutputScheduler::State::Running)return true;
+            return false;
+        });
+    } catch(const std::exception&) {return false;}
 }
 void ServiceRuntime::persist() {
     if(project_.isEmpty())return;
@@ -86,11 +113,16 @@ bool ServiceRuntime::retiring(const QString& endpoint) const {
     return std::any_of(retired_.cbegin(),retired_.cend(),[&](const Retired& retired){return retired.endpoint==endpoint;});
 }
 void ServiceRuntime::stopConnections() {
+    retireAndWait([](int){return true;});
+}
+void ServiceRuntime::retireAndWait(const std::function<bool(int)>& unwanted) {
     std::vector<const OutputScheduler*> stopped;
-    while(!connections_.empty()) {stopped.push_back(connections_.back().get());retire(int(connections_.size())-1);}
-    // A healthy worker ends within one HID write; give the ones stopped here one bounded second so an
-    // immediate reconnect (project load, resume) can reopen their endpoints. Workers that hung in an
-    // earlier call are not waited for again, or every project sync would freeze rendering for 1 s.
+    for(int i=int(connections_.size())-1;i>=0;--i)if(unwanted(i)) {stopped.push_back(connections_[i].get());retire(i);}
+    // A healthy worker ends within one HID write; give the ones stopped here one bounded second so the
+    // same scan (or an immediate reconnect) can reopen their endpoints. Without the wait a retired
+    // worker was still Stopping at reap(), its endpoint counted as held and reopened two scans late
+    // (final review 2026-11-17). Workers that hung in an earlier call are not waited for again, or
+    // every project sync would freeze rendering for 1 s.
     const auto pending=[&] {return std::any_of(retired_.cbegin(),retired_.cend(),[&](const Retired& retired) {
         return std::find(stopped.cbegin(),stopped.cend(),retired.scheduler.get())!=stopped.cend();});};
     QElapsedTimer waited;waited.start();
@@ -217,13 +249,11 @@ void ServiceRuntime::applyScan(const ScanResult& result) {
         auto frames=prepareOutput(*document_,document_->render(seconds()),seconds());
         frames.removeIf([&](const OutputFrame& frame){return result.blocked.contains(frame.endpoint);});
         // Offline saved endpoints are omitted by connect_; retry them without resetting healthy hardware.
-        for(int i=int(connections_.size())-1;i>=0;--i) {
+        retireAndWait([&](int i) {
             const auto state=connections_[i]->status().state;
             const bool wanted=std::any_of(frames.cbegin(),frames.cend(),[&](const auto& frame){return sameOutputScope(scopes_[i],frame);});
-            if(wanted && (state==OutputScheduler::State::Starting || state==OutputScheduler::State::Running))continue;
-            retire(i);
-        }
-        reap();
+            return !wanted || (state!=OutputScheduler::State::Starting && state!=OutputScheduler::State::Running);
+        });
         // An endpoint whose old worker is still alive is not reopened: a hung driver call would only
         // gain a second stuck worker on every retry.
         QVector<OutputFrame> missing;
@@ -281,7 +311,9 @@ void ServiceRuntime::command(const QJsonObject& request,const Reply& reply) {
         // The project is saved and loaded at once; its reply need not wait for the hardware scan,
         // which could exceed the editor's 15 s deadline and trigger a needless resend (CodeRabbit
         // review 2026-11-16). A fresh scan still runs; the editor's status poll shows its result.
-        if(op=="project") {loadBundle(request,true);reconnect([]{});}
+        // A project whose scopes all run already needs no discovery: a drag sends one project per step,
+        // and each started a ~6.5 s hardware scan (owner review 2026-11-17, no live drag preview).
+        if(op=="project") {if(!loadBundle(request,true))reconnect([]{});}
         else if(op=="scan")rescan=true;
         else if(op=="playback") {
             if(!request.value("playing").isBool() || !request.value("seconds").isDouble())throw std::invalid_argument("Invalid playback command");

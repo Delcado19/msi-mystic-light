@@ -9,7 +9,9 @@
 #include <QCommandLineParser>
 #include <QCryptographicHash>
 #include <QFile>
+#include <QDateTime>
 #include <QDir>
+#include <mutex>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QTextStream>
@@ -50,6 +52,23 @@ QString knownFolder(REFKNOWNFOLDERID id) {
     const auto result=QString::fromWCharArray(value);CoTaskMemFree(value);return result;
 }
 #endif
+// Warnings of the installed service (output stall timings, 2026-11-18) go to a capped log in the
+// protected state directory; reading it needs an elevated shell.
+// Messages the log does not take, or cannot write, still reach Qt's previous sink (CodeRabbit review 2026-11-18).
+// The log is written on the calling thread: warnings come only after an output call already took over
+// 50 ms, so one short append adds little to a gap that already happened.
+QString warningLog;
+QtMessageHandler previousHandler=nullptr;
+void logWarning(QtMsgType type,const QMessageLogContext& context,const QString& message) {
+    const auto forward=[&]{if(previousHandler)previousHandler(type,context,message);};
+    if(type==QtDebugMsg || type==QtInfoMsg || warningLog.isEmpty()){forward();return;}
+    static std::mutex mutex;const std::lock_guard<std::mutex> lock(mutex);
+    QFile log(warningLog);
+    // Start over past 1 MB: a full log must not hide what happens after a fix.
+    if(!log.open(log.size()>1024*1024 ? QIODevice::WriteOnly|QIODevice::Truncate|QIODevice::Text : QIODevice::Append|QIODevice::Text)){forward();return;}
+    const auto line=(QDateTime::currentDateTime().toString(Qt::ISODateWithMs)+" "+message+"\n").toUtf8();
+    if(log.write(line)!=line.size() || !log.flush())forward();
+}
 QJsonObject readJson(const QString& path) {
     QFile file(path);if(!file.open(QIODevice::ReadOnly) || file.size()>StudioService::maximumMessage)throw std::runtime_error(("Cannot read "+path).toStdString());
     return StudioService::decode(file.readAll());
@@ -92,6 +111,7 @@ int run(int argc,char** argv,bool managed) {
         config=readJson(root+"/service.json");verifyInstall(root,config);owner=config.value("ownerSid").toString();
 #ifdef Q_OS_WIN
         directory=knownFolder(FOLDERID_ProgramData)+"/LightingStudio";
+        warningLog=directory+"/service-warnings.log";previousHandler=qInstallMessageHandler(logWarning);
 #endif
     } else {directory=parser.value("state-dir");owner=parser.value("owner");if(owner.isEmpty())owner=StudioService::currentUserSid();}
     if(directory.isEmpty() || !owner.startsWith("S-1-"))throw std::runtime_error("Service installation is incomplete");

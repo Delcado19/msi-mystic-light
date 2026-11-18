@@ -1,5 +1,6 @@
-﻿#include "editor/ParameterSpinBox.h"
+#include "editor/ParameterSpinBox.h"
 #include <QDialogButtonBox>
+#include <QMenuBar>
 #include <QMenu>
 #include <QColorDialog>
 #include <QVariantAnimation>
@@ -188,6 +189,10 @@ private slots:
     void globalColorControls();
     void integerDisplayRoundTrip();
     void liveColorPicker();
+    void hueSliderColorizesGrayStop();
+    void pickerApplyKeepsEveryInputPath();
+    void menusFollowWorkspace();
+    void effectLibraryCategorized();
     void hueTrackRetainsSpectrum();
     void screenEyedropperGeometry();
     void auditWorkspace();
@@ -4198,6 +4203,143 @@ void EditorTest::authoringControlsRegression()
     canvas.setTool(LightingCanvas::Tool::Pan);const auto before=canvas.canvasPoint({300,300});const auto revision=document.revision();
     QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,{300,300});QTest::mouseMove(&canvas,{350,320});QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,{350,320});
     QVERIFY(canvas.canvasPoint({300,300})!=before);QCOMPARE(document.revision(),revision);
+}
+
+// Owner report 2026-11-17: a stop added between complementary colors interpolates to gray; moving
+// only the hue slider changed nothing and Apply kept gray. Hue on an achromatic color must show.
+// Owner report 2026-11-17: saving was impossible in Devices, Edit offered commands without effect
+// there, "Add layer" existed twice, and the output link duplicated the Devices button.
+// Owner report 2026-11-17: the effect list looked unsorted, and the "+" with a dropdown arrow did
+// not say what it does.
+void EditorTest::effectLibraryCategorized()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* button=window.findChild<QToolButton*>("sourcesTool");QVERIFY(button);
+    QCOMPARE(button->text(),QString("Add effect"));QVERIFY(button->styleSheet().contains("menu-indicator{image:none"));
+    QVERIFY(button->icon().pixmap(24,24).toImage()!=studioToolIcon("add").pixmap(24,24).toImage());
+    // Owner review 2026-11-17: categories are submenus like the menu bar, in the button and in Tools.
+    const auto submenus=[](QMenu* menu){QList<QMenu*> found;for(auto* entry:menu->actions())if(entry->menu())found.append(entry->menu());return found;};
+    const auto library=submenus(window.findChild<QMenu*>("effectLibraryMenu"));
+    QCOMPARE(library.size(),5);QCOMPARE(submenus(window.findChild<QMenu*>("toolsAddEffectMenu")),library);
+    for(auto* category:library) {
+        QString previous;QVERIFY(!category->actions().isEmpty());
+        for(auto* entry:category->actions()) {
+            QVERIFY2(QString::localeAwareCompare(previous,entry->text())<=0,qPrintable(previous+" > "+entry->text()));previous=entry->text();
+        }
+    }
+    auto* results=window.findChild<QListWidget*>("effectLibraryResults");QVERIFY(results);
+    auto* menu=window.findChild<QMenu*>("effectLibraryMenu");menu->popup(button->mapToGlobal(QPoint(32,0)));QCoreApplication::processEvents();
+    QVERIFY(!results->isVisible()); // No search: browse the submenus.
+    const int browsing=menu->height();
+    window.findChild<QLineEdit*>("effectLibrarySearch")->setText("a");QCoreApplication::processEvents();
+    QVERIFY(results->isVisible());QVERIFY(menu->height()>browsing); // The open menu grows to show the hits.
+    for(int i=0;i<results->count();++i)QVERIFY(!results->item(i)->data(Qt::UserRole).toString().isEmpty()); // No headings.
+    // The hits are exactly the matching effects (CodeRabbit review 2026-11-18).
+    window.findChild<QLineEdit*>("effectLibrarySearch")->setText("plasma");QCoreApplication::processEvents();
+    int shown=0,hidden=0;
+    for(int i=0;i<results->count();++i){auto* item=results->item(i);
+        QCOMPARE(item->isHidden(),!item->text().contains("plasma",Qt::CaseInsensitive));item->isHidden() ? ++hidden : ++shown;}
+    QCOMPARE(shown,1);QVERIFY(hidden>0);QCOMPARE(results->currentItem()->text(),QString("Plasma"));
+    menu->close();
+}
+
+void EditorTest::menusFollowWorkspace()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    const QStringList canvasEdits{"lockSelection","unlockSelection","duplicateSelection","deleteSelection"};
+    // Hardware is attached only in Devices; the Layout canvas menu offers no second entry (owner review 2026-11-18).
+    {auto* layout=window.findChild<LightingCanvas*>("layoutCanvas");window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();bool offered=true;
+     auto c=connect(layout,&LightingCanvas::contextMenuRequested,&window,[&](QMenu* menu,bool object){offered=object || std::any_of(menu->actions().cbegin(),menu->actions().cend(),[](QAction* a){return a->text().startsWith("Add components");});QTimer::singleShot(0,menu,&QMenu::close);});
+     QTest::mouseClick(layout,Qt::RightButton,Qt::NoModifier,QPoint(5,5));QVERIFY(!offered);disconnect(c);}
+    window.findChild<QAction*>("workspaceHardware")->trigger();QCoreApplication::processEvents();
+    for(const auto* name:{"saveProject","saveProjectAs"}) {
+        auto* action=window.findChild<QAction*>(name);QVERIFY2(action->isVisible() && action->isEnabled(),name);
+    }
+    for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
+    auto* toolsMenu=window.findChild<QMenu*>("drawingToolsMenu");QVERIFY(!toolsMenu->menuAction()->isVisible());
+    // Devices has no canvas, so canvas-only entries leave the menus (owner review 2026-11-18).
+    QVERIFY(!window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
+    for(const auto& name:canvasEdits+QStringList{"splitHardwarePreview","resetWorkspace","toggleNavigator"})QVERIFY2(!window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
+    window.findChild<QAction*>("workspaceEditor")->trigger();QCoreApplication::processEvents();
+    QVERIFY(toolsMenu->menuAction()->isVisible());QVERIFY(window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
+    for(const auto& name:canvasEdits)QVERIFY2(window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
+    // Components: the strip offers only Move and Pan, so the Tools menu lists only those.
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(0);QCoreApplication::processEvents();emit toolsMenu->aboutToShow();
+    QVERIFY(window.findChild<QAction*>("choose_moveEffectTool")->isVisible());QVERIFY(window.findChild<QAction*>("choose_panCanvasTool")->isVisible());
+    QVERIFY(!window.findChild<QAction*>("choose_pencilTool")->isVisible());QVERIFY(!window.findChild<QMenu*>("toolsAddEffectMenu")->menuAction()->isVisible());
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(1);QCoreApplication::processEvents();emit toolsMenu->aboutToShow();
+    QVERIFY(window.findChild<QAction*>("choose_pencilTool")->isVisible());QVERIFY(window.findChild<QMenu*>("toolsAddEffectMenu")->menuAction()->isVisible());
+    // Back in Design with nothing selected they still have no effect (final review 2026-11-17).
+    for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
+    // One entry point for new effects: the library button, not a second full menu under Edit.
+    for(auto* top:window.menuBar()->actions())if(top->menu())for(auto* entry:top->menu()->actions())
+        QVERIFY2(entry->menu()!=window.findChild<QMenu*>("addLayerMenu"),qPrintable(top->text()));
+    // Output state is a compact traffic light, not a second way into Devices.
+    window.setOutputState("2 active / 4 configured / 1 errors");
+    auto* status=window.findChild<QLabel*>("toolbarOutputStatus");
+    QVERIFY(!status->text().contains("href"));QVERIFY(status->toolTip().contains("2 active"));
+    QVERIFY(status->text().contains("#3fb950"));QVERIFY(status->text().contains("#f85149"));
+    // A service-wide error with one offline channel: the channel stays counted as idle.
+    window.setOutputState("0 active / 1 configured / 1 errors / 0 faulted");
+    QVERIFY(status->text().contains("#8b949e\">&#9679;</span> 1"));
+}
+
+// Final review 2026-11-17: every picker input path on a newly added stop must survive Apply and
+// reach the stop list, not only the hue slider. (The screen pipette needs a real desktop grab.)
+void EditorTest::pickerApplyKeepsEveryInputPath()
+{
+    enum class Path { Red, Hex, Field, Swatch };
+    for(const auto path:{Path::Red,Path::Hex,Path::Field,Path::Swatch}) {
+        ColorListEditor list(1,8);list.setGradientMode();applyStudioStyle(&list);
+        list.setStops({QColor(Qt::red),QColor(Qt::cyan)},{0,1});list.resize(420,200);list.show();QVERIFY(QTest::qWaitForWindowExposed(&list));
+        list.findChild<QPushButton*>("addColorStop")->click();
+        const int stop=1;QCOMPARE(list.colors().size(),3);
+        QSettings().setValue("editor/recentColors",QStringList{"#00ffff"}); // Swatches come from recent colors.
+        auto* editor=list.findChild<ColorEditor*>("selectedStopColor");editor->findChild<QPushButton*>()->click();
+        auto* popup=editor->findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
+        // Expected colors are independent of the picker's own result (CodeRabbit review 2026-11-18); the
+        // saturation field has no exact target and is checked against gray only.
+        const QColor base=editor->color();QColor expected;
+        if(path==Path::Red){auto* red=popup->findChild<QSpinBox*>("pickerRed");red->setFocus();red->selectAll();
+            // Typed and confirmed with Return, which applies the picker (it used to click the original swatch).
+            QPointer<QDialog> open(popup);QTest::keyClicks(red,"10");QTest::keyClick(red,Qt::Key_Return);
+            QTRY_VERIFY(!open || !open->isVisible());QCOMPARE(list.colors()[stop].name(),QColor(10,base.green(),base.blue()).name());continue;}
+        else if(path==Path::Hex){auto* hex=popup->findChild<QLineEdit*>("pickerHex");hex->setText("#12AB34");emit hex->editingFinished();expected=QColor("#12ab34");}
+        else if(path==Path::Field){auto* field=popup->findChild<QWidget*>("saturationValueField");
+            QTest::mousePress(field,Qt::LeftButton,{},QPoint(field->width()-5,5));QTest::mouseMove(field,QPoint(field->width()-3,4));QTest::mouseRelease(field,Qt::LeftButton,{},QPoint(field->width()-3,4));}
+        else {QPushButton* swatch=nullptr;for(auto* button:popup->findChildren<QPushButton*>())if(button->accessibleName()=="Use #00ffff")swatch=button;QVERIFY(swatch);swatch->click();expected=QColor("#00ffff");}
+        QCoreApplication::processEvents();
+        const QColor chosen=editor->color();QVERIFY2(chosen!=QColor(128,128,128),qPrintable(chosen.name()));
+        if(expected.isValid())QCOMPARE(chosen.name(),expected.name());
+        popup->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();QCoreApplication::processEvents();
+        QCOMPARE(list.colors()[stop],chosen);
+    }
+    // Owner decision 2026-11-18: an outside click (the popup closes itself) keeps the chosen color;
+    // Escape restores the original.
+    for(const bool escape:{false,true}) {
+        ColorListEditor list(1,8);list.setGradientMode();applyStudioStyle(&list);
+        list.setStops({QColor(Qt::red),QColor(Qt::cyan)},{0,1});list.resize(420,200);list.show();QVERIFY(QTest::qWaitForWindowExposed(&list));
+        auto* editor=list.findChild<ColorEditor*>("selectedStopColor");const QColor original=list.colors()[0];
+        editor->findChild<QPushButton*>()->click();QPointer<QDialog> popup=editor->findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
+        auto* hex=popup->findChild<QLineEdit*>("pickerHex");hex->setText("#12AB34");emit hex->editingFinished();
+        if(escape)QTest::keyClick(popup,Qt::Key_Escape);else popup->hide();
+        QTRY_VERIFY(!popup || !popup->isVisible());
+        QCOMPARE(list.colors()[0].name(),escape ? original.name() : QString("#12ab34"));
+    }
+}
+
+void EditorTest::hueSliderColorizesGrayStop()
+{
+    for(const QColor start:{QColor("#808080"),QColor(Qt::black)}) {
+        ColorEditor editor;applyStudioStyle(&editor);editor.setColor(start);editor.resize(400,80);editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));editor.findChild<QPushButton*>()->click();
+        auto* popup=editor.findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
+        popup->findChild<QSlider*>("pickerHue")->setValue(200);QCoreApplication::processEvents();
+        auto* buttons=popup->findChild<QDialogButtonBox*>();QVERIFY(buttons);
+        buttons->button(QDialogButtonBox::Apply)->click();QCoreApplication::processEvents();
+        QVERIFY2(editor.color().hsvSaturation()>0 && editor.color().value()>0,qPrintable(editor.color().name()));
+        QVERIFY(std::abs(editor.color().hsvHue()-200)<=1);
+    }
 }
 
 void EditorTest::hueTrackRetainsSpectrum()

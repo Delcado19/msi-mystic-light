@@ -2,5 +2,24 @@
 reviews:
   auto_review:
     drafts: true
+    # Stacked PRs target another PR's branch; review them automatically too.
+    base_branches:
+      - ".*"
   path_filters:
     - "!graphify-out/**"
+  path_instructions:
+    - path: "src/output/**"
+      instructions: &threads |
+        Flag any call that can block the output worker or the service event loop
+        (HID enumeration, driver calls, file I/O, waits on other threads), including
+        at teardown. Check thread safety of state shared between threads.
+    - path: "src/service/**"
+      instructions: *threads
+    - path: "installer/**"
+      instructions: |
+        Flag any path that can delete user projects or settings. Check behavior
+        under the SYSTEM account and UAC elevation.
+    - path: "src/backends/**"
+      instructions: |
+        Hardware access: check timeouts, driver calls that can hang, and error
+        handling when a device disappears.

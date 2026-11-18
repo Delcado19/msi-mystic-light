@@ -35,6 +35,8 @@ public:
     void select(const QUuid& id);
     void selectMany(const QSet<QUuid>& ids, const QUuid& primary = {});
     QSet<QUuid> selections() const;
+    // selections() skips locked objects; Unlock still needs to know a locked one is selected.
+    bool selectionHasLocked() const;
     void alignSelection(const QString& alignment);
     void duplicateSelection();
     void deleteSelection();
@@ -58,7 +60,11 @@ public:
     QRectF contentRect() const;
     QPointF viewportPoint(QPointF canvas) const;
     QPointF canvasPoint(QPointF viewport) const;
+    // The uncommitted gesture result (drag, transform, stroke), which reaches the document only on
+    // release; the service streams it so the lights follow a drag (owner review 2026-11-18).
+    std::optional<LightingState> workingState() const;
 signals:
+    void workingStateChanged();
     void selectionChanged();
     void layoutPreviewChanged();
     void effectGestureStarted();

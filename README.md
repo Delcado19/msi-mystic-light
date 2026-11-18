@@ -1,4 +1,4 @@
-# MSI Mystic Light – Lighting Studio
+# Lighting Studio
 
 ![CI](https://github.com/Delcado19/msi-mystic-light/actions/workflows/ci.yml/badge.svg)
 
@@ -47,7 +47,10 @@ for the detailed, current qualification status and limits.
 
 Extract a Release build and run **`Install.cmd`** under `installer/` for automatic playback
 (a Windows service owns hardware output; the editor runs unelevated). Or run
-**`Start-Lighting.cmd`** directly for a portable run with no installation.
+**`msi_mystic_light.exe`** from the extracted folder for a portable run with no installation.
+In a source checkout, `Start-Lighting.cmd` starts the Release build in `build\r10` (see
+"Building from source"); without that build it starts the installed editor, and without either it
+stops with a hint.
 
 Useful command-line flags on `msi_mystic_light.exe`:
 
@@ -68,6 +71,9 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/Q
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+`Start-Lighting.cmd` looks for the build in `build\r10`; use `-B build/r10` instead of `-B build`
+(and `--test-dir build/r10`) when you want to start it that way.
 
 If hidapi isn't on CMake's search path, add `-Dhidapi_ROOT=C:/path/to/hidapi-sdk` (the directory
 must contain `include/hidapi.h` and `lib/hidapi.lib`), or install it via vcpkg and pass
@@ -100,7 +106,7 @@ To package a portable release archive: `python scripts/package_release.py` (see
 
 **Architecture & vendor-protocol research** (no vendor code included — behavior is described
 in our own words; see the notice in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — MSI Mystic Light's own architecture (service, DLLs).
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Lighting Studio's own architecture (service, DLLs).
 - [`docs/NETWORK_PROTOCOL.md`](docs/NETWORK_PROTOCOL.md) — its local network interfaces.
 - [`docs/MB_800_HID_PROTOCOL.md`](docs/MB_800_HID_PROTOCOL.md) — the "800-series" mainboard USB HID protocol.
 - [`docs/SIGNALRGB_REPOSITORY_RESEARCH.md`](docs/SIGNALRGB_REPOSITORY_RESEARCH.md), [`docs/SIGNALRGB_TOPIC_RESEARCH.md`](docs/SIGNALRGB_TOPIC_RESEARCH.md), [`docs/SIGNALFORGE_EDITOR_RESEARCH.md`](docs/SIGNALFORGE_EDITOR_RESEARCH.md) — public SignalRGB research used for comparison and editor design.
