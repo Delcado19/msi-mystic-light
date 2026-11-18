@@ -155,6 +155,7 @@ void SchedulerTest::slowPresenceCheckKeepsWriting()
 // and a burst of events still yields one check.
 void SchedulerTest::presenceCheckWaitsForDeviceChange()
 {
+    if (!OutputScheduler::deviceNotifications()) QSKIP("No HID notifications here; probes use the one-second fallback");
     auto record = std::make_shared<Record>(); ReleaseGate release{record};
     const auto checks = std::make_shared<std::atomic_int>(0);
     OutputScheduler scheduler;

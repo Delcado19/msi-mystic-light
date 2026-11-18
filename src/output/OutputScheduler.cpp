@@ -39,6 +39,8 @@ bool watchDevices()
 }
 }
 
+bool OutputScheduler::deviceNotifications() { return watchDevices(); }
+
 void OutputScheduler::deviceChanged()
 {
     auto& changes = deviceChanges();
@@ -71,7 +73,11 @@ quint64 OutputScheduler::start(SessionFactory factory, std::function<bool()> pre
         pending_.reset(); stopRequested_.store(false);
         status_.state = State::Starting; status_.error.clear(); generation = ++status_.generation;
     }
-    try { worker_ = std::thread([this, factory = std::move(factory), present = std::move(present)]() mutable { run(std::move(factory), std::move(present)); }); }
+    // Register and snapshot on the owner thread, before the device opens: a removal during the open still
+    // triggers a check, and workers never wait on the one-time registration (CodeRabbit review PR #4).
+    const bool events = watchDevices();
+    const quint64 seen = [] { auto& changes = deviceChanges(); const std::lock_guard<std::mutex> lock(changes.mutex); return changes.generation; }();
+    try { worker_ = std::thread([this, factory = std::move(factory), present = std::move(present), events, seen]() mutable { run(std::move(factory), std::move(present), events, seen); }); }
     catch (const std::exception& error) { finish(State::Faulted, QString::fromUtf8(error.what())); return 0; }
     emit statusChanged(); return generation;
 }
@@ -101,12 +107,10 @@ void OutputScheduler::finish(State state, const QString& error)
     }
     emit statusChanged();
 }
-void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
+void OutputScheduler::run(SessionFactory factory, std::function<bool()> present, bool events, quint64 seenAtStart)
 {
     std::unique_ptr<OutputSession> session;
     QString error;
-    // Read before the device opens, so a removal during the open still triggers a check.
-    const quint64 seenAtStart = [] { auto& changes = deviceChanges(); const std::lock_guard<std::mutex> lock(changes.mutex); return changes.generation; }();
     try {
         if (!stopRequested_.load()) session = factory();
         if (!stopRequested_.load() && (!session || session->state() != OutputSession::State::Connected)) {
@@ -129,7 +133,7 @@ void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
             const auto probe = std::make_shared<Probe>();
             struct Finish { std::shared_ptr<Probe> probe;
                 ~Finish() { auto& changes = deviceChanges(); { const std::lock_guard<std::mutex> lock(changes.mutex); probe->done = true; } changes.wake.notify_all(); } } finish{probe};
-            if (present) std::thread([probe, present, seen = seenAtStart, events = watchDevices()]() mutable {
+            if (present) std::thread([probe, present, seen = seenAtStart, events]() mutable {
                 auto& changes = deviceChanges();
                 for (;;) {
                     {

@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "CONTINUE.md": {
-    "mtime": 1795021555.8491635,
-    "seen": 1795021563.5367818,
-    "ast_hash": "6b416f26fe9a2ee72261f3203342e0f2",
+    "mtime": 1795021573.027058,
+    "seen": 1795024544.426265,
+    "ast_hash": "233749fd4dceb9702f74706d5ebd3cc0",
     "semantic_hash": ""
   },
   "tests/CMakeLists.txt": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1795017587.95919,
-    "seen": 1795021563.5282633,
-    "ast_hash": "aefd67c8995fcc16b34b739d3f426dae",
+    "mtime": 1795021609.2084394,
+    "seen": 1795024544.4042583,
+    "ast_hash": "f514b5f78d988b1c7a94628ba7fe56e0",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
@@ -480,21 +480,21 @@
     "semantic_hash": ""
   },
   "src/output/OutputScheduler.cpp": {
-    "mtime": 1795021311.8118904,
-    "seen": 1795021563.529523,
-    "ast_hash": "8bbaefd36f33345ec9872599d05f7794",
+    "mtime": 1795024399.773418,
+    "seen": 1795024544.4061806,
+    "ast_hash": "faa551fce2ff4dc3fc406de6e50e715f",
     "semantic_hash": ""
   },
   "src/output/OutputScheduler.h": {
-    "mtime": 1795021311.8338554,
-    "seen": 1795021563.5295246,
-    "ast_hash": "b32a79cce7fa8145029c52fea7dfad46",
+    "mtime": 1795024399.7784214,
+    "seen": 1795024544.4061823,
+    "ast_hash": "0e8c75c0d5cff216ba51e8477c83969f",
     "semantic_hash": ""
   },
   "tests/output/test_scheduler.cpp": {
-    "mtime": 1795021311.9093013,
-    "seen": 1795021563.5322516,
-    "ast_hash": "76804e181311f709e2f8fc496a26abce",
+    "mtime": 1795024399.7834282,
+    "seen": 1795024544.4134064,
+    "ast_hash": "f63818e7bbc8722705522cef26e1871e",
     "semantic_hash": ""
   },
   "src/editor/AppSession.cpp": {
@@ -534,9 +534,9 @@
     "semantic_hash": ""
   },
   "tests/output/test_output_ui.cpp": {
-    "mtime": 1795021491.2615647,
-    "seen": 1795021563.5322485,
-    "ast_hash": "3cf77d2efb6e47dc273e2949715df5a8",
+    "mtime": 1795021609.2149467,
+    "seen": 1795024544.4131944,
+    "ast_hash": "29be29328fc9bc51d2afdf1ae17522eb",
     "semantic_hash": ""
   },
   "PORTABLE_README.txt": {
