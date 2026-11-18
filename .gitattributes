@@ -1,0 +1,3 @@
+# Generated graphify knowledge graph (kept in the repo for navigation, see CLAUDE.md).
+# GitHub collapses these in PR diffs and excludes them from language stats.
+graphify-out/** linguist-generated=true
