@@ -59,7 +59,8 @@ void logWarning(QtMsgType type,const QMessageLogContext&,const QString& message)
     if(type==QtDebugMsg || type==QtInfoMsg || warningLog.isEmpty())return;
     static std::mutex mutex;const std::lock_guard<std::mutex> lock(mutex);
     QFile log(warningLog);
-    if(log.size()>1024*1024 || !log.open(QIODevice::Append|QIODevice::Text))return;
+    // Start over past 1 MB: a full log must not hide what happens after a fix.
+    if(!log.open(log.size()>1024*1024 ? QIODevice::WriteOnly|QIODevice::Truncate|QIODevice::Text : QIODevice::Append|QIODevice::Text))return;
     log.write((QDateTime::currentDateTime().toString(Qt::ISODateWithMs)+" "+message+"\n").toUtf8());
 }
 QJsonObject readJson(const QString& path) {

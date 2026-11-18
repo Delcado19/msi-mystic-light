@@ -33,7 +33,12 @@ R17 package: Downloads/LightingStudio-local-r17.zip (GS-06-R17).
 Effect library: categories are submenus (sorted) in the add-effect button and again under
 Tools > Add effect (R16 had wrongly dropped it from Tools); the flat list shows only while searching.
 
-R19 (2026-11-18, untested on HW, package Downloads/LightingStudio-local-r19.zip): owner confirmed R18
+R20 (2026-11-18, untested on HW, package Downloads/LightingStudio-local-r20.zip): the R19 log proved
+the cause: 15,888 presence-check stalls of 112-453 ms (avg 149 ms) in 45 min, about one per second
+per output; stage and write never exceeded 50 ms. The presence check now runs on its own thread per
+scheduler and only reports its verdict. The warning log restarts past 1 MB instead of going silent.
+
+R19 (2026-11-18, package Downloads/LightingStudio-local-r19.zip): owner confirmed R18
 drag streaming works, but reports subtle color jumps with the editor closed (smooth, then a hard step).
 Plasma is continuous in time, so the LEDs likely stall and then catch up. The owner's slow-motion clip
 could not show it: its freezes are duplicate camera frames (background froze at the same 45 frames).

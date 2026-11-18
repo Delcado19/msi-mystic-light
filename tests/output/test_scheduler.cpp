@@ -2,6 +2,7 @@
 #include "protocol/MsiProtocol.h"
 #include <QTimer>
 #include <QtTest>
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -108,7 +109,35 @@ private slots:
     void cancelFactoryAndRestart();
     void faultsAndExplicitReconnect();
     void destruction();
+    void slowPresenceCheckKeepsWriting();
 };
+
+// Owner report 2026-11-18: a 112-453 ms presence check ran between two writes once a second and
+// froze the LEDs that long. Writes continue while it runs; a failed check still faults the output.
+void SchedulerTest::slowPresenceCheckKeepsWriting()
+{
+    auto record = std::make_shared<Record>(); ReleaseGate release{record};
+    auto checks = std::make_shared<std::atomic_int>(0);
+    auto result = std::make_shared<std::atomic_bool>(true);
+    OutputScheduler scheduler;
+    const auto generation = scheduler.start(factory(record), [checks, result] {
+        ++*checks; std::this_thread::sleep_for(std::chrono::milliseconds(400)); return result->load();
+    });
+    QTimer feed; quint8 value = 0;
+    QObject::connect(&feed, &QTimer::timeout, &scheduler, [&] { scheduler.submit(generation, frame(++value)); });
+    feed.start(10);
+    QTRY_VERIFY_WITH_TIMEOUT(checks->load() >= 2, 4000);
+    {
+        const std::lock_guard<std::mutex> lock(record->mutex);
+        auto longest = std::chrono::steady_clock::duration::zero();
+        for (std::size_t i = 4; i < record->timestamps.size(); ++i) longest = std::max(longest, record->timestamps[i] - record->timestamps[i-1]);
+        QVERIFY2(longest < std::chrono::milliseconds(150), "a write waited for the presence check");
+    }
+    result->store(false);
+    QTRY_COMPARE_WITH_TIMEOUT(scheduler.status().state, OutputScheduler::State::Faulted, 4000);
+    QCOMPARE(scheduler.status().error, QString("Selected endpoint disappeared or changed identity"));
+    feed.stop(); assertClosedOnWorker(record);
+}
 
 void SchedulerTest::latestWhileStarting()
 {

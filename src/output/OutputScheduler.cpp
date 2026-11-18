@@ -73,18 +73,39 @@ void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
                 if (!stopRequested_.load()) status_.state = State::Running;
             }
             emit statusChanged();
-            auto nextPresence = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+            // The presence check (HID enumeration, board identity, auxiliary scan) took 112-453 ms, once a
+            // second per output. On this worker it froze the LEDs that long each time; the service log showed
+            // 15,888 such stalls in 45 minutes (owner report 2026-11-18, subtle color jumps at rest). It runs
+            // on its own thread now and only reports its verdict; the joiner below keeps `present` alive.
+            std::atomic_bool done{false}, gone{false};
+            QString presenceError;
+            std::thread presence;
+            struct Join { std::atomic_bool& done; std::condition_variable& wake; std::thread& thread;
+                ~Join() { done.store(true); wake.notify_all(); if (thread.joinable()) thread.join(); } } join{done, wake_, presence};
+            if (present) presence = std::thread([&] {
+                for (;;) {
+                    {
+                        std::unique_lock<std::mutex> lock(mutex_);
+                        if (wake_.wait_for(lock, std::chrono::seconds(1), [&] { return stopRequested_.load() || done.load(); })) return;
+                    }
+                    QString failure;
+                    try { if (present()) continue; failure = "Selected endpoint disappeared or changed identity"; }
+                    catch (const std::exception& e) { failure = QString::fromUtf8(e.what()); }
+                    { const std::lock_guard<std::mutex> lock(mutex_); presenceError = failure; gone.store(true); }
+                    wake_.notify_all(); return;
+                }
+            });
             while (!stopRequested_.load()) {
                 std::optional<OutputFrame> frame;
                 {
                     std::unique_lock<std::mutex> lock(mutex_);
                     // Pace from completion, never catch up with a burst after a slow HID call.
-                    wake_.wait_for(lock, std::chrono::milliseconds(33), [this] { return stopRequested_.load(); });
+                    wake_.wait_for(lock, std::chrono::milliseconds(33), [&] { return stopRequested_.load() || gone.load(); });
                     if (stopRequested_.load()) break;
+                    if (gone.load()) { error = presenceError; break; }
                     frame = std::move(pending_); pending_.reset();
                 }
-                // Diagnostics (owner report 2026-11-18, subtle color jumps at rest): calls on this worker
-                // delay the next frame, so any call over 50 ms is logged with its duration.
+                // Diagnostics (owner report 2026-11-18): a call over 50 ms delays the next frame and is logged.
                 const auto timed = [](const char* what, auto&& call) {
                     const auto started = std::chrono::steady_clock::now();
                     const bool ok = call();
@@ -92,10 +113,6 @@ void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
                     if (ms > 50) qWarning("Output stall: %s took %lld ms", what, static_cast<long long>(ms));
                     return ok;
                 };
-                if (present && std::chrono::steady_clock::now() >= nextPresence) {
-                    if (!timed("presence check", present)) { error = "Selected endpoint disappeared or changed identity"; break; }
-                    nextPresence = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-                }
                 if (frame && !timed("stage", [&] { return session->stage(std::move(*frame)); })) { error = session->error(); break; }
                 if (!timed("write", [&] { return session->flush([this] { return stopRequested_.load(); }); })) { error = session->error(); break; }
             }
