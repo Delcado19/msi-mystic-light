@@ -29,7 +29,8 @@ R17 (2026-11-18, untested on HW): Tools menu hidden in Devices. Drag latency had
 editor sent a project only after 200 ms without edits and at most once per status interval (1 s),
 so nothing left during a drag; and every project started a ~6.5 s hardware scan. Now edits stream
 (one in flight, at most every 80 ms) and a project whose scopes all run already skips the scan.
-Effect library grouping still open (owner to choose the form).
+Effect library: categories are submenus (sorted) in the add-effect button and again under
+Tools > Add effect (R16 had wrongly dropped it from Tools); the flat list shows only while searching.
 Open as well: push/PR of fix/editor-menu-cleanup (local only), CodeRabbit review of R15 (paused),
 delete .claude/settings.local.json.impeccable-backup (owner decision).
 

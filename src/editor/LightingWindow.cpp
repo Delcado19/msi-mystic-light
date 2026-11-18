@@ -661,7 +661,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         catch (const std::exception& error) { QMessageBox::warning(this, "Import failed", QString::fromUtf8(error.what())); }
     });
     auto* addMenu=new QMenu("Add layer",layersPanel);addMenu->setObjectName("addLayerMenu");
-    // Not added to Edit: the Navigator's effect library is the single place to add layers (owner 2026-11-17).
+    // Not added to Edit; effects are added from the layer panel, the add-effect button and Tools > Add effect.
     auto* paintAction=addMenu->addAction("New paint layer");paintAction->setObjectName("newPaintLayer");connect(paintAction,&QAction::triggered,this,[this]{findChild<QPushButton*>("newLayer")->click();});
     auto* groupAction=addMenu->addAction(studioToolIcon("layers"),"New group");groupAction->setObjectName("newGroup");
     groupAction->setToolTip("Create an empty group. Effects added to the selected group share its mask, opacity and blend mode.");
@@ -688,6 +688,15 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         try {selectedLayer_=document_.addMultizoneLayer();editingMask_=false;effectsCanvas_->setTool(LightingCanvas::Tool::Move);inspectorTabs_->setCurrentIndex(0);refresh();}
         catch(const std::exception& error){statusBar()->showMessage(QString::fromUtf8(error.what()),6000);}
     });
+    // Sorted by name inside each category; the definition order read as unsorted (owner 2026-11-17).
+    // The same submenus serve the layer panel, the Tools menu and the add-effect button.
+    const QList<QMenu*> effectCategories{patterns,shapes,particlesMenu,organic,scenes};
+    for(auto* category:effectCategories) {
+        auto entries=category->actions();entries.removeIf([](QAction* entry){return entry->isSeparator();});
+        std::sort(entries.begin(),entries.end(),[](QAction* a,QAction* b){return QString::localeAwareCompare(a->text(),b->text())<0;});
+        for(auto* entry:category->actions())category->removeAction(entry); // removeAction keeps the menu-owned actions alive; clear() would delete them.
+        category->addActions(entries);
+    }
     auto* imageAction=addMenu->addAction("Import image...");connect(imageAction,&QAction::triggered,this,[layersPanel]{for(auto* button:layersPanel->findChildren<QPushButton*>())if(button->text()=="Import image..."){button->click();break;}});
     auto* addButton=new QToolButton;addButton->setText("New layer");addButton->setObjectName("addLayer");connect(addButton,&QToolButton::clicked,this,[this]{findChild<QPushButton*>("newLayer")->click();});addButton->setToolTip("Create a transparent paint layer. Select a group to create it inside that group.");
     auto* groupButton=new QToolButton;groupButton->setDefaultAction(groupAction);groupButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);groupButton->setObjectName("addGroup");
@@ -1023,31 +1032,26 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* generatorPopupBody=new QWidget;auto* generatorPopupLayout=new QVBoxLayout(generatorPopupBody);generatorPopupLayout->setContentsMargins(8,8,8,8);
     auto* search=new QLineEdit;search->setObjectName("effectLibrarySearch");search->setPlaceholderText("Search effects and images...");search->setAccessibleName("Search effect library");search->installEventFilter(this);generatorPopupLayout->addWidget(search);
     auto* results=new QListWidget;results->setObjectName("effectLibraryResults");results->setFixedSize(300,340);generatorPopupLayout->addWidget(results);
-    for(auto* category:{patterns,shapes,particlesMenu,organic,scenes}) {
-        auto* heading=new QListWidgetItem(category->title(),results);heading->setFlags(Qt::NoItemFlags);auto font=heading->font();font.setBold(true);heading->setFont(font);
-        // Sorted by name inside each category; the definition order read as unsorted (owner 2026-11-17).
-        auto entries=category->actions();entries.removeIf([](QAction* entry){return entry->isSeparator();});
-        std::sort(entries.begin(),entries.end(),[](QAction* a,QAction* b){return QString::localeAwareCompare(a->text(),b->text())<0;});
-        for(auto* entry:entries) {
-            auto* item=new QListWidgetItem(entry->text(),results);item->setData(Qt::UserRole,entry->objectName());item->setToolTip(entry->toolTip());
-        }
+    // Browsing uses the category submenus like the menu bar; the flat result list appears only while
+    // searching. Bold headings inside one list were not clearer (owner review 2026-11-17).
+    for(auto* category:effectCategories)for(auto* entry:category->actions()) {
+        auto* item=new QListWidgetItem(entry->text(),results);item->setData(Qt::UserRole,entry->objectName());item->setToolTip(entry->toolTip());
     }
-    {auto* heading=new QListWidgetItem("Images",results);heading->setFlags(Qt::NoItemFlags);auto font=heading->font();font.setBold(true);heading->setFont(font);}
     imageAction->setObjectName("importImageAction");auto* imageItem=new QListWidgetItem("Import image...",results);imageItem->setData(Qt::UserRole,imageAction->objectName());
     auto* libraryAction=new QWidgetAction(sourceMenu);libraryAction->setDefaultWidget(generatorPopupBody);sourceMenu->addAction(libraryAction);
-    const auto filterLibrary=[this,results](const QString& text){
-        QListWidgetItem* first=nullptr;QListWidgetItem* heading=nullptr;bool sectionVisible=false;
+    sourceMenu->addSeparator();for(auto* category:effectCategories)sourceMenu->addMenu(category);
+    sourceMenu->addSeparator();sourceMenu->addAction(imageAction);
+    const auto filterLibrary=[this,results,libraryAction](const QString& text){
+        QListWidgetItem* first=nullptr;
         for(int i=0;i<results->count();++i){auto* item=results->item(i);
-            if(item->data(Qt::UserRole).toString().isEmpty()){
-                if(heading)heading->setHidden(!sectionVisible);heading=item;sectionVisible=false;continue;
-            }
             auto* action=findChild<QAction*>(item->data(Qt::UserRole).toString());
             item->setHidden(!item->text().contains(text,Qt::CaseInsensitive));
             item->setFlags(action && action->isEnabled() ? Qt::ItemIsEnabled|Qt::ItemIsSelectable : Qt::NoItemFlags);
             if(action && !action->isEnabled())item->setToolTip("Unlock the selected layer or group before adding an effect.");
-            if(!item->isHidden()){sectionVisible=true;if(!first && (item->flags()&Qt::ItemIsEnabled))first=item;}
+            if(!item->isHidden() && !first && (item->flags()&Qt::ItemIsEnabled))first=item;
         }
-        if(heading)heading->setHidden(!sectionVisible);results->setCurrentItem(first);
+        results->setVisible(!text.isEmpty());results->setCurrentItem(first);
+        libraryAction->setData(text); // An action change makes the open menu recompute its size.
     };
     connect(search,&QLineEdit::textChanged,results,filterLibrary);
     const auto activate=[this,sourceMenu](QListWidgetItem* item){if(!item || item->isHidden() || !(item->flags()&Qt::ItemIsEnabled) || item->data(Qt::UserRole).toString().isEmpty())return;sourceMenu->hide();if(auto* action=findChild<QAction*>(item->data(Qt::UserRole).toString()))action->trigger();};
@@ -1176,7 +1180,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         connect(toolsMenu,&QMenu::aboutToShow,action,sync);
         connect(tabs_,&QTabWidget::currentChanged,action,[sync](int){sync();});
     }
-    // No "Add layer" here either: the effect library button is its single place (owner 2026-11-17).
+    // Every tool of the strip has its menu entry, the add-effect button included (owner review 2026-11-17).
+    toolsMenu->addSeparator();auto* addEffectMenu=toolsMenu->addMenu(studioToolIcon("add-effect"),"Add effect");addEffectMenu->setObjectName("toolsAddEffectMenu");
+    for(auto* category:effectCategories)addEffectMenu->addMenu(category);
+    addEffectMenu->addSeparator();addEffectMenu->addAction(imageAction);
     auto* resetWorkspace=viewMenu->addAction("Reset workspace"); resetWorkspace->setObjectName("resetWorkspace");panelsMenu->addSeparator();panelsMenu->addAction(resetWorkspace);
     // The default follows the Windows animation setting; this is the only in-app way to change a stored
     // editor/reduceMotion value (restored after the R6 menu cleanup, CodeRabbit review 2026-11-15).

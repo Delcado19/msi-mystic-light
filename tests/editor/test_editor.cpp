@@ -4213,23 +4213,24 @@ void EditorTest::effectLibraryCategorized()
     auto* button=window.findChild<QToolButton*>("sourcesTool");QVERIFY(button);
     QCOMPARE(button->text(),QString("Add effect"));QVERIFY(button->styleSheet().contains("menu-indicator{image:none"));
     QVERIFY(button->icon().pixmap(24,24).toImage()!=studioToolIcon("add").pixmap(24,24).toImage());
+    // Owner review 2026-11-17: categories are submenus like the menu bar, in the button and in Tools.
+    const auto submenus=[](QMenu* menu){QList<QMenu*> found;for(auto* entry:menu->actions())if(entry->menu())found.append(entry->menu());return found;};
+    const auto library=submenus(window.findChild<QMenu*>("effectLibraryMenu"));
+    QCOMPARE(library.size(),5);QCOMPARE(submenus(window.findChild<QMenu*>("toolsAddEffectMenu")),library);
+    for(auto* category:library) {
+        QString previous;QVERIFY(!category->actions().isEmpty());
+        for(auto* entry:category->actions()) {
+            QVERIFY2(QString::localeAwareCompare(previous,entry->text())<=0,qPrintable(previous+" > "+entry->text()));previous=entry->text();
+        }
+    }
     auto* results=window.findChild<QListWidget*>("effectLibraryResults");QVERIFY(results);
-    const auto isHeading=[](QListWidgetItem* item){return item->data(Qt::UserRole).toString().isEmpty();};
-    QVERIFY(isHeading(results->item(0)));
-    QString previous;int headings=0;
-    for(int i=0;i<results->count();++i) {
-        auto* item=results->item(i);
-        if(isHeading(item)){previous.clear();++headings;continue;}
-        QVERIFY2(QString::localeAwareCompare(previous,item->text())<=0,qPrintable(previous+" > "+item->text()));
-        previous=item->text();
-    }
-    QVERIFY(headings>=6); // Five effect categories plus Images.
-    window.findChild<QLineEdit*>("effectLibrarySearch")->setText("a");
-    bool headingShown=false;
-    for(int i=0;i<results->count();++i) {
-        auto* item=results->item(i);if(item->isHidden())continue;
-        if(isHeading(item))headingShown=true;else QVERIFY2(headingShown,qPrintable(item->text()));
-    }
+    auto* menu=window.findChild<QMenu*>("effectLibraryMenu");menu->popup(button->mapToGlobal(QPoint(32,0)));QCoreApplication::processEvents();
+    QVERIFY(!results->isVisible()); // No search: browse the submenus.
+    const int browsing=menu->height();
+    window.findChild<QLineEdit*>("effectLibrarySearch")->setText("a");QCoreApplication::processEvents();
+    QVERIFY(results->isVisible());QVERIFY(menu->height()>browsing); // The open menu grows to show the hits.
+    for(int i=0;i<results->count();++i)QVERIFY(!results->item(i)->data(Qt::UserRole).toString().isEmpty()); // No headings.
+    menu->close();
 }
 
 void EditorTest::menusFollowWorkspace()
