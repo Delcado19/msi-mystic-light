@@ -50,7 +50,7 @@ $userRoot=[IO.Path]::GetFullPath((Join-Path $temporaryRoot ('LightingStudio-user
 $keyRoot='HKCU:\Software\LightingStudioTest-'+[guid]::NewGuid().ToString()
 try {
     foreach ($case in 'moved','failed') {
-        $parent=Join-Path $userRoot "$case\Delcado"; $data=Join-Path $parent 'MSI Mystic Light Standalone'; $key="$keyRoot\$case\MSI Mystic Light Standalone"
+        $parent=Join-Path $userRoot "$case\Lighting Studio"; $data=Join-Path $parent 'Editor'; $key="$keyRoot\$case\Editor"
         New-Item -ItemType Directory -Force -Path (Join-Path $data 'sub') | Out-Null
         foreach ($file in 'project.lighting.json','recovery.lighting.json','application.lock','sub\notes.txt') { [IO.File]::WriteAllText((Join-Path $data $file),$file) }
         New-Item -Path $key -Force | Out-Null

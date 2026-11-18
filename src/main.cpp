@@ -62,8 +62,12 @@ QIcon applicationIcon() {
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
-    app.setOrganizationName("Delcado");
-    app.setApplicationName("MSI Mystic Light Standalone");
+    // Product name since 2026-11-18 (owner review): settings live in HKCU\Software\Lighting Studio\Editor
+    // and session data in %LOCALAPPDATA%\Lighting Studio\Editor. Data under the old names
+    // ("Delcado\MSI Mystic Light Standalone") is not migrated; the owner reinstalled.
+    // Uninstall-LightingStudio.ps1 uses the same names.
+    app.setOrganizationName("Lighting Studio");
+    app.setApplicationName("Editor");
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addOption({"module-dir", "Load trusted local driver modules from this directory.", "directory",

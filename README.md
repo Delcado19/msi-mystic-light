@@ -1,4 +1,4 @@
-# MSI Mystic Light – Lighting Studio
+# Lighting Studio
 
 ![CI](https://github.com/Delcado19/msi-mystic-light/actions/workflows/ci.yml/badge.svg)
 
@@ -101,7 +101,7 @@ To package a portable release archive: `python scripts/package_release.py` (see
 
 **Architecture & vendor-protocol research** (no vendor code included — behavior is described
 in our own words; see the notice in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — MSI Mystic Light's own architecture (service, DLLs).
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Lighting Studio's own architecture (service, DLLs).
 - [`docs/NETWORK_PROTOCOL.md`](docs/NETWORK_PROTOCOL.md) — its local network interfaces.
 - [`docs/MB_800_HID_PROTOCOL.md`](docs/MB_800_HID_PROTOCOL.md) — the "800-series" mainboard USB HID protocol.
 - [`docs/SIGNALRGB_REPOSITORY_RESEARCH.md`](docs/SIGNALRGB_REPOSITORY_RESEARCH.md), [`docs/SIGNALRGB_TOPIC_RESEARCH.md`](docs/SIGNALRGB_TOPIC_RESEARCH.md), [`docs/SIGNALFORGE_EDITOR_RESEARCH.md`](docs/SIGNALFORGE_EDITOR_RESEARCH.md) — public SignalRGB research used for comparison and editor design.
