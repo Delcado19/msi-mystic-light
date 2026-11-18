@@ -597,18 +597,16 @@ std::optional<LightingState> LightingCanvas::workingState() const
         if(!dragging_)return {};
         auto state=document_.state();state.placements=previewPlacements();return state;
     }
+    if(!workingEffect_ && workingMask_.isNull())return {};
+    auto state=document_.state();
     if(workingEffect_) {
-        auto state=document_.state();
         if(createdObject_)state.layers.append(*workingEffect_);
         else for(auto& layer:state.layers) if(selections().contains(layer.id)) layer=transformedSelection(layer);
-        return state;
     }
-    if(!workingMask_.isNull()) {
-        auto state=document_.state();
-        for(auto& layer:state.layers) if(layer.id==selected_) layer.mask=workingMask_;
-        return state;
-    }
-    return {};
+    // A Pencil stroke on a mask sets both; the stroke must reach the lights before release too
+    // (CodeRabbit review 2026-11-18).
+    if(!workingMask_.isNull())for(auto& layer:state.layers) if(layer.id==selected_) layer.mask=workingMask_;
+    return state;
 }
 
 QVector<ComponentPlacement> LightingCanvas::previewPlacements() const
@@ -1388,6 +1386,13 @@ QSet<QUuid> LightingCanvas::selections() const
             (selectedIds_.contains(item.id) || (selectedIds_.contains(item.parentId) && editable(item.parentId))) && !item.container)ids.insert(item.id);
     }
     return ids;
+}
+bool LightingCanvas::selectionHasLocked() const
+{
+    const auto picked=[this](const QUuid& id){return id==selected_ || selectedIds_.contains(id);};
+    if(context_==Context::Layout)
+        return std::any_of(document_.state().placements.cbegin(),document_.state().placements.cend(),[&](const auto& item){return item.locked && picked(item.id);});
+    return std::any_of(document_.state().layers.cbegin(),document_.state().layers.cend(),[&](const auto& item){return item.locked && picked(item.id);});
 }
 QRectF LightingCanvas::effectBounds(const EffectLayer& layer) const
 {

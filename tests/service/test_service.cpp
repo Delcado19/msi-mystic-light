@@ -309,15 +309,21 @@ void ServiceTest::scopeChangeReopensAfterOneScan() try {
             auto session=std::make_unique<OutputSession>();if(!session->connect(modules,identity(),profile,std::make_unique<Transport>(record)))throw std::runtime_error(session->error().toStdString());return session;
         },[record]{return record->present.load();}});return result;
     };
-    ServiceRuntime runtime({}, {profile},folder.path(),[profile]{return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
+    // Scans are counted, not only opens: two back-to-back scans could also open the output once (CodeRabbit review 2026-11-18).
+    auto scans=std::make_shared<std::atomic_int>(0);
+    ServiceRuntime runtime({}, {profile},folder.path(),[profile,scans]{++*scans;return QVector<ProfileCandidate>{{identity(),profile.id}};},output);
     runtime.setOutputGuard([](const QStringList&,QString&){return QStringList{};});runtime.setBackgroundScan(true);
     runtime.command(project(profile),[](const QJsonObject&){});QTRY_COMPARE(record->opens.load(),1);
+    QTRY_COMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Running"));
+    const int scansBefore=scans->load();
     auto moved=project(profile);auto document=moved["project"].toObject();auto assignments=document["assignments"].toArray();
     auto first=assignments[0].toObject();first["channelId"]="JARGB2";assignments[0]=first;document["assignments"]=assignments;moved["project"]=document;
     QJsonObject reply;runtime.command(moved,[&reply](const QJsonObject& r){reply=r;});QVERIFY(reply.value("ok").toBool());
     // The 5 s retry would be the second scan; one scan must be enough.
     QTRY_COMPARE_WITH_TIMEOUT(record->opens.load(),2,3000);
-    QVERIFY(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString()!="Not responding");
+    QTRY_COMPARE(runtime.status().value("outputs").toArray()[0].toObject().value("state").toString(),QString("Running"));
+    QCOMPARE(scans->load(),scansBefore+1);
+    QVERIFY(runtime.status().value("outputs").toArray()[0].toObject().value("channel").toString()=="JARGB2");
 } catch(const std::exception& e){QFAIL(e.what());}
 // A scan hung in the driver is given up at its deadline: callers get a reply with an error, no
 // second scan piles up while it hangs, and scanning resumes once it returns (CodeRabbit 2026-11-17).

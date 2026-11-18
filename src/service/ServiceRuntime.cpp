@@ -71,8 +71,14 @@ bool ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     retireAndWait([&](int i){return std::none_of(keep.cbegin(),keep.cend(),[&](const OutputFrame& frame){return sameOutputScope(scopes_[i],frame);});});
     document_=std::move(candidate);project_=bundle.value("project").toObject();
     enabled_=bundle.value("enabled").toBool();playing_=bundle.value("playing").toBool();offset_=time;clock_.restart();paused_=paused;error_.clear();
+    // Only a worker that is opening or running makes discovery unnecessary; a Faulted one needs the
+    // scan now, not at the next 5 s retry (CodeRabbit review 2026-11-18).
     return enabled_ && std::all_of(keep.cbegin(),keep.cend(),[this](const OutputFrame& frame){
-        return std::any_of(scopes_.cbegin(),scopes_.cend(),[&](const OutputFrame& scope){return sameOutputScope(scope,frame);});
+        for(int i=0;i<scopes_.size();++i)if(sameOutputScope(scopes_[i],frame)) {
+            const auto state=connections_[i]->status().state;
+            if(state==OutputScheduler::State::Starting || state==OutputScheduler::State::Running)return true;
+        }
+        return false;
     });
 }
 bool ServiceRuntime::outputsRunning() const {

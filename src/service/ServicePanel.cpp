@@ -182,7 +182,8 @@ void ServicePanel::display(const QJsonObject& reply) {
     }
     messages.removeDuplicates();
     status_->setText(messages.isEmpty()?"Service connected. Playback continues when the editor closes.":messages.join("\n"));
-    window_.setOutputState(QString("%1 active / %2 configured / %3 errors").arg(running).arg(outputs_->topLevelItemCount()).arg(errors+(!error.isEmpty()?1:0)));
+    // A service-wide error counts as an error but is no faulted channel: idle channels stay idle (CodeRabbit review 2026-11-18).
+    window_.setOutputState(QString("%1 active / %2 configured / %3 errors / %4 faulted").arg(running).arg(outputs_->topLevelItemCount()).arg(errors+(!error.isEmpty()?1:0)).arg(errors));
 }
 void ServicePanel::poll() {
     if(!active_)return;
@@ -219,7 +220,8 @@ void ServicePanel::poll() {
     // Edits stream while they happen, one in flight at a time and at most every 80 ms. Waiting for
     // 200 ms of quiet plus the 1 s status interval sent nothing during a drag (owner review 2026-11-17).
     else if(ready_ && dirty_ && now-projectSentAt_>=80) {
-        try{next=project();dirty_=false;clockDirty_=false;projectSentAt_=now;}
+        // Measured from dispatch, after staging: a slow staging must not shorten the next gap (CodeRabbit review 2026-11-18).
+        try{next=project();dirty_=false;clockDirty_=false;projectSentAt_=QDateTime::currentMSecsSinceEpoch();}
         catch(const std::exception& e){status_->setText(QString::fromUtf8(e.what()));dirty_=false;return;}
     } else if(ready_ && clockDirty_) {
         next=command("playback");next["playing"]=window_.findChild<QPushButton*>("playPreview")->isChecked();next["seconds"]=window_.previewSeconds();clockDirty_=false;

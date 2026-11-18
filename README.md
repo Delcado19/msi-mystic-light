@@ -48,7 +48,9 @@ for the detailed, current qualification status and limits.
 Extract a Release build and run **`Install.cmd`** under `installer/` for automatic playback
 (a Windows service owns hardware output; the editor runs unelevated). Or run
 **`msi_mystic_light.exe`** from the extracted folder for a portable run with no installation.
-In a source checkout, `Start-Lighting.cmd` starts the local `build\r10` Release build.
+In a source checkout, `Start-Lighting.cmd` starts the Release build in `build\r10` (see
+"Building from source"); without that build it starts the installed editor, and without either it
+stops with a hint.
 
 Useful command-line flags on `msi_mystic_light.exe`:
 
@@ -69,6 +71,9 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/Q
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+`Start-Lighting.cmd` looks for the build in `build\r10`; use `-B build/r10` instead of `-B build`
+(and `--test-dir build/r10`) when you want to start it that way.
 
 If hidapi isn't on CMake's search path, add `-Dhidapi_ROOT=C:/path/to/hidapi-sdk` (the directory
 must contain `include/hidapi.h` and `lib/hidapi.lib`), or install it via vcpkg and pass

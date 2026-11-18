@@ -76,33 +76,36 @@ void OutputScheduler::run(SessionFactory factory, std::function<bool()> present)
             // The presence check (HID enumeration, board identity, auxiliary scan) took 112-453 ms, once a
             // second per output. On this worker it froze the LEDs that long each time; the service log showed
             // 15,888 such stalls in 45 minutes (owner report 2026-11-18, subtle color jumps at rest). It runs
-            // on its own thread now and only reports its verdict; the joiner below keeps `present` alive.
-            std::atomic_bool done{false}, gone{false};
-            QString presenceError;
-            std::thread presence;
-            struct Join { std::atomic_bool& done; std::condition_variable& wake; std::thread& thread;
-                ~Join() { done.store(true); wake.notify_all(); if (thread.joinable()) thread.join(); } } join{done, wake_, presence};
-            if (present) presence = std::thread([&] {
+            // on its own thread now and only reports its verdict.
+            // The probe is detached and owns its state: HID enumeration can hang, and teardown must neither
+            // wait for it nor let a late verdict reach a replacement session (CodeRabbit review 2026-11-18).
+            // shortcut: a probe hung in the driver stays parked until the process ends; one per reopened output.
+            struct Probe { std::mutex mutex; std::condition_variable wake; bool done = false; std::atomic_bool gone{false}; QString error; };
+            const auto probe = std::make_shared<Probe>();
+            struct Finish { std::shared_ptr<Probe> probe;
+                ~Finish() { { const std::lock_guard<std::mutex> lock(probe->mutex); probe->done = true; } probe->wake.notify_all(); } } finish{probe};
+            if (present) std::thread([probe, present] {
                 for (;;) {
                     {
-                        std::unique_lock<std::mutex> lock(mutex_);
-                        if (wake_.wait_for(lock, std::chrono::seconds(1), [&] { return stopRequested_.load() || done.load(); })) return;
+                        std::unique_lock<std::mutex> lock(probe->mutex);
+                        if (probe->wake.wait_for(lock, std::chrono::seconds(1), [&] { return probe->done; })) return;
                     }
                     QString failure;
                     try { if (present()) continue; failure = "Selected endpoint disappeared or changed identity"; }
                     catch (const std::exception& e) { failure = QString::fromUtf8(e.what()); }
-                    { const std::lock_guard<std::mutex> lock(mutex_); presenceError = failure; gone.store(true); }
-                    wake_.notify_all(); return;
+                    const std::lock_guard<std::mutex> lock(probe->mutex);
+                    if (!probe->done) { probe->error = failure; probe->gone.store(true); }
+                    return;
                 }
-            });
+            }).detach();
             while (!stopRequested_.load()) {
                 std::optional<OutputFrame> frame;
                 {
                     std::unique_lock<std::mutex> lock(mutex_);
                     // Pace from completion, never catch up with a burst after a slow HID call.
-                    wake_.wait_for(lock, std::chrono::milliseconds(33), [&] { return stopRequested_.load() || gone.load(); });
+                    wake_.wait_for(lock, std::chrono::milliseconds(33), [this] { return stopRequested_.load(); });
                     if (stopRequested_.load()) break;
-                    if (gone.load()) { error = presenceError; break; }
+                    if (probe->gone.load()) { const std::lock_guard<std::mutex> verdict(probe->mutex); error = probe->error; break; }
                     frame = std::move(pending_); pending_.reset();
                 }
                 // Diagnostics (owner report 2026-11-18): a call over 50 ms delays the next frame and is logged.

@@ -605,7 +605,8 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
     // Atomic replacement preserves an existing project if writing/commit fails.
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
         throw std::runtime_error("Could not save lighting document");
-    if (markClean) history_.setClean();
+    // A supplied state is not the document's own; the file then does not match the history (CodeRabbit review 2026-11-18).
+    if (markClean && !state) history_.setClean();
 }
 
 void LightingDocument::load(const QString& fileName)

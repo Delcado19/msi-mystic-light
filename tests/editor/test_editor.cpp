@@ -4234,6 +4234,12 @@ void EditorTest::effectLibraryCategorized()
     window.findChild<QLineEdit*>("effectLibrarySearch")->setText("a");QCoreApplication::processEvents();
     QVERIFY(results->isVisible());QVERIFY(menu->height()>browsing); // The open menu grows to show the hits.
     for(int i=0;i<results->count();++i)QVERIFY(!results->item(i)->data(Qt::UserRole).toString().isEmpty()); // No headings.
+    // The hits are exactly the matching effects (CodeRabbit review 2026-11-18).
+    window.findChild<QLineEdit*>("effectLibrarySearch")->setText("plasma");QCoreApplication::processEvents();
+    int shown=0,hidden=0;
+    for(int i=0;i<results->count();++i){auto* item=results->item(i);
+        QCOMPARE(item->isHidden(),!item->text().contains("plasma",Qt::CaseInsensitive));item->isHidden() ? ++hidden : ++shown;}
+    QCOMPARE(shown,1);QVERIFY(hidden>0);QCOMPARE(results->currentItem()->text(),QString("Plasma"));
     menu->close();
 }
 
@@ -4273,6 +4279,9 @@ void EditorTest::menusFollowWorkspace()
     auto* status=window.findChild<QLabel*>("toolbarOutputStatus");
     QVERIFY(!status->text().contains("href"));QVERIFY(status->toolTip().contains("2 active"));
     QVERIFY(status->text().contains("#3fb950"));QVERIFY(status->text().contains("#f85149"));
+    // A service-wide error with one offline channel: the channel stays counted as idle.
+    window.setOutputState("0 active / 1 configured / 1 errors / 0 faulted");
+    QVERIFY(status->text().contains("#8b949e\">&#9679;</span> 1"));
 }
 
 // Final review 2026-11-17: every picker input path on a newly added stop must survive Apply and
@@ -4288,13 +4297,20 @@ void EditorTest::pickerApplyKeepsEveryInputPath()
         QSettings().setValue("editor/recentColors",QStringList{"#00ffff"}); // Swatches come from recent colors.
         auto* editor=list.findChild<ColorEditor*>("selectedStopColor");editor->findChild<QPushButton*>()->click();
         auto* popup=editor->findChild<QDialog*>("liveColorPicker");QVERIFY(popup);
-        if(path==Path::Red){auto* red=popup->findChild<QSpinBox*>("pickerRed");red->setValue(10);}
-        else if(path==Path::Hex){auto* hex=popup->findChild<QLineEdit*>("pickerHex");hex->setText("#12AB34");emit hex->editingFinished();}
+        // Expected colors are independent of the picker's own result (CodeRabbit review 2026-11-18); the
+        // saturation field has no exact target and is checked against gray only.
+        const QColor base=editor->color();QColor expected;
+        if(path==Path::Red){auto* red=popup->findChild<QSpinBox*>("pickerRed");red->setFocus();red->selectAll();
+            // Typed and confirmed with Return, which applies the picker (it used to click the original swatch).
+            QPointer<QDialog> open(popup);QTest::keyClicks(red,"10");QTest::keyClick(red,Qt::Key_Return);
+            QTRY_VERIFY(!open || !open->isVisible());QCOMPARE(list.colors()[stop].name(),QColor(10,base.green(),base.blue()).name());continue;}
+        else if(path==Path::Hex){auto* hex=popup->findChild<QLineEdit*>("pickerHex");hex->setText("#12AB34");emit hex->editingFinished();expected=QColor("#12ab34");}
         else if(path==Path::Field){auto* field=popup->findChild<QWidget*>("saturationValueField");
             QTest::mousePress(field,Qt::LeftButton,{},QPoint(field->width()-5,5));QTest::mouseMove(field,QPoint(field->width()-3,4));QTest::mouseRelease(field,Qt::LeftButton,{},QPoint(field->width()-3,4));}
-        else {QPushButton* swatch=nullptr;for(auto* button:popup->findChildren<QPushButton*>())if(button->accessibleName()=="Use #00ffff")swatch=button;QVERIFY(swatch);swatch->click();}
+        else {QPushButton* swatch=nullptr;for(auto* button:popup->findChildren<QPushButton*>())if(button->accessibleName()=="Use #00ffff")swatch=button;QVERIFY(swatch);swatch->click();expected=QColor("#00ffff");}
         QCoreApplication::processEvents();
         const QColor chosen=editor->color();QVERIFY2(chosen!=QColor(128,128,128),qPrintable(chosen.name()));
+        if(expected.isValid())QCOMPARE(chosen.name(),expected.name());
         popup->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Apply)->click();QCoreApplication::processEvents();
         QCOMPARE(list.colors()[stop],chosen);
     }

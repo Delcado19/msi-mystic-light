@@ -156,6 +156,9 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
         if(square->brightness==0)square->brightness=255;
     };
     QObject::connect(hue,&QSlider::valueChanged,popup,[=](int value){square->hue=value;tintIfAchromatic();fromHsv();});
+    // Clicking the handle where it already is (0 degrees on a fresh gray stop) selects that hue without
+    // a value change; it must tint the stop too (CodeRabbit review 2026-11-18).
+    QObject::connect(hue,&QSlider::sliderReleased,popup,[=]{if(square->saturation==0 || square->brightness==0){square->hue=hue->value();tintIfAchromatic();fromHsv();}});
     for(int i=0;i<3;++i) {
         QObject::connect(hsv[i],&QSpinBox::valueChanged,popup,[=](int value) {
             if(i==0){square->hue=value%360;tintIfAchromatic();}else if(i==1)square->saturation=qRound(value*255./100);else square->brightness=qRound(value*255./100);fromHsv();
@@ -213,6 +216,11 @@ void openStudioColorPicker(ColorEditor* editor,bool mouseInitiated)
     });
     auto* buttons=new QDialogButtonBox(QDialogButtonBox::Apply|QDialogButtonBox::Cancel);stack->addWidget(buttons);
     QObject::connect(buttons->button(QDialogButtonBox::Apply),&QPushButton::clicked,popup,&QDialog::accept);
+    // Return in a number or hex field clicked the first auto-default button, the swatch of the original
+    // color, and undid the typed value (found by the CodeRabbit-requested typing test, 2026-11-18).
+    // Return now applies, like the dialog's Apply button.
+    for(auto* button:popup->findChildren<QPushButton*>())button->setAutoDefault(false);
+    buttons->button(QDialogButtonBox::Apply)->setDefault(true);
     QObject::connect(buttons,&QDialogButtonBox::rejected,popup,&QDialog::reject);
     // Initialization must not create a document edit or an undo command.
     {const QSignalBlocker block(editor);(*update)(original);}

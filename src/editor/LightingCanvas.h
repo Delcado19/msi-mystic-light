@@ -35,6 +35,8 @@ public:
     void select(const QUuid& id);
     void selectMany(const QSet<QUuid>& ids, const QUuid& primary = {});
     QSet<QUuid> selections() const;
+    // selections() skips locked objects; Unlock still needs to know a locked one is selected.
+    bool selectionHasLocked() const;
     void alignSelection(const QString& alignment);
     void duplicateSelection();
     void deleteSelection();

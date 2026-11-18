@@ -1776,11 +1776,13 @@ namespace {
 // gray = configured but not active, red = errors. Other states (portable mode) stay as text.
 QString outputTrafficLight(const QString& state)
 {
-    const auto match=QRegularExpression("^(\\d+) active / (\\d+) configured / (\\d+) errors$").match(state);
+    // "faulted" counts channels with an error; service-wide errors are in "errors" only.
+    const auto match=QRegularExpression("^(\\d+) active / (\\d+) configured / (\\d+) errors(?: / (\\d+) faulted)?$").match(state);
     if(!match.hasMatch())return "Devices: "+state.toHtmlEscaped();
     const int active=match.captured(1).toInt(),configured=match.captured(2).toInt(),errors=match.captured(3).toInt();
+    const int faulted=match.captured(4).isEmpty() ? errors : match.captured(4).toInt();
     const auto dot=[](const char* color,int count){return QString("<span style=\"color:%1\">&#9679;</span> %2").arg(color).arg(count);};
-    return dot("#3fb950",active)+"&nbsp;&nbsp;"+dot("#8b949e",std::max(0,configured-active-errors))+"&nbsp;&nbsp;"+dot("#f85149",errors);
+    return dot("#3fb950",active)+"&nbsp;&nbsp;"+dot("#8b949e",std::max(0,configured-active-faulted))+"&nbsp;&nbsp;"+dot("#f85149",errors);
 }
 }
 
@@ -1835,7 +1837,10 @@ void LightingWindow::refreshToolOptions()
     if(auto* button=findChild<QButtonGroup*>("drawingToolGroup")->button(int(tool)))button->setChecked(true);
     const bool panning=tool==LightingCanvas::Tool::Pan;
     const bool hasSelection=!(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->selections().isEmpty() || (tabs_->currentIndex()==1 && selected && selected->container && !selected->locked);
-    for(const auto& name:{"duplicateSelection","deleteSelection","lockSelection","unlockSelection"})if(auto* action=findChild<QAction*>(name))action->setEnabled(tabs_->currentIndex()<2 && hasSelection);
+    for(const auto& name:{"duplicateSelection","deleteSelection","lockSelection"})if(auto* action=findChild<QAction*>(name))action->setEnabled(tabs_->currentIndex()<2 && hasSelection);
+    // A locked object is not an editable selection, but it is exactly what Unlock acts on (CodeRabbit review 2026-11-18).
+    if(auto* unlock=findChild<QAction*>("unlockSelection"))unlock->setEnabled(tabs_->currentIndex()<2 &&
+        (hasSelection || (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->selectionHasLocked()));
     const int selectionCount=(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->selections().size();
     for(auto* action:findChildren<QAction*>())if(action->objectName().startsWith("align_"))
         action->setEnabled(selectionCount>=(action->objectName().contains("distribute") ? 3 : 2));
