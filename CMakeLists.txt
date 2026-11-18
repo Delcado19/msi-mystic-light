@@ -141,6 +141,8 @@ target_link_libraries(msi_mystic_light PRIVATE Qt6::Widgets lighting_modules msi
 add_dependencies(msi_mystic_light msi_gen1_module peripherals_module auxiliary_module asrock_polychrome_module lenovo_motherboard_module hp_omen_module)
 if(WIN32)
     target_sources(msi_mystic_light PRIVATE src/app.rc)
+    # The resource scanner tracks #include only, not ICON files: rebuild app.rc when the icon changes.
+    set_source_files_properties(src/app.rc PROPERTIES OBJECT_DEPENDS "${PROJECT_SOURCE_DIR}/assets/branding/lighting-studio.ico")
     # A matching SDK plugin is preferred; the documented source build supplies SDKs without ImageFormats.
     set(WEBP_PLUGIN_HINTS "${Qt6_DIR}/../../../plugins/imageformats")
     if(Qt6_VERSION VERSION_EQUAL "6.8.3")
