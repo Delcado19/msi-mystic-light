@@ -1158,9 +1158,9 @@
     "semantic_hash": ""
   },
   "tests/service/test_installer.ps1": {
-    "mtime": 1795017587.9777591,
-    "seen": 1795021563.5323212,
-    "ast_hash": "d9d4eab08ffbcc02a600096b9d0117bb",
+    "mtime": 1795066365.8441062,
+    "seen": 1795066427.2632391,
+    "ast_hash": "1f6471ee74b1acc4cf6bc29d5802ad12",
     "semantic_hash": ""
   },
   "tests/service/test_service.cpp": {
@@ -1176,9 +1176,9 @@
     "semantic_hash": ""
   },
   "docs/WINDOWS_SERVICE.md": {
-    "mtime": 1795017587.9246635,
-    "seen": 1795021563.5388927,
-    "ast_hash": "f9048348b9a7148a2b308272998cbfb6",
+    "mtime": 1795066365.8456123,
+    "seen": 1795066427.2659142,
+    "ast_hash": "9e51fefe8bab1a2c1f82b50f23e511a1",
     "semantic_hash": ""
   },
   "docs/images/layout-fullscreen.png": {
@@ -1698,9 +1698,9 @@
     "semantic_hash": ""
   },
   "installer/Uninstall-LightingStudio.ps1": {
-    "mtime": 1795017587.9486866,
-    "seen": 1795021563.523635,
-    "ast_hash": "4689e057d367f09da5ca7a194d88a8d2",
+    "mtime": 1795066384.324773,
+    "seen": 1795066427.2536283,
+    "ast_hash": "4c695745c2a557b7e8e4134070226eda",
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.cpp": {
