@@ -16,16 +16,18 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
   file dialogs start in the home folder; saved projects always end in `.lighting.json` (a
   replace prompt guards a suffixed name that exists); the uninstaller asks only about PawnIO,
   copies every `*.json` below `%LOCALAPPDATA%\Lighting Studio` to a dated backup, deletes the
-  folder and shows the result in a highlighted box; an already elevated console keeps the files.
+  folder and shows the result in a highlighted box. Started elevated (Settings > Apps), it runs that
+  step as the signed-in user through a temporary scheduled task.
 - Owner-confirmed on hardware: smooth color playback (R26), live drag, keyboard replug, lighting
-  after wake, uninstall from an elevated console and unelevated (R28).
+  after wake, uninstall unelevated and via Settings > Apps (backup made as the user, no task or
+  result file left), `.lighting.json` suffix on a typed `test.json` (R28).
 - Kept branches: `feat/hardware-photos` (10 transparent device photos for placement, keep),
   `docs/impeccable-product-design`. Worktrees `.claude/worktrees/lighting-studio` and
   `v1-skeleton` still exist; whether they are needed is unknown.
 
 ## Open tests
 
-- R28 editor: `.lighting.json` suffix on save and the replace prompt.
+- R28 editor: replace prompt when the suffixed name already exists.
 - Event-driven presence check: service log at rest.
 - LEDKeeper2 stop dialog flow; service pipe access list under other Windows accounts.
 - JARGB2: not every intermediate strip position was qualified individually.
