@@ -29,12 +29,14 @@ function Remove-Tree([string]$Path) {
     try { Remove-TreeItem (Get-Item -LiteralPath $Path -Force) }
     catch { throw "Could not delete $Path (a file may still be in use): $($_.Exception.Message)" }
 }
-$editor = Join-Path $destination 'msi_mystic_light.exe'
-function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $editor } }
+# Any copy counts, portable ones too: they write their recovery file into the same folder that is backed
+# up and deleted (CodeRabbit review 2026-11-19).
+function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue }
 # User data lives in a user-writable profile, so it is handled by the process the user started, with
 # that user's own token, never by the elevated child (security review 2026-11-15: a junction planted in
 # the profile must not redirect an administrator's delete). A console that is already elevated has no
-# such process; there both folders must be real directories or nothing is touched.
+# such process, so it leaves user data alone: copying with an administrator token could read a protected
+# file through a junction swapped in after the scan (CodeRabbit review 2026-11-19, CWE-367).
 # Organization / application name: QSettings in src/main.cpp.
 # Owner decision 2026-11-19: every *.json anywhere below %LOCALAPPDATA%\Lighting Studio is copied, unrenamed
 # and with its subfolders, to a dated backup in the profile; then the whole folder is deleted, other files
@@ -88,8 +90,9 @@ function Remove-UserData(
 # -OnlyCopied: after a failure, show a finished backup but never claim that no file was found.
 function Show-Backup([switch]$OnlyCopied) {
     if ($Elevated) { return }  # the elevated child never touches user data; its parent reports it
-    if ($OnlyCopied -and !$script:backup) { return }
-    $body = if ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)") }
+    if ($OnlyCopied -and !$script:backup -and !$script:userDataSkipped) { return }
+    $body = if ($script:userDataSkipped) { @('  YOUR EDITOR FILES WERE KEPT UNCHANGED (administrator console, no backup made):', '', "  $(Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Lighting Studio')\") }
+            elseif ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)") }
             else { @("  NO PERSONAL LIGHTING STUDIO FILES FOUND IN $($script:scanned.TrimEnd('\'))\") }
     # Long paths overflowed the fixed 78-column box (owner test 2026-11-19): size it to the longest line.
     $width = [Math]::Max(78, ($body | ForEach-Object Length | Measure-Object -Maximum).Maximum + 2)
@@ -167,7 +170,7 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
 $problems = New-Object Collections.Generic.List[string]
 $self = [IO.File]::ReadAllText($PSCommandPath)
 $clock = [Diagnostics.Stopwatch]::StartNew()
-$stepCount = 6 + [int][bool]$RemovePawnIO + [int](!$Elevated); $stepIndex = 0
+$stepCount = 6 + [int][bool]$RemovePawnIO; $stepIndex = 0
 # Progress bar plus one timed line per step, so a slow step does not look like a hang (2026-11-17).
 function Invoke-Step([string]$Name, [scriptblock]$Action) {
     $script:stepIndex++
@@ -223,8 +226,8 @@ if ($RemovePawnIO) {
         if (Get-Service -Name PawnIO -ErrorAction SilentlyContinue) { Write-Host '        Note: the PawnIO driver service is still registered; Windows may remove it after a restart.' }
     }
 } elseif (Test-Path -LiteralPath $pawnIOKey) { Write-Host 'Kept: PawnIO driver (shared with other hardware tools).' }
-# Only an already elevated console runs this here; the usual unelevated parent handles user data itself.
-if (!$Elevated) { Invoke-Step 'Remove editor settings, back up user files' { if (!(Remove-UserData)) { throw 'not completed; your files were left in place' } } }
+# Only an already elevated console gets here without -Elevated; it never touches user data (see above).
+if (!$Elevated) { $script:userDataSkipped = $true }
 # The retry entry point is decided last, after every other step: after any failure the Apps entry stays
 # and the script is put back, recreating its folder if needed. If removing the entry itself fails, the
 # script is put back too, so the entry never points to a missing script (CodeRabbit reviews 2026-11-15/18).
