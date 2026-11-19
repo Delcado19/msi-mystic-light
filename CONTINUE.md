@@ -12,7 +12,7 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
 ## Current state
 
 - `master`: PRs #1-#4 and #6 merged.
-- PR #5 (`chore/build-r26`, package GS-06-R28, `Downloads/LightingStudio-local-r28.zip`) is open:
+- PR #5 (`chore/build-r26`, package GS-06-R29, `Downloads/LightingStudio-local-r29.zip`) is open:
   file dialogs start in the home folder; saved projects always end in `.lighting.json` (a
   replace prompt guards a suffixed name that exists); the uninstaller asks only about PawnIO,
   always removes the editor registry settings and never touches `%LOCALAPPDATA%\Lighting Studio`,
