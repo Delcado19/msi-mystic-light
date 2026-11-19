@@ -71,7 +71,7 @@
 
 namespace {
 // R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus. R18: canvas drags stream live, menus show only what acts in the current view. R19: no 5 s rescan while all outputs run, output stalls logged. R20: presence check off the output thread (150 ms LED freeze each second). R21: uninstaller backs up user files, never kills the editor. R22: tray icon and name, Layout menu without Add components. R23: product name Lighting Studio for settings and session data. R24: CodeRabbit fixes for PR #3, picker keeps the color on an outside click, Return applies.
-constexpr auto studioBuildId="GS-06-R27";
+constexpr auto studioBuildId="GS-06-R28";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -2065,12 +2065,25 @@ void LightingWindow::loadProject(const QString& path, bool recovered, const QStr
     findChild<QAction*>("workspaceEffects")->trigger();
 }
 
+QString withProjectSuffix(const QString& path)
+{
+    if (path.endsWith(".lighting.json", Qt::CaseInsensitive)) return path;
+    return (path.endsWith(".json", Qt::CaseInsensitive) ? path.chopped(5) : path) + ".lighting.json";
+}
+
 bool LightingWindow::saveDocument()
 {
-    const auto path = fileName_.isEmpty() ? QFileDialog::getSaveFileName(this,
+    auto path = fileName_;
+    if (path.isEmpty()) {
         // A bare file name resolved to the install folder, which is read-only without admin rights.
-        "Save lighting document", QDir::homePath() + "/Untitled.lighting.json", "Lighting documents (*.lighting.json)") : fileName_;
-    if (path.isEmpty()) return false;
+        const auto chosen = QFileDialog::getSaveFileName(this, "Save lighting document",
+            QDir::homePath() + "/Untitled.lighting.json", "Lighting documents (*.lighting.json)");
+        if (chosen.isEmpty()) return false;
+        path = withProjectSuffix(chosen);
+        // The dialog confirmed overwriting only the name as typed, not the suffixed one.
+        if (path != chosen && QFileInfo::exists(path) && QMessageBox::question(this, "Replace file",
+                QFileInfo(path).fileName() + " already exists. Replace it?") != QMessageBox::Yes) return false;
+    }
     try { saveProject(path); return true; }
     catch (const std::exception& error) { QMessageBox::warning(this, "Save failed", QString::fromUtf8(error.what())); return false; }
 }

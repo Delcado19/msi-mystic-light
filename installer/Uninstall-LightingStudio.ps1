@@ -85,8 +85,10 @@ function Remove-UserData(
 }
 # Shown last, right before the window waits for Enter, so the result is the final thing on screen. Also
 # shown when no file was found: silence there confused the owner (2026-11-19).
-function Show-Backup {
+# -OnlyCopied: after a failure, show a finished backup but never claim that no file was found.
+function Show-Backup([switch]$OnlyCopied) {
     if ($Elevated) { return }  # the elevated child never touches user data; its parent reports it
+    if ($OnlyCopied -and !$script:backup) { return }
     $body = if ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)") }
             else { @("  NO PERSONAL LIGHTING STUDIO FILES FOUND IN $($script:scanned.TrimEnd('\'))\") }
     # Long paths overflowed the fixed 78-column box (owner test 2026-11-19): size it to the longest line.
@@ -153,7 +155,8 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
         exit 1
     }
     # Only after the program is gone, so a declined UAC prompt leaves the settings in place.
-    if (!(Remove-UserData)) { if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1 }
+    # A later step (registry) can fail after the copy; the user must still learn where the files are (CodeRabbit 2026-11-19).
+    if (!(Remove-UserData)) { Show-Backup -OnlyCopied; if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1 }
     if (!$Quiet) {
         Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green
     }
@@ -240,7 +243,7 @@ if ($problems.Count) {
     Write-Host "`nLighting Studio was NOT removed completely:" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host "  $_" }
 } else { Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green }
-if (!$problems.Count) { Show-Backup }
+Show-Backup -OnlyCopied:($problems.Count -gt 0)
 # The elevated child no longer waits for Enter on success: the visible parent reports the result.
 if (!$Quiet -and ($problems.Count -or !$Elevated)) { Read-Host 'Press Enter to close' | Out-Null }
 elseif ($Elevated -and !$Quiet) { Write-Host 'This window closes in 5 seconds.'; Start-Sleep -Seconds 5 }

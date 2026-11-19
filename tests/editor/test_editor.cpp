@@ -193,6 +193,7 @@ private slots:
     void pickerApplyKeepsEveryInputPath();
     void menusFollowWorkspace();
     void effectLibraryCategorized();
+    void projectSuffixEnforced();
     void hueTrackRetainsSpectrum();
     void screenEyedropperGeometry();
     void auditWorkspace();
@@ -4733,3 +4734,12 @@ void EditorTest::canvasTeardownWithActiveGesture()
 }
 
 #include "test_editor.moc"
+
+void EditorTest::projectSuffixEnforced()
+{
+    QCOMPARE(withProjectSuffix("C:/p/a.lighting.json"), QString("C:/p/a.lighting.json"));
+    QCOMPARE(withProjectSuffix("C:/p/a.LIGHTING.JSON"), QString("C:/p/a.LIGHTING.JSON"));
+    QCOMPARE(withProjectSuffix("C:/p/a.json"), QString("C:/p/a.lighting.json"));
+    QCOMPARE(withProjectSuffix("C:/p/a"), QString("C:/p/a.lighting.json"));
+    QCOMPARE(withProjectSuffix("C:/p/a.backup"), QString("C:/p/a.backup.lighting.json"));
+}
