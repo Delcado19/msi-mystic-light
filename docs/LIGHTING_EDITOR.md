@@ -25,7 +25,7 @@ security and validation limits](WINDOWS_SERVICE.md).
 
 The app opens in the Design workspace (the Editor) with Components selected. Devices is the hardware workspace. Components and Layers choose the editing target inside one workspace; Hardware remains separate for discovery, attachment, channel configuration and output diagnostics. Composite shows effects with component artwork and sampled LEDs. Effect only and Components only hide the other content and disable its selection target. Camera, selection, preview channel and animation time survive target changes. View can enable the optional split hardware preview. The preview is software rendering, not physical device readback.
 
-The navigator and inspector follow the active target. Shift-click and marquee select multiple items. Right-click offers applicable edit actions; overlapping objects are available under Select object. Align uses selection bounds, and distribution spaces centers. Smart guides are separate from grid snapping; Alt bypasses both. View provides Lock/Unlock selection. See [the unified editor contract](design/UNIFIED_EDITOR_IMPLEMENTATION_2026-10-27.md).
+The navigator and inspector follow the active target. Shift-click and marquee select multiple items. Right-click offers applicable edit actions; overlapping objects are available under Select object. Align uses selection bounds, and distribution spaces centers. Smart guides are separate from grid snapping; Alt bypasses both. View provides Lock/Unlock selection.
 
 **New layer** creates a transparent paint layer with its own pixels. **New group**
 creates a source-free container for multiple editable effects. A selected group
@@ -505,9 +505,6 @@ Continuous changes no longer restart the recovery countdown. Timing still depend
 on the GUI event loop; this is not a hard real-time guarantee. Failed writes show
 an error, keep the document dirty and retry on the next edit. Saving/undoing back
 to the clean state cancels the timer and removes the separate recovery file.
-
-The [layer model proposal](LAYER_MODEL_PLAN.md) explains the planned distinction
-between layers and their effects. It is not yet a change to creation or mixing.
 
 Configured hardware receives the canvas automatically. Effect/mask edits and undo
 update software channels live; topology changes reconnect using validated endpoint
@@ -1076,9 +1073,6 @@ Zoom/Fit use icons; compact LS branding belongs to the main toolbar, not Hardwar
 The screen eyedropper samples directly from temporary per-screen capture overlays;
 no window spans the virtual desktop or changes the Inspector layout.
 
-See [implementation details](design/EDITOR_INTERACTION_IMPLEMENTATION_2026-10-27.md)
-for schema 14 compatibility, raster/vector distinctions and current limits.
-
 Hue track regression: the rainbow track stays visible across the entire range,
 including hue 359 near red. The picker overrides inherited slider fill colors;
 its numeric HSV fields use plain values, matching the effect controls. Live
@@ -1140,8 +1134,7 @@ Gradient mode remains available without always drawing a misleading arrow.
 Additional sources: Lava Lamp (blob count/seed), Checkerboard (grid size), and
 Kaleidoscope (symmetry repetitions). Lava Lamp lives in Organic and noise;
 Checkerboard/Kaleidoscope in Gradients and patterns. These types require schema 19.
-Aurora remains loadable as a legacy wave source but is omitted from new-source menus. See [Editor UX review](EDITOR_UX_REVIEW.md)
-for the applied design principles, limitations and crash evidence.
+Aurora remains loadable as a legacy wave source but is omitted from new-source menus.
 
 Panel preferences are persisted separately from Qt dock geometry. Hiding panels
 for Hardware or compact mode does not overwrite the editing preference. Legacy
@@ -1227,7 +1220,6 @@ Older applications reject newly saved schema-22 files rather than discard settin
 The visual character of Lightning/Fireworks is intentionally updated even for old
 saved sources; source geometry, palette and saved count/rate remain intact. New
 Fireworks sources default to 320 sparks, with a supported UI maximum of 400.
-See EFFECT_VISUAL_REVIEW.md for references, matched renders and limitations.
 
 ### Startup compatibility hotfix (2026-10-30)
 

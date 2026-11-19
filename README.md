@@ -110,7 +110,6 @@ in our own words; see the notice in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.m
 - [`docs/NETWORK_PROTOCOL.md`](docs/NETWORK_PROTOCOL.md) — its local network interfaces.
 - [`docs/MB_800_HID_PROTOCOL.md`](docs/MB_800_HID_PROTOCOL.md) — the "800-series" mainboard USB HID protocol.
 - [`docs/SIGNALRGB_REPOSITORY_RESEARCH.md`](docs/SIGNALRGB_REPOSITORY_RESEARCH.md), [`docs/SIGNALRGB_TOPIC_RESEARCH.md`](docs/SIGNALRGB_TOPIC_RESEARCH.md), [`docs/SIGNALFORGE_EDITOR_RESEARCH.md`](docs/SIGNALFORGE_EDITOR_RESEARCH.md) — public SignalRGB research used for comparison and editor design.
-- [`docs/OPENRGB_UPSTREAM_DRAFT.md`](docs/OPENRGB_UPSTREAM_DRAFT.md) — draft comment for OpenRGB issues #4935/#5429 (not posted).
 
 ## Related repos
 
