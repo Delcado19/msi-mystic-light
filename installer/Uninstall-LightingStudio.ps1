@@ -81,14 +81,14 @@ function Remove-UserData(
 if (!$PSCmdlet.ShouldProcess($destination, 'Remove Lighting Studio service, editor logon task, program files and service data')) { return }
 if (!$Quiet -and !$Elevated) {
     if (!$RemoveUserData) {
-        # The one-line question was misread by the owner (2026-11-17); name each item, where it lives
-        # and what happens to it (owner review 2026-11-18: the old text promised more than it kept).
-        Write-Host 'Your personal editor data can be removed too:'
+        # Owner review 2026-11-19: "your own files" was wrong. %LOCALAPPDATA%\Lighting Studio\Editor only
+        # holds application.lock and recovery.lighting.json (main.cpp); projects are saved where the user chose.
+        Write-Host 'Your editor settings can be removed too:'
         Write-Host '  - window layout and editor preferences (registry: HKCU\Software\Lighting Studio) are deleted'
-        Write-Host '  - your own files and the backup of unsaved changes (%LOCALAPPDATA%\Lighting Studio) are moved'
-        Write-Host "    to $([Environment]::GetFolderPath('UserProfile'))\Lighting Studio - Backup - <date>"
-        Write-Host 'Projects you saved anywhere else are not touched.'
-        $RemoveUserData = (Read-Host 'Remove this personal editor data? [y/N]') -match '^(y|j)'
+        Write-Host '  - the automatic copy of unsaved changes, if any, is kept as'
+        Write-Host "    $([Environment]::GetFolderPath('UserProfile'))\Lighting Studio - Backup - <date>\Unsaved changes.lighting.json"
+        Write-Host 'Your saved projects are never touched.'
+        $RemoveUserData = (Read-Host 'Remove the editor settings? [y/N]') -match '^(y|j)'
     }
     if (!$RemovePawnIO -and (Test-Path -LiteralPath $pawnIOKey)) {
         Write-Host 'The PawnIO driver is shared. OpenRGB, Fan Control, LibreHardwareMonitor, ZenTimings and other'
