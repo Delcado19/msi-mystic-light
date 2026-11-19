@@ -91,7 +91,7 @@ function Remove-UserData(
 function Show-Backup([switch]$OnlyCopied) {
     if ($Elevated) { return }  # the elevated child never touches user data; its parent reports it
     if ($OnlyCopied -and !$script:backup -and !$script:userDataSkipped) { return }
-    $body = if ($script:userDataSkipped) { @('  YOUR EDITOR FILES WERE KEPT UNCHANGED (administrator console, no backup made):', '', "  $(Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Lighting Studio')\") }
+    $body = if ($script:userDataSkipped) { @('  YOUR EDITOR FILES WERE KEPT UNCHANGED (started with administrator rights, no backup made):', '', "  $(Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Lighting Studio')\") }
             elseif ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)") }
             else { @("  NO PERSONAL LIGHTING STUDIO FILES FOUND IN $($script:scanned.TrimEnd('\'))\") }
     # Long paths overflowed the fixed 78-column box (owner test 2026-11-19): size it to the longest line.

@@ -212,7 +212,7 @@ found anywhere below `%LOCALAPPDATA%/Lighting Studio` (unrenamed, with its subfo
 included, without asking. The result is shown last in a highlighted box: the backup path, or that no
 file was found. A failed copy leaves the folder and the settings untouched. This runs with the rights
 of the user who starts the uninstaller, not in the elevated step; a portable copy shares these settings.
-Started from a console that already has administrator rights, the uninstaller leaves these files and
+Started with administrator rights (Windows Settings > Apps, or an elevated console), the uninstaller leaves these files and
 settings alone and names their folder in the box, because copying them with an administrator token is unsafe. It
 refuses to start while any copy of the editor runs, portable ones included.
 Saved projects outside `%ProgramFiles%/Lighting Studio` (for example in Documents) are not touched.

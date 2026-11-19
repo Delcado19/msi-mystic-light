@@ -16,11 +16,12 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
   file dialogs start in the home folder; saved projects always end in `.lighting.json` (a
   replace prompt guards a suffixed name that exists); the uninstaller asks only about PawnIO,
   copies every `*.json` below `%LOCALAPPDATA%\Lighting Studio` to a dated backup, deletes the
-  folder and shows the result in a highlighted box. Started elevated (Settings > Apps), it runs that
-  step as the signed-in user through a temporary scheduled task.
+  folder and shows the result in a highlighted box. Started elevated (Settings > Apps or an
+  administrator console), it keeps the files and names their folder in the box. A scheduled-task
+  backup as the signed-in user was tried and reverted (too much machinery for little gain).
 - Owner-confirmed on hardware: smooth color playback (R26), live drag, keyboard replug, lighting
-  after wake, uninstall unelevated and via Settings > Apps (backup made as the user, no task or
-  result file left), `.lighting.json` suffix on a typed `test.json` (R28).
+  after wake, uninstall from an elevated console and unelevated, `.lighting.json` suffix on a
+  typed `test.json` (R28).
 - Kept branches: `feat/hardware-photos` (10 transparent device photos for placement, keep),
   `docs/impeccable-product-design`. Worktrees `.claude/worktrees/lighting-studio` and
   `v1-skeleton` still exist; whether they are needed is unknown.
