@@ -123,3 +123,7 @@ private:
     bool compactWorkspace_=false, navigatorShown_=true, inspectorShown_=true, inspectorBeforeCompact_=true, adjustingPanels_=false;
     QString fileName_;
 };
+
+// Project files always end in ".lighting.json" (owner decision 2026-11-19): the open dialog filters on it
+// and the uninstaller backs up only *.json. A trailing ".json" is replaced; any other name gets the suffix.
+QString withProjectSuffix(const QString& path);

@@ -41,37 +41,25 @@ $uninstaller = Join-Path (Split-Path $Installer -Parent) 'Uninstall-LightingStud
 [Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$tokens,[ref]$errors) | Out-Null
 if ($errors.Count) { throw ($errors | Out-String) }
 if ((Get-Content -LiteralPath $uninstaller -Raw) -notmatch "-ArgumentList @\('-uninstall','-silent'\)") { throw 'PawnIO silent removal arguments differ from its registered QuietUninstallString' }
-& $uninstaller -RemoveUserData -RemovePawnIO -Quiet -WhatIf
-# User data (owner decision and CodeRabbit review 2026-11-18): a successful removal moves the user's
-# own files and the unsaved changes to a dated backup; a failed move changes nothing at all.
+& $uninstaller -RemovePawnIO -Quiet -WhatIf
+# Owner decision 2026-11-19: profile files are never touched, registry settings always go. Only the
+# program and service-data folders may be deleted; the editor key and its then empty parent are removed.
 $ast=[Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$null,[ref]$null)
-. ([scriptblock]::Create(($ast.FindAll({$args[0] -is [Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Remove-UserData'},$true) | Select-Object -First 1).Extent.Text))
-$userRoot=[IO.Path]::GetFullPath((Join-Path $temporaryRoot ('LightingStudio-userdata-'+[guid]::NewGuid().ToString())))
+$deleted = @($ast.FindAll({$args[0] -is [Management.Automation.Language.CommandAst] -and $args[0].GetCommandName() -eq 'Remove-Tree'},$true) | ForEach-Object { $_.CommandElements[1].Extent.Text })
+if (($deleted -join ',') -ne '$destination,$state') { throw "Uninstaller deletes more than program and service data: $($deleted -join ', ')" }
+. ([scriptblock]::Create(($ast.FindAll({$args[0] -is [Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Remove-EditorSettings'},$true) | Select-Object -First 1).Extent.Text))
 $keyRoot='HKCU:\Software\LightingStudioTest-'+[guid]::NewGuid().ToString()
 try {
-    foreach ($case in 'moved','failed') {
-        $parent=Join-Path $userRoot "$case\Lighting Studio"; $data=Join-Path $parent 'Editor'; $key="$keyRoot\$case\Editor"
-        New-Item -ItemType Directory -Force -Path (Join-Path $data 'sub') | Out-Null
-        foreach ($file in 'project.lighting.json','recovery.lighting.json','application.lock','sub\notes.txt') { [IO.File]::WriteAllText((Join-Path $data $file),$file) }
-        New-Item -Path $key -Force | Out-Null
-        $backupRoot = if ($case -eq 'moved') { Join-Path $userRoot 'profile' } else { Join-Path $userRoot 'missing\profile' }
-        if ($case -eq 'moved') { New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null }
-        $script:backup=$null
-        $ok = Remove-UserData -Parent $parent -BackupRoot $backupRoot -Key $key 3>$null 6>$null
-        if ($case -eq 'moved') {
-            $backup=Join-Path $backupRoot ('Lighting Studio - Backup - '+(Get-Date -Format 'yyyy_MM_dd'))
-            if (!$ok -or (Test-Path -LiteralPath $parent) -or (Test-Path -LiteralPath $key)) { throw 'User data removal left the folder or settings behind' }
-            foreach ($file in 'project.lighting.json','Unsaved changes.lighting.json','sub\notes.txt') { if (!(Test-Path -LiteralPath (Join-Path $backup $file))) { throw "Backup lacks $file" } }
-            if (Test-Path -LiteralPath (Join-Path $backup 'application.lock')) { throw 'Backup contains the app lock' }
-        } else {
-            if ($ok) { throw 'A failed backup move reported success' }
-            foreach ($file in 'project.lighting.json','recovery.lighting.json','sub\notes.txt') { if (!(Test-Path -LiteralPath (Join-Path $data $file))) { throw "Failed move lost $file" } }
-            if (!(Test-Path -LiteralPath $key)) { throw 'Failed move deleted the settings' }
-        }
-    }
+    New-Item -Path "$keyRoot\Editor\sub" -Force | Out-Null
+    Set-ItemProperty -LiteralPath "$keyRoot\Editor" -Name geometry -Value 'x'
+    Remove-EditorSettings -Key "$keyRoot\Editor"
+    if (Test-Path -LiteralPath $keyRoot) { throw 'Editor settings or their empty parent key were left behind' }
+    # A parent key that still holds other values stays.
+    New-Item -Path "$keyRoot\Editor" -Force | Out-Null
+    Set-ItemProperty -LiteralPath $keyRoot -Name other -Value 'y'
+    Remove-EditorSettings -Key "$keyRoot\Editor"
+    if ((Test-Path -LiteralPath "$keyRoot\Editor") -or !(Test-Path -LiteralPath $keyRoot)) { throw 'Parent key with other values was not kept' }
 } finally {
-    if (!$userRoot.StartsWith($temporaryRoot,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe user data cleanup path' }
-    if (Test-Path -LiteralPath $userRoot) { Remove-Item -LiteralPath $userRoot -Recurse -Force }
     if (Test-Path -LiteralPath $keyRoot) { Remove-Item -LiteralPath $keyRoot -Recurse -Force }
 }
 Write-Host 'Installer and uninstaller parse; WhatIf validates a complete runtime without installing or removing.'

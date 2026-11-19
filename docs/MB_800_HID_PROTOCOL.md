@@ -101,39 +101,14 @@ Byte 7+:  LED colors, 3 bytes (R,G,B) per LED
 JPIPE4=771,JPIPE5=772,JARGB1=1024,JARGB2=1025,JARGB3=1026,
 OnBoard1-6=1792-1797,SelectAll=1536,JAF=2048`.
 
-**This overturns the previous conclusion in `PROTOCOL_NOTES.md`** ("there
-is currently no known mechanism for addressing individual LEDs within a
-JARGB header separately for our specific board"): this report exists in the
-official driver for exactly this VID:PID family and is **actively used** —
-`RGBControlClass.cs` (the SignalRGB UDP bridge, see
-`NETWORK_PROTOCOL.md`) calls `Gen1_Adv_ApplyArea_Byte` for `JARGB1`,
-`JARGB2`, `JARGB3`, `JAF`, `SelectAll` as soon as a third-party client sends
-individual LED colors.
-
-The earlier test (`probe_0x51.py`, `GET_FEATURE_REPORT(0x51, 761 bytes)`) is
-not a contradiction: it tested the **wrong direction** (GET instead of SET)
-with the **wrong length** (761 bytes, carried over from a different board
-family, instead of the correct 727 bytes here). A `GET_FEATURE_REPORT` on a
-report the firmware only implements as `SET` plausibly times out without
-the report actually being absent.
-
-**Confirmed working via a third-party production app (2026-10-18)**:
-SignalRGB (installed locally, v2.5.80, officially signed by WhirlwindFX)
-ships a maintained plugin for this exact VID (`0x0DB0`, file
-`185 Byte Motherboard Controller/MSI_185Byte_Controller_0x0DB0.js`) with
-an explicit entry for `MPG B850 EDGE TI WIFI (MS-7E62)`. It detects this
-report with `device.send_report([0x51], 761)` — a **SET**, not the GET
-our earlier probe used — and on success sends real per-header color data
-as `[0x51, 0x09, 0x04, HeaderIndex, 0x00, 0x00, LedCount, ...RGB]` at
-**727 bytes**, matching our derivation exactly (761 is only the probe's
-declared length, not the real packet size — same naming artifact we
-found in OpenRGB's own code, apparently inherited from the same
-community lineage). No "Store" flag equivalent for this report; it's
-purely transient, sent every render frame with no explicit per-packet
-delay in this code path (global frame-rate capping happens elsewhere in
-the app). This closes the "not yet tested" gap without touching the
-board ourselves — static analysis of already-running, signed vendor
-software.
+**Status: confirmed on the owner's `MPG B850 EDGE TI WIFI (MS-7E62)`** (live per-LED marker
+test on `JARGB2`, area `0x0401`, see `JARGB2_TOPOLOGY_TEST.md`). A header shows `0x51` colors
+only after a transient `0x50` report has set its `LightingMode` to `Advanced` (9); a test on
+2026-10-20 that sent correct `0x51` packets without this step saw no effect. The app arms
+direct-mode headers this way before every `0x51` stream (`HARDWARE_MODULES.md`). The report
+is transient (no store flag) and is resent every frame. SignalRGB's MSI plugin for VID
+`0x0DB0` uses the same 727-byte layout: `[0x51, 0x09, 0x04, HeaderIndex, 0x00, 0x00,
+LedCount, ...RGB]`.
 
 **Exact LED topology for `MPG B850 EDGE TI WIFI (MS-7E62)`**, per that
 plugin's own device table: 3 ARGB headers (`JARGB1/2/3`, up to 120 LEDs

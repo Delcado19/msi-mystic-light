@@ -206,15 +206,17 @@ package. Both start `Uninstall-LightingStudio.ps1`, which requests elevation onc
 LightingStudio service, the `Lighting Studio Editor` logon task, the Start menu shortcut,
 `%ProgramFiles%/Lighting Studio`, `%ProgramData%/LightingStudio` and the Apps entry.
 
-Two things are removed only on request (prompt, or `-RemoveUserData` / `-RemovePawnIO`; `-Quiet`
-skips the prompts):
+It always deletes the editor settings in the registry (`HKCU/Software/Lighting Studio/Editor`), in the
+process the user started, not in the elevated step. Files in `%LOCALAPPDATA%/Lighting Studio`
+(recovery file, lock file) are never touched, however the uninstaller is started; the last thing on
+screen is a highlighted box that names this folder so the user can delete it, or says that it does not
+exist. Other Windows accounts' settings and files are not touched. A portable copy shares these
+settings. The uninstaller refuses to start while any copy of the editor runs, portable ones included.
+Saved projects outside `%ProgramFiles%/Lighting Studio` (for example in Documents) are not touched.
 
-- the owner's editor settings (`HKCU/Software/Lighting Studio/Editor`), deleted, and the files in
-  `%LOCALAPPDATA%/Lighting Studio/Editor` (recovery data and anything the user saved there), moved to
-  `%USERPROFILE%/Lighting Studio - Backup - yyyy_MM_dd`. Both happen with the rights of the user who
-  starts the uninstaller, not in the elevated step; a portable copy shares them;
-- the PawnIO driver, through PawnIO's own registered `uninstall.exe -uninstall -silent`. It is
-  shared: OpenRGB, Fan Control, LibreHardwareMonitor and ZenTimings use it too.
+The only question is whether to remove the PawnIO driver too (`-RemovePawnIO`; `-Quiet` skips it). It
+is removed through PawnIO's own registered `uninstall.exe -uninstall -silent` and is shared: OpenRGB,
+Fan Control, LibreHardwareMonitor and ZenTimings use it too.
 
 Saved project files are never deleted. The uninstaller refuses to start while the editor runs, so its
 own Save/Discard prompt is never skipped. Steps that fail are listed and the script exits non-zero.

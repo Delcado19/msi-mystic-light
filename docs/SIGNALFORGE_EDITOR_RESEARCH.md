@@ -34,8 +34,7 @@ Effects editing views. A central viewport may be reused, but component placement
 and effect authoring must never be active simultaneously. Each new effect layer
 owns an effect instance and an initially white editable grayscale mask immediately.
 Masks support soft painting and gradients with painting-app-style thumbnails
-and editing feedback. See the unified editor contract in
-[`superpowers/specs/2026-10-18-standalone-lighting-app-design.md`](superpowers/specs/2026-10-18-standalone-lighting-app-design.md).
+and editing feedback.
 
 - Keep the effect preview large, with a right inspector for layers and their
   properties, and compact playback/project controls below.

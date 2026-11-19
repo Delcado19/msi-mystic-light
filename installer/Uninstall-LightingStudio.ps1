@@ -1,15 +1,16 @@
 [CmdletBinding(SupportsShouldProcess=$true)]
 param(
     [switch]$RemovePawnIO,
-    [switch]$RemoveUserData,
     [switch]$Quiet,
     [switch]$Elevated,
     # The elevated child writes 'removed' or its problems here, so the parent can tell a recorded
     # failure from an interrupted child (CodeRabbit review 2026-11-17).
     [string]$ResultFile
 )
-# Removes everything Install-LightingStudio.ps1 created. The shared PawnIO driver and the owner's
-# editor settings are removed only on request; files the user created are moved to a backup, never deleted.
+# Removes everything Install-LightingStudio.ps1 created, including the editor settings in the registry. The
+# shared PawnIO driver is the only thing asked about. Owner decision 2026-11-19: files in the user profile
+# (%LOCALAPPDATA%\Lighting Studio) are never touched, however the uninstaller is started; their folder is
+# named at the end. Registry settings are always removed, because users do not clean the registry themselves.
 $ErrorActionPreference = 'Stop'
 $destination = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Lighting Studio'
 $state = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'LightingStudio'
@@ -29,67 +30,30 @@ function Remove-Tree([string]$Path) {
     try { Remove-TreeItem (Get-Item -LiteralPath $Path -Force) }
     catch { throw "Could not delete $Path (a file may still be in use): $($_.Exception.Message)" }
 }
-$editor = Join-Path $destination 'msi_mystic_light.exe'
-function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $editor } }
-# User data lives in a user-writable profile, so it is handled by the process the user started, with
-# that user's own token, never by the elevated child (security review 2026-11-15: a junction planted in
-# the profile must not redirect an administrator's delete). A console that is already elevated has no
-# such process; there both folders must be real directories or nothing is touched.
-# Organization / application name: QSettings in src/main.cpp.
-# The app itself writes only application.lock and recovery.lighting.json there. Everything else, and the
-# unsaved changes, is moved to a dated backup in the profile instead of being deleted (owner decision
-# 2026-11-18; CodeRabbit review 2026-11-18: a project saved into this folder was deleted with it).
-$script:backup = $null
-# Parameters exist for tests/service/test_installer.ps1, which runs this on a temporary folder and key.
-function Remove-UserData(
-    [string]$Parent = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Lighting Studio'),
-    [string]$BackupRoot = [Environment]::GetFolderPath('UserProfile'),
-    [string]$Key = 'HKCU:\Software\Lighting Studio\Editor') {
-    $failed = $false
-    try {
-        $data = Join-Path $Parent 'Editor'
-        foreach ($folder in @($Parent,$data)) {
-            if ((Test-Path -LiteralPath $folder) -and ((Get-Item -LiteralPath $folder -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Not deleted, $folder is a link: remove it yourself" }
-        }
-        # The move comes first and changes nothing else until it succeeded: a failed move leaves the
-        # folder, its recovery file and the settings exactly as they were (CodeRabbit review 2026-11-18).
-        if (Test-Path -LiteralPath $data) {
-            $lock = Join-Path $data 'application.lock'
-            if (Test-Path -LiteralPath $lock) { Remove-Item -LiteralPath $lock -Force }
-            if (Get-ChildItem -LiteralPath $data -Force) {
-                $base = Join-Path $BackupRoot ('Lighting Studio - Backup - ' + (Get-Date -Format 'yyyy_MM_dd'))
-                $target = $base; $number = 2
-                while (Test-Path -LiteralPath $target) { $target = "$base ($number)"; $number++ }
-                # A move across volumes fails and leaves every file where it was.
-                Move-Item -LiteralPath $data -Destination $target
-                $script:backup = $target
-                $recovery = Join-Path $target 'recovery.lighting.json'
-                if ((Test-Path -LiteralPath $recovery) -and !(Test-Path -LiteralPath (Join-Path $target 'Unsaved changes.lighting.json'))) {
-                    Rename-Item -LiteralPath $recovery -NewName 'Unsaved changes.lighting.json'
-                }
-            } else { Remove-Item -LiteralPath $data -Force }
-        }
-        if ((Test-Path -LiteralPath $Parent) -and !(Get-ChildItem -LiteralPath $Parent -Force)) { Remove-Item -LiteralPath $Parent -Force }
-        if (Test-Path -LiteralPath $Key) { Remove-Item -LiteralPath $Key -Recurse -Force }
-        $parentKey = Split-Path $Key -Parent
-        if ((Test-Path -LiteralPath $parentKey) -and !(Get-ChildItem -LiteralPath $parentKey) -and !(Get-Item -LiteralPath $parentKey).Property) { Remove-Item -LiteralPath $parentKey -Force }
-        Write-Host 'Done: Delete editor settings'
-        if ($script:backup) { Write-Host "Your own files and unsaved changes were moved to: $($script:backup)" -ForegroundColor Yellow }
-    } catch { $failed = $true; Write-Warning "Editor settings and user files - $($_.Exception.Message)" }
-    return !$failed
+# Any copy counts, portable ones too: removal must not run under an open editor (CodeRabbit review 2026-11-19).
+function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue }
+# Organization / application name: QSettings in src/main.cpp. Run by the process the user started (with
+# their own HKCU), not by the elevated child. The parameter exists for tests/service/test_installer.ps1.
+function Remove-EditorSettings([string]$Key = 'HKCU:\Software\Lighting Studio\Editor') {
+    if (Test-Path -LiteralPath $Key) { Remove-Item -LiteralPath $Key -Recurse -Force }
+    $parentKey = Split-Path $Key -Parent
+    if ((Test-Path -LiteralPath $parentKey) -and !(Get-ChildItem -LiteralPath $parentKey) -and !(Get-Item -LiteralPath $parentKey).Property) { Remove-Item -LiteralPath $parentKey -Force }
+}
+# Shown last, right before the window waits for Enter, so it is the final thing on screen.
+function Show-UserFolder {
+    if ($Elevated) { return }  # the elevated child has no user of its own; its parent shows this
+    $folder = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Lighting Studio'
+    $body = if (Test-Path -LiteralPath $folder) { @('  YOUR PERSONAL LIGHTING STUDIO FILES WERE KEPT IN:', '', "  $folder\", '', '  Delete this folder yourself if you no longer need it.') }
+            else { @("  NO PERSONAL LIGHTING STUDIO FILES FOUND IN $folder\") }
+    # Long paths overflowed the fixed 78-column box (owner test 2026-11-19): size it to the longest line.
+    $width = [Math]::Max(78, ($body | ForEach-Object Length | Measure-Object -Maximum).Maximum + 2)
+    $line = '=' * $width
+    foreach ($text in @('', $line) + $body + @($line, '')) {
+        Write-Host $text.PadRight($width) -ForegroundColor Black -BackgroundColor Yellow
+    }
 }
 if (!$PSCmdlet.ShouldProcess($destination, 'Remove Lighting Studio service, editor logon task, program files and service data')) { return }
 if (!$Quiet -and !$Elevated) {
-    if (!$RemoveUserData) {
-        # The one-line question was misread by the owner (2026-11-17); name each item, where it lives
-        # and what happens to it (owner review 2026-11-18: the old text promised more than it kept).
-        Write-Host 'Your personal editor data can be removed too:'
-        Write-Host '  - window layout and editor preferences (registry: HKCU\Software\Lighting Studio) are deleted'
-        Write-Host '  - your own files and the backup of unsaved changes (%LOCALAPPDATA%\Lighting Studio) are moved'
-        Write-Host "    to $([Environment]::GetFolderPath('UserProfile'))\Lighting Studio - Backup - <date>"
-        Write-Host 'Projects you saved anywhere else are not touched.'
-        $RemoveUserData = (Read-Host 'Remove this personal editor data? [y/N]') -match '^(y|j)'
-    }
     if (!$RemovePawnIO -and (Test-Path -LiteralPath $pawnIOKey)) {
         Write-Host 'The PawnIO driver is shared. OpenRGB, Fan Control, LibreHardwareMonitor, ZenTimings and other'
         Write-Host 'hardware tools may need it and stop reading sensors or RAM if it is removed.'
@@ -145,17 +109,22 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
         exit 1
     }
     # Only after the program is gone, so a declined UAC prompt leaves the settings in place.
-    if ($RemoveUserData -and !(Remove-UserData)) { if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1 }
-    if (!$Quiet) {
-        Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green
-        Read-Host 'Press Enter to close' | Out-Null
+    try { Remove-EditorSettings; Write-Host 'Done: Delete editor settings' }
+    catch {
+        Write-Warning "Editor settings - $($_.Exception.Message)"
+        Show-UserFolder; if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1
     }
+    if (!$Quiet) {
+        Write-Host "`nLighting Studio was removed. Projects saved outside $destination were not touched." -ForegroundColor Green
+    }
+    Show-UserFolder
+    if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
     return
 }
 $problems = New-Object Collections.Generic.List[string]
 $self = [IO.File]::ReadAllText($PSCommandPath)
 $clock = [Diagnostics.Stopwatch]::StartNew()
-$stepCount = 6 + [int][bool]$RemovePawnIO + [int]($RemoveUserData -and !$Elevated); $stepIndex = 0
+$stepCount = 6 + [int][bool]$RemovePawnIO + [int](!$Elevated); $stepIndex = 0
 # Progress bar plus one timed line per step, so a slow step does not look like a hang (2026-11-17).
 function Invoke-Step([string]$Name, [scriptblock]$Action) {
     $script:stepIndex++
@@ -211,9 +180,9 @@ if ($RemovePawnIO) {
         if (Get-Service -Name PawnIO -ErrorAction SilentlyContinue) { Write-Host '        Note: the PawnIO driver service is still registered; Windows may remove it after a restart.' }
     }
 } elseif (Test-Path -LiteralPath $pawnIOKey) { Write-Host 'Kept: PawnIO driver (shared with other hardware tools).' }
-# Only an already elevated console runs this here; the usual unelevated parent handles user data itself.
-if ($RemoveUserData -and !$Elevated) { Invoke-Step 'Remove editor settings, back up user files' { if (!(Remove-UserData)) { throw 'not completed; your files were left in place' } } }
-elseif (!$RemoveUserData -and !$Elevated) { Write-Host 'Kept: editor settings and unsaved changes.' }
+# Only an uninstaller started with administrator rights (Settings > Apps, elevated console) gets here
+# without -Elevated: it is the user's own process, so it removes the registry settings too.
+if (!$Elevated) { Invoke-Step 'Delete editor settings' { Remove-EditorSettings } }
 # The retry entry point is decided last, after every other step: after any failure the Apps entry stays
 # and the script is put back, recreating its folder if needed. If removing the entry itself fails, the
 # script is put back too, so the entry never points to a missing script (CodeRabbit reviews 2026-11-15/18).
@@ -231,7 +200,8 @@ if ($ResultFile) { Set-Content -LiteralPath $ResultFile -Encoding UTF8 -Value $(
 if ($problems.Count) {
     Write-Host "`nLighting Studio was NOT removed completely:" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host "  $_" }
-} else { Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green }
+} else { Write-Host "`nLighting Studio was removed. Projects saved outside $destination were not touched." -ForegroundColor Green }
+Show-UserFolder
 # The elevated child no longer waits for Enter on success: the visible parent reports the result.
 if (!$Quiet -and ($problems.Count -or !$Elevated)) { Read-Host 'Press Enter to close' | Out-Null }
 elseif ($Elevated -and !$Quiet) { Write-Host 'This window closes in 5 seconds.'; Start-Sleep -Seconds 5 }

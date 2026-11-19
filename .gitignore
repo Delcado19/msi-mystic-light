@@ -2,4 +2,12 @@
 .claude/
 build/
 __pycache__/
+
+# Local agent tooling (Impeccable / taste-skill installs), not project code
+.github/agents/
+.github/hooks/
+.github/skills/
+.taste-skill/
+# Personal layout file; installs start from a fresh project
+default.lighting.json
 graphify-out/

@@ -187,7 +187,7 @@ execution) answered the actually-relevant question:
 
 ### OpenRGB current-master re-check (`build/research/openrgb`, `aac7e551`)
 
-Re-verified the upstream bug reported in `OPENRGB_UPSTREAM_DRAFT.md`
+Re-verified the upstream bug
 (GitLab issues #4935/#5429) against the freshly cloned current master —
 **still present, unfixed**:
 

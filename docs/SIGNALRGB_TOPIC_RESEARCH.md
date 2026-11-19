@@ -7,10 +7,6 @@ README descriptions are upstream claims, not verified runtime behavior.
 
 ## Priorities
 
-For the subsequent source-level comparison against our implemented backend and
-accepted editor scope, see [Reference reuse review](REFERENCE_REUSE_REVIEW.md).
-It distinguishes recommended Qt reimplementations, existing functionality,
-deferred integrations and direct-source reuse limits.
 
 | Project | Value to this app | Recommended action |
 | --- | --- | --- |
