@@ -52,6 +52,4 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
   should suggest switching Mystic Light off (not built). Whether `SignalRgbLauncher.exe`
   restarts a terminated `SignalRgb.exe` is unknown.
 - Installer: PawnIO/app update check (not started); DisplayVersion in the Apps entry.
-- Reported 2026-11-17, status unknown: slider drag jumps; split hardware preview shows the same
-  view twice.
 - IO Shield LED count on MS-7E62 unverified (see `docs/MB_800_HID_PROTOCOL.md`).
