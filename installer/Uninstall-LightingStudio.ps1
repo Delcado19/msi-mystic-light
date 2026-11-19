@@ -77,11 +77,14 @@ function Remove-UserData(
     } catch { $failed = $true; Write-Warning "Editor settings and user files - $($_.Exception.Message)" }
     return !$failed
 }
-# Shown last, right before the window waits for Enter, so the path is the final thing on screen.
+# Shown last, right before the window waits for Enter, so the result is the final thing on screen. Also
+# shown when nothing needed a backup: silence there confused the owner (2026-11-19).
 function Show-Backup {
-    if (!$script:backup) { return }
+    if ($Elevated) { return }  # the elevated child never touches user data; its parent reports it
+    $body = if ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)", '', '  (unsaved changes and any other files the editor kept there)') }
+            else { @('  NO BACKUP NEEDED: the editor had no unsaved changes or other files.', '  Editor settings (window layout) were deleted.') }
     $line = '=' * 78
-    foreach ($text in @('', $line, '  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)", '', '  (unsaved changes and any other files the editor kept there)', $line, '')) {
+    foreach ($text in @('', $line) + $body + @($line, '')) {
         Write-Host $text.PadRight(80) -ForegroundColor Black -BackgroundColor Yellow
     }
 }
@@ -229,7 +232,7 @@ if ($problems.Count) {
     Write-Host "`nLighting Studio was NOT removed completely:" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host "  $_" }
 } else { Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green }
-Show-Backup
+if (!$problems.Count) { Show-Backup }
 # The elevated child no longer waits for Enter on success: the visible parent reports the result.
 if (!$Quiet -and ($problems.Count -or !$Elevated)) { Read-Host 'Press Enter to close' | Out-Null }
 elseif ($Elevated -and !$Quiet) { Write-Host 'This window closes in 5 seconds.'; Start-Sleep -Seconds 5 }
