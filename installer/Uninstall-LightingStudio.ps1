@@ -89,9 +89,11 @@ function Show-Backup {
     if ($Elevated) { return }  # the elevated child never touches user data; its parent reports it
     $body = if ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)") }
             else { @("  NO PERSONAL LIGHTING STUDIO FILES FOUND IN $($script:scanned.TrimEnd('\'))\") }
-    $line = '=' * 78
+    # Long paths overflowed the fixed 78-column box (owner test 2026-11-19): size it to the longest line.
+    $width = [Math]::Max(78, ($body | ForEach-Object Length | Measure-Object -Maximum).Maximum + 2)
+    $line = '=' * $width
     foreach ($text in @('', $line) + $body + @($line, '')) {
-        Write-Host $text.PadRight(80) -ForegroundColor Black -BackgroundColor Yellow
+        Write-Host $text.PadRight($width) -ForegroundColor Black -BackgroundColor Yellow
     }
 }
 if (!$PSCmdlet.ShouldProcess($destination, 'Remove Lighting Studio service, editor logon task, program files and service data')) { return }
