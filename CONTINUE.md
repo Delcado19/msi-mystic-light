@@ -293,3 +293,11 @@ replug works. Still open: sleep/wake. Supersedes the R18 "open as well" list: fi
 was merged as PR #3, the R15 CodeRabbit review is moot (PR #2 merged), the Impeccable backup is
 deleted. Local tooling folders (.github/agents|hooks|skills, .taste-skill) and default.lighting.json (old
 layout copy, deleted) are gitignored; no code reads that file. Open PRs: #5 (R26), #6.
+
+## R28 uninstall test, administrator console - 2026-11-19
+
+Owner ran installer\Uninstall.cmd from an elevated console: one window only, PawnIO question asked,
+all steps done, yellow box "YOUR EDITOR FILES WERE KEPT UNCHANGED" with the LOCALAPPDATA folder;
+the test JSON stayed in place. Not yet tested: the normal unelevated uninstall with a JSON to back
+up, the uninstaller run again after the program is gone, the .lighting.json suffix and its
+replace prompt in the editor.
