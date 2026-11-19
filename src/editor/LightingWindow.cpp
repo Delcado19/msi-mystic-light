@@ -231,7 +231,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* fileMenu = menuBar()->addMenu("File");
     auto* open = fileMenu->addAction("Open…"); open->setShortcut(QKeySequence::Open);
     connect(open, &QAction::triggered, this, [this] {
-        const auto file = QFileDialog::getOpenFileName(this, "Open lighting document", {}, "Lighting documents (*.lighting.json)");
+        const auto file = QFileDialog::getOpenFileName(this, "Open lighting document", QDir::homePath(), "Lighting documents (*.lighting.json)");
         if (file.isEmpty() || !confirmDiscard()) return;
         try { loadProject(file); }
         catch (const std::exception& error) { QMessageBox::warning(this, "Open failed", QString::fromUtf8(error.what())); }
@@ -385,7 +385,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
     })->setObjectName("editComponent");
     button(layoutControls, "Import component JSON", [this] {
-        const auto file = QFileDialog::getOpenFileName(this, "Import component definition", {}, "Component definitions (*.json)");
+        const auto file = QFileDialog::getOpenFileName(this, "Import component definition", QDir::homePath(), "Component definitions (*.json)");
         if (file.isEmpty()) return;
         try {
             document_.importComponent(file);
@@ -655,7 +655,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         selectedLayer_=document_.addPaintLayer(document_.creationParent(selectedLayer_));activeLayer_=document_.layerRoot(selectedLayer_);effectsCanvas_->setTool(LightingCanvas::Tool::Move);effectTarget_->setChecked(true); refresh();
     })->setObjectName("newLayer");
     button(layerStack, "Import image...", [this] {
-        const auto file = QFileDialog::getOpenFileName(this, "Import image", {}, "Images (*.png *.jpg *.jpeg *.gif *.bmp *.webp)");
+        const auto file = QFileDialog::getOpenFileName(this, "Import image", QDir::homePath(), "Images (*.png *.jpg *.jpeg *.gif *.bmp *.webp)");
         if (file.isEmpty()) return;
         try { selectedLayer_ = document_.importImage(file,document_.creationParent(selectedLayer_)); editingMask_ = false; refresh(); }
         catch (const std::exception& error) { QMessageBox::warning(this, "Import failed", QString::fromUtf8(error.what())); }
@@ -2068,7 +2068,8 @@ void LightingWindow::loadProject(const QString& path, bool recovered, const QStr
 bool LightingWindow::saveDocument()
 {
     const auto path = fileName_.isEmpty() ? QFileDialog::getSaveFileName(this,
-        "Save lighting document", "Untitled.lighting.json", "Lighting documents (*.lighting.json)") : fileName_;
+        // A bare file name resolved to the install folder, which is read-only without admin rights.
+        "Save lighting document", QDir::homePath() + "/Untitled.lighting.json", "Lighting documents (*.lighting.json)") : fileName_;
     if (path.isEmpty()) return false;
     try { saveProject(path); return true; }
     catch (const std::exception& error) { QMessageBox::warning(this, "Save failed", QString::fromUtf8(error.what())); return false; }

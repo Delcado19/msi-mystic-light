@@ -285,3 +285,11 @@ statements below are historical, not a qualification of other installed binaries
 ---
 
 Entries from 2026-11-11 and earlier are archived in [docs/history/CONTINUE_ARCHIVE.md](docs/history/CONTINUE_ARCHIVE.md).
+
+## R26 owner test - 2026-11-19
+
+Owner confirmed on R26: smooth color playback (R19 color jumps gone), live drag works, keyboard
+replug works. Still open: sleep/wake. Supersedes the R18 "open as well" list: fix/editor-menu-cleanup
+was merged as PR #3, the R15 CodeRabbit review is moot (PR #2 merged), the Impeccable backup is
+deleted. Local tooling folders (.github/agents|hooks|skills, .taste-skill) and default.lighting.json (old
+layout copy, deleted) are gitignored; no code reads that file. Open PRs: #5 (R26), #6.
