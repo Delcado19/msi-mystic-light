@@ -41,7 +41,7 @@ $uninstaller = Join-Path (Split-Path $Installer -Parent) 'Uninstall-LightingStud
 [Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$tokens,[ref]$errors) | Out-Null
 if ($errors.Count) { throw ($errors | Out-String) }
 if ((Get-Content -LiteralPath $uninstaller -Raw) -notmatch "-ArgumentList @\('-uninstall','-silent'\)") { throw 'PawnIO silent removal arguments differ from its registered QuietUninstallString' }
-& $uninstaller -RemoveUserData -RemovePawnIO -Quiet -WhatIf
+& $uninstaller -RemovePawnIO -Quiet -WhatIf
 # User data (owner decision and CodeRabbit review 2026-11-18): a successful removal moves the user's
 # own files and the unsaved changes to a dated backup; a failed move changes nothing at all.
 $ast=[Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$null,[ref]$null)

@@ -206,15 +206,16 @@ package. Both start `Uninstall-LightingStudio.ps1`, which requests elevation onc
 LightingStudio service, the `Lighting Studio Editor` logon task, the Start menu shortcut,
 `%ProgramFiles%/Lighting Studio`, `%ProgramData%/LightingStudio` and the Apps entry.
 
-Two things are removed only on request (prompt, or `-RemoveUserData` / `-RemovePawnIO`; `-Quiet`
-skips the prompts):
+It also deletes the editor settings (`HKCU/Software/Lighting Studio/Editor`) and moves the files in
+`%LOCALAPPDATA%/Lighting Studio/Editor` (the unsaved-changes copy, renamed to
+`Unsaved changes.lighting.json`, and anything else stored there) to
+`%USERPROFILE%/Lighting Studio - Backup - yyyy_MM_dd`, without asking. The backup path is shown last,
+highlighted, before the window closes. This runs with the rights of the user who starts the
+uninstaller, not in the elevated step; a portable copy shares these settings.
 
-- the owner's editor settings (`HKCU/Software/Lighting Studio/Editor`), deleted, and the files in
-  `%LOCALAPPDATA%/Lighting Studio/Editor` (recovery data and anything the user saved there), moved to
-  `%USERPROFILE%/Lighting Studio - Backup - yyyy_MM_dd`. Both happen with the rights of the user who
-  starts the uninstaller, not in the elevated step; a portable copy shares them;
-- the PawnIO driver, through PawnIO's own registered `uninstall.exe -uninstall -silent`. It is
-  shared: OpenRGB, Fan Control, LibreHardwareMonitor and ZenTimings use it too.
+The only question is whether to remove the PawnIO driver too (`-RemovePawnIO`; `-Quiet` skips it). It
+is removed through PawnIO's own registered `uninstall.exe -uninstall -silent` and is shared: OpenRGB,
+Fan Control, LibreHardwareMonitor and ZenTimings use it too.
 
 Saved project files are never deleted. The uninstaller refuses to start while the editor runs, so its
 own Save/Discard prompt is never skipped. Steps that fail are listed and the script exits non-zero.

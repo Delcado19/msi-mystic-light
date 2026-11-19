@@ -1,15 +1,15 @@
 [CmdletBinding(SupportsShouldProcess=$true)]
 param(
     [switch]$RemovePawnIO,
-    [switch]$RemoveUserData,
     [switch]$Quiet,
     [switch]$Elevated,
     # The elevated child writes 'removed' or its problems here, so the parent can tell a recorded
     # failure from an interrupted child (CodeRabbit review 2026-11-17).
     [string]$ResultFile
 )
-# Removes everything Install-LightingStudio.ps1 created. The shared PawnIO driver and the owner's
-# editor settings are removed only on request; files the user created are moved to a backup, never deleted.
+# Removes everything Install-LightingStudio.ps1 created, including the editor settings. The shared PawnIO
+# driver is the only thing asked about. Editor files are moved to a backup, never deleted (owner decision
+# 2026-11-19: no question about personal data, but a backup path the user cannot overlook).
 $ErrorActionPreference = 'Stop'
 $destination = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Lighting Studio'
 $state = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'LightingStudio'
@@ -74,22 +74,19 @@ function Remove-UserData(
         $parentKey = Split-Path $Key -Parent
         if ((Test-Path -LiteralPath $parentKey) -and !(Get-ChildItem -LiteralPath $parentKey) -and !(Get-Item -LiteralPath $parentKey).Property) { Remove-Item -LiteralPath $parentKey -Force }
         Write-Host 'Done: Delete editor settings'
-        if ($script:backup) { Write-Host "Your own files and unsaved changes were moved to: $($script:backup)" -ForegroundColor Yellow }
     } catch { $failed = $true; Write-Warning "Editor settings and user files - $($_.Exception.Message)" }
     return !$failed
 }
+# Shown last, right before the window waits for Enter, so the path is the final thing on screen.
+function Show-Backup {
+    if (!$script:backup) { return }
+    $line = '=' * 78
+    foreach ($text in @('', $line, '  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)", '', '  (unsaved changes and any other files the editor kept there)', $line, '')) {
+        Write-Host $text.PadRight(80) -ForegroundColor Black -BackgroundColor Yellow
+    }
+}
 if (!$PSCmdlet.ShouldProcess($destination, 'Remove Lighting Studio service, editor logon task, program files and service data')) { return }
 if (!$Quiet -and !$Elevated) {
-    if (!$RemoveUserData) {
-        # Owner review 2026-11-19: "your own files" was wrong. %LOCALAPPDATA%\Lighting Studio\Editor only
-        # holds application.lock and recovery.lighting.json (main.cpp); projects are saved where the user chose.
-        Write-Host 'Your editor settings can be removed too:'
-        Write-Host '  - window layout and editor preferences (registry: HKCU\Software\Lighting Studio) are deleted'
-        Write-Host '  - the automatic copy of unsaved changes, if any, is kept as'
-        Write-Host "    $([Environment]::GetFolderPath('UserProfile'))\Lighting Studio - Backup - <date>\Unsaved changes.lighting.json"
-        Write-Host 'Your saved projects are never touched.'
-        $RemoveUserData = (Read-Host 'Remove the editor settings? [y/N]') -match '^(y|j)'
-    }
     if (!$RemovePawnIO -and (Test-Path -LiteralPath $pawnIOKey)) {
         Write-Host 'The PawnIO driver is shared. OpenRGB, Fan Control, LibreHardwareMonitor, ZenTimings and other'
         Write-Host 'hardware tools may need it and stop reading sensors or RAM if it is removed.'
@@ -145,17 +142,18 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
         exit 1
     }
     # Only after the program is gone, so a declined UAC prompt leaves the settings in place.
-    if ($RemoveUserData -and !(Remove-UserData)) { if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1 }
+    if (!(Remove-UserData)) { if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1 }
     if (!$Quiet) {
         Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green
-        Read-Host 'Press Enter to close' | Out-Null
     }
+    Show-Backup
+    if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
     return
 }
 $problems = New-Object Collections.Generic.List[string]
 $self = [IO.File]::ReadAllText($PSCommandPath)
 $clock = [Diagnostics.Stopwatch]::StartNew()
-$stepCount = 6 + [int][bool]$RemovePawnIO + [int]($RemoveUserData -and !$Elevated); $stepIndex = 0
+$stepCount = 6 + [int][bool]$RemovePawnIO + [int](!$Elevated); $stepIndex = 0
 # Progress bar plus one timed line per step, so a slow step does not look like a hang (2026-11-17).
 function Invoke-Step([string]$Name, [scriptblock]$Action) {
     $script:stepIndex++
@@ -212,8 +210,7 @@ if ($RemovePawnIO) {
     }
 } elseif (Test-Path -LiteralPath $pawnIOKey) { Write-Host 'Kept: PawnIO driver (shared with other hardware tools).' }
 # Only an already elevated console runs this here; the usual unelevated parent handles user data itself.
-if ($RemoveUserData -and !$Elevated) { Invoke-Step 'Remove editor settings, back up user files' { if (!(Remove-UserData)) { throw 'not completed; your files were left in place' } } }
-elseif (!$RemoveUserData -and !$Elevated) { Write-Host 'Kept: editor settings and unsaved changes.' }
+if (!$Elevated) { Invoke-Step 'Remove editor settings, back up user files' { if (!(Remove-UserData)) { throw 'not completed; your files were left in place' } } }
 # The retry entry point is decided last, after every other step: after any failure the Apps entry stays
 # and the script is put back, recreating its folder if needed. If removing the entry itself fails, the
 # script is put back too, so the entry never points to a missing script (CodeRabbit reviews 2026-11-15/18).
@@ -232,6 +229,7 @@ if ($problems.Count) {
     Write-Host "`nLighting Studio was NOT removed completely:" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host "  $_" }
 } else { Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green }
+Show-Backup
 # The elevated child no longer waits for Enter on success: the visible parent reports the result.
 if (!$Quiet -and ($problems.Count -or !$Elevated)) { Read-Host 'Press Enter to close' | Out-Null }
 elseif ($Elevated -and !$Quiet) { Write-Host 'This window closes in 5 seconds.'; Start-Sleep -Seconds 5 }
