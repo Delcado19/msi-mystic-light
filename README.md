@@ -7,7 +7,7 @@ peripherals, independent of MSI's own Mystic Light software. It combines a compo
 editor, a layered effects editor and a background Windows service into one tool, and ships
 with its own reverse-engineered hardware drivers rather than wrapping an existing RGB SDK.
 
-![Lighting Studio workspace](docs/images/studio-workspace.png)
+> **Screenshot:** a current screenshot of the workspace will be added here.
 
 ## Features
 
