@@ -206,15 +206,12 @@ package. Both start `Uninstall-LightingStudio.ps1`, which requests elevation onc
 LightingStudio service, the `Lighting Studio Editor` logon task, the Start menu shortcut,
 `%ProgramFiles%/Lighting Studio`, `%ProgramData%/LightingStudio` and the Apps entry.
 
-It also deletes the editor settings (`HKCU/Software/Lighting Studio/Editor`), copies every `*.json`
-found anywhere below `%LOCALAPPDATA%/Lighting Studio` (unrenamed, with its subfolders) to
-`%USERPROFILE%/Lighting Studio - Backup - yyyy_MM_dd`, and then deletes that folder, other files
-included, without asking. The result is shown last in a highlighted box: the backup path, or that no
-file was found. A failed copy leaves the folder and the settings untouched. This runs with the rights
-of the user who starts the uninstaller, not in the elevated step; a portable copy shares these settings.
-Started with administrator rights (Windows Settings > Apps, or an elevated console), the uninstaller leaves these files and
-settings alone and names their folder in the box, because copying them with an administrator token is unsafe. It
-refuses to start while any copy of the editor runs, portable ones included.
+It always deletes the editor settings in the registry (`HKCU/Software/Lighting Studio/Editor`), in the
+process the user started, not in the elevated step. Files in `%LOCALAPPDATA%/Lighting Studio`
+(recovery file, lock file) are never touched, however the uninstaller is started; the last thing on
+screen is a highlighted box that names this folder so the user can delete it, or says that it does not
+exist. Other Windows accounts' settings and files are not touched. A portable copy shares these
+settings. The uninstaller refuses to start while any copy of the editor runs, portable ones included.
 Saved projects outside `%ProgramFiles%/Lighting Studio` (for example in Documents) are not touched.
 
 The only question is whether to remove the PawnIO driver too (`-RemovePawnIO`; `-Quiet` skips it). It

@@ -15,13 +15,13 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
 - PR #5 (`chore/build-r26`, package GS-06-R28, `Downloads/LightingStudio-local-r28.zip`) is open:
   file dialogs start in the home folder; saved projects always end in `.lighting.json` (a
   replace prompt guards a suffixed name that exists); the uninstaller asks only about PawnIO,
-  copies every `*.json` below `%LOCALAPPDATA%\Lighting Studio` to a dated backup, deletes the
-  folder and shows the result in a highlighted box. Started elevated (Settings > Apps or an
-  administrator console), it keeps the files and names their folder in the box. A scheduled-task
-  backup as the signed-in user was tried and reverted (too much machinery for little gain).
+  always removes the editor registry settings and never touches `%LOCALAPPDATA%\Lighting Studio`,
+  however it is started; a highlighted box names that folder at the end (owner decision
+  2026-11-19, replacing the backup copy and the scheduled-task backup as the signed-in user).
 - Owner-confirmed on hardware: smooth color playback (R26), live drag, keyboard replug, lighting
-  after wake, uninstall from an elevated console and unelevated, `.lighting.json` suffix on a
-  typed `test.json` (R28).
+  after wake, `.lighting.json` suffix on a typed `test.json` (R28). The uninstall tests of
+  2026-11-19 (elevated console, unelevated, Settings > Apps with the scheduled-task backup) covered
+  the replaced backup behavior; the new behavior is untested.
 - Kept branches: `feat/hardware-photos` (10 transparent device photos for placement, keep),
   `docs/impeccable-product-design`. Worktrees `.claude/worktrees/lighting-studio` and
   `v1-skeleton` still exist; whether they are needed is unknown.
@@ -29,6 +29,8 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
 ## Open tests
 
 - R28 editor: replace prompt when the suffixed name already exists.
+- R29 uninstall via Settings > Apps and via `Uninstall.cmd`: same box naming the kept folder, editor
+  registry key `HKCU\Software\Lighting Studio` gone.
 - Event-driven presence check: service log at rest.
 - LEDKeeper2 stop dialog flow; service pipe access list under other Windows accounts.
 - JARGB2: not every intermediate strip position was qualified individually.
