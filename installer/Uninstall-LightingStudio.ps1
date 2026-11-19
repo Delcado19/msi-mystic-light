@@ -161,7 +161,7 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
     # A later step (registry) can fail after the copy; the user must still learn where the files are (CodeRabbit 2026-11-19).
     if (!(Remove-UserData)) { Show-Backup -OnlyCopied; if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }; exit 1 }
     if (!$Quiet) {
-        Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green
+        Write-Host "`nLighting Studio was removed. Projects saved outside $destination were not touched." -ForegroundColor Green
     }
     Show-Backup
     if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
@@ -245,7 +245,7 @@ if ($ResultFile) { Set-Content -LiteralPath $ResultFile -Encoding UTF8 -Value $(
 if ($problems.Count) {
     Write-Host "`nLighting Studio was NOT removed completely:" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host "  $_" }
-} else { Write-Host "`nLighting Studio was removed. Projects saved elsewhere were not touched." -ForegroundColor Green }
+} else { Write-Host "`nLighting Studio was removed. Projects saved outside $destination were not touched." -ForegroundColor Green }
 Show-Backup -OnlyCopied:($problems.Count -gt 0)
 # The elevated child no longer waits for Enter on success: the visible parent reports the result.
 if (!$Quiet -and ($problems.Count -or !$Elevated)) { Read-Host 'Press Enter to close' | Out-Null }

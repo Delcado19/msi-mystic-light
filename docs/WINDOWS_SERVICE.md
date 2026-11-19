@@ -215,7 +215,7 @@ of the user who starts the uninstaller, not in the elevated step; a portable cop
 Started from a console that already has administrator rights, the uninstaller leaves these files and
 settings alone and names their folder in the box, because copying them with an administrator token is unsafe. It
 refuses to start while any copy of the editor runs, portable ones included.
-Saved projects elsewhere (for example in Documents) are not touched.
+Saved projects outside `%ProgramFiles%/Lighting Studio` (for example in Documents) are not touched.
 
 The only question is whether to remove the PawnIO driver too (`-RemovePawnIO`; `-Quiet` skips it). It
 is removed through PawnIO's own registered `uninstall.exe -uninstall -silent` and is shared: OpenRGB,
