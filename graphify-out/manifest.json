@@ -342,21 +342,21 @@
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.cpp": {
-    "mtime": 1795064174.7067945,
-    "seen": 1795064450.9983838,
-    "ast_hash": "1008c427ac7e059ba444fc5975d6b40b",
+    "mtime": 1795071789.1812496,
+    "seen": 1795071795.9693,
+    "ast_hash": "cdee73d3d69079c2ea50b3794635f7bd",
     "semantic_hash": ""
   },
   "src/editor/LightingWindow.h": {
-    "mtime": 1795017587.95919,
-    "seen": 1795021563.5282652,
-    "ast_hash": "bd8a5103044328178c2e0124a23651b0",
+    "mtime": 1795071148.6651318,
+    "seen": 1795071795.9693012,
+    "ast_hash": "95d64b617e32f30f823df95683bbe6ba",
     "semantic_hash": ""
   },
   "tests/editor/test_editor.cpp": {
-    "mtime": 1795017587.9747365,
-    "seen": 1795021563.5312457,
-    "ast_hash": "451be79e6b79de11d35379ce1e4a5add",
+    "mtime": 1795071148.675172,
+    "seen": 1795071795.9727907,
+    "ast_hash": "eb6ef20e8174b806205bdff1be9a9d47",
     "semantic_hash": ""
   },
   "docs/LIGHTING_EDITOR.md": {
@@ -1158,9 +1158,9 @@
     "semantic_hash": ""
   },
   "tests/service/test_installer.ps1": {
-    "mtime": 1795066365.8441062,
-    "seen": 1795066427.2632391,
-    "ast_hash": "1f6471ee74b1acc4cf6bc29d5802ad12",
+    "mtime": 1795068204.8514924,
+    "seen": 1795071795.973937,
+    "ast_hash": "5a03fe8cc2c023a6f1a5886a25afba41",
     "semantic_hash": ""
   },
   "tests/service/test_service.cpp": {
@@ -1176,9 +1176,9 @@
     "semantic_hash": ""
   },
   "docs/WINDOWS_SERVICE.md": {
-    "mtime": 1795066365.8456123,
-    "seen": 1795066427.2659142,
-    "ast_hash": "9e51fefe8bab1a2c1f82b50f23e511a1",
+    "mtime": 1795068204.8524926,
+    "seen": 1795071795.977133,
+    "ast_hash": "d8eed60b37a873a4b9d95b0f833dbc7f",
     "semantic_hash": ""
   },
   "docs/images/layout-fullscreen.png": {
@@ -1698,9 +1698,9 @@
     "semantic_hash": ""
   },
   "installer/Uninstall-LightingStudio.ps1": {
-    "mtime": 1795066384.324773,
-    "seen": 1795066427.2536283,
-    "ast_hash": "4c695745c2a557b7e8e4134070226eda",
+    "mtime": 1795071148.6757002,
+    "seen": 1795071795.9652789,
+    "ast_hash": "ef6e20e450b944a18d2166c11ecef510",
     "semantic_hash": ""
   },
   "src/startup/DeviceConflicts.cpp": {
