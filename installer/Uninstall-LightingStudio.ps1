@@ -34,11 +34,9 @@ function Remove-Tree([string]$Path) {
 function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue }
 # User data lives in a user-writable profile, so it is handled by the process the user started, with
 # that user's own token, never by the elevated child (security review 2026-11-15: a junction planted in
-# the profile must not redirect an administrator's delete). Windows Settings > Apps starts this script
-# already elevated (owner test 2026-11-19), so there is no such process; then a temporary scheduled task
-# runs the same cleanup as the signed-in user (Invoke-UserDataAsUser). Copying with the administrator
-# token instead could read a protected file through a junction swapped in after the scan
-# (CodeRabbit review 2026-11-19, CWE-367).
+# the profile must not redirect an administrator's delete). A console that is already elevated has no
+# such process, so it leaves user data alone: copying with an administrator token could read a protected
+# file through a junction swapped in after the scan (CodeRabbit review 2026-11-19, CWE-367).
 # Organization / application name: QSettings in src/main.cpp.
 # Owner decision 2026-11-19: every *.json anywhere below %LOCALAPPDATA%\Lighting Studio is copied, unrenamed
 # and with its subfolders, to a dated backup in the profile; then the whole folder is deleted, other files
@@ -93,7 +91,7 @@ function Remove-UserData(
 function Show-Backup([switch]$OnlyCopied) {
     if ($Elevated) { return }  # the elevated child never touches user data; its parent reports it
     if ($OnlyCopied -and !$script:backup -and !$script:userDataSkipped) { return }
-    $body = if ($script:userDataSkipped) { @('  YOUR EDITOR FILES WERE KEPT UNCHANGED (the backup could not run as your user account):', '', "  $($script:skippedFolder)") }
+    $body = if ($script:userDataSkipped) { @('  YOUR EDITOR FILES WERE KEPT UNCHANGED (administrator console, no backup made):', '', "  $(Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Lighting Studio')\") }
             elseif ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)") }
             else { @("  NO PERSONAL LIGHTING STUDIO FILES FOUND IN $($script:scanned.TrimEnd('\'))\") }
     # Long paths overflowed the fixed 78-column box (owner test 2026-11-19): size it to the longest line.
@@ -171,45 +169,8 @@ if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
 }
 $problems = New-Object Collections.Generic.List[string]
 $self = [IO.File]::ReadAllText($PSCommandPath)
-# Runs Remove-UserData as the signed-in user through a temporary scheduled task and waits for it. The
-# result file is created here, owned by the administrator, and only granted to that user for writing,
-# so it cannot be swapped for a link. Any failure keeps the files and leaves a retry entry.
-function Invoke-UserDataAsUser {
-    $user = (Get-CimInstance Win32_ComputerSystem).UserName
-    $script:skippedFolder = '%LOCALAPPDATA%\Lighting Studio\ of the signed-in user'
-    if (!$user) { $script:userDataSkipped = $true; throw 'no signed-in user found; editor files were kept' }
-    $ast = [Management.Automation.Language.Parser]::ParseInput($self, [ref]$null, [ref]$null)
-    $functions = foreach ($name in 'Remove-TreeItem','Remove-Tree','Get-JsonFiles','Remove-UserData') {
-        ($ast.FindAll({ $args[0] -is [Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq $name }, $true) | Select-Object -First 1).Extent.Text
-    }
-    $result = Join-Path $env:ProgramData ('LightingStudio-userdata-' + [guid]::NewGuid().ToString('N') + '.txt')
-    $taskName = 'Lighting Studio user data ' + [guid]::NewGuid().ToString('N')
-    try {
-        [IO.File]::WriteAllText($result, '')
-        & icacls.exe $result /grant "${user}:(W)" | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "could not grant $user access to the result file" }
-        $code = ($functions -join "`n") + "`n" + "`$ErrorActionPreference='Stop'; `$script:backup=`$null; `$ok = Remove-UserData 6>`$null; Set-Content -LiteralPath '$result' -Encoding UTF8 -Value @([string]`$ok, [string]`$script:backup, [string]`$script:scanned)"
-        $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))
-        $action = New-ScheduledTaskAction -Execute "$PSHOME\powershell.exe" -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand $encoded"
-        $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
-        Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
-        Start-ScheduledTask -TaskName $taskName
-        $started = Get-Date
-        do { Start-Sleep -Milliseconds 500 } while ((Get-ScheduledTask -TaskName $taskName).State -eq 'Running' -and ((Get-Date) - $started).TotalSeconds -lt 60)
-        $lines = @(Get-Content -LiteralPath $result -Encoding UTF8)
-        if ($lines.Count -lt 3) { $script:userDataSkipped = $true; throw "the backup task as $user did not finish; editor files were kept" }
-        $script:skippedFolder = $lines[2].TrimEnd('\') + '\'
-        $script:backup = if ($lines[1]) { $lines[1] } else { $null }
-        # A copy can succeed before a later step (registry) fails: then the backup exists and is shown.
-        if ($lines[0] -ne 'True') { if (!$script:backup) { $script:userDataSkipped = $true }; throw 'editor files or settings as your user account could not be removed completely' }
-        $script:scanned = $lines[2]
-    } finally {
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $result -Force -ErrorAction SilentlyContinue
-    }
-}
 $clock = [Diagnostics.Stopwatch]::StartNew()
-$stepCount = 6 + [int][bool]$RemovePawnIO + [int](!$Elevated); $stepIndex = 0
+$stepCount = 6 + [int][bool]$RemovePawnIO; $stepIndex = 0
 # Progress bar plus one timed line per step, so a slow step does not look like a hang (2026-11-17).
 function Invoke-Step([string]$Name, [scriptblock]$Action) {
     $script:stepIndex++
@@ -265,8 +226,8 @@ if ($RemovePawnIO) {
         if (Get-Service -Name PawnIO -ErrorAction SilentlyContinue) { Write-Host '        Note: the PawnIO driver service is still registered; Windows may remove it after a restart.' }
     }
 } elseif (Test-Path -LiteralPath $pawnIOKey) { Write-Host 'Kept: PawnIO driver (shared with other hardware tools).' }
-# Started already elevated (Settings > Apps, an administrator console): user data runs as the signed-in user.
-if (!$Elevated) { Invoke-Step 'Back up and remove editor files as the signed-in user' { Invoke-UserDataAsUser } }
+# Only an already elevated console gets here without -Elevated; it never touches user data (see above).
+if (!$Elevated) { $script:userDataSkipped = $true }
 # The retry entry point is decided last, after every other step: after any failure the Apps entry stays
 # and the script is put back, recreating its folder if needed. If removing the entry itself fails, the
 # script is put back too, so the entry never points to a missing script (CodeRabbit reviews 2026-11-15/18).
