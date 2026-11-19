@@ -298,6 +298,7 @@ layout copy, deleted) are gitignored; no code reads that file. Open PRs: #5 (R26
 
 Owner ran installer\Uninstall.cmd from an elevated console: one window only, PawnIO question asked,
 all steps done, yellow box "YOUR EDITOR FILES WERE KEPT UNCHANGED" with the LOCALAPPDATA folder;
-the test JSON stayed in place. Not yet tested: the normal unelevated uninstall with a JSON to back
-up, the uninstaller run again after the program is gone, the .lighting.json suffix and its
-replace prompt in the editor.
+the test JSON stayed in place, no backup folder. Unelevated run (installed again, then
+installer/Uninstall.cmd): UAC child window, PawnIO question, box with the backup path; the backup
+held Editor/test.json unrenamed and LOCALAPPDATA/Lighting Studio was gone. Not yet tested: the
+.lighting.json suffix and its replace prompt in the editor.
