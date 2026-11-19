@@ -42,32 +42,38 @@ $uninstaller = Join-Path (Split-Path $Installer -Parent) 'Uninstall-LightingStud
 if ($errors.Count) { throw ($errors | Out-String) }
 if ((Get-Content -LiteralPath $uninstaller -Raw) -notmatch "-ArgumentList @\('-uninstall','-silent'\)") { throw 'PawnIO silent removal arguments differ from its registered QuietUninstallString' }
 & $uninstaller -RemovePawnIO -Quiet -WhatIf
-# User data (owner decision and CodeRabbit review 2026-11-18): a successful removal moves the user's
-# own files and the unsaved changes to a dated backup; a failed move changes nothing at all.
+# User data (owner decision 2026-11-19): every *.json below the folder is copied unrenamed to a dated
+# backup, then the folder is deleted; nothing found means no backup; a failed copy changes nothing.
 $ast=[Management.Automation.Language.Parser]::ParseFile($uninstaller,[ref]$null,[ref]$null)
-. ([scriptblock]::Create(($ast.FindAll({$args[0] -is [Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Remove-UserData'},$true) | Select-Object -First 1).Extent.Text))
+foreach ($name in 'Remove-UserData','Get-JsonFiles','Remove-Tree','Remove-TreeItem') {
+    . ([scriptblock]::Create(($ast.FindAll({$args[0] -is [Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq $name},$true) | Select-Object -First 1).Extent.Text))
+}
 $userRoot=[IO.Path]::GetFullPath((Join-Path $temporaryRoot ('LightingStudio-userdata-'+[guid]::NewGuid().ToString())))
 $keyRoot='HKCU:\Software\LightingStudioTest-'+[guid]::NewGuid().ToString()
 try {
-    foreach ($case in 'moved','failed') {
-        $parent=Join-Path $userRoot "$case\Lighting Studio"; $data=Join-Path $parent 'Editor'; $key="$keyRoot\$case\Editor"
-        New-Item -ItemType Directory -Force -Path (Join-Path $data 'sub') | Out-Null
-        foreach ($file in 'project.lighting.json','recovery.lighting.json','application.lock','sub\notes.txt') { [IO.File]::WriteAllText((Join-Path $data $file),$file) }
+    foreach ($case in 'copied','empty','failed') {
+        $parent=Join-Path $userRoot "$case\Lighting Studio"; $key="$keyRoot\$case\Editor"
+        New-Item -ItemType Directory -Force -Path (Join-Path $parent 'Editor\sub') | Out-Null
+        $names = if ($case -eq 'empty') { @('Editor\application.lock','Editor\sub\notes.txt') } else { @('top.json','Editor\recovery.lighting.json','Editor\application.lock','Editor\sub\deep.json','Editor\sub\notes.txt') }
+        foreach ($file in $names) { [IO.File]::WriteAllText((Join-Path $parent $file),$file) }
         New-Item -Path $key -Force | Out-Null
-        $backupRoot = if ($case -eq 'moved') { Join-Path $userRoot 'profile' } else { Join-Path $userRoot 'missing\profile' }
-        if ($case -eq 'moved') { New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null }
+        $backupRoot = Join-Path $userRoot "$case\profile"
+        # A file where the profile folder should be makes the copy fail.
+        if ($case -eq 'failed') { [IO.File]::WriteAllText($backupRoot,'not a folder') } else { New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null }
         $script:backup=$null
         $ok = Remove-UserData -Parent $parent -BackupRoot $backupRoot -Key $key 3>$null 6>$null
-        if ($case -eq 'moved') {
-            $backup=Join-Path $backupRoot ('Lighting Studio - Backup - '+(Get-Date -Format 'yyyy_MM_dd'))
-            if (!$ok -or (Test-Path -LiteralPath $parent) -or (Test-Path -LiteralPath $key)) { throw 'User data removal left the folder or settings behind' }
-            foreach ($file in 'project.lighting.json','Unsaved changes.lighting.json','sub\notes.txt') { if (!(Test-Path -LiteralPath (Join-Path $backup $file))) { throw "Backup lacks $file" } }
-            if (Test-Path -LiteralPath (Join-Path $backup 'application.lock')) { throw 'Backup contains the app lock' }
-        } else {
-            if ($ok) { throw 'A failed backup move reported success' }
-            foreach ($file in 'project.lighting.json','recovery.lighting.json','sub\notes.txt') { if (!(Test-Path -LiteralPath (Join-Path $data $file))) { throw "Failed move lost $file" } }
-            if (!(Test-Path -LiteralPath $key)) { throw 'Failed move deleted the settings' }
+        if ($case -eq 'failed') {
+            if ($ok) { throw 'A failed backup copy reported success' }
+            foreach ($file in $names) { if (!(Test-Path -LiteralPath (Join-Path $parent $file))) { throw "Failed copy lost $file" } }
+            if (!(Test-Path -LiteralPath $key)) { throw 'Failed copy deleted the settings' }
+            continue
         }
+        if (!$ok -or (Test-Path -LiteralPath $parent) -or (Test-Path -LiteralPath $key)) { throw "User data removal ($case) left the folder or settings behind" }
+        if ($case -eq 'empty') { if ($script:backup) { throw 'No JSON file but a backup was reported' }; continue }
+        $backup=Join-Path $backupRoot ('Lighting Studio - Backup - '+(Get-Date -Format 'yyyy_MM_dd'))
+        if ($script:backup -ne $backup) { throw 'Backup path not reported' }
+        foreach ($file in 'top.json','Editor\recovery.lighting.json','Editor\sub\deep.json') { if (!(Test-Path -LiteralPath (Join-Path $backup $file))) { throw "Backup lacks $file" } }
+        foreach ($file in 'Editor\application.lock','Editor\sub\notes.txt') { if (Test-Path -LiteralPath (Join-Path $backup $file)) { throw "Backup contains non-JSON $file" } }
     }
 } finally {
     if (!$userRoot.StartsWith($temporaryRoot,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe user data cleanup path' }

@@ -206,12 +206,13 @@ package. Both start `Uninstall-LightingStudio.ps1`, which requests elevation onc
 LightingStudio service, the `Lighting Studio Editor` logon task, the Start menu shortcut,
 `%ProgramFiles%/Lighting Studio`, `%ProgramData%/LightingStudio` and the Apps entry.
 
-It also deletes the editor settings (`HKCU/Software/Lighting Studio/Editor`) and moves the files in
-`%LOCALAPPDATA%/Lighting Studio/Editor` (the unsaved-changes copy, renamed to
-`Unsaved changes.lighting.json`, and anything else stored there) to
-`%USERPROFILE%/Lighting Studio - Backup - yyyy_MM_dd`, without asking. The backup path is shown last,
-highlighted, before the window closes. This runs with the rights of the user who starts the
-uninstaller, not in the elevated step; a portable copy shares these settings.
+It also deletes the editor settings (`HKCU/Software/Lighting Studio/Editor`), copies every `*.json`
+found anywhere below `%LOCALAPPDATA%/Lighting Studio` (unrenamed, with its subfolders) to
+`%USERPROFILE%/Lighting Studio - Backup - yyyy_MM_dd`, and then deletes that folder, other files
+included, without asking. The result is shown last in a highlighted box: the backup path, or that no
+file was found. A failed copy leaves the folder and the settings untouched. This runs with the rights
+of the user who starts the uninstaller, not in the elevated step; a portable copy shares these settings.
+Saved projects elsewhere (for example in Documents) are not touched.
 
 The only question is whether to remove the PawnIO driver too (`-RemovePawnIO`; `-Quiet` skips it). It
 is removed through PawnIO's own registered `uninstall.exe -uninstall -silent` and is shared: OpenRGB,

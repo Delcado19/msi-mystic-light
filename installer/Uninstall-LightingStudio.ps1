@@ -36,40 +36,46 @@ function Get-Editor { Get-Process msi_mystic_light -ErrorAction SilentlyContinue
 # the profile must not redirect an administrator's delete). A console that is already elevated has no
 # such process; there both folders must be real directories or nothing is touched.
 # Organization / application name: QSettings in src/main.cpp.
-# The app itself writes only application.lock and recovery.lighting.json there. Everything else, and the
-# unsaved changes, is moved to a dated backup in the profile instead of being deleted (owner decision
-# 2026-11-18; CodeRabbit review 2026-11-18: a project saved into this folder was deleted with it).
+# Owner decision 2026-11-19: every *.json anywhere below %LOCALAPPDATA%\Lighting Studio is copied, unrenamed
+# and with its subfolders, to a dated backup in the profile; then the whole folder is deleted, other files
+# included (the editor writes nothing there but application.lock and recovery.lighting.json).
 $script:backup = $null
+$script:scanned = $null
+# Collects files without entering links: a planted junction must not pull outside files into the backup.
+function Get-JsonFiles([IO.DirectoryInfo]$Folder) {
+    foreach ($item in $Folder.GetFileSystemInfos()) {
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        if ($item -is [IO.DirectoryInfo]) { Get-JsonFiles $item }
+        elseif ($item.Extension -eq '.json') { $item }
+    }
+}
 # Parameters exist for tests/service/test_installer.ps1, which runs this on a temporary folder and key.
 function Remove-UserData(
     [string]$Parent = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Lighting Studio'),
     [string]$BackupRoot = [Environment]::GetFolderPath('UserProfile'),
     [string]$Key = 'HKCU:\Software\Lighting Studio\Editor') {
     $failed = $false
+    $script:scanned = $Parent
     try {
-        $data = Join-Path $Parent 'Editor'
-        foreach ($folder in @($Parent,$data)) {
-            if ((Test-Path -LiteralPath $folder) -and ((Get-Item -LiteralPath $folder -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Not deleted, $folder is a link: remove it yourself" }
-        }
-        # The move comes first and changes nothing else until it succeeded: a failed move leaves the
-        # folder, its recovery file and the settings exactly as they were (CodeRabbit review 2026-11-18).
-        if (Test-Path -LiteralPath $data) {
-            $lock = Join-Path $data 'application.lock'
-            if (Test-Path -LiteralPath $lock) { Remove-Item -LiteralPath $lock -Force }
-            if (Get-ChildItem -LiteralPath $data -Force) {
+        if (Test-Path -LiteralPath $Parent) {
+            $root = Get-Item -LiteralPath $Parent -Force
+            if ($root.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Not deleted, $Parent is a link: remove it yourself" }
+            $files = @(Get-JsonFiles $root)
+            # Every copy must succeed before anything is deleted; a failed copy leaves the folder and the
+            # settings exactly as they were (CodeRabbit review 2026-11-18).
+            if ($files.Count) {
                 $base = Join-Path $BackupRoot ('Lighting Studio - Backup - ' + (Get-Date -Format 'yyyy_MM_dd'))
                 $target = $base; $number = 2
                 while (Test-Path -LiteralPath $target) { $target = "$base ($number)"; $number++ }
-                # A move across volumes fails and leaves every file where it was.
-                Move-Item -LiteralPath $data -Destination $target
-                $script:backup = $target
-                $recovery = Join-Path $target 'recovery.lighting.json'
-                if ((Test-Path -LiteralPath $recovery) -and !(Test-Path -LiteralPath (Join-Path $target 'Unsaved changes.lighting.json'))) {
-                    Rename-Item -LiteralPath $recovery -NewName 'Unsaved changes.lighting.json'
+                foreach ($file in $files) {
+                    $copy = Join-Path $target $file.FullName.Substring($root.FullName.TrimEnd('\').Length + 1)
+                    New-Item -ItemType Directory -Force -Path (Split-Path $copy -Parent) | Out-Null
+                    Copy-Item -LiteralPath $file.FullName -Destination $copy
                 }
-            } else { Remove-Item -LiteralPath $data -Force }
+                $script:backup = $target
+            }
+            Remove-Tree $Parent
         }
-        if ((Test-Path -LiteralPath $Parent) -and !(Get-ChildItem -LiteralPath $Parent -Force)) { Remove-Item -LiteralPath $Parent -Force }
         if (Test-Path -LiteralPath $Key) { Remove-Item -LiteralPath $Key -Recurse -Force }
         $parentKey = Split-Path $Key -Parent
         if ((Test-Path -LiteralPath $parentKey) -and !(Get-ChildItem -LiteralPath $parentKey) -and !(Get-Item -LiteralPath $parentKey).Property) { Remove-Item -LiteralPath $parentKey -Force }
@@ -78,11 +84,11 @@ function Remove-UserData(
     return !$failed
 }
 # Shown last, right before the window waits for Enter, so the result is the final thing on screen. Also
-# shown when nothing needed a backup: silence there confused the owner (2026-11-19).
+# shown when no file was found: silence there confused the owner (2026-11-19).
 function Show-Backup {
     if ($Elevated) { return }  # the elevated child never touches user data; its parent reports it
-    $body = if ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)", '', '  (unsaved changes and any other files the editor kept there)') }
-            else { @('  NO BACKUP NEEDED: the editor had no unsaved changes or other files.', '  Editor settings (window layout) were deleted.') }
+    $body = if ($script:backup) { @('  YOUR LIGHTING STUDIO FILES WERE BACKED UP TO:', '', "  $($script:backup)") }
+            else { @("  NO PERSONAL LIGHTING STUDIO FILES FOUND IN $($script:scanned.TrimEnd('\'))\") }
     $line = '=' * 78
     foreach ($text in @('', $line) + $body + @($line, '')) {
         Write-Host $text.PadRight(80) -ForegroundColor Black -BackgroundColor Yellow
