@@ -185,6 +185,10 @@ move/rotate/scale the mask, and animation follows drift/spin/zoom/warp. Geometry
 edits resample the linked mask; undo restores the prior pixels. Spatial motion
 is evaluated from original stored pixels during preview. Mask strokes edit stored mask pixels while the live composition retains linked projection and animation. No mask data is discarded.
 
+Gradient and pattern sources fill the whole canvas by default, so rotation never exposes edges.
+**Limit source to its frame** (Mask tab, off by default, saved as `advanced.clipToFrame`) draws
+the pattern only inside its frame; files without the key load with the option off.
+
 ## Effects and direct tools
 
 Available sources: Static Color; Linear, Radial and Conical Gradient; Stripes;

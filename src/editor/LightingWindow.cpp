@@ -943,6 +943,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(maskLinked_,&QCheckBox::toggled,this,[this](bool linked) {
         updateLayer("Link mask",[=](auto& layer) { layer.maskLinked = linked; });
     });
+    auto* clipToFrame=new QCheckBox("Limit source to its frame");clipToFrame->setObjectName("clipToFrame");
+    clipToFrame->setToolTip("Draw a pattern only inside its frame. Off: the pattern fills the canvas, so rotation never shows edges.");
+    maskControls->addWidget(clipToFrame);
+    connect(clipToFrame,&QCheckBox::toggled,this,[this](bool clip) { updateLayer("Limit to frame",[=](auto& layer) { layer.clipToFrame = clip; }); });
     cropControls_ = new QWidget; auto* cropForm = new QGridLayout(cropControls_);
     cropForm->setContentsMargins(0,0,0,0);
     const QStringList cropLabels{"Crop left", "Crop top", "Crop width", "Crop height"};
@@ -1970,6 +1974,7 @@ void LightingWindow::refreshProperties()
         animation_[2]->setEnabled(selected->effect!=EffectKind::Image && selected->effect!=EffectKind::Paint);
         const QSignalBlocker blockLink(maskLinked_), blockCycle(colorCycle_);
         maskLinked_->setChecked(selected->maskLinked);
+        {auto* clip=findChild<QCheckBox*>("clipToFrame");const QSignalBlocker block(clip);clip->setChecked(selected->clipToFrame);clip->setEnabled(isGradient(selected->effect));}
         colorCycle_->setStops(selected->colorCycle,selected->colorCyclePositions);
         const auto stops=selected->gradientColors.isEmpty() ? QVector<QColor>{selected->color,selected->secondaryColor} : selected->gradientColors;
         gradientColors_->setStops(stops,selected->gradientPositions); effectsCanvas_->setGradientStops(stops,selected->gradientPositions);

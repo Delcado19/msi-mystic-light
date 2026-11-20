@@ -375,6 +375,8 @@ void EditorTest::drawingAndAnimationRegressions()
     QCOMPARE(renderEffect(paint,0).pixelColor(200,180),QColor(Qt::red)); QCOMPARE(renderEffect(paint,.5).pixelColor(200,180),QColor(Qt::blue));
     auto gradient=layer(Qt::red); gradient.effect=EffectKind::LinearGradient; gradient.center={250,200}; gradient.extent={200,400}; gradient.secondaryColor=Qt::blue;
     QCOMPARE(renderEffect(gradient).pixelColor(639,200),QColor(Qt::blue));
+    // Opt-in frame clip: outside stays transparent, inside still renders.
+    gradient.clipToFrame=true; QCOMPARE(renderEffect(gradient).pixelColor(639,200).alpha(),0); QVERIFY(renderEffect(gradient).pixelColor(250,200).alpha()==255); gradient.clipToFrame=false;
     gradient.driftX=100; QCOMPARE(renderEffect(gradient,1).pixelColor(300,200),renderEffect(gradient,0).pixelColor(200,200));
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
     addEffect(window,EffectKind::LinearGradient); addEffect(window,EffectKind::Circle);

@@ -565,7 +565,7 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
         for (const auto& color : layer.colorCycle) cycle.append(color.name(QColor::HexArgb));
         QJsonArray cyclePositions; for(double position:layer.colorCyclePositions) cyclePositions.append(position);
         if(!cyclePositions.isEmpty()) advanced.insert("colorCyclePositions",cyclePositions);
-        advanced.insert("colorCycle", cycle); advanced.insert("maskLinked", layer.maskLinked);
+        advanced.insert("colorCycle", cycle); advanced.insert("maskLinked", layer.maskLinked); advanced.insert("clipToFrame", layer.clipToFrame);
         advanced.insert("crop", QJsonArray{layer.crop.x(), layer.crop.y(), layer.crop.width(), layer.crop.height()});
         QJsonArray positions; for(double position:layer.gradientPositions) positions.append(position);
         QJsonArray gradient; for(const auto& color:layer.gradientColors) gradient.append(color.name(QColor::HexArgb));
@@ -767,6 +767,7 @@ void LightingDocument::load(const QString& fileName)
             if (!advanced.value("maskLinked").isBool() || !advanced.value("colorCycle").isArray())
                 throw std::invalid_argument("Invalid linked mask/color cycle");
             layer.maskLinked = advanced.value("maskLinked").toBool(); layer.colorCycle.clear();
+            layer.clipToFrame = advanced.value("clipToFrame").toBool(false); // Optional: older files lack it.
             const auto cycle = advanced.value("colorCycle").toArray();
             if (cycle.size() < 2 || cycle.size() > 16) throw std::invalid_argument("Invalid color cycle size");
             for (const auto& color : cycle) layer.colorCycle.append(QColor(color.toString()));
