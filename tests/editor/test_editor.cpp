@@ -377,6 +377,8 @@ void EditorTest::drawingAndAnimationRegressions()
     QCOMPARE(renderEffect(gradient).pixelColor(639,200),QColor(Qt::blue));
     // Opt-in frame clip: outside stays transparent, inside still renders.
     gradient.clipToFrame=true; QCOMPARE(renderEffect(gradient).pixelColor(639,200).alpha(),0); QVERIFY(renderEffect(gradient).pixelColor(250,200).alpha()==255); gradient.clipToFrame=false;
+    // A clipped frame larger than the canvas keeps its own colors where wrapped copies overlap.
+    {auto big=gradient; big.center={320,200}; big.extent={1280,800}; const auto open=renderEffect(big); big.clipToFrame=true; QCOMPARE(renderEffect(big).pixelColor(400,250),open.pixelColor(400,250));}
     gradient.driftX=100; QCOMPARE(renderEffect(gradient,1).pixelColor(300,200),renderEffect(gradient,0).pixelColor(200,200));
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
     addEffect(window,EffectKind::LinearGradient); addEffect(window,EffectKind::Circle);
@@ -978,6 +980,14 @@ void EditorTest::channelAssignments()
         QCOMPARE(QJsonDocument::fromJson(sharedFile.readAll()).object().value("schemaVersion").toInt(),23); sharedFile.close();
         LightingDocument reloaded({},nullptr,{profile}); reloaded.load(sharedPath);
         QCOMPARE(reloaded.sampleChannels(frame),document.sampleChannels(frame));
+        // Frame clipping is gated behind schema 24; older schemas must reject the key.
+        reloaded.edit("Clip",[](auto& state){auto clip=layer(Qt::red);clip.effect=EffectKind::SineWave;clip.clipToFrame=true;state.layers.prepend(clip);});
+        const auto clipPath=sharedDirectory.filePath("clip.lighting.json"); reloaded.save(clipPath,false);
+        QFile clipFile(clipPath); QVERIFY(clipFile.open(QIODevice::ReadOnly)); auto clipJson=QJsonDocument::fromJson(clipFile.readAll()).object(); clipFile.close();
+        QCOMPARE(clipJson.value("schemaVersion").toInt(),24);
+        LightingDocument clipped({},nullptr,{profile}); clipped.load(clipPath); QVERIFY(clipped.state().layers[0].clipToFrame);
+        clipJson["schemaVersion"]=23; QVERIFY(clipFile.open(QIODevice::WriteOnly)); clipFile.write(QJsonDocument(clipJson).toJson()); clipFile.close();
+        QVERIFY_EXCEPTION_THROWN(clipped.load(clipPath),std::invalid_argument);
     }
     // An explicit position equal to the serial one, and a stale entry for a removed placement, change nothing.
     shared.starts={{first,4},{QUuid::createUuid(),2}}; document.assignChannel(shared);

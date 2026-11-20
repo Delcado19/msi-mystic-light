@@ -570,9 +570,12 @@ static QImage renderBaseEffect(const EffectLayer& source,double seconds)
     QTransform geometry; geometry.translate(layer.center.x(),layer.center.y()); geometry.rotate(layer.rotation); geometry.scale(layer.extent.width(),layer.extent.height());
     const auto bounds=geometry.mapRect(QRectF(-0.5,-0.5,1,1)).adjusted(-layer.particleSize,-layer.particleSize,layer.particleSize,layer.particleSize);
     QPainter painter(&result);
-    for(int y=-1;y<=1;++y) for(int x=-1;x<=1;++x) {
-        const QPointF offset(x*640,y*400);
+    // Original tile first; wrapped copies of a clipped gradient only fill beneath it, so a frame larger
+    // than the canvas keeps its own colors where copies overlap (PR #9 review).
+    for(const QPoint step:{QPoint(0,0),QPoint(-1,-1),QPoint(0,-1),QPoint(1,-1),QPoint(-1,0),QPoint(1,0),QPoint(-1,1),QPoint(0,1),QPoint(1,1)}) {
+        const QPointF offset(step.x()*640,step.y()*400);
         if(!bounds.translated(offset).intersects(QRectF(result.rect()))) continue;
+        if(!step.isNull() && isGradient(layer.effect)) painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
         auto tile=layer; tile.center+=offset; painter.drawImage(0,0,renderClippedBaseEffect(tile,seconds));
     }
     return result;

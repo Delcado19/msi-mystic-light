@@ -187,7 +187,8 @@ is evaluated from original stored pixels during preview. Mask strokes edit store
 
 Gradient and pattern sources fill the whole canvas by default, so rotation never exposes edges.
 **Limit source to its frame** (Mask tab, off by default, saved as `advanced.clipToFrame`) draws
-the pattern only inside its frame; files without the key load with the option off.
+the pattern only inside its frame. A project with any clipped layer saves as schema 24 so older
+readers reject it instead of rendering unclipped; files without the key load with the option off.
 
 ## Effects and direct tools
 
