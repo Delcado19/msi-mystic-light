@@ -378,7 +378,8 @@ void EditorTest::drawingAndAnimationRegressions()
     // Opt-in frame clip: outside stays transparent, inside still renders.
     gradient.clipToFrame=true; QCOMPARE(renderEffect(gradient).pixelColor(639,200).alpha(),0); QVERIFY(renderEffect(gradient).pixelColor(250,200).alpha()==255); gradient.clipToFrame=false;
     // A clipped frame larger than the canvas keeps its own colors where wrapped copies overlap.
-    {auto big=gradient; big.center={320,200}; big.extent={1280,800}; const auto open=renderEffect(big); big.clipToFrame=true; QCOMPARE(renderEffect(big).pixelColor(400,250),open.pixelColor(400,250));}
+    {auto big=gradient; big.center={320,200}; big.extent={1280,800}; const auto open=renderEffect(big); big.clipToFrame=true; QCOMPARE(renderEffect(big).pixelColor(400,250),open.pixelColor(400,250));
+     big.color.setAlpha(128); big.secondaryColor.setAlpha(128); big.clipToFrame=false; const auto translucent=renderEffect(big); big.clipToFrame=true; QCOMPARE(renderEffect(big).pixelColor(400,250),translucent.pixelColor(400,250));}
     gradient.driftX=100; QCOMPARE(renderEffect(gradient,1).pixelColor(300,200),renderEffect(gradient,0).pixelColor(200,200));
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
     addEffect(window,EffectKind::LinearGradient); addEffect(window,EffectKind::Circle);
