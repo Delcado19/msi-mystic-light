@@ -565,7 +565,7 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
         for (const auto& color : layer.colorCycle) cycle.append(color.name(QColor::HexArgb));
         QJsonArray cyclePositions; for(double position:layer.colorCyclePositions) cyclePositions.append(position);
         if(!cyclePositions.isEmpty()) advanced.insert("colorCyclePositions",cyclePositions);
-        advanced.insert("colorCycle", cycle); advanced.insert("maskLinked", layer.maskLinked);
+        advanced.insert("colorCycle", cycle); advanced.insert("maskLinked", layer.maskLinked); if(layer.clipToFrame) advanced.insert("clipToFrame", true);
         advanced.insert("crop", QJsonArray{layer.crop.x(), layer.crop.y(), layer.crop.width(), layer.crop.height()});
         QJsonArray positions; for(double position:layer.gradientPositions) positions.append(position);
         QJsonArray gradient; for(const auto& color:layer.gradientColors) gradient.append(color.name(QColor::HexArgb));
@@ -598,7 +598,9 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
     // installed service host that predates this change keeps loading existing projects.
     const bool sharedPositions = std::any_of(saved.assignments.cbegin(), saved.assignments.cend(),
         [](const auto& assignment) { return !chainStarts(assignment).isEmpty(); });
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", sharedPositions ? 23 : 22}, {"width", 640}, {"height", 400},
+    // Version 24 adds opt-in frame clipping (PR #9 review); older hosts must reject rather than render unclipped.
+    const bool clipped = std::any_of(saved.layers.cbegin(), saved.layers.cend(), [](const auto& layer) { return layer.clipToFrame; });
+    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", clipped ? 24 : sharedPositions ? 23 : 22}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -619,7 +621,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22 && schema != 23) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22 && schema != 23 && schema != 24) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -767,6 +769,8 @@ void LightingDocument::load(const QString& fileName)
             if (!advanced.value("maskLinked").isBool() || !advanced.value("colorCycle").isArray())
                 throw std::invalid_argument("Invalid linked mask/color cycle");
             layer.maskLinked = advanced.value("maskLinked").toBool(); layer.colorCycle.clear();
+            if(advanced.contains("clipToFrame") && (schema<24 || !advanced.value("clipToFrame").isBool())) throw std::invalid_argument("Frame clipping requires schema 24");
+            layer.clipToFrame = advanced.value("clipToFrame").toBool(false);
             const auto cycle = advanced.value("colorCycle").toArray();
             if (cycle.size() < 2 || cycle.size() > 16) throw std::invalid_argument("Invalid color cycle size");
             for (const auto& color : cycle) layer.colorCycle.append(QColor(color.toString()));

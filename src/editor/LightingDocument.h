@@ -45,6 +45,8 @@ struct EffectLayer {
     double patternFrequency=1, patternContrast=1, patternWarp=0, patternWavelength=1;
     QRectF crop{0, 0, 1, 1}; // Normalized, non-destructive source-image selection.
     bool maskLinked = false;
+    // Opt-in: procedural sources normally fill the whole canvas so rotation never shows edges.
+    bool clipToFrame = false;
     bool allChannels = true;
     QVector<QUuid> channelTargets; // Empty with allChannels=false means no hardware target, not all.
     bool visible = true;

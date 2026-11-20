@@ -71,7 +71,7 @@
 
 namespace {
 // R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus. R18: canvas drags stream live, menus show only what acts in the current view. R19: no 5 s rescan while all outputs run, output stalls logged. R20: presence check off the output thread (150 ms LED freeze each second). R21: uninstaller backs up user files, never kills the editor. R22: tray icon and name, Layout menu without Add components. R23: product name Lighting Studio for settings and session data. R24: CodeRabbit fixes for PR #3, picker keeps the color on an outside click, Return applies.
-constexpr auto studioBuildId="GS-06-R29";
+constexpr auto studioBuildId="GS-06-R30";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -943,6 +943,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(maskLinked_,&QCheckBox::toggled,this,[this](bool linked) {
         updateLayer("Link mask",[=](auto& layer) { layer.maskLinked = linked; });
     });
+    auto* clipToFrame=new QCheckBox("Limit source to its frame");clipToFrame->setObjectName("clipToFrame");
+    clipToFrame->setToolTip("Draw a pattern only inside its frame. Off: the pattern fills the canvas, so rotation never shows edges.");
+    maskControls->addWidget(clipToFrame);
+    connect(clipToFrame,&QCheckBox::toggled,this,[this](bool clip) { updateLayer("Limit to frame",[=](auto& layer) { layer.clipToFrame = clip; }); });
     cropControls_ = new QWidget; auto* cropForm = new QGridLayout(cropControls_);
     cropForm->setContentsMargins(0,0,0,0);
     const QStringList cropLabels{"Crop left", "Crop top", "Crop width", "Crop height"};
@@ -1970,6 +1974,7 @@ void LightingWindow::refreshProperties()
         animation_[2]->setEnabled(selected->effect!=EffectKind::Image && selected->effect!=EffectKind::Paint);
         const QSignalBlocker blockLink(maskLinked_), blockCycle(colorCycle_);
         maskLinked_->setChecked(selected->maskLinked);
+        {auto* clip=findChild<QCheckBox*>("clipToFrame");const QSignalBlocker block(clip);clip->setChecked(selected->clipToFrame);clip->setEnabled(isGradient(selected->effect));}
         colorCycle_->setStops(selected->colorCycle,selected->colorCyclePositions);
         const auto stops=selected->gradientColors.isEmpty() ? QVector<QColor>{selected->color,selected->secondaryColor} : selected->gradientColors;
         gradientColors_->setStops(stops,selected->gradientPositions); effectsCanvas_->setGradientStops(stops,selected->gradientPositions);

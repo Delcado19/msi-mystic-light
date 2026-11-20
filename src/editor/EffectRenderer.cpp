@@ -249,6 +249,9 @@ static QImage renderClippedBaseEffect(const EffectLayer& layer, double seconds)
                 const double dx = x+0.5-layer.center.x()-layer.driftX*seconds, dy = y+0.5-layer.center.y()-layer.driftY*seconds;
                 const double u = (dx * cosine + dy * sine) / layer.extent.width();
                 const double v = (-dx * sine + dy * cosine) / layer.extent.height();
+                // Opt-in frame clip (owner report 2026-11-20: Sine filled the canvas); drift moves only the texture.
+                const double fx=x+0.5-layer.center.x(), fy=y+0.5-layer.center.y();
+                if(layer.clipToFrame && (std::abs(fx*cosine+fy*sine)>layer.extent.width()/2 || std::abs(-fx*sine+fy*cosine)>layer.extent.height()/2)) continue;
                 double t = u + 0.5;
                 double coverage=1;
                 const auto wrap=[](double value) { return value-std::floor(value); };
@@ -561,14 +564,20 @@ static double periodic(double value,double size) { return value-size*std::floor(
 static QImage renderBaseEffect(const EffectLayer& source,double seconds)
 {
     auto layer=source; layer.center={periodic(layer.center.x(),640),periodic(layer.center.y(),400)};
-    if(layer.effect==EffectKind::StaticColor || isGradient(layer.effect)) return renderClippedBaseEffect(layer,seconds);
+    // Frame-clipped gradients need the same wrap-around tiling as other sources.
+    if(layer.effect==EffectKind::StaticColor || (isGradient(layer.effect) && !layer.clipToFrame)) return renderClippedBaseEffect(layer,seconds);
     QImage result(LightingDocument::canvasSize(),QImage::Format_ARGB32_Premultiplied); result.fill(Qt::transparent);
     QTransform geometry; geometry.translate(layer.center.x(),layer.center.y()); geometry.rotate(layer.rotation); geometry.scale(layer.extent.width(),layer.extent.height());
     const auto bounds=geometry.mapRect(QRectF(-0.5,-0.5,1,1)).adjusted(-layer.particleSize,-layer.particleSize,layer.particleSize,layer.particleSize);
     QPainter painter(&result);
-    for(int y=-1;y<=1;++y) for(int x=-1;x<=1;++x) {
-        const QPointF offset(x*640,y*400);
+    // Original tile first; wrapped copies of a clipped gradient are kept out of the original frame, so a
+    // frame larger than the canvas keeps its own (also translucent) colors where copies overlap (PR #9 review).
+    QPainterPath outsideFrame; outsideFrame.addRect(QRectF(result.rect()));
+    {QPainterPath frame; frame.addPolygon(geometry.map(QPolygonF(QRectF(-0.5,-0.5,1,1)))); frame.closeSubpath(); outsideFrame=outsideFrame.subtracted(frame);}
+    for(const QPoint step:{QPoint(0,0),QPoint(-1,-1),QPoint(0,-1),QPoint(1,-1),QPoint(-1,0),QPoint(1,0),QPoint(-1,1),QPoint(0,1),QPoint(1,1)}) {
+        const QPointF offset(step.x()*640,step.y()*400);
         if(!bounds.translated(offset).intersects(QRectF(result.rect()))) continue;
+        if(!step.isNull() && isGradient(layer.effect)) painter.setClipPath(outsideFrame);
         auto tile=layer; tile.center+=offset; painter.drawImage(0,0,renderClippedBaseEffect(tile,seconds));
     }
     return result;

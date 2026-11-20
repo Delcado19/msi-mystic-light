@@ -57,4 +57,17 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
   should suggest switching Mystic Light off (not built). Whether `SignalRgbLauncher.exe`
   restarts a terminated `SignalRgb.exe` is unknown.
 - Installer: PawnIO/app update check (not started); DisplayVersion in the Apps entry.
+- Phanteks M25 canvas layout is wrong (owner HW test 2026-11-20): 12 LEDs, 6 addresses in mirrored
+  pairs; zone 1 = pair at 6 o'clock (cable entry), zones 2-5 mirrored about the 6-12 axis, zone 6 =
+  pair at 12 o'clock. The built-in definition (`HardwarePicker.cpp`, `phanteks.m25`) rings zones
+  clockwise from 12 o'clock, so the canvas samples other spots than the fan shows. Two points per
+  zone are impossible today (`ComponentCatalog.cpp` rejects duplicate wire indices).
+- Wiring UX rework: replace the wire-index table and component chaining with SignalRGB-style
+  connection lines drawn between LEDs; coordinates should use a top-left origin (12 o'clock on a
+  fan = x 0.5, y 0) instead of the current centred system. Needs a spec first.
+- Editor: Move tool does not grab a particle effect (falls back to marquee selection); effect
+  resize is only symmetric about the centre (no edge-anchored resize). Frame clipping is opt-in
+  (`clipToFrame`, branch `fix/effect-bounds-resize`, not HW/UI-tested).
+- Performance with several simultaneous effects is suspected to drop sharply; not measured.
+  Every gradient/pattern source evaluates all canvas pixels per frame.
 - IO Shield LED count on MS-7E62 unverified (see `docs/MB_800_HID_PROTOCOL.md`).
