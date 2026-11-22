@@ -132,13 +132,6 @@ void applyStudioStyle(QWidget* window)
         QTabWidget::pane { border: 0; }
         QTabBar::tab { padding: 5px 10px; color: @secondary; background: @chrome; border-bottom: 2px solid transparent; }
         QTabBar::tab:selected { color: @accent; border-bottom-color: @accent; background: @selected; }
-        QWidget#editorTargetGroup { background: transparent; border: 0; }
-        QLabel#editorTargetLabel { background: transparent; color: @secondary; border: 0; font-size: 9pt; font-weight: 600; }
-        QTabBar#editorTarget { background: transparent; border: 0; }
-        QTabBar#editorTarget::tab { min-width: 82px; min-height: 20px; padding: 4px 10px; margin: 0 2px; border: 1px solid @separator; border-radius: 4px; color: @text; background: @panel; font-weight: 600; }
-        QTabBar#editorTarget::tab:selected { color: @text; background: @selected; border-color: @accent; }
-        QTabBar#editorTarget::tab:hover { background: @hover; border-color: @border; }
-        QTabBar#editorTarget::tab:disabled { color: @secondary; background: @panel; border-color: @separator; }
         QScrollArea { border: 0; }
         QPushButton, QToolButton { background: @panel; border: 1px solid @border; border-radius: 4px; padding: 4px 8px; min-height: 1.3em; }
         QPushButton:hover, QToolButton:hover { background: @hover; border-color: @border; }
@@ -539,6 +532,9 @@ void installParameterTooltips(QWidget* root)
         {"patternContrast","Color-field contrast around the palette midpoint as a percentage. 100 preserves the original field."},
         {"patternWarp","Distorts Plasma waves or twists Kaleidoscope sectors. Zero preserves the original shape."},
         {"patternWavelength","Horizontal width of DNA turns as a percentage. 200 doubles the spacing; amplitude controls height separately."},
+        {"chaseSpeed","Addresses travelled per second. Zero holds the initial address."},
+        {"chaseLength","Number of consecutive LED addresses lit at once."},
+        {"chaseReverse","Start at the last address and travel toward the first."},
         {"patternSpeed","Pattern animation speed. Negative values reverse motion; zero freezes the pattern."},
         {"patternWidth","Soft band width as a percentage of the effect's local dimensions."},
         {"patternAmplitude","Wave height as a percentage of the effect height."},

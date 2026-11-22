@@ -47,6 +47,11 @@ an administrator process.
 The service reuses LightingDocument, the renderer and output schedulers, validates
 a complete replacement before atomically saving
 `%ProgramData%/LightingStudio/playback.json`, and advances its own animation clock.
+For referenced projects, the private playback bundle stores `componentDefinitions`
+alongside `project`. The service validates these definitions with the project
+and restores them from the bundle after restart, independently of the logged-in
+user's custom component library. Use the matching editor and service
+build for projects that use schemas 25 or 26.
 No project means no color writes. Closing the editor leaves the last confirmed
 project running. The bounded one-day animation clock wraps for continuous operation.
 

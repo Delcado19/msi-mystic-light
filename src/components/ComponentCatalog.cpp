@@ -29,7 +29,7 @@ QString requiredText(const QJsonObject& json, const QString& key)
 
 ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
 {
-    integer(json.value("schemaVersion"), 1, 1);
+    const int schema = integer(json.value("schemaVersion"), 1, 2);
     ComponentDefinition component;
     component.id = requiredText(json, "id");
     component.name = requiredText(json, "name");
@@ -45,10 +45,13 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
     const auto positions = json.value("positions").toArray();
     if (mapping.size() != count || positions.size() != count)
         throw std::invalid_argument("Component LED array length mismatch");
+    if (schema == 2) component.addressCount = integer(json.value("addressCount"), 1, count);
+    else if (json.contains("addressCount")) throw std::invalid_argument("Shared LED addresses require component schema 2");
+    const int addresses = component.addressCount ? component.addressCount : count;
     QSet<int> seen;
     for (int i = 0; i < count; ++i) {
-        const int wire = integer(mapping[i], 0, count - 1);
-        if (seen.contains(wire)) throw std::invalid_argument("Duplicate component wire index");
+        const int wire = integer(mapping[i], 0, addresses - 1);
+        if (schema == 1 && seen.contains(wire)) throw std::invalid_argument("Duplicate component wire index");
         seen.insert(wire);
         component.mapping.append(wire);
         if (!positions[i].isArray()) throw std::invalid_argument("Invalid LED position");
@@ -58,15 +61,16 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
             throw std::invalid_argument("LED position requires two finite coordinates");
         component.positions.append(QPointF(point[0].toDouble(), point[1].toDouble()));
     }
+    if (seen.size() != addresses) throw std::invalid_argument("Every address needs a position");
     if (json.contains("nonPhysicalSlots")) {
         if (!json.value("nonPhysicalSlots").isArray()) throw std::invalid_argument("Invalid non-physical slots");
         QSet<int> reserved;
         for (const auto& value : json.value("nonPhysicalSlots").toArray()) {
-            const int wire = integer(value, 0, count - 1);
+            const int wire = integer(value, 0, addresses - 1);
             if (reserved.contains(wire)) throw std::invalid_argument("Duplicate non-physical slot");
             reserved.insert(wire); component.nonPhysicalSlots.append(wire);
         }
-        if (component.nonPhysicalSlots.size() == count) throw std::invalid_argument("Component needs a physical LED");
+        if (component.nonPhysicalSlots.size() == addresses) throw std::invalid_argument("Component needs a physical LED");
     } else if (count == 144 && (component.id == "peripheral.vulcan" ||
                (component.id.startsWith("instance.") && component.name == "Roccat Vulcan 100/120 Aimo"))) {
         // Older embedded Vulcan definitions predate explicit reserved slots; Esc wire 0 is physical.
@@ -90,8 +94,9 @@ QJsonObject ComponentDefinition::toJson() const
     QJsonArray points, wires;
     for (const auto& point : positions) points.append(QJsonArray{point.x(), point.y()});
     for (const auto wire : mapping) wires.append(wire);
-    QJsonObject result{{"schemaVersion", 1}, {"id", id}, {"name", name},
+    QJsonObject result{{"schemaVersion", addressCount ? 2 : 1}, {"id", id}, {"name", name},
         {"ledCount", positions.size()}, {"positions", points}, {"mapping", wires}};
+    if (addressCount) result.insert("addressCount", addressCount);
     if(!manufacturer.isEmpty()) result.insert("manufacturer",manufacturer);
     if(!category.isEmpty()) result.insert("category",category);
     if (!nonPhysicalSlots.isEmpty()) {
@@ -179,7 +184,7 @@ QVector<int> channelMapping(const ChannelProfile& channel, const QStringList& co
     for (const auto& id : componentIds) {
         const auto component = catalog.constFind(id);
         if (component == catalog.cend()) throw std::invalid_argument("Unknown component ID");
-        counts.append(static_cast<int>(component->mapping.size()));
+        counts.append(component->addresses());
         if (counts.last() < 1) throw std::invalid_argument("Component chain exceeds channel capacity");
     }
     const auto offsets = chainOffsets(counts, starts);
@@ -194,11 +199,12 @@ QVector<int> channelMapping(const ChannelProfile& channel, const QStringList& co
         QSet<int> seen;
         // Definitions can also be assembled in memory; validate before indexing frames.
         for (const int wire : component->mapping) {
-            if (wire < 0 || wire >= count || seen.contains(wire))
+            if (wire < 0 || wire >= count || (!component->addressCount && seen.contains(wire)))
                 throw std::invalid_argument("Invalid component wire mapping");
             seen.insert(wire);
             result.append(offset + wire);
         }
+        if (seen.size() != count) throw std::invalid_argument("Missing component wire address");
     }
     // Shared positions count once: the fixed size is the occupied address range.
     if (channel.fixedLeds && extent != channel.fixedLeds)

@@ -9,6 +9,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QInputDialog>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
@@ -83,7 +84,7 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
     };
     auto ledCount = [&document](const QUuid& id) {
         for (const auto& placement : document.state().placements) if (placement.id == id)
-            return int(document.catalog()[placement.componentId].mapping.size());
+            return document.catalog()[placement.componentId].addresses();
         return 0;
     };
     // Item roles: UserRole = placement id, +1 = explicit one-based start (0 = Auto), +2 = name, +3 = LED count.
@@ -152,6 +153,7 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
         updateTexts();
     };
     rebuildRows();
+    if (chain->count()) chain->setCurrentRow(0);
     // Dragging a row discards its embedded widget; recreate the rows from their stored values.
     connect(chain->model(),&QAbstractItemModel::rowsMoved,this,[this,rebuildRows] { QMetaObject::invokeMethod(this,rebuildRows,Qt::QueuedConnection); });
     auto setAll=[chain](int value) {
@@ -174,6 +176,28 @@ ChannelEditor::ChannelEditor(const LightingDocument& document, ChannelAssignment
         chain->setCurrentItem(addRow(available->currentData().toUuid(),0)); rebuildRows();
     });
     action("Remove", "removeInstance", [chain,rebuildRows,detach] { detach(chain->currentItem()); delete chain->takeItem(chain->currentRow()); rebuildRows(); });
+    action("Share colors with...", "shareComponentColors", [this,chain,rebuildRows] {
+        const int selected=chain->currentRow();
+        if (selected<0) return;
+        QVector<int> counts, starts;
+        QStringList choices;
+        for (int row=0;row<chain->count();++row) {
+            counts.append(chain->item(row)->data(Qt::UserRole+3).toInt());
+            starts.append(chain->item(row)->data(Qt::UserRole+1).toInt());
+            if (row!=selected) choices.append(chain->item(row)->data(Qt::UserRole+2).toString());
+        }
+        if (choices.isEmpty()) return;
+        bool accepted=false;
+        const auto name=QInputDialog::getItem(this,"Share colors","Share LED addresses with",choices,0,false,&accepted);
+        if (!accepted) return;
+        const int index=choices.indexOf(name);
+        const int target=index>=selected ? index+1 : index;
+        const int start=chainOffsets(counts,starts).at(target)+1;
+        // Pin the source as well so changing an earlier row cannot move its automatic start.
+        chain->item(target)->setData(Qt::UserRole+1,start);
+        chain->item(selected)->setData(Qt::UserRole+1,start);
+        rebuildRows();
+    });
     action("Move up", "instanceUp", [chain,rebuildRows,detach] {
         const int row=chain->currentRow(); if(row<=0) return;
         detach(chain->item(row)); auto* item=chain->takeItem(row); chain->insertItem(row-1,item); chain->setCurrentItem(item); rebuildRows();

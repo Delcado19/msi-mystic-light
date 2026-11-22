@@ -27,7 +27,7 @@ class LightingWindow : public QMainWindow {
     Q_OBJECT
 public:
     LightingWindow(ComponentCatalog catalog,
-        std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {}, bool automaticDiscovery = true);
+        std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {}, bool automaticDiscovery = true, QString libraryPath = {});
     ~LightingWindow() override;
     LightingDocument& document() { return document_; }
     QVariantMap workspacePanelPreferences() const;
@@ -39,7 +39,7 @@ public:
     void installOutputPanel(QWidget* panel);
     void restoreLegacyHardware(const QString& path);
     QString projectFile() const { return fileName_; }
-    void loadProject(const QString& path, bool recovered = false, const QString& original = {});
+    void loadProject(const QString& path, bool recovered = false, const QString& original = {}, const QJsonArray& playbackDefinitions = {});
     void saveProject(const QString& path);
     const QImage& previewFrame() const { return previewFrame_; }
 signals:
@@ -58,8 +58,12 @@ private:
     void refresh();
     void scanHeaders();
     void refreshHeader();
+    QString offlineProfile_;
     void addHeaderComponents();
+    void refreshComponentCatalog();
     ChannelAssignment selectedHeaderAssignment() const;
+    ChannelAssignment connectorAssignment(const QVariantMap& connector) const;
+    void moveComponentToConnector(const QUuid& id, ChannelAssignment connector);
     std::function<QVector<ProfileCandidate>()> scan_;
     QVector<ProfileCandidate> discovered_;
     QVariantMap selectedHeader_;

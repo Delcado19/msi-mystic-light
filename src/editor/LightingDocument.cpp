@@ -7,6 +7,10 @@
 #include <QSet>
 #include <QBuffer>
 #include <QFile>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFileInfo>
+#include <QLockFile>
 #include <QSaveFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -15,6 +19,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <limits>
+#include <memory>
 
 namespace {
 class DocumentEdit : public QUndoCommand {
@@ -45,6 +50,62 @@ QVector<QPointF> placedPoints(const ComponentPlacement& placement,const Componen
         points.append(point);
     }
     return points;
+}
+
+ComponentCatalog readLibrary(const QString& path)
+{
+    ComponentCatalog result;
+    if (path.isEmpty() || !QFileInfo::exists(path)) return result;
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) throw std::runtime_error("Cannot read custom components");
+    constexpr qint64 limit = 32 * 1024 * 1024;
+    const auto bytes = file.read(limit + 1);
+    const auto json = QJsonDocument::fromJson(bytes);
+    if (bytes.size() > limit || !json.isArray()) throw std::invalid_argument("Invalid custom component library");
+    for (const auto& item : json.array()) {
+        auto definition = ComponentDefinition::fromJson(item.toObject());
+        if (result.contains(definition.id)) throw std::invalid_argument("Duplicate component library ID");
+        result.insert(definition.id, definition);
+    }
+    return result;
+}
+
+void writeLibrary(const QString& path, const ComponentCatalog& components)
+{
+    QJsonArray entries;
+    for (const auto& definition : components) entries.append(definition.toJson());
+    const auto bytes = QJsonDocument(entries).toJson(QJsonDocument::Compact);
+    if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Custom component library exceeds 32 MiB");
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
+        throw std::runtime_error("Cannot save custom component library");
+}
+
+QString reconcileDefinition(ComponentDefinition definition, const ComponentCatalog& installed, ComponentCatalog& custom)
+{
+    auto same = [&](const ComponentCatalog& catalog) {
+        return catalog.contains(definition.id) && catalog.value(definition.id).toJson() == definition.toJson();
+    };
+    if (same(installed) || same(custom)) return definition.id;
+    if (installed.contains(definition.id) || custom.contains(definition.id)) {
+        // A content-derived ID makes a second open of an old project reuse the same variant.
+        const auto identity = QJsonDocument(definition.toJson()).toJson(QJsonDocument::Compact);
+        definition.id += "." + QString::fromLatin1(QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
+        if (same(installed) || same(custom)) return definition.id;
+        if (installed.contains(definition.id) || custom.contains(definition.id))
+            throw std::invalid_argument("Conflicting component variant ID");
+    }
+    custom.insert(definition.id, definition);
+    return definition.id;
+}
+
+QImage composeLighting(const QVector<EffectLayer>& layers, double seconds, const QUuid& channel,
+                       const QVector<QPoint>* addresses = nullptr);
+
+QColor identifyColor(const QColor& color)
+{
+    // A white baseline needs a dark flash to make Identify visible.
+    return color.red()>220 && color.green()>220 && color.blue()>220 ? Qt::black : Qt::white;
 }
 
 void validate(const LightingState& state)
@@ -80,8 +141,11 @@ void validate(const LightingState& state)
 }
 }
 
-LightingDocument::LightingDocument(ComponentCatalog catalog, QObject* parent, QVector<DeviceProfile> profiles)
-    : QObject(parent), profiles_(std::move(profiles)), initialCatalog_(std::move(catalog))
+MissingComponents::MissingComponents(QStringList missing)
+    : std::invalid_argument(("Missing components: " + missing.join(", ")).toStdString()), ids(std::move(missing)) {}
+
+LightingDocument::LightingDocument(ComponentCatalog catalog, QObject* parent, QVector<DeviceProfile> profiles, QString libraryPath)
+    : QObject(parent), profiles_(std::move(profiles)), initialCatalog_(std::move(catalog)), libraryPath_(std::move(libraryPath))
 {
     if (initialCatalog_.size() > 256) throw std::invalid_argument("Catalog limit: 256 definitions");
     state_.components = initialCatalog_;
@@ -153,6 +217,8 @@ static EffectLayer makeSource(EffectKind effect,const QUuid& parent={})
     layer.mask = LightingDocument::whiteMask();
     return layer;
 }
+EffectLayer LightingDocument::effectDefaults(EffectKind effect) { return makeSource(effect); }
+
 QUuid LightingDocument::addLayer(EffectKind effect, const QUuid& parent)
 {
     const auto layer=makeSource(effect,parent);
@@ -250,6 +316,17 @@ void LightingDocument::defineComponent(const ComponentDefinition& component, boo
 
 void LightingDocument::setComponentGeometry(const QUuid& id, const QVector<QPointF>& positions)
 {
+    if (!libraryPath_.isEmpty()) {
+        for (const auto& placement : state_.placements) if (placement.id == id) {
+            auto definition = state_.components.value(placement.componentId);
+            if (definition.positions.size() != positions.size())
+                throw std::invalid_argument("Device LED count cannot change here");
+            definition.positions = positions;
+            applyComponentVariant(id, definition);
+            return;
+        }
+        throw std::invalid_argument("Select a component first");
+    }
     edit("Edit device LED arrangement", [&](LightingState& state) {
         auto placement = std::find_if(state.placements.begin(), state.placements.end(),
             [&](const auto& item) { return item.id == id; });
@@ -270,16 +347,151 @@ void LightingDocument::setComponentGeometry(const QUuid& id, const QVector<QPoin
     });
 }
 
+ComponentCatalog LightingDocument::customComponents() const
+{
+    if (!libraryPath_.isEmpty()) return readLibrary(libraryPath_);
+    auto custom = state_.components;
+    for (const auto& definition : initialCatalog_) custom.remove(definition.id);
+    return custom;
+}
+
+QString LightingDocument::registerComponent(const ComponentDefinition& definition)
+{
+    const auto validated = ComponentDefinition::fromJson(definition.toJson());
+    if (libraryPath_.isEmpty()) {
+        defineComponent(validated);
+        return validated.id;
+    }
+    if (!QDir().mkpath(QFileInfo(libraryPath_).absolutePath()))
+        throw std::runtime_error("Cannot create custom component directory");
+    QLockFile lock(libraryPath_ + ".lock");
+    if (!lock.tryLock()) throw std::runtime_error("Custom component library is busy");
+    auto custom = readLibrary(libraryPath_);
+    const auto id = reconcileDefinition(validated, initialCatalog_, custom);
+    writeLibrary(libraryPath_, custom);
+    return id;
+}
+
 void LightingDocument::importComponent(const QString& fileName)
 {
-    defineComponent(loadComponentDefinition(fileName));
+    registerComponent(loadComponentDefinition(fileName));
+}
+
+void LightingDocument::applyComponentVariant(const QUuid& id, const ComponentDefinition& definition)
+{
+    const auto validated = ComponentDefinition::fromJson(definition.toJson());
+    std::unique_ptr<QLockFile> lock;
+    ComponentCatalog custom;
+    if (!libraryPath_.isEmpty()) {
+        if (!QDir().mkpath(QFileInfo(libraryPath_).absolutePath()))
+            throw std::runtime_error("Cannot create custom component directory");
+        lock=std::make_unique<QLockFile>(libraryPath_ + ".lock");
+        if (!lock->tryLock()) throw std::runtime_error("Custom component library is busy");
+        custom=readLibrary(libraryPath_);
+    }
+    edit("Apply component variant", [&](LightingState& state) {
+        for (auto& placement : state.placements) if (placement.id == id) {
+            if (placement.locked) throw std::invalid_argument("Unlock the component before editing");
+            if (!lock) {
+                placement.componentId=reconcileDefinition(validated,initialCatalog_,state.components);
+                return;
+            }
+            const auto variantId=reconcileDefinition(validated,initialCatalog_,custom);
+            state.components.insert(variantId,custom.value(variantId,initialCatalog_.value(variantId)));
+            placement.componentId = variantId;
+            // Reject over-capacity wiring before publishing the variant to the shared library.
+            validate(state);
+            validateChannelAssignments(state,profiles_);
+            writeLibrary(libraryPath_,custom);
+            lock.reset();
+            return;
+        }
+        throw std::invalid_argument("Select a component first");
+    });
+}
+
+QUuid LightingDocument::duplicateComponent(const QUuid& id)
+{
+    const auto found = std::find_if(state_.placements.cbegin(), state_.placements.cend(),
+        [&](const auto& placement) { return placement.id == id; });
+    if (found == state_.placements.cend()) throw std::invalid_argument("Select a component first");
+    auto copy = *found;
+    copy.id = QUuid::createUuid();
+    copy.origin += QPointF(24, 24);
+    copy.locked = false;
+    edit("Duplicate component", [&](LightingState& state) {
+        state.placements.append(copy);
+        for (auto& assignment : state.assignments) if (assignment.placements.contains(id)) {
+            if (!chainStarts(assignment).isEmpty()) assignment.starts[copy.id]=outputLedsUsed(assignment)+1;
+            assignment.placements.append(copy.id);
+            break;
+        }
+    });
+    return copy.id;
+}
+
+void LightingDocument::removeComponents(const QSet<QUuid>& ids)
+{
+    edit("Remove components", [&](LightingState& state) {
+        for (auto& assignment : state.assignments) {
+            for (const auto& id : ids) {
+                assignment.placements.removeAll(id);
+                assignment.starts.remove(id);
+            }
+        }
+        QSet<QUuid> empty;
+        for (const auto& assignment : state.assignments)
+            if (assignment.software && assignment.placements.isEmpty()) empty.insert(assignment.id);
+        state.assignments.removeIf([&](const auto& assignment) { return empty.contains(assignment.id); });
+        for (auto& layer : state.layers) for (const auto& id : empty) layer.channelTargets.removeAll(id);
+        state.placements.removeIf([&](const auto& placement) { return ids.contains(placement.id); });
+    });
+}
+
+void LightingDocument::moveComponent(const QUuid& id, ChannelAssignment destination)
+{
+    const auto& channel = assignmentChannel(assignmentProfile(profiles_, destination.profileId), destination.channelId);
+    if (!channel.direct || channelHasFixedComponent(channel))
+        throw std::invalid_argument("Choose a connector that accepts components");
+    if (destination.placements.contains(id)) return;
+    edit("Move component to connector", [&](LightingState& state) {
+        QSet<QUuid> empty;
+        for (auto& assignment : state.assignments) if (assignment.placements.contains(id)) {
+            const auto& source = assignmentChannel(assignmentProfile(profiles_, assignment.profileId), assignment.channelId);
+            if (channelHasFixedComponent(source)) throw std::invalid_argument("Integrated components cannot move");
+            assignment.placements.removeAll(id);
+            assignment.starts.remove(id);
+            if (assignment.software && assignment.placements.isEmpty()) empty.insert(assignment.id);
+        }
+        state.assignments.removeIf([&](const auto& assignment) { return empty.contains(assignment.id); });
+        for (auto& layer : state.layers) for (const auto& assignment : empty) layer.channelTargets.removeAll(assignment);
+        if (!chainStarts(destination).isEmpty()) destination.starts[id]=outputLedsUsed(destination)+1;
+        destination.placements.append(id);
+        for (auto& assignment : state.assignments) if (assignment.id==destination.id) {
+            assignment = destination;
+            return;
+        }
+        state.assignments.append(destination);
+    });
+}
+
+int LightingDocument::availableAddresses(const ChannelAssignment& assignment) const
+{
+    const auto& profile = assignmentProfile(profiles_, assignment.profileId);
+    const auto& channel = assignmentChannel(profile, assignment.channelId);
+    const int capacity = channel.fixedLeds ? channel.fixedLeds : channel.maxLeds;
+    return capacity - outputLedsUsed(assignment);
 }
 
 QUuid LightingDocument::addComponent(const QString& componentId)
 {
     ComponentPlacement placement;
     placement.componentId = componentId;
-    edit("Add component", [&](LightingState& state) { state.placements.append(placement); });
+    const auto definition = catalog().contains(componentId) ? catalog().value(componentId) : customComponents().value(componentId);
+    edit("Add component", [&](LightingState& state) {
+        if (!definition.id.isEmpty()) state.components.insert(componentId, definition);
+        state.placements.append(placement);
+    });
     return placement.id;
 }
 
@@ -355,8 +567,13 @@ QVector<QColor> LightingDocument::sampleComponent(const ComponentPlacement& plac
     if (catalog()[placement.componentId].mapping.size() != points.size())
         throw std::invalid_argument("Component geometry/mapping length mismatch");
     const auto mapping = channelMapping(ChannelProfile{"sampling", 65535}, {placement.componentId}, catalog());
-    QVector<QColor> colors(points.size(), QColor(Qt::black));
+    const auto count = catalog()[placement.componentId].addresses();
+    QVector<QColor> colors(count, QColor(Qt::black));
+    QVector<bool> sampled(count, false);
     for (qsizetype i = 0; i < points.size(); ++i) {
+        // A zone takes its color from its first declared light point, regardless of how many points mirror it.
+        if (sampled[mapping[i]]) continue;
+        sampled[mapping[i]] = true;
         const QPointF point((points[i].x()-bounds.left())/bounds.width()*rgb.width(),
                             (points[i].y()-bounds.top())/bounds.height()*rgb.height());
         // Preview and hardware use the same world-to-raster mapping, including transient drags.
@@ -386,6 +603,9 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
     const auto bounds=layoutBounds(placements);
     QMap<QUuid, QVector<QColor>> result;
     const bool restricted=std::any_of(state_.layers.cbegin(),state_.layers.cend(),[](const auto& layer) { return !layer.allChannels; });
+    const bool chase = std::any_of(state_.layers.cbegin(),state_.layers.cend(),[](const auto& layer) {
+        return layer.effect == EffectKind::Chase && layer.visible;
+    });
     for (const auto& assignment : state_.assignments) if (assignment.software) {
         const auto raster=(restricted || assignment.timeScale!=1 || assignment.timeOffset!=0)
             ? renderForChannel(assignment.id,seconds) : rgb;
@@ -401,20 +621,50 @@ QMap<QUuid, QVector<QColor>> LightingDocument::sampleChannels(const QImage& fram
         const auto offsets = chainOffsets(counts, starts);
         QVector<QColor> chain;
         QVector<bool> owned;
+        QVector<QPoint> addressPoints;
         // Shared output positions have one physical color: the earlier chain item supplies it,
         // later components mirror it. Unaddressed gaps stay black.
         for (qsizetype index = 0; index < sampled.size(); ++index) {
             const auto end = offsets[index] + counts[index];
-            if (chain.size() < end) { chain.resize(end, QColor(Qt::black)); owned.resize(end, false); }
+            if (chain.size() < end) {
+                chain.resize(end, QColor(Qt::black));
+                owned.resize(end, false);
+                if (chase) addressPoints.resize(end, QPoint(-1,-1));
+            }
+            if (chase) {
+                const auto& instances=placements ? *placements : state_.placements;
+                const auto placement=std::find_if(instances.cbegin(),instances.cend(),[&](const auto& item) { return item.id==ids[index]; });
+                const auto points=componentPoints(*placement);
+                const auto& mapping=catalog()[placement->componentId].mapping;
+                QVector<bool> supplied(counts[index],false);
+                for (int i=0;i<points.size();++i) {
+                    const auto address=mapping.at(i);
+                    const int output=offsets[index]+address;
+                    if (owned[output] || supplied[address]) continue;
+                    supplied[address]=true;
+                    const double x=(points[i].x()-bounds.left())/bounds.width()*rgb.width();
+                    const double y=(points[i].y()-bounds.top())/bounds.height()*rgb.height();
+                    if (x>=0 && x<rgb.width() && y>=0 && y<rgb.height()) addressPoints[output]=QPoint(int(x),int(y));
+                }
+            }
             for (int led = 0; led < counts[index]; ++led) if (!owned[offsets[index] + led]) {
                 chain[offsets[index] + led] = sampled[index][led]; owned[offsets[index] + led] = true;
             }
         }
-        // Identify: only the flashed component's outputs light (shared outputs light with it); other chains go dark.
+        if (chase && !addressPoints.isEmpty()) {
+            const auto composed=composeLighting(state_.layers,channelTime(assignment.id,seconds),assignment.id,&addressPoints);
+            for (int address=0;address<chain.size();++address) {
+                const auto pixel=composed.pixel(address,0);
+                chain[address]=QColor(qRed(pixel),qGreen(pixel),qBlue(pixel));
+            }
+        }
+        // Overlay shared addresses after composing the frame so the rest keeps playing.
         if (!identify_.isNull()) {
-            chain.fill(QColor(Qt::black));
             const auto at = ids.indexOf(identify_);
-            if (at >= 0) for (int led = 0; led < counts[at]; ++led) chain[offsets[at] + led] = QColor(Qt::white);
+            if (at >= 0) for (int led = 0; led < counts[at]; ++led) {
+                auto& color=chain[offsets[at]+led];
+                color=identifyColor(color);
+            }
         }
         result.insert(assignment.id, chain);
     }
@@ -447,6 +697,8 @@ QMap<QUuid, QVector<QColor>> LightingDocument::previewComponentColors(const QIma
             sampled[id] = colors.mid(offsets[index], counts[index]); ++index;
         }
     }
+    if (!identify_.isNull() && sampled.contains(identify_) && !hasSoftwareChannel(identify_))
+        for (auto& color:sampled[identify_]) color=identifyColor(color);
     return sampled;
 }
 
@@ -457,7 +709,7 @@ QMap<QUuid, int> LightingDocument::componentLedOffsets() const
         QVector<int> counts;
         for (const auto& id : assignment.placements)
             for (const auto& placement : state_.placements) if (placement.id == id)
-                counts.append(int(catalog()[placement.componentId].mapping.size()));
+                counts.append(catalog()[placement.componentId].addresses());
         if (counts.size() != assignment.placements.size()) continue;
         const auto offsets = chainOffsets(counts, chainStarts(assignment));
         for (int item = 0; item < offsets.size(); ++item) result.insert(assignment.placements[item], offsets[item]);
@@ -471,7 +723,7 @@ int LightingDocument::outputLedsUsed(const ChannelAssignment& assignment) const
     int sum = 0;
     for (const auto& id : assignment.placements)
         for (const auto& placement : state_.placements) if (placement.id == id) {
-            counts.append(int(catalog()[placement.componentId].mapping.size()));
+            counts.append(catalog()[placement.componentId].addresses());
             sum += counts.last();
         }
     // Native channels and incomplete lists have no chain positions; fall back to the plain sum.
@@ -499,7 +751,7 @@ QMap<QUuid, QString> LightingDocument::sharedColorNotes() const
         QVector<int> counts; QStringList names;
         for (const auto& id : assignment.placements)
             for (const auto& placement : state_.placements) if (placement.id == id) {
-                counts.append(int(catalog()[placement.componentId].mapping.size())); names.append(componentName(placement));
+                counts.append(catalog()[placement.componentId].addresses()); names.append(componentName(placement));
             }
         if (counts.size() != assignment.placements.size() || counts.contains(0)) continue;
         const auto sharing = chainSharing(counts, starts);
@@ -542,14 +794,45 @@ QImage LightingDocument::cachedRender(double seconds,const QUuid& channel) const
     const auto result=render(state_,local,channel);frameCache_.insert(key,result);return result;
 }
 
-void LightingDocument::save(const QString& fileName, bool markClean, const LightingState* state)
+void LightingDocument::save(const QString& fileName, bool markClean, const LightingState* state, QJsonArray* playbackDefinitions)
 {
     // Autosave must not persist an unaccepted picker preview.
     const auto& saved=state ? *state : colorPreviewBefore_ ? *colorPreviewBefore_ : state_;
     QJsonArray layers, placements, components, assignments;
     validateChannelAssignments(saved, profiles_);
     for (const auto& assignment : saved.assignments) assignments.append(channelAssignmentJson(assignment));
-    for (const auto& component : saved.components) components.append(component.toJson());
+    const bool chase = std::any_of(saved.layers.cbegin(),saved.layers.cend(),[](const auto& layer) { return layer.effect==EffectKind::Chase; });
+    const bool references = !libraryPath_.isEmpty() || playbackDefinitions || chase;
+    if (!references) {
+        for (const auto& component : saved.components) components.append(component.toJson());
+    } else {
+        ComponentCatalog used;
+        for (const auto& placement : saved.placements) {
+            const auto definition = saved.components.value(placement.componentId);
+            if (!initialCatalog_.contains(definition.id) || initialCatalog_.value(definition.id).toJson() != definition.toJson())
+                used.insert(definition.id, definition);
+        }
+        if (playbackDefinitions) {
+            *playbackDefinitions = {};
+            for (const auto& definition : used) playbackDefinitions->append(definition.toJson());
+        }
+        if (!playbackDefinitions && !libraryPath_.isEmpty() && !used.isEmpty()) {
+            if (!QDir().mkpath(QFileInfo(libraryPath_).absolutePath())) throw std::runtime_error("Cannot create custom component directory");
+            QLockFile lock(libraryPath_ + ".lock");
+            if (!lock.tryLock()) throw std::runtime_error("Custom component library is busy");
+            auto custom = readLibrary(libraryPath_);
+            bool changed = false;
+            for (const auto& definition : used) {
+                if (custom.contains(definition.id) && custom.value(definition.id).toJson() != definition.toJson())
+                    throw std::invalid_argument("Save geometry as a new component variant before overwriting a definition");
+                if (!custom.contains(definition.id)) {
+                    custom.insert(definition.id, definition);
+                    changed = true;
+                }
+            }
+            if (changed) writeLibrary(libraryPath_, custom);
+        }
+    }
     for (const auto& layer : saved.layers) {
         QByteArray png;
         QBuffer buffer(&png); buffer.open(QIODevice::WriteOnly);
@@ -560,7 +843,7 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
             if (!layer.image.save(&imageBuffer, "PNG")) throw std::runtime_error("Could not encode image");
         }
         QJsonObject advanced;
-        for (const auto& parameter : advancedParameters()) advanced.insert(parameter.id, layer.*(parameter.member));
+        for (const auto& parameter : advancedParameters()) if (chase || parameter.schemaVersion<26) advanced.insert(parameter.id, layer.*(parameter.member));
         QJsonArray cycle;
         for (const auto& color : layer.colorCycle) cycle.append(color.name(QColor::HexArgb));
         QJsonArray cyclePositions; for(double position:layer.colorCyclePositions) cyclePositions.append(position);
@@ -600,8 +883,11 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
         [](const auto& assignment) { return !chainStarts(assignment).isEmpty(); });
     // Version 24 adds opt-in frame clipping (PR #9 review); older hosts must reject rather than render unclipped.
     const bool clipped = std::any_of(saved.layers.cbegin(), saved.layers.cend(), [](const auto& layer) { return layer.clipToFrame; });
-    const auto bytes = QJsonDocument(QJsonObject{{"schemaVersion", clipped ? 24 : sharedPositions ? 23 : 22}, {"width", 640}, {"height", 400},
-        {"layers", layers}, {"placements", placements}, {"components", components}, {"assignments", assignments}}).toJson();
+    // Schema 25 resolves component IDs from built-ins and the user's separate library.
+    QJsonObject project{{"schemaVersion", chase ? 26 : references ? 25 : clipped ? 24 : sharedPositions ? 23 : 22}, {"width", 640}, {"height", 400},
+        {"layers", layers}, {"placements", placements}, {"assignments", assignments}};
+    if (!references) project.insert("components", components);
+    const auto bytes = QJsonDocument(project).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
     // Atomic replacement preserves an existing project if writing/commit fails.
@@ -611,7 +897,7 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
     if (markClean && !state) history_.setClean();
 }
 
-void LightingDocument::load(const QString& fileName)
+void LightingDocument::load(const QString& fileName, const QJsonArray& playbackDefinitions)
 {
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly) || file.size() > 32 * 1024 * 1024)
@@ -621,7 +907,7 @@ void LightingDocument::load(const QString& fileName)
     const auto root = parsed.object();
     const double schema = root.value("schemaVersion").toDouble(-1);
     if (error.error != QJsonParseError::NoError || !parsed.isObject() ||
-        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22 && schema != 23 && schema != 24) || root.value("width").toDouble(-1) != 640 ||
+        (schema != 1 && schema != 2 && schema != 3 && schema != 4 && schema != 5 && schema != 6 && schema != 7 && schema != 8 && schema != 9 && schema != 10 && schema != 11 && schema != 12 && schema != 13 && schema != 14 && schema != 15 && schema != 16 && schema != 17 && schema != 18 && schema != 19 && schema != 20 && schema != 21 && schema != 22 && schema != 23 && schema != 24 && schema != 25 && schema != 26) || root.value("width").toDouble(-1) != 640 ||
         root.value("height").toDouble(-1) != 400 || !root.value("layers").isArray() || !root.value("placements").isArray())
         throw std::invalid_argument("Invalid lighting document header");
     const auto layerArray = root.value("layers").toArray();
@@ -630,7 +916,26 @@ void LightingDocument::load(const QString& fileName)
         throw std::invalid_argument("Document exceeds layer/component limits");
     LightingState candidate;
     candidate.components = initialCatalog_;
-    if (schema >= 7) {
+    QMap<QString, QString> migratedIds;
+    std::unique_ptr<QLockFile> migrationLock;
+    auto custom = readLibrary(libraryPath_);
+    bool migrated = false;
+    if (schema >= 25) {
+        if (root.contains("components")) throw std::invalid_argument("Referenced projects cannot embed component definitions");
+        if (playbackDefinitions.size() > 256) throw std::invalid_argument("Too many playback component definitions");
+        QSet<QString> bundled;
+        for (const auto& entry : playbackDefinitions) {
+            const auto definition = ComponentDefinition::fromJson(entry.toObject());
+            if (bundled.contains(definition.id) || initialCatalog_.contains(definition.id))
+                throw std::invalid_argument("Conflicting playback component ID");
+            bundled.insert(definition.id);
+            if (!libraryPath_.isEmpty() && custom.contains(definition.id) && custom.value(definition.id).toJson() != definition.toJson())
+                throw std::invalid_argument("Playback component conflicts with the user's library");
+            custom.insert(definition.id, definition);
+        }
+        for (const auto& definition : custom) if (!initialCatalog_.contains(definition.id))
+            candidate.components.insert(definition.id, definition);
+    } else if (schema >= 7) {
         if (!root.value("components").isArray() || root.value("components").toArray().size() > 256)
             throw std::invalid_argument("Invalid embedded component catalog");
         candidate.components.clear();
@@ -650,6 +955,17 @@ void LightingDocument::load(const QString& fileName)
         }
     } else if (root.contains("components")) {
         throw std::invalid_argument("Embedded components require schema 7");
+    }
+    if (schema >= 7 && schema < 25 && !libraryPath_.isEmpty()) {
+        if (!QDir().mkpath(QFileInfo(libraryPath_).absolutePath())) throw std::runtime_error("Cannot create custom component directory");
+        migrationLock = std::make_unique<QLockFile>(libraryPath_ + ".lock");
+        if (!migrationLock->tryLock()) throw std::runtime_error("Custom component library is busy");
+        custom = readLibrary(libraryPath_);
+        for (const auto& definition : candidate.components)
+            migratedIds.insert(definition.id, reconcileDefinition(definition, initialCatalog_, custom));
+        candidate.components = initialCatalog_;
+        for (const auto& definition : custom) candidate.components.insert(definition.id, definition);
+        migrated = true;
     }
     qint64 imagePixels = 0;
     for (const auto& entry : layerArray) {
@@ -720,6 +1036,7 @@ void LightingDocument::load(const QString& fileName)
             layer.gradientFill=true; layer.gradientStart={points[0].toDouble(),points[1].toDouble()}; layer.gradientEnd={points[2].toDouble(),points[3].toDouble()};
             validateEffect(layer);
         }
+        if(schema<26 && layer.effect==EffectKind::Chase) throw std::invalid_argument("Chase requires schema 26");
         if(schema<20 && (layer.effect==EffectKind::Lightning || layer.effect==EffectKind::Starfield)) throw std::invalid_argument("Lightning and Starfield require schema 20");
         if(schema<19 && layer.effect>=EffectKind::Aurora && layer.effect<=EffectKind::Kaleidoscope) throw std::invalid_argument("Additional procedural sources require schema 19");
         if(schema<18 && (layer.effect==EffectKind::Plasma || layer.effect==EffectKind::Ripples)) throw std::invalid_argument("Plasma and Ripples require schema 18");
@@ -805,13 +1122,15 @@ void LightingDocument::load(const QString& fileName)
         }else if(json.contains("parentId") || json.contains("container"))throw std::invalid_argument("Layer objects require schema 13");
         candidate.layers.append(layer);
     }
+    QStringList missing;
     for (const auto& entry : placementArray) {
         const auto json = entry.toObject();
         if (!json.value("x").isDouble() || !json.value("y").isDouble())
             throw std::invalid_argument("Invalid placement coordinates");
         ComponentPlacement placement;
         placement.id = QUuid(json.value("id").toString());
-        placement.componentId = json.value("componentId").toString();
+        const auto sourceId = json.value("componentId").toString();
+        placement.componentId = migratedIds.value(sourceId, sourceId);
         placement.origin = {json.value("x").toDouble(), json.value("y").toDouble()};
         if (schema >= 6) {
             if (!json.value("scaleX").isDouble() || !json.value("scaleY").isDouble() || !json.value("rotation").isDouble())
@@ -824,9 +1143,11 @@ void LightingDocument::load(const QString& fileName)
         }
         if(schema>=14){if(!json.value("locked").isBool())throw std::invalid_argument("Invalid component lock");placement.locked=json.value("locked").toBool();}
         else if(json.contains("locked"))throw std::invalid_argument("Component locks require schema 14");
-        if (!candidate.components.contains(placement.componentId)) throw std::invalid_argument("Document requires an unavailable component");
+        if (!candidate.components.contains(placement.componentId)) missing.append(placement.componentId);
         candidate.placements.append(placement);
     }
+    missing.removeDuplicates();
+    if (!missing.isEmpty()) throw MissingComponents(missing);
     if (schema >= 8) {
         if (!root.value("assignments").isArray() || root.value("assignments").toArray().size() > 256)
             throw std::invalid_argument("Invalid channel assignment array");
@@ -839,11 +1160,53 @@ void LightingDocument::load(const QString& fileName)
     }
     validate(candidate);
     validateChannelAssignments(candidate, profiles_);
+    if (migrated) writeLibrary(libraryPath_, custom);
     // Parse/validate everything before replacing the live document and undo history.
     state_ = std::move(candidate);
     history_.clear();
     history_.setClean();
     ++revision_; emit changed();
+}
+
+void LightingDocument::saveCustomEffect(const QUuid& selection, const QString& fileName)
+{
+    LightingState preset;
+    for (auto layer : state_.layers) if (layer.id==selection || layer.parentId==selection) {
+        if (layer.id==selection) layer.parentId={};
+        layer.allChannels=true;
+        layer.channelTargets.clear();
+        preset.layers.append(layer);
+    }
+    if (selection.isNull() || preset.layers.isEmpty()) throw std::invalid_argument("Select a layer or group first");
+    save(fileName,false,&preset);
+}
+
+QUuid LightingDocument::insertCustomEffect(const QString& fileName)
+{
+    LightingDocument preset(initialCatalog_);
+    preset.load(fileName);
+    auto layers = preset.state().layers;
+    QUuid root;
+    QMap<QUuid,QUuid> ids;
+    for (const auto& layer : layers) {
+        if (layer.parentId.isNull()) {
+            if (!root.isNull()) throw std::invalid_argument("Custom effect must have one root layer");
+            root=layer.id;
+        }
+        ids.insert(layer.id,QUuid::createUuid());
+    }
+    if (root.isNull() || !preset.state().placements.isEmpty()) throw std::invalid_argument("Invalid custom effect");
+    edit("Insert custom effect",[&](LightingState& state) {
+        for (auto& layer : layers) {
+            layer.id=ids.value(layer.id);
+            layer.parentId=ids.value(layer.parentId);
+            layer.locked=false;
+            layer.allChannels=true;
+            layer.channelTargets.clear();
+            state.layers.append(layer);
+        }
+    });
+    return ids.value(root);
 }
 
 void LightingDocument::paintMask(QImage& mask, QPointF from, QPointF to,
@@ -895,27 +1258,61 @@ QImage LightingDocument::render(const LightingState& state, double seconds, cons
     validate(state);
     if (!std::isfinite(seconds) || seconds < 0 || seconds > 86400)
         throw std::invalid_argument("Invalid preview time");
-    QImage result(canvasSize(), QImage::Format_ARGB32_Premultiplied);
+    return composeLighting(state.layers,seconds,channel);
+}
+
+namespace {
+QImage composeLighting(const QVector<EffectLayer>& layers, double seconds, const QUuid& channel,
+                       const QVector<QPoint>* addresses)
+{
+    // An address atlas preserves independent addresses even when their points overlap on the canvas.
+    const auto size = addresses ? QSize(addresses->size(),1) : LightingDocument::canvasSize();
+    QImage result(size,QImage::Format_ARGB32_Premultiplied);
     result.fill(Qt::transparent);
     QPainter painter(&result);
-    for (const auto& layer : state.layers) {
+    for (const auto& layer : layers) {
         if (!layer.parentId.isNull() || !layer.visible || layer.transparency == 100 ||
             (!channel.isNull() && !layer.allChannels && !layer.channelTargets.contains(channel))) continue;
         QImage source;
-        const bool children=std::any_of(state.layers.cbegin(),state.layers.cend(),[&](const auto& item){return item.parentId==layer.id;});
+        const bool children=std::any_of(layers.cbegin(),layers.cend(),[&](const auto& item){return item.parentId==layer.id;});
         if(children) {
-            LightingState group;
-            if(!layer.container){auto own=layer;own.parentId={};own.maskEnabled=false;own.transparency=0;own.blend=LayerBlend::Normal;group.layers.append(own);}
-            for(auto child:state.layers)if(child.parentId==layer.id){child.parentId={};child.allChannels=true;group.layers.append(child);}
-            source=render(group,seconds);
-        } else if(layer.container){source=QImage(canvasSize(),QImage::Format_ARGB32_Premultiplied);source.fill(Qt::transparent);}
-        else source=renderEffect(layer, seconds);
+            QVector<EffectLayer> group;
+            if(!layer.container){auto own=layer;own.parentId={};own.maskEnabled=false;own.transparency=0;own.blend=LayerBlend::Normal;group.append(own);}
+            for(auto child:layers)if(child.parentId==layer.id){child.parentId={};child.allChannels=true;group.append(child);}
+            source=composeLighting(group,seconds,{},addresses);
+        } else if (layer.container || (layer.effect==EffectKind::Chase && addresses)) {
+            source=QImage(size,QImage::Format_ARGB32_Premultiplied);
+            source.fill(Qt::transparent);
+            if (!layer.container) {
+                const int count=size.width();
+                const int step=int(std::floor(seconds*layer.chaseSpeed))%count;
+                const int head=layer.chaseReverse ? count-1-step : step;
+                auto* pixels=reinterpret_cast<QRgb*>(source.scanLine(0));
+                for (int index=0;index<qMin(count,int(layer.chaseLength));++index) {
+                    const int address=(head+(layer.chaseReverse ? index : -index)+count)%count;
+                    if (addresses->at(address).x()>=0) pixels[address]=qPremultiply(layer.color.rgba());
+                }
+            }
+        } else {
+            const auto raster=renderEffect(layer,seconds);
+            if (!addresses) source=raster;
+            else {
+                source=QImage(size,QImage::Format_ARGB32_Premultiplied);
+                auto* pixels=reinterpret_cast<QRgb*>(source.scanLine(0));
+                for (int address=0;address<size.width();++address) {
+                    const auto point=addresses->at(address);
+                    pixels[address]=point.x()>=0 ? raster.pixel(point) : 0;
+                }
+            }
+        }
         const auto maskImage = renderMask(layer,seconds);
         for (int y = 0; y < source.height(); ++y) {
             auto* pixels = reinterpret_cast<QRgb*>(source.scanLine(y));
             const auto* mask = maskImage.constScanLine(y);
             for (int x = 0; x < source.width(); ++x) {
-                const int coverage = layer.maskEnabled ? mask[x] : 255;
+                const auto point=addresses ? addresses->at(x) : QPoint(x,y);
+                const int coverage = !layer.maskEnabled ? 255 :
+                    point.x()<0 ? 0 : addresses ? maskImage.constScanLine(point.y())[point.x()] : mask[x];
                 const double alphaScale = (100 - layer.transparency) / 100.0 * coverage / 255.0;
                 const auto pixel = pixels[x];
                 pixels[x] = qRgba(qRound(qRed(pixel) * alphaScale), qRound(qGreen(pixel) * alphaScale),
@@ -932,4 +1329,5 @@ QImage LightingDocument::render(const LightingState& state, double seconds, cons
         painter.drawImage(0, 0, source);
     }
     return result;
+}
 }

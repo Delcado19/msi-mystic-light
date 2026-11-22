@@ -39,6 +39,12 @@ QIcon productIcon(const ComponentDefinition& c)
     QPixmap pixmap(112,88);pixmap.fill(Qt::transparent);QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
     const auto category=hardwareArtworkCategory(c);
+    const auto photo=hardwarePreviewPhoto(c);
+    if (!photo.isNull()) {
+        const auto thumbnail=photo.scaled(104,80,Qt::KeepAspectRatio,Qt::SmoothTransformation);
+        painter.drawPixmap((112-thumbnail.width())/2,(88-thumbnail.height())/2,thumbnail);
+        return QIcon(pixmap);
+    }
     static const QMap<QString,QSizeF> sizes{{"Fans",{72,72}},{"Pumps",{72,72}},
         {"Strips",{100,14}},{"RAM",{100,30}},{"Graphics cards",{100,46}},
         {"Keyboards",{100,43}},{"Mice",{44,72}},{"AiO",{100,57}},{"Motherboards",{58,72}},{"Cables",{100,24}}};
@@ -109,7 +115,23 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
     for(int count:{6,8,12,16}) { auto c=generic(QString("generic.fan.%1").arg(count),QString("Generic fan / %1 addresses").arg(count),count,true); if(!products_.contains(c.id)) products_.insert(c.id,c); }
     for(int count:{8,30,60}) { auto c=generic(QString("generic.strip.%1").arg(count),QString("Generic strip / %1 LEDs").arg(count),count,false); if(!products_.contains(c.id)) products_.insert(c.id,c); }
     // Restore the original user's installed M25 models: six addresses for paired physical LEDs.
-    { auto c=generic("phanteks.m25","Phanteks M25 Gen2 120 White",6,true); products_.insert(c.id,c); }
+    {
+        ComponentDefinition fan;
+        fan.id = "phanteks.m25.paired";
+        fan.name = "Phanteks M25 Gen2 120 White";
+        fan.manufacturer = "Phanteks";
+        fan.category = "Fans";
+        fan.addressCount = 6;
+        // Cable exits at 6 o'clock. Each observed zone mirrors across the vertical axis.
+        for (int address=0; address<6; ++address) {
+            const double angle=(address+1)*3.141592653589793/7;
+            for (double side : {1.0,-1.0}) {
+                fan.positions.append({1.3+side*1.3*std::sin(angle),1.3+1.3*std::cos(angle)});
+                fan.mapping.append(address);
+            }
+        }
+        if (!products_.contains(fan.id)) products_.insert(fan.id,fan);
+    }
     installedProducts(products_);
     for(auto it=products_.begin();it!=products_.end();) {
         if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products_.erase(it); else ++it;
@@ -136,7 +158,7 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
         // Merge cosmetic variants only when LED geometry and wire mapping also match; saved IDs remain valid.
         if(models.contains(key)) continue;
         models.insert(key);
-        auto* item=new QListWidgetItem(productIcon(c),hardwareName(c),productsList_); item->setData(Qt::UserRole,c.id); item->setToolTip(QString("%1 / %2 addressable LEDs").arg(c.name).arg(c.positions.size())); }
+        auto* item=new QListWidgetItem(productIcon(c),hardwareName(c),productsList_); item->setData(Qt::UserRole,c.id); item->setToolTip(QString("%1 / %2 addressable LEDs").arg(c.name).arg(c.addresses())); }
     auto* details=new QLabel; details->setWordWrap(true); details->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); details->setMinimumHeight(details->fontMetrics().lineSpacing()*2); root->addWidget(details);
     auto* form=new QFormLayout; root->addLayout(form);
     quantity_=new QSpinBox; quantity_->setObjectName("hardwareQuantity"); quantity_->setRange(1,64); form->addRow("Quantity",quantity_);
@@ -147,7 +169,7 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
         const auto* item=productsList_->currentItem(); const bool selected=item && !item->isHidden();
         const auto c=selected ? products_[item->data(Qt::UserRole).toString()] : ComponentDefinition{};
         const bool generic=c.id.startsWith("generic."); leds_->setEnabled(generic);
-        const int count=generic ? leds_->value() : int(c.positions.size()), index=header_->currentIndex();
+        const int count=generic ? leds_->value() : c.addresses(), index=header_->currentIndex();
         const int remaining=index>=0 ? headers_[index].remaining : 0;
         add->setEnabled(selected && count*quantity_->value()<=remaining && (index<0 || headers_[index].required==0 || count*quantity_->value()==headers_[index].required));
         details->setText(selected ? QString("%1 / %2 LEDs in this chain / %3 addresses available").arg(c.name).arg(count*quantity_->value()).arg(remaining) : "Choose a product to add to this header.");

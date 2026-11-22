@@ -354,7 +354,7 @@ void OutputUiTest::applicationDevicePage()
     QCoreApplication::processEvents();
     QVERIFY(window.findChild<QToolBar*>("previewToolbar")->isVisible());
     QVERIFY(window.findChild<QAction*>("workspaceHardware")->isVisible());
-    QVERIFY(!window.findChild<QWidget*>("editorTargetGroup")->isVisible());
+    QVERIFY(!window.findChild<QAction*>("showLayoutEffect")->isVisible());
     QVERIFY(!window.findChild<QDockWidget*>("hardwareOutputDock")); QVERIFY(!window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/application-devices.png"));
     panel->findChild<QPushButton*>("startOutput")->click(); QTRY_VERIFY(state(*panel,"Running")); QTRY_COMPARE(record->writes(),2);

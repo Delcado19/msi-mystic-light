@@ -5,13 +5,18 @@
 #include <QMap>
 #include <QSharedPointer>
 #include <QPixmapCache>
+#include <QPixmap>
 #include <QLineF>
 #include <cmath>
 #include <algorithm>
 #include <set>
 #include <limits>
 
-static void initializeHardwareArtwork() { Q_INIT_RESOURCE(hardware); }
+static void initializeHardwareArtwork()
+{
+    static const bool initialized=[] { Q_INIT_RESOURCE(hardware); return true; }();
+    Q_UNUSED(initialized);
+}
 
 QString hardwareArtworkCategory(const ComponentDefinition& component)
 {
@@ -30,6 +35,19 @@ QString hardwareArtworkCategory(const ComponentDefinition& component)
     // A custom fan instance may have been arranged as a strip; never expand a line into a square housing.
     for(const auto& point:points)if(std::abs(axis.x()*(point.y()-start.y())-axis.y()*(point.x()-start.x()))>length*.001)return category;
     return "Strips";
+}
+
+QPixmap hardwarePreviewPhoto(const ComponentDefinition& component)
+{
+    initializeHardwareArtwork();
+    static const QMap<QString,QString> photos{{"Fans","fan_120_rgb"},{"Strips","led_strip_rgb"},
+        {"RAM","ram_rgb"},{"Graphics cards","gpu_rgb"},{"Keyboards","keyboard_rgb"},
+        {"Mice","mouse_rgb"},{"AiO","aio_240_rgb"},{"Motherboards","io_shield_rgb"}};
+    const auto category=hardwareArtworkCategory(component);
+    auto name=photos.value(category);
+    if (category=="AiO") for (const auto* length:{"120","360"})
+        if (component.name.contains(length)) name=QString("aio_%1_rgb").arg(length);
+    return name.isEmpty() ? QPixmap() : QPixmap(":/hardware/photos/"+name+".png");
 }
 
 QRectF hardwareBodyBounds(const ComponentDefinition& component)
@@ -99,7 +117,7 @@ double hardwarePreviewLedRadius(const ComponentDefinition& component,QSizeF scal
 void drawHardwareArtwork(QPainter& painter,const QString& category,const QRectF& bounds)
 {
     if(!bounds.isValid() || !std::isfinite(bounds.width()) || !std::isfinite(bounds.height()))return;
-    static const bool initialized=[] {initializeHardwareArtwork();return true;}();Q_UNUSED(initialized);
+    initializeHardwareArtwork();
     static const QMap<QString,QString> files{{"Fans","fan"},{"Strips","strip"},{"RAM","ram"},
         {"Graphics cards","gpu"},{"Keyboards","keyboard"},{"Mice","mouse"},{"Pumps","pump"},
         {"AiO","aio"},{"Motherboards","motherboard"},{"Cables","cable"},{"Strip LED","strip-led"}};

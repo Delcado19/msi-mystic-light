@@ -2,6 +2,7 @@
 #include "output/HardwareOutput.h"
 #include <QElapsedTimer>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QTimer>
 #include <atomic>
 #include <mutex>
@@ -81,6 +82,7 @@ private:
     std::vector<Retired> retired_;
     QSet<QString> paused_;
     QJsonObject project_;
+    QJsonArray componentDefinitions_;
     QTimer render_,retry_,reopen_,scanDeadline_;
     QElapsedTimer clock_;
     QElapsedTimer identifyClock_; // Identify flash expires in the service itself, even if the editor closes.

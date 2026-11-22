@@ -159,9 +159,10 @@ QJsonObject ServicePanel::project() {
     QTemporaryDir folder;if(!folder.isValid())throw std::runtime_error("Cannot stage editor project");
     std::optional<LightingState> live;
     for(auto* canvas:window_.findChildren<LightingCanvas*>())if(!live)live=canvas->workingState();
-    const auto path=folder.path()+"/project.json";window_.document().save(path,false,live ? &*live : nullptr);
+    QJsonArray definitions;
+    const auto path=folder.path()+"/project.json";window_.document().save(path,false,live ? &*live : nullptr,&definitions);
     QFile input(path);if(!input.open(QIODevice::ReadOnly))throw std::runtime_error("Cannot read staged editor project");
-    auto result=command("project");result["project"]=StudioService::decode(input.readAll());
+    auto result=command("project");result["project"]=StudioService::decode(input.readAll());result["componentDefinitions"]=definitions;
     // The service applies the snapshot's enabled flag, so an unconfirmed Stop/Resume must win over the
     // last reported state; otherwise a project sent after Stop re-enables output (CodeRabbit review 2026-11-15).
     bool enabled=enabled_;
@@ -198,7 +199,7 @@ void ServicePanel::poll() {
                     QTemporaryFile file;if(!file.open())throw std::runtime_error("Cannot restore service snapshot");
                     const auto bytes=QJsonDocument(reply.value("project").toObject()).toJson();
                     if(file.write(bytes)!=bytes.size() || !file.flush())throw std::runtime_error("Cannot stage service snapshot");
-                    window_.loadProject(file.fileName(),true,{});window_.document().history()->setClean();
+                    window_.loadProject(file.fileName(),true,{},reply.value("componentDefinitions").toArray());window_.document().history()->setClean();
                     window_.findChild<QDoubleSpinBox*>("previewTime")->setValue(reply.value("seconds").toDouble());
                     window_.findChild<QPushButton*>("playPreview")->setChecked(reply.value("playing").toBool());
                 } else if(!window_.document().state().assignments.isEmpty())dirty_=true;

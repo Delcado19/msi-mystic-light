@@ -3,6 +3,26 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Redesign follow-up - 2026-11-22
+
+- Local Windows build GS-06-R33 was delivered as
+  `Downloads/LightingStudio-local-r33.zip` with its `.zip.sha256` sidecar.
+  Extract it and run `LightingStudio/installer/Install.cmd` to install.
+  The package includes the editor, service, installer, uninstaller, runtime
+  dependencies, profiles, and component definitions.
+- Package checks passed for ZIP integrity, the R32 file manifest, the R33 build
+  marker, the SHA-256 of the copy in Downloads, packaged editor `--inspect`,
+  and installer `-WhatIf`. The R33 installer was only run in dry-run mode.
+- All 21 regular CTest suites passed. The installer-plan test hit a restricted
+  HKCU test key and was excluded from the final run.
+- Devices actions keep their position when switching from a connector to a component.
+  Layout and Devices open the same LED editor for attachable components. Wiring
+  shows an address path without the component artwork. The Effects mask inspector
+  shows the active brush preset, and source frame clipping lives under Source.
+- Native Windows tests exercised these paths on test fixtures. The reported
+  fullscreen edge offset was not reproduced in the 2560 x 1440 test fixture.
+  Physical LED output and broader Component Lab feature parity remain open.
+
 ## Branching and releases
 
 Single maintainer, so no `dev` branch. Every feature gets its own branch and reaches `master`
@@ -42,14 +62,10 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
   `OUTPUT_SESSION.md`, `NETWORK_PROTOCOL.md`, rest of `MB_800_HID_PROTOCOL.md`) and decide on the
   research files, `hardware-inventory/`, `HP_OMEN_MIGRATION.md`, `HEADER_MASK_CLARITY.md`.
 - README screenshot: placeholder until a current screenshot exists.
-- Operating-concept redesign (hardware cards per header like SignalRGB, duplicate/remove/pulse
-  per component, custom strip by LED count, component lab, card view with device photos);
-  needs a spec via brainstorming first.
-- Custom hardware lives only inside the project: keep a per-user hardware library outside
-  projects (cause: `HardwarePicker` gets `document_.catalog()` plus built-ins and SignalRGB files).
-- Shared LED colors are hard to find: the option exists only in Layout > header > Header
-  settings (`ChannelEditor`); fans on different headers cannot be linked at all.
-- Effect library: previews missing; owner verdict on the R17 category submenus is open.
+- Redesign branch: Devices starts with connector setup and offline planning. Layout and Effects
+  are direct workspaces. Custom components and Custom effects are stored per user.
+  Projects reference components, and service playback carries the required definitions.
+  Identify and the Phanteks M25 address mapping still need physical qualification for this build.
 - Conflict detection gaps: interrupt-transfer writes (Vulcan), occasional writers, RAM/GPU; the
   periodic guard skips driven endpoints; hung discovery scan; portable mode keeps its name list;
   OutputPanel joins workers like the old service did. Vendor suites needed for macros (MSI
@@ -57,14 +73,9 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
   should suggest switching Mystic Light off (not built). Whether `SignalRgbLauncher.exe`
   restarts a terminated `SignalRgb.exe` is unknown.
 - Installer: PawnIO/app update check (not started); DisplayVersion in the Apps entry.
-- Phanteks M25 canvas layout is wrong (owner HW test 2026-11-20): 12 LEDs, 6 addresses in mirrored
-  pairs; zone 1 = pair at 6 o'clock (cable entry), zones 2-5 mirrored about the 6-12 axis, zone 6 =
-  pair at 12 o'clock. The built-in definition (`HardwarePicker.cpp`, `phanteks.m25`) rings zones
-  clockwise from 12 o'clock, so the canvas samples other spots than the fan shows. Two points per
-  zone are impossible today (`ComponentCatalog.cpp` rejects duplicate wire indices).
-- Wiring UX rework: replace the wire-index table and component chaining with SignalRGB-style
-  connection lines drawn between LEDs; coordinates should use a top-left origin (12 o'clock on a
-  fan = x 0.5, y 0) instead of the current centred system. Needs a spec first.
+- Projects with the previous six-point M25 geometry keep their existing definition on migration.
+  New attachments use the twelve-point model. Use Component Lab to prepare a replacement
+  variant for an existing layout if desired.
 - Editor: Move tool does not grab a particle effect (falls back to marquee selection); effect
   resize is only symmetric about the centre (no edge-anchored resize). Frame clipping is opt-in
   (`clipToFrame`, branch `fix/effect-bounds-resize`, not HW/UI-tested).

@@ -43,6 +43,7 @@
 #include <QTreeWidgetItemIterator>
 #include <QTemporaryDir>
 #include <QFile>
+#include <QFileDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFontMetrics>
@@ -156,6 +157,11 @@ private slots:
     void fixedDeviceSettings();
     void sharedOutputsLayout();
     void identifyFlash();
+    void componentLibraryMigration();
+    void connectorEditsAndChase();
+    void customEffectRoundTrip();
+    void phanteksSharedAddresses();
+    void offlineDevicesWorkflow();
     void outputLedCount();
     void layoutAutoFitKeepsComponentsVisible();
     void sliderWheelStepsOneUnit();
@@ -193,6 +199,7 @@ private slots:
     void pickerApplyKeepsEveryInputPath();
     void menusFollowWorkspace();
     void effectLibraryCategorized();
+    void chaseInspector();
     void projectSuffixEnforced();
     void hueTrackRetainsSpectrum();
     void screenEyedropperGeometry();
@@ -403,7 +410,7 @@ void EditorTest::drawingAndAnimationRegressions()
     window.findChild<QAction*>("workspaceHardware")->trigger();
     auto* layoutTree=window.findChild<QTreeWidget*>("layoutComponents");
     for(QTreeWidgetItemIterator it(layoutTree);*it;++it) if((*it)->data(0,Qt::UserRole).toUuid()==component) tree->setCurrentIndex(layoutTree->indexFromItem(*it));
-    QVERIFY(window.findChild<QPushButton*>("removeHardwareComponent")->isEnabled()); window.findChild<QPushButton*>("removeHardwareComponent")->click();
+    QVERIFY(window.findChild<QPushButton*>("removeHardwareComponent")->isEnabled()); window.findChild<QAction*>("removeDeviceComponent")->trigger();
     QVERIFY(window.document().state().placements.isEmpty()); window.document().history()->undo(); QCOMPARE(window.document().state().placements.size(),1);
     window.document().history()->setClean();
 }
@@ -909,15 +916,21 @@ void EditorTest::maskBrushPresetsAndEraser()
     auto* tabs=window.findChild<QTabWidget*>("layerInspectorTabs");tabs->setCurrentIndex(2);
     auto* value=window.findChild<QDoubleSpinBox*>("maskPaintValue");auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");
     auto* hint=window.findChild<QLabel*>("maskBrushSummary");QVERIFY(value);QVERIFY(hint);
-    window.findChild<QPushButton*>("maskRevealBrush")->click();QCOMPARE(value->value(),255.);QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    auto* reveal=window.findChild<QPushButton*>("maskRevealBrush");
+    auto* hide=window.findChild<QPushButton*>("maskHideBrush");
+    reveal->click();QCOMPARE(value->value(),255.);QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    QVERIFY(reveal->isChecked());QVERIFY(!hide->isChecked());
     QVERIFY(hint->text().contains("100%"));value->setValue(-1);QCOMPARE(value->value(),0.);
     value->setValue(256);QCOMPARE(value->value(),255.);value->setValue(127.5);QVERIFY(hint->text().contains("50%"));
-    window.findChild<QPushButton*>("maskRevealBrush")->click();
+    QVERIFY(!reveal->isChecked());QVERIFY(!hide->isChecked());
+    reveal->click();
     window.findChild<QPushButton*>("eraserTool")->click();QVERIFY(hint->text().contains("regardless"));
     QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,200}).toPoint());
     QVERIFY(window.document().state().layers.last().mask.constScanLine(200)[320]<32);
     window.document().history()->undo();QCOMPARE(window.document().state().layers.last().mask.constScanLine(200)[320],uchar(255));
-    window.findChild<QPushButton*>("maskHideBrush")->click();QCOMPARE(value->value(),0.);QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    QVERIFY(!reveal->isChecked());QVERIFY(!value->isEnabled());
+    hide->click();QCOMPARE(value->value(),0.);QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    QVERIFY(hide->isChecked());QVERIFY(value->isEnabled());
     window.findChild<QCheckBox*>("maskPreview")->setChecked(true);
     QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/mask-inspector-clear.png"));
     window.document().history()->setClean();
@@ -1162,13 +1175,21 @@ void EditorTest::deviceLedArrangement()
     ComponentEditor editor(definition,true,nullptr,true); editor.show();
     QVERIFY(QTest::qWaitForWindowExposed(&editor));
     QVERIFY(!editor.findChild<QSpinBox*>("componentCount")->isEnabled());
-    for (const auto& shape:QStringList{"Line","Circle","Ellipse","Rectangle"}) {
+    for (const auto& shape:QStringList{"Line","Circle","Ellipse","Rectangle","Matrix","L-Shape","U-Shape"}) {
         auto* action=editor.findChild<QAction*>("arrange"+shape); QVERIFY(action); action->trigger();
         const auto arranged=editor.component();
         QCOMPARE(arranged.mapping,definition.mapping);
         QCOMPARE(arranged.positions.size(),definition.positions.size());
         for(const auto& point:arranged.positions) QVERIFY(std::isfinite(point.x()) && std::isfinite(point.y()));
     }
+    const auto arranged=editor.component();
+    editor.findChild<QAction*>("mirrorLedsHorizontally")->trigger();
+    const auto mirrored=editor.component();
+    QVERIFY(mirrored.positions!=arranged.positions);
+    QCOMPARE(mirrored.mapping,arranged.mapping);
+    editor.findChild<QAction*>("mirrorLedsHorizontally")->trigger();
+    for(int i=0;i<arranged.positions.size();++i)
+        QVERIFY(QLineF(editor.component().positions[i],arranged.positions[i]).length()<1e-10);
     editor.findChild<QPushButton*>("resetLedArrangement")->click();
     QCOMPARE(editor.component().positions,definition.positions);
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
@@ -1177,9 +1198,11 @@ void EditorTest::deviceLedArrangement()
     QVERIFY(window.findChild<QPushButton*>("editLayoutLeds")->isEnabled());
     QVERIFY(window.findChild<QPushButton*>("editHardwareLeds")->isEnabled());
     QTimer::singleShot(0,&window,[&window] {
-        auto* dialog=window.findChild<QDialog*>();
+        auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());
         QVERIFY(dialog);
-        dialog->findChild<QAction*>("arrangeCircle")->trigger();
+        auto* action=dialog->findChild<QAction*>("arrangeCircle");
+        QVERIFY(action);
+        action->trigger();
         dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
     });
     window.findChild<QPushButton*>("editLayoutLeds")->click();
@@ -1316,13 +1339,44 @@ void EditorTest::componentEditor()
     editor.findChild<QSpinBox*>("componentCount")->setValue(4);
     QCOMPARE(editor.component().mapping, QVector<int>({2, 1, 0, 3}));
     editor.findChild<QTabWidget*>("componentViews")->setCurrentIndex(1);
-    table->setCurrentCell(1, 0); table->editItem(table->item(1, 0));
-    QLineEdit* cell = nullptr;
-    for (auto* candidate : table->findChildren<QLineEdit*>()) if (candidate->isVisible()) cell = candidate;
-    QVERIFY(cell); cell->setText("6.5");
+    QVERIFY(!table->isVisible());
+    auto* address=editor.findChild<QSpinBox*>("componentWireAddress");
+    QVERIFY(address->isVisible());
+    geometry->scene()->clearSelection();
+    for (auto* item : geometry->scene()->items())
+        if (item->type()==QGraphicsEllipseItem::Type && item->data(0).toInt()==1) item->setSelected(true);
+    QTest::mouseClick(editor.findChild<QPushButton*>("assignLedAddress"),Qt::LeftButton);
+    QCOMPARE(editor.component().mapping,QVector<int>({1,0,0,2}));
+    QCOMPARE(editor.component().addresses(),3);
+    auto* next=editor.findChild<QPushButton*>("nextLedAddress");
+    auto* previous=editor.findChild<QPushButton*>("previousLedAddress");
+    QTest::mouseClick(next,Qt::LeftButton);
+    QCOMPARE(geometry->scene()->selectedItems().size(),1);
+    QTest::mouseClick(previous,Qt::LeftButton);
+    QCOMPARE(geometry->scene()->selectedItems().size(),2);
+    auto* startOrder=editor.findChild<QPushButton*>("startWireOrder");
+    auto* applyOrder=editor.findChild<QPushButton*>("applyWireOrder");
+    QTest::mouseClick(startOrder,Qt::LeftButton);
+    QVERIFY(!applyOrder->isEnabled());
+    const auto clickPoint=[geometry](int row) {
+        for (auto* item:geometry->scene()->items())
+            if (item->type()==QGraphicsEllipseItem::Type && item->data(0).toInt()==row) {
+                QTest::mouseClick(geometry->viewport(),Qt::LeftButton,Qt::NoModifier,geometry->mapFromScene(item->pos()));
+                return;
+            }
+    };
+    clickPoint(3);
+    clickPoint(1);
+    clickPoint(2); // The same shared address does not add a second entry.
+    QVERIFY(!applyOrder->isEnabled());
+    clickPoint(0);
+    QVERIFY(applyOrder->isEnabled());
+    QVERIFY(editor.grab().save(artifactDirectory()+"/r32-component-wiring.png"));
+    QTest::mouseClick(applyOrder,Qt::LeftButton);
+    QCOMPARE(editor.component().mapping,QVector<int>({2,1,1,0}));
     QTest::mouseClick(buttons->button(QDialogButtonBox::Ok), Qt::LeftButton);
     QCOMPARE(editor.result(), int(QDialog::Accepted));
-    QCOMPARE(editor.component().positions[1].x(), 6.5);
+    QCOMPARE(editor.component().positions[1].x(), 4.25);
 
     LightingWindow window({}, [] { return QVector<ProfileCandidate>{}; });
     auto* choices = window.findChild<QComboBox*>("componentCatalog");
@@ -1673,7 +1727,7 @@ void EditorTest::explicitDiscovery()
     connected=false;
     window.findChild<QPushButton*>("refreshHeaders")->click(); QCOMPARE(scans,2);
     QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
-    QVERIFY(tree->topLevelItem(0)->text(0).contains("offline"));
+    QCOMPARE(tree->topLevelItem(0)->text(1),QString("Offline"));
     window.document().history()->setClean();
 }
 
@@ -2208,7 +2262,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QTemporaryDir directory;
     const auto path = directory.filePath("effects.json");
     LightingDocument document(catalog());
-    for (const auto& definition : effectDefinitions()) if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Rectangle && !isPattern(definition.kind)) document.addLayer(definition.kind);
+    for (const auto& definition : effectDefinitions()) if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Rectangle && definition.kind!=EffectKind::Chase && !isPattern(definition.kind)) document.addLayer(definition.kind);
     document.edit("Set gradient colors", [](LightingState& state) {
         state.layers[1].color = Qt::red; state.layers[1].secondaryColor = Qt::blue;
         for (auto& layer : state.layers) if (isParticle(layer.effect)) layer.visible = false;
@@ -3937,6 +3991,342 @@ void EditorTest::outputLedCount()
     QCOMPARE(document.outputLedsUsed(assignment),6);
 }
 
+void EditorTest::componentLibraryMigration()
+{
+    QTemporaryDir folder;
+    QVERIFY(folder.isValid());
+    const auto library=folder.filePath("custom-components.json");
+    auto builtins=catalog();
+    auto custom=builtins.first();
+    custom.id="custom.strip";
+    custom.name="Strip";
+    LightingDocument editor(builtins,nullptr,{},library);
+    QCOMPARE(editor.registerComponent(custom),custom.id);
+
+    LightingDocument legacy(builtins);
+    const auto original=custom;
+    custom.positions[1]={4,2};
+    legacy.defineComponent(custom);
+    const auto id=legacy.addComponent(custom.id);
+    QFile old(folder.filePath("legacy.lighting.json"));
+    legacy.save(old.fileName());
+    QVERIFY(old.open(QIODevice::ReadOnly));
+    const auto bytes=old.readAll();
+    old.close();
+    editor.load(old.fileName());
+    const auto variant=editor.state().placements.first().componentId;
+    QVERIFY(variant!=original.id);
+    QCOMPARE(editor.catalog().value(variant).positions,custom.positions);
+    QCOMPARE(editor.customComponents().value(original.id).positions,original.positions);
+    editor.load(old.fileName());
+    QCOMPARE(editor.state().placements.first().componentId,variant);
+    QCOMPARE(editor.customComponents().size(),2);
+    QVERIFY(old.open(QIODevice::ReadOnly));
+    QCOMPARE(old.readAll(),bytes);
+
+    QFile saved(folder.filePath("references.lighting.json"));
+    editor.save(saved.fileName());
+    QVERIFY(saved.open(QIODevice::ReadOnly));
+    const auto project=QJsonDocument::fromJson(saved.readAll()).object();
+    QCOMPARE(project.value("schemaVersion").toInt(),25);
+    QVERIFY(!project.contains("components"));
+    QCOMPARE(project.value("placements").toArray().first().toObject().value("componentId").toString(),variant);
+    LightingDocument reopened(builtins,nullptr,{},library);
+    reopened.load(saved.fileName());
+    QCOMPARE(reopened.state().placements.first().id,id);
+    QCOMPARE(reopened.catalog().value(variant).positions,custom.positions);
+    LightingDocument missing(builtins);
+    try { missing.load(saved.fileName()); QFAIL("Missing component accepted"); }
+    catch (const MissingComponents& error) { QCOMPARE(error.ids,QStringList{variant}); }
+    QVERIFY(missing.state().placements.isEmpty());
+}
+
+void EditorTest::connectorEditsAndChase()
+{
+    auto profile=channelProfile();
+    profile.channels[0].maxLeds=9;
+    auto other=profile.channels[0];
+    other.id="Other";
+    profile.channels.append(other);
+    LightingDocument doc(catalog(),nullptr,{profile});
+    const auto instance=doc.addComponent("test.strip");
+    ChannelAssignment a;
+    a.profileId=profile.id;
+    a.channelId=profile.channels[0].id;
+    a.endpoint="fake";
+    a.software=true;
+    a.placements={instance};
+    doc.assignChannel(a);
+    const auto copy=doc.duplicateComponent(instance);
+    const auto third=doc.duplicateComponent(instance);
+    QVERIFY(copy!=instance);
+    QCOMPARE(doc.availableAddresses(doc.state().assignments.first()),0);
+    QVERIFY_EXCEPTION_THROWN(doc.duplicateComponent(instance),std::invalid_argument);
+    QCOMPARE(doc.state().placements.size(),3);
+    auto b=a;
+    b.id=QUuid::createUuid();
+    b.channelId=other.id;
+    b.placements.clear();
+    doc.moveComponent(copy,b);
+    QCOMPARE(doc.state().assignments.last().placements,QVector<QUuid>{copy});
+    doc.history()->undo();
+    QCOMPARE(doc.state().assignments.size(),1);
+    QCOMPARE(doc.state().assignments.first().placements.size(),3);
+    doc.removeComponents({third});
+    QCOMPARE(doc.state().placements.size(),2);
+    doc.history()->undo();
+    QCOMPARE(doc.state().placements.size(),3);
+
+    doc.addLayer(EffectKind::StaticColor);
+    doc.addLayer(EffectKind::Chase);
+    doc.edit("Configure chase",[](auto& state) {
+        state.layers[0].color=Qt::blue;
+        auto& chase=state.layers[1];
+        chase.color=Qt::red;
+        chase.chaseSpeed=1;
+        chase.chaseLength=1;
+    });
+    auto frame=doc.render(1.0);
+    auto colors=doc.sampleChannels(frame,1.0).value(a.id);
+    QCOMPARE(colors.size(),9);
+    for (int i=0;i<colors.size();++i) QCOMPARE(colors[i],QColor(i==1 ? Qt::red : Qt::blue));
+    doc.edit("Reverse chase",[](auto& state){state.layers.last().chaseReverse=1;});
+    frame=doc.render(1.0);
+    colors=doc.sampleChannels(frame,1.0).value(a.id);
+    for (int i=0;i<colors.size();++i) QCOMPARE(colors[i],QColor(i==7 ? Qt::red : Qt::blue));
+    doc.setIdentifyPlacement(copy);
+    colors=doc.sampleChannels(frame,1.0).value(a.id);
+    for (int i=0;i<colors.size();++i) QCOMPARE(colors[i],QColor(i>=3 && i<=5 ? Qt::white : i==7 ? Qt::red : Qt::blue));
+}
+
+void EditorTest::customEffectRoundTrip()
+{
+    LightingDocument document(catalog());
+    const auto group=document.addEmptyLayer();
+    const auto child=document.addLayer(EffectKind::Chase,group);
+    document.edit("Customize",[](auto& state) {
+        auto& layer=state.layers.last();
+        layer.blend=LayerBlend::Screen;
+        layer.chaseSpeed=7;
+        layer.mask.fill(113);
+    });
+    QTemporaryDir folder;
+    const auto path=folder.filePath("preset.effect.json");
+    document.saveCustomEffect(group,path);
+    LightingDocument destination(catalog());
+    const auto inserted=destination.insertCustomEffect(path);
+    QVERIFY(inserted!=group);
+    QCOMPARE(destination.state().layers.size(),2);
+    const auto& layer=destination.state().layers.last();
+    QVERIFY(layer.id!=child);
+    QCOMPARE(layer.parentId,inserted);
+    QCOMPARE(layer.effect,EffectKind::Chase);
+    QCOMPARE(layer.chaseSpeed,7.0);
+    QCOMPARE(layer.blend,LayerBlend::Screen);
+    QCOMPARE(layer.mask.constScanLine(0)[0],uchar(113));
+    destination.edit("Paint inserted mask",[](auto& state){state.layers.last().mask.fill(0);});
+    QCOMPARE(document.state().layers.last().mask.constScanLine(0)[0],uchar(113));
+}
+
+void EditorTest::phanteksSharedAddresses()
+{
+    auto profile=channelProfile();
+    profile.channels[0].maxLeds=30;
+    const QVariantMap identity{{"profileId",profile.id},{"channelId",profile.channels[0].id},{"path","fake"}};
+    HardwarePicker picker(catalog(),{{"Direct",identity,30,0}},identity);
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("Phanteks M25");
+    const auto fan=picker.component();
+    QCOMPARE(fan.positions.size(),12);
+    QCOMPARE(fan.addresses(),6);
+    QCOMPARE(fan.mapping,QVector<int>({0,0,1,1,2,2,3,3,4,4,5,5}));
+    QVERIFY(fan.positions[0].y()>fan.positions[2].y());
+    QVERIFY(fan.positions[0].y()>fan.positions[10].y());
+    QVERIFY(fan.positions[0].x()>fan.positions[1].x());
+    QCOMPARE(ComponentDefinition::fromJson(fan.toJson()).mapping,fan.mapping);
+
+    auto parts=catalog();
+    parts.insert(fan.id,fan);
+    auto strip=parts.value("test.strip");
+    strip.id="test.strip.eight";
+    strip.positions.clear();
+    strip.mapping.clear();
+    for (int i=0;i<8;++i) { strip.positions.append(QPointF(i,0)); strip.mapping.append(i); }
+    parts.insert(strip.id,strip);
+    LightingDocument doc(parts,nullptr,{profile});
+    ChannelAssignment chain;
+    chain.profileId=profile.id;
+    chain.channelId=profile.channels[0].id;
+    chain.endpoint="fake";
+    chain.software=true;
+    for (int i=0;i<4;++i) chain.placements.append(doc.addComponent(fan.id));
+    chain.placements.append(doc.addComponent(strip.id));
+    for (const auto& id : chain.placements) chain.starts[id]=1;
+    doc.assignChannel(chain);
+    QCOMPARE(doc.outputLedsUsed(chain),8);
+    QImage frame(LightingDocument::canvasSize(),QImage::Format_ARGB32_Premultiplied);
+    frame.fill(Qt::black);
+    const auto bounds=doc.layoutBounds();
+    const auto pointToRaster=[bounds](QPointF point) {
+        return QPoint(int((point.x()-bounds.left())/bounds.width()*640),int((point.y()-bounds.top())/bounds.height()*400));
+    };
+    const auto fanPoints=doc.componentPoints(doc.state().placements.first());
+    for (int i=0;i<6;++i) frame.setPixelColor(pointToRaster(fanPoints[2*i]),QColor(240-20*i,40,80));
+    const auto stripPoints=doc.componentPoints(doc.state().placements.last());
+    frame.setPixelColor(pointToRaster(stripPoints[6]),Qt::green);
+    frame.setPixelColor(pointToRaster(stripPoints[7]),Qt::cyan);
+    const auto colors=doc.previewComponentColors(frame);
+    const auto first=colors.value(chain.placements.first());
+    for (int i=0;i<6;++i) QCOMPARE(first[i],QColor(240-20*i,40,80));
+    for (int i=0;i<4;++i) QCOMPARE(colors.value(chain.placements[i]),first);
+    const auto stripColors=colors.value(chain.placements.last());
+    QCOMPARE(stripColors.mid(0,6),first);
+    QCOMPARE(stripColors[6],QColor(Qt::green));
+    QCOMPARE(stripColors[7],QColor(Qt::cyan));
+}
+
+void EditorTest::offlineDevicesWorkflow()
+{
+    QTemporaryDir folder;
+    auto profile=channelProfile();
+    LightingWindow window(catalog(),[]{ return QVector<ProfileCandidate>{}; },nullptr,{profile},false,
+        folder.filePath("custom-components.json"));
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* devices=window.findChild<QTreeView*>("hardwareComponents");
+    QVERIFY(devices->isVisible());
+    auto* offline=window.findChild<QComboBox*>("offlineController");
+    offline->setFocus();
+    QTest::keyClick(offline,Qt::Key_Down);
+    QCOMPARE(offline->currentData().toString(),profile.id);
+    auto* add=window.findChild<QPushButton*>("addHeaderComponents");
+    QVERIFY(add->isEnabled());
+    bool picked=false;
+    QTimer::singleShot(0,&window,[&] {
+        auto* picker=dynamic_cast<HardwarePicker*>(QApplication::activeModalWidget());
+        if (!picker) return;
+        auto* search=picker->findChild<QLineEdit*>("hardwareSearch");
+        search->setFocus();
+        QTest::keyClicks(search,"test strip");
+        auto* quantity=picker->findChild<QSpinBox*>("hardwareQuantity");
+        quantity->setFocus();
+        QTest::keyClick(quantity,Qt::Key_Up);
+        auto* confirm=picker->findChild<QPushButton*>("confirmAddHardware");
+        if (confirm->isEnabled()) { picked=true; QTest::mouseClick(confirm,Qt::LeftButton); }
+        else picker->reject();
+    });
+    QTest::mouseClick(add,Qt::LeftButton);
+    QVERIFY(picked);
+    QCOMPARE(window.document().state().placements.size(),2);
+    const auto assignment=window.document().state().assignments.first();
+    QVERIFY(assignment.endpoint.startsWith("offline:"));
+    const auto id=assignment.placements.first();
+    window.findChild<QAction*>("workspaceLayout")->trigger();
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");
+    canvas->select(id);
+    QCoreApplication::processEvents();
+    const auto before=window.document().state().placements.first().origin;
+    const auto point=canvas->viewportPoint(before+QPointF(20,0)).toPoint();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,point);
+    QTest::mouseMove(canvas,point+QPoint(30,15));
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,point+QPoint(30,15));
+    QVERIFY(window.document().state().placements.first().origin!=before);
+    const auto opensWiring=[&window](const char* actionName) {
+        bool available=false;
+        QTimer::singleShot(0,&window,[&] {
+            if (auto* lab=dynamic_cast<ComponentEditor*>(QApplication::activeModalWidget())) {
+                const auto* views=lab->findChild<QTabWidget*>("componentViews");
+                available=views && views->count()==2 && views->tabText(1)=="Wire LEDs";
+                lab->reject();
+            }
+        });
+        QTest::mouseClick(window.findChild<QPushButton*>(actionName),Qt::LeftButton);
+        return available;
+    };
+    canvas->select(id);
+    QVERIFY(opensWiring("editLayoutLeds"));
+    window.findChild<QAction*>("workspaceHardware")->trigger();
+    canvas->select(id);
+    QVERIFY(opensWiring("editHardwareLeds"));
+    const auto actionRows=[&window] {
+        QVector<int> rows;
+        for(const auto* name:{"editHardwareLeds","identifyDeviceComponent","removeHardwareComponent","headerSettings"})
+            rows.append(window.findChild<QAbstractButton*>(name)->mapToGlobal(QPoint()).y());
+        return rows;
+    };
+    QCoreApplication::processEvents();
+    const auto componentRows=actionRows();
+    canvas->select(assignment.id);
+    QCoreApplication::processEvents();
+    QCOMPARE(actionRows(),componentRows);
+    QVERIFY(!window.findChild<QPushButton*>("editHardwareLeds")->isEnabled());
+    canvas->select(id);
+    auto* wiring=window.findChild<QPushButton*>("headerSettings");
+    QVERIFY(wiring->isEnabled());
+    bool changedOrder=false;
+    int chainRows=-1, selectedRow=-1;
+    QTimer::singleShot(0,&window,[&] {
+        auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        if (!dialog) return;
+        auto* chain=dialog->findChild<QListWidget*>("channelChain");
+        auto* up=dialog->findChild<QPushButton*>("instanceUp");
+        if (!chain || !up) { dialog->reject(); return; }
+        chainRows=chain->count();
+        if (chainRows!=2) { dialog->reject(); return; }
+        chain->setFocus();
+        QTest::keyClick(chain,Qt::Key_Down);
+        selectedRow=chain->currentRow();
+        up->setFocus();
+        QTest::keyClick(up,Qt::Key_Space);
+        changedOrder=chain->item(0)->data(Qt::UserRole).toUuid()==assignment.placements.last();
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+    });
+    QTest::mouseClick(wiring,Qt::LeftButton);
+    QVERIFY2(changedOrder,qPrintable(QString("Wiring rows: %1, selected row after Down: %2").arg(chainRows).arg(selectedRow)));
+    QCOMPARE(window.document().state().assignments.first().placements.last(),id);
+    QVERIFY(window.grab().save(artifactDirectory()+"/redesign-devices.png"));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QAction*>("create_chase")->trigger();
+    auto* inspector=window.findChild<QTabWidget*>("layerInspectorTabs");
+    inspector->setCurrentIndex(2);
+    QTest::mouseClick(window.findChild<QPushButton*>("maskHideBrush"),Qt::LeftButton);
+    auto* effects=window.findChild<LightingCanvas*>("effectsCanvas");
+    const auto brush=effects->viewportPoint({320,200}).toPoint();
+    QTest::mouseClick(effects,Qt::LeftButton,Qt::NoModifier,brush);
+    QVERIFY(window.document().state().layers.last().mask.constScanLine(200)[320]<255);
+    const auto brushFields=inspector->widget(2)->findChildren<QDoubleSpinBox*>();
+    const auto* brushHint=window.findChild<QLabel*>("maskBrushSummary");
+    QCOMPARE(brushFields.size(),3);
+    const auto spacingIsValid=[&] {
+        int previousBottom=-1;
+        for (auto* field:brushFields) {
+            const QRect bounds(field->mapTo(inspector,QPoint()),field->size());
+            if (bounds.top()<=previousBottom) return false;
+            previousBottom=bounds.bottom();
+        }
+        return brushHint->mapTo(inspector,QPoint()).y()>previousBottom;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(spacingIsValid(),1000); // Scroll area layout requests are queued after switching tabs.
+    QVERIFY(window.grab().save(artifactDirectory()+"/redesign-mask.png"));
+    inspector->setCurrentIndex(0);
+    const auto path=folder.filePath("Custom effects/offline.effect.json");
+    const auto useNative=!QCoreApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+    const auto restore=qScopeGuard([useNative] { QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs,!useNative); });
+    QTimer::singleShot(0,&window,[&] {
+        auto* dialog=qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+        if (!dialog) return;
+        dialog->selectFile(path);
+        auto* buttons=dialog->findChild<QDialogButtonBox*>();
+        for (auto* button:buttons->buttons()) if (buttons->buttonRole(button)==QDialogButtonBox::AcceptRole) {
+            QTest::mouseClick(button,Qt::LeftButton);
+            return;
+        }
+        dialog->reject();
+    });
+    QTest::mouseClick(window.findChild<QPushButton*>("saveCustomEffect"),Qt::LeftButton);
+    QVERIFY(QFileInfo::exists(path));
+}
+
 void EditorTest::identifyFlash()
 {
     // Identify lights one placement's outputs; shared outputs light with it. Document-level only, no hardware.
@@ -3950,8 +4340,12 @@ void EditorTest::identifyFlash()
     document.assignChannel(assignment);
     QVERIFY(document.hasSoftwareChannel(fans[0]));
     QVERIFY(!document.hasSoftwareChannel(QUuid::createUuid()));
+    const auto base=document.addLayer(EffectKind::StaticColor);
+    document.edit("Identify background",[&](auto& state){state.layers.last().color=Qt::blue;});
     const auto frame=document.render(.4);
     const auto before=document.sampleChannels(frame,.4)[assignment.id];
+    QCOMPARE(before.first(),QColor(Qt::blue));
+    QVERIFY(!base.isNull());
     const auto revision=document.revision(); const auto undo=document.history()->count();
     // Serial chain: fan 2 owns outputs 7-12 (1-based), so only indexes 6-11 turn white.
     document.setIdentifyPlacement(fans[1]);
@@ -3959,7 +4353,7 @@ void EditorTest::identifyFlash()
     QCOMPARE(document.revision(),revision); QCOMPARE(document.history()->count(),undo);
     const auto serial=document.sampleChannels(frame,.4)[assignment.id];
     QCOMPARE(serial.size(),18);
-    for(int led=0;led<18;++led) QCOMPARE(serial[led],QColor(led>=6 && led<12 ? Qt::white : Qt::black));
+    for(int led=0;led<18;++led) QCOMPARE(serial[led],(led>=6 && led<12 ? QColor(Qt::white) : before[led]));
     // Shared outputs: every fan starts at LED 1, so identifying one lights all three.
     for(const auto& id:fans) assignment.starts.insert(id,1);
     document.assignChannel(assignment);
@@ -4139,7 +4533,7 @@ void EditorTest::panControlsSurviveRefresh()
     window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));window.findChild<QAction*>("workspaceEffects")->trigger();
     auto* pan=window.findChild<QToolButton*>("panCanvasTool");pan->click();QVERIFY(pan->isChecked());QVERIFY(!window.findChild<QPushButton*>("moveEffectTool")->isChecked());
     window.document().edit("Refresh while panning",[](auto& state){state.layers.last().transparency=10;});
-    QVERIFY(window.findChild<QLabel*>("toolHint")->text().contains("Pan"));QVERIFY(window.findChild<QAction*>("strokeSizeAction")->isVisible());QVERIFY(!window.findChild<QAction*>("strokeSizeAction")->isEnabled());
+    QVERIFY(window.findChild<QLabel*>("toolHint")->text().contains("Pan"));QVERIFY(!window.findChild<QWidget*>("brushWidthField")->isVisible());
     window.findChild<QPushButton*>("moveEffectTool")->click();QVERIFY(!pan->isChecked());
     window.document().history()->setClean();
 }
@@ -4228,6 +4622,7 @@ void EditorTest::authoringControlsRegression()
 void EditorTest::effectLibraryCategorized()
 {
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
     auto* button=window.findChild<QToolButton*>("sourcesTool");QVERIFY(button);
     QCOMPARE(button->text(),QString("Add effect"));QVERIFY(button->styleSheet().contains("menu-indicator{image:none"));
     QVERIFY(button->icon().pixmap(24,24).toImage()!=studioToolIcon("add").pixmap(24,24).toImage());
@@ -4243,10 +4638,21 @@ void EditorTest::effectLibraryCategorized()
     }
     auto* results=window.findChild<QListWidget*>("effectLibraryResults");QVERIFY(results);
     auto* menu=window.findChild<QMenu*>("effectLibraryMenu");menu->popup(button->mapToGlobal(QPoint(32,0)));QCoreApplication::processEvents();
-    QVERIFY(!results->isVisible()); // No search: browse the submenus.
-    const int browsing=menu->height();
+    QVERIFY(!results->isVisible());
+    auto* category=library.first();
+    auto* firstEffect=category->actions().first();
+    menu->setActiveAction(category->menuAction());
+    QTRY_VERIFY(category->isVisible());
+    const auto target=category->actionGeometry(firstEffect).center();
+    QTest::mouseMove(category->windowHandle(),target);
+    QTRY_COMPARE(category->activeAction(),firstEffect);
+    auto* preview=window.findChild<QLabel*>("effectLibraryPreview");
+    QTRY_VERIFY(preview->isVisible() && !preview->pixmap().isNull());
+    QVERIFY(!preview->geometry().intersects(category->geometry()));
+    category->close();
+    QTRY_VERIFY(!preview->isVisible());
     window.findChild<QLineEdit*>("effectLibrarySearch")->setText("a");QCoreApplication::processEvents();
-    QVERIFY(results->isVisible());QVERIFY(menu->height()>browsing); // The open menu grows to show the hits.
+    QVERIFY(results->isVisible());
     for(int i=0;i<results->count();++i)QVERIFY(!results->item(i)->data(Qt::UserRole).toString().isEmpty()); // No headings.
     // The hits are exactly the matching effects (CodeRabbit review 2026-11-18).
     window.findChild<QLineEdit*>("effectLibrarySearch")->setText("plasma");QCoreApplication::processEvents();
@@ -4254,7 +4660,41 @@ void EditorTest::effectLibraryCategorized()
     for(int i=0;i<results->count();++i){auto* item=results->item(i);
         QCOMPARE(item->isHidden(),!item->text().contains("plasma",Qt::CaseInsensitive));item->isHidden() ? ++hidden : ++shown;}
     QCOMPARE(shown,1);QVERIFY(hidden>0);QCOMPARE(results->currentItem()->text(),QString("Plasma"));
+    QVERIFY(preview->isVisible());
+    QVERIFY(preview->grab().save(artifactDirectory()+"/r32-effect-preview.png"));
+    QTest::mouseMove(results->viewport(),results->visualItemRect(results->currentItem()).center());
+    QVERIFY(preview->isVisible());
     menu->close();
+    QVERIFY(!preview->isVisible());
+}
+
+void EditorTest::chaseInspector()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+    window.resize(1450,900);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QAction*>("create_chase")->trigger();
+    auto* field=window.findChild<QDoubleSpinBox*>("chaseReverse");
+    auto* toggle=window.findChild<QCheckBox*>("chaseReverseToggle");
+    auto* speed=window.findChild<QDoubleSpinBox*>("chaseSpeed");
+    auto* length=window.findChild<QDoubleSpinBox*>("chaseLength");
+    QVERIFY(toggle && speed && length && field);
+    QTRY_VERIFY(toggle->isVisible() && speed->isVisible() && length->isVisible());
+    QCoreApplication::processEvents();
+    QVERIFY(window.grab().save(artifactDirectory()+"/r32-chase-inspector.png"));
+    QVERIFY(field->isHidden());
+    QTRY_VERIFY(!toggle->geometry().intersects(speed->geometry()));
+    QTRY_VERIFY(!toggle->geometry().intersects(length->geometry()));
+    toggle->click();
+    QCOMPARE(window.document().state().layers.last().chaseReverse,1.0);
+    window.document().history()->undo();
+    QVERIFY(!toggle->isChecked());
+    window.document().history()->redo();
+    QVERIFY(toggle->isChecked());
+    QVERIFY(field->isHidden());
+    window.document().history()->setClean();
 }
 
 void EditorTest::menusFollowWorkspace()
@@ -4274,7 +4714,7 @@ void EditorTest::menusFollowWorkspace()
     // Devices has no canvas, so canvas-only entries leave the menus (owner review 2026-11-18).
     QVERIFY(!window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
     for(const auto& name:canvasEdits+QStringList{"splitHardwarePreview","resetWorkspace","toggleNavigator"})QVERIFY2(!window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
-    window.findChild<QAction*>("workspaceEditor")->trigger();QCoreApplication::processEvents();
+    window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();
     QVERIFY(toolsMenu->menuAction()->isVisible());QVERIFY(window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
     for(const auto& name:canvasEdits)QVERIFY2(window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
     // Components: the strip offers only Move and Pan, so the Tools menu lists only those.
@@ -4480,17 +4920,16 @@ void EditorTest::unifiedEditorWorkflow()
     const auto primary=canvas->selection();canvas->selectMany({document.state().layers[1].id,document.state().layers[2].id},primary);
     QCOMPARE(window.findChild<QTreeWidget*>("effectLayers")->selectedItems().size(),2);canvas->selectMany({primary},primary);
     const auto selected=canvas->selection();canvas->zoomBy(1.2);const auto bounds=document.layoutBounds();const auto anchor=canvas->mapToGlobal(canvas->viewportPoint({0,0}).toPoint());
-    auto* target=window.findChild<QTabBar*>("editorTarget");
-    auto* targetGroup=window.findChild<QWidget*>("editorTargetGroup");QVERIFY(targetGroup);QVERIFY(targetGroup->isVisible());
-    QCOMPARE(window.findChild<QLabel*>("editorTargetLabel")->text(),QString("EDIT MODE"));
-    QVERIFY(!target->tabIcon(0).isNull());QVERIFY(!target->tabIcon(1).isNull());QVERIFY(target->tabRect(0).height()>=28);
-    target->setCurrentIndex(0);QCoreApplication::processEvents();
+    QVERIFY(!window.findChild<QWidget*>("editorTargetGroup"));
+    window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();
     QVERIFY(layout->isVisible());QVERIFY(!canvas->isVisible());QVERIFY(QLineF(layout->mapToGlobal(layout->viewportPoint(bounds.topLeft()).toPoint()),anchor).length()<2);
     layout->select(first);
     for(int i=0;i<5;++i){auto* field=window.findChild<QDoubleSpinBox*>(QString("placement%1").arg(i));QVERIFY(field);QTRY_VERIFY(field->height()>=field->minimumSizeHint().height());if(i>0){auto* above=window.findChild<QDoubleSpinBox*>(QString("placement%1").arg(i-1));QVERIFY(field->geometry().top()>above->geometry().bottom());}}
     QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/unified-components.png"));const auto origin=document.state().placements[0].origin;QTest::keyClick(layout,Qt::Key_Right,Qt::AltModifier);QCOMPARE(document.state().placements[0].origin,origin+QPointF(1,0));
-    target->setCurrentIndex(1);QCoreApplication::processEvents();QVERIFY(canvas->isVisible());QCOMPARE(canvas->selection(),selected);QVERIFY(play->isChecked());QCOMPARE(scope->currentData().toUuid(),a.id);
-    auto* view=window.findChild<QComboBox*>("editorView");window.findChild<QAction*>("canvasView2")->trigger();QCOMPARE(view->currentIndex(),2);QCOMPARE(target->currentIndex(),0);QVERIFY(!target->isTabEnabled(1));view->setCurrentIndex(0);QVERIFY(target->isTabEnabled(1));
+    window.findChild<QAction*>("workspaceEffects")->trigger();QCoreApplication::processEvents();QVERIFY(canvas->isVisible());QCOMPARE(canvas->selection(),selected);QVERIFY(play->isChecked());QCOMPARE(scope->currentData().toUuid(),a.id);
+    auto* overlay=window.findChild<QAction*>("showEffectComponents");QVERIFY(overlay->isVisible());overlay->trigger();
+    QVERIFY(canvas->isVisible());QVERIFY(!overlay->isChecked());
+    window.findChild<QAction*>("workspaceLayout")->trigger();QVERIFY(layout->isVisible());QVERIFY(!overlay->isVisible());
     window.findChild<QAction*>("workspaceEffects")->trigger();play->setChecked(false);
     QVERIFY(!window.findChild<QWidget*>("hardwarePreviewPanel")->isVisible());
     auto* navigation=window.findChild<QToolBar*>("workspaceNavigation");QVERIFY(window.findChild<QLabel*>("studioBrand")->isVisible());
@@ -4714,7 +5153,7 @@ void EditorTest::compactInteractionContracts()
     const int before=window.document().state().layers.size();QTest::keyClick(search,Qt::Key_Return);QCOMPARE(window.document().state().layers.size(),before);
     search->setText("Plasma");QVERIFY(results->currentItem());QCOMPARE(results->currentItem()->text(),QString("Plasma"));QTest::keyClick(search,Qt::Key_Down);QCOMPARE(QApplication::focusWidget(),results);QTest::keyClick(results,Qt::Key_Return);QCOMPARE(window.document().state().layers.size(),before+1);QVERIFY(!menu->isVisible());
     window.resize(1440,940);QCoreApplication::processEvents();
-QVERIFY(window.findChild<QComboBox*>("editorView")->isVisible());QVERIFY(window.findChild<QToolButton*>("zoomMenuButton")->isVisible());
+    QVERIFY(window.findChild<QToolButton*>("zoomMenuButton")->isVisible());
     window.resize(1060,720);QCoreApplication::processEvents();QVERIFY(window.findChild<QToolButton*>("workspacePanels")->isVisible());
     window.document().history()->setClean();
 }

@@ -2,8 +2,10 @@
 #include "components/ComponentCatalog.h"
 #include <QRectF>
 class QPainter;
+class QPixmap;
 // Visual housing only: never changes sampling coordinates, LED order or stored geometry.
 QString hardwareArtworkCategory(const ComponentDefinition& component);
+QPixmap hardwarePreviewPhoto(const ComponentDefinition& component);
 QRectF hardwareBodyBounds(const ComponentDefinition& component);
 // Preview markers only; physical sampling positions and editor wire handles stay unchanged.
 double hardwarePreviewLedRadius(const ComponentDefinition& component, QSizeF scale);

@@ -9,7 +9,9 @@ struct ComponentDefinition {
     // Optional catalog identity; older documents use presentation fallbacks.
     QString manufacturer, category;
     QVector<QPointF> positions;
-    // Logical LED index -> wire index; a permutation, never extra LEDs.
+    // Each physical point has a wire index. Explicit address counts allow several points per address.
+    int addressCount = 0;
+    int addresses() const { return addressCount ? addressCount : int(mapping.size()); }
     QVector<int> mapping;
     // Reserved wire slots remain in reports but have no physical LED to arrange.
     QVector<int> nonPhysicalSlots;

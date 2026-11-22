@@ -197,7 +197,7 @@ int main(int argc, char** argv)
         if(serviceInstalled)return serviceInventory(serviceHost.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":serviceHost);
         auto candidates=findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
         candidates+=scanAuxiliaryHardware(availableProfiles,true); return candidates;
-    }, nullptr, availableProfiles,!serviceInstalled);
+    }, nullptr, availableProfiles,!serviceInstalled,sessionDirectory+"/custom-components.json");
     OutputPanel* outputPanel=nullptr;ServicePanel* servicePanel=nullptr;
     if(serviceInstalled) {
         // Fail closed if the installed service is unavailable; never race it with direct GUI writes.
@@ -250,7 +250,6 @@ int main(int argc, char** argv)
     const auto previous=qEnvironmentVariable("APPDATA")+"/MsiMysticLightApp/settings.json";
     if(!serviceInstalled && window.projectFile().isEmpty() && window.document().state().assignments.isEmpty() && QFileInfo::exists(previous))
         window.restoreLegacyHardware(previous);
-    window.findChild<QAction*>("workspaceLayout")->trigger();
     if(!parser.isSet("background") || !QSystemTrayIcon::isSystemTrayAvailable())window.show();
     if(servicePanel)servicePanel->activate(recovered);else outputPanel->enableAutomaticOutput();
     const int code=app.exec();

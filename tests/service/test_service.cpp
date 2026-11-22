@@ -63,6 +63,7 @@ class ServiceTest:public QObject {
 private slots:
  void protocolBounds();
  void persistedPlaybackAndAtomicReject();
+ void customComponentsSurviveRestart();
  void identifyCommand();
  void fakeOutputPauseAndResume();
  void backgroundScanKeepsAnswering();
@@ -101,6 +102,33 @@ void ServiceTest::identifyCommand() try {
     identify["placement"]="not-a-uuid";QVERIFY(!runtime.command(identify).value("ok").toBool());
     identify.remove("placement");QVERIFY(!runtime.command(identify).value("ok").toBool());
 } catch(const std::exception& e){QFAIL(e.what());}
+void ServiceTest::customComponentsSurviveRestart() try {
+    QTemporaryDir folder;
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    const auto scan=[] {return QVector<ProfileCandidate>{};};
+    const auto output=[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};};
+    auto request=project(profile);
+    auto referenced=request.value("project").toObject();
+    request["componentDefinitions"]=referenced.take("components");
+    referenced["schemaVersion"]=25;
+    request["project"]=referenced;
+    {
+        ServiceRuntime runtime({}, {profile},folder.path(),scan,output,true);
+        auto incomplete=request;
+        incomplete.remove("componentDefinitions");
+        QVERIFY(!runtime.command(incomplete).value("ok").toBool());
+        QVERIFY(runtime.command(request).value("ok").toBool());
+        auto hold=cmd("playback");hold["playing"]=false;hold["seconds"]=12.;
+        QVERIFY(runtime.command(hold).value("ok").toBool());
+    }
+    ServiceRuntime restarted({}, {profile},folder.path(),scan,output,true);
+    const auto restored=restarted.command(cmd("snapshot"));
+    QCOMPARE(restored.value("project").toObject(),referenced);
+    QCOMPARE(restored.value("componentDefinitions"),request.value("componentDefinitions"));
+    QCOMPARE(restored.value("seconds").toDouble(),12.);
+    QCOMPARE(restored.value("outputs").toArray().size(),1);
+} catch(const std::exception& error){QFAIL(error.what());}
+
 void ServiceTest::persistedPlaybackAndAtomicReject() try {
     QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
     const auto scan=[] {return QVector<ProfileCandidate>{};};const auto output=[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};};

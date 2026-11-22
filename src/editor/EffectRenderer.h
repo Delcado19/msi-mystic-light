@@ -8,7 +8,7 @@
 enum class EffectKind {
     StaticColor, LinearGradient, RadialGradient, ConicalGradient, Stripes, Waves,
     Circle, Ring, Star, Heart, Triangle, Hexagon, Diamond, Cross, Moon, Image, Rain, Orbit, Fireflies, Burst, Paint, Rectangle,
-    Pinwheel, Spiral, Visor, SineWave, Dna, PixelFill, Voronoi, Fireplace, Radar, Fireworks, Plasma, Ripples, Aurora, LavaLamp, Checkerboard, Kaleidoscope, Lightning, Starfield
+    Pinwheel, Spiral, Visor, SineWave, Dna, PixelFill, Voronoi, Fireplace, Radar, Fireworks, Plasma, Ripples, Aurora, LavaLamp, Checkerboard, Kaleidoscope, Lightning, Starfield, Chase
 };
 struct EffectDefinition {
     EffectKind kind;

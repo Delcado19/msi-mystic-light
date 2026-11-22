@@ -1,5 +1,8 @@
 LIGHTING STUDIO - PACKAGE README
 
+Requires the Microsoft Visual C++ x64 runtime. The installer downloads the
+official PawnIO driver if it is missing.
+
 Two ways to use this package:
 
 1. Portable (no installation)
@@ -13,8 +16,9 @@ Two ways to use this package:
    then owns the hardware output and keeps the lighting after you close the
    editor or restart Windows. Open the editor from the Start menu.
 
-   Updating: run Install.cmd from the new package. Do not uninstall first; the
-   uninstaller can delete your unsaved editor data.
+   Updating: run Install.cmd from the new package. Uninstalling first resets
+   the editor's registry settings. The uninstaller keeps your Lighting Studio
+   data in %LOCALAPPDATA%\Lighting Studio.
 
 Once the service is installed, msi_mystic_light.exe from any folder uses that
 service instead of driving the hardware itself.
