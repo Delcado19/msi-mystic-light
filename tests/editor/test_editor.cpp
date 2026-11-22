@@ -3448,6 +3448,10 @@ void EditorTest::detailedHardwareArtwork()
     auto fan=catalog().first();fan.category="Fans";fan.positions={{0,0},{3,0},{1.5,2.7},{999,999}};fan.mapping={0,1,2,3};fan.nonPhysicalSlots={3};
     const auto original=fan.toJson();const auto body=hardwareBodyBounds(fan);
     QCOMPARE(body.width(),body.height());QVERIFY(body.contains({0,0}));QVERIFY(body.contains({3,0}));QVERIFY(body.right()<10);QCOMPARE(fan.toJson(),original);
+    // Devices redraws the photo every preview frame: one bounded decode, then cache hits.
+    const auto photo=hardwarePreviewPhoto(fan);
+    QVERIFY(!photo.isNull());QVERIFY(qMax(photo.width(),photo.height())<=512);
+    QCOMPARE(hardwarePreviewPhoto(fan).cacheKey(),photo.cacheKey());
     QSet<QByteArray> images;
     for(const auto& category:QStringList{"Fans","Strips","RAM","Graphics cards","Keyboards","Mice","Pumps","AiO","Motherboards","Other"}) {
         QImage image(240,180,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);

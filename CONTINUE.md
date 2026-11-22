@@ -22,6 +22,13 @@ on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 - Native Windows tests exercised these paths on test fixtures. The reported
   fullscreen edge offset was not reproduced in the 2560 x 1440 test fixture.
   Physical LED output and broader Component Lab feature parity remain open.
+- Review 2026-11-22 (Claude): Codex's tree committed as-is (ae0a68d, local, unpushed). Fix: the
+  Devices thumbnail decoded a full-size hardware photo on every preview frame; photos are now
+  decoded once, scaled to 512 px and kept in `QPixmapCache`. 22/22 CTest green; not run on the rig.
+- The hardware photos add ~19 MB to the repo and the exe (1254-2368 px PNGs, shown at most 176 px).
+  Downscaling the source files is recommended before pushing (public repo); not done, owner decision.
+- Vendor suites (macros/key remapping) vs. conflict stop: concept in
+  `docs/VENDOR_SUITE_COEXISTENCE.md`, waiting for owner answers; nothing built.
 
 ## Branching and releases
 

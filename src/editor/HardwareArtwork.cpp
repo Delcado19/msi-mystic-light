@@ -47,7 +47,17 @@ QPixmap hardwarePreviewPhoto(const ComponentDefinition& component)
     auto name=photos.value(category);
     if (category=="AiO") for (const auto* length:{"120","360"})
         if (component.name.contains(length)) name=QString("aio_%1_rgb").arg(length);
-    return name.isEmpty() ? QPixmap() : QPixmap(":/hardware/photos/"+name+".png");
+    if (name.isEmpty()) return {};
+    // Devices redraws its thumbnail every preview frame; decode the ~2 MB source once and keep a
+    // copy small enough (512 px, still 176 px at 200 % DPI) for the shared pixmap cache budget.
+    const auto key="hardware-photo:"+name;
+    QPixmap photo;
+    if (!QPixmapCache::find(key,&photo)) {
+        photo=QPixmap(":/hardware/photos/"+name+".png");
+        if (photo.width()>512 || photo.height()>512) photo=photo.scaled(512,512,Qt::KeepAspectRatio,Qt::SmoothTransformation);
+        QPixmapCache::insert(key,photo);
+    }
+    return photo;
 }
 
 QRectF hardwareBodyBounds(const ComponentDefinition& component)
