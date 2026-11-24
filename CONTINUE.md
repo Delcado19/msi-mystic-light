@@ -5,6 +5,9 @@ on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
 ## Redesign follow-up - 2026-11-22
 
+- The approved redesign plan (Codex, 2026-11-21) and its implementation status as of 2026-11-24
+  are in `docs/UX_REDESIGN_PLAN.md`. Visual rules are in `DESIGN.md` on `docs/impeccable-product-design`.
+
 - Local Windows build GS-06-R33 was delivered as
   `Downloads/LightingStudio-local-r33.zip` with its `.zip.sha256` sidecar.
   Extract it and run `LightingStudio/installer/Install.cmd` to install.
