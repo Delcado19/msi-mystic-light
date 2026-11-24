@@ -23,7 +23,8 @@ security and validation limits](WINDOWS_SERVICE.md).
 ## Visual workspace
 
 The first launch opens **Devices**. Reopening an existing session restores the
-project or recovery copy through the normal session flow. **Layout** arranges
+project or recovery copy through the normal session flow and returns to the workspace tab that
+was open when the editor closed (`window/workspace` in the editor settings). **Layout** arranges
 components, and **Effects** opens layer authoring. **Devices** handles discovery,
 attachment, wiring and output status. **View > Show effect behind components** controls
 the effect background in Layout. **View > Show components over effect** controls

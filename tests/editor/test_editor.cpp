@@ -247,6 +247,7 @@ private slots:
     void proceduralSourceControls();
     void legacyArtworkToolbarRestore();
     void firstRunArtworkStartup();
+    void sessionRestoresWorkspaceTab();
     void recordedWindowArtworkStartup();
     void headerArtworkFits_data();
     void headerArtworkFits();
@@ -2043,6 +2044,28 @@ void EditorTest::firstRunArtworkStartup()
     QVERIFY(!window.findChild<QToolBar*>("artworkToolbar"));
     QTRY_VERIFY(window.findChild<QLabel*>("studioBrand")->isVisible());
     QVERIFY(window.findChild<LightingCanvas*>("layoutCanvas")->isVisible());
+}
+
+void EditorTest::sessionRestoresWorkspaceTab()
+{
+    // First start keeps the window's default tab; a later start returns to the tab open at close.
+    QTemporaryDir dir;QSettings settings(dir.filePath("tab.ini"),QSettings::IniFormat);
+    {
+        LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+        auto* tabs=window.findChild<QTabWidget*>("lightingViews");const int initial=tabs->currentIndex();
+        AppSession session(window,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+        QCOMPARE(tabs->currentIndex(),initial);
+        tabs->setCurrentIndex(1);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QVERIFY(window.close());
+    }
+    QCOMPARE(settings.value("window/workspace").toInt(),1);
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    AppSession session(window,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+    QCOMPARE(window.findChild<QTabWidget*>("lightingViews")->currentIndex(),1);
+    settings.setValue("window/workspace",99);
+    LightingWindow invalid(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    const int fallback=invalid.findChild<QTabWidget*>("lightingViews")->currentIndex();
+    AppSession guarded(invalid,settings,dir.filePath("recovery.json"));guarded.restore([]{return false;});
+    QCOMPARE(invalid.findChild<QTabWidget*>("lightingViews")->currentIndex(),fallback);
 }
 
 void EditorTest::legacyArtworkToolbarRestore()

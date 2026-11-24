@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QDockWidget>
+#include <QTabWidget>
 #include <stdexcept>
 
 AppSession::AppSession(LightingWindow& window,QSettings& settings,QString recoveryFile)
@@ -32,6 +33,7 @@ void AppSession::persist()
     settings_.setValue("window/geometry",window_.saveGeometry());
     settings_.setValue("window/state",window_.saveState(6));
     settings_.setValue("window/panels",window_.workspacePanelPreferences());
+    if(const auto* tabs=window_.findChild<QTabWidget*>("lightingViews"))settings_.setValue("window/workspace",tabs->currentIndex());
     settings_.setValue("project/path",window_.projectFile()); settings_.sync();
 }
 bool AppSession::writeRecovery()
@@ -57,6 +59,10 @@ void AppSession::restore(const std::function<bool()>& recover)
     if(panels.isEmpty() && restored)panels={{"navigator",!window_.findChild<QDockWidget*>("layersDock")->isHidden()},
         {"inspector",!window_.findChild<QDockWidget*>("propertiesDock")->isHidden()}};
     window_.restoreWorkspacePanelPreferences(panels);
+    // Only the first start opens the window's default tab (Devices); later starts return to the last
+    // workspace (approved redesign plan, docs/UX_REDESIGN_PLAN.md, "Goal and order").
+    bool tabSaved=false;const int tab=settings_.value("window/workspace").toInt(&tabSaved);
+    if(auto* tabs=window_.findChild<QTabWidget*>("lightingViews");tabs && tabSaved && tab>=0 && tab<tabs->count())tabs->setCurrentIndex(tab);
     const auto original=settings_.value("project/path").toString();
     const bool available=QFileInfo::exists(recoveryFile_);
     const bool recovering=available && recover && recover();
