@@ -293,7 +293,9 @@ repeat. Shapes use antialiased fixed templates (five-point star, fixed ring
 thickness and fixed moon cutout).
 
 Select Move, then drag inside the selected source's yellow frame to
-move it. Four corner grips resize about its center; the external circular grip
+move it. Dragging one of the four corner grips keeps the opposite corner fixed and the aspect
+ratio unchanged; hold Shift to change width and height freely, Alt to resize about the center
+(both together combine). The modifier is read while dragging. The external circular grip
 rotates. Direct gestures pause/reset the preview clock before editing. Numeric
 center, width, height and rotation provide keyboard-accessible alternatives.
 Positive rotation is clockwise. Static Color covers the canvas and has no

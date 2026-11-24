@@ -2820,6 +2820,23 @@ void EditorTest::triangleAfterCrop()
     const auto corner=effectTransform(before).map(QPointF(.5,.5));drag(corner,corner+QPointF(30,30));
     QVERIFY(window.document().state().layers.last().extent.width()>before.extent.width());
     window.document().history()->undo();QCOMPARE(window.document().state().layers.last().extent,before.extent);
+    // Corner resize: the opposite corner stays fixed and the aspect ratio is kept; Shift frees the
+    // aspect, Alt scales about the center. The release event carries the modifier of the final step.
+    const auto resize=[&](QPointF to,Qt::KeyboardModifiers modifiers) {
+        QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint(corner).toPoint());
+        QTest::mouseMove(canvas,canvas->viewportPoint(to).toPoint());
+        QTest::mouseRelease(canvas,Qt::LeftButton,modifiers,canvas->viewportPoint(to).toPoint());
+        const auto after=window.document().state().layers.last();window.document().history()->undo();return after;
+    };
+    const auto pinned=effectTransform(before).map(QPointF(-.5,-.5));const double aspect=before.extent.width()/before.extent.height();
+    auto after=resize(corner+QPointF(40,10),Qt::NoModifier);
+    QVERIFY(QLineF(effectTransform(after).map(QPointF(-.5,-.5)),pinned).length()<1.5);
+    QVERIFY(std::abs(after.extent.width()/after.extent.height()-aspect)<.02);QVERIFY(after.extent.width()>before.extent.width());
+    after=resize(corner+QPointF(40,0),Qt::ShiftModifier);
+    QVERIFY(QLineF(effectTransform(after).map(QPointF(-.5,-.5)),pinned).length()<1.5);
+    QVERIFY(after.extent.width()>before.extent.width()+30);QVERIFY(std::abs(after.extent.height()-before.extent.height())<1.5);
+    after=resize(corner+QPointF(20,20),Qt::AltModifier);
+    QVERIFY(QLineF(after.center,before.center).length()<1.5);QVERIFY(after.extent.width()>before.extent.width()+30);
     window.document().edit("Animated triangle",[](auto& state){auto& shape=state.layers.last();shape.driftX=180;shape.spin=20;shape.zoom=10;});
     window.findChild<QDoubleSpinBox*>("previewTime")->setValue(1.0);
     const auto animated=window.document().state().layers.last();
@@ -2854,8 +2871,11 @@ void EditorTest::canvasTransformsAndCrop()
     QVERIFY(std::abs(window.document().state().layers[0].rotation-90)<1); window.document().history()->undo();
     const auto corner=canvas->viewportPoint({440,320}).toPoint();
     QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,corner);
+    const auto pinned=effectTransform(window.document().state().layers[0]).map(QPointF(-.5,-.5));
     QTest::mouseMove(canvas,corner+QPoint(30,30)); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,corner+QPoint(30,30));
-    QVERIFY(window.document().state().layers[0].extent.width()>290); window.document().history()->undo();
+    // Corner resize keeps the opposite corner fixed instead of growing symmetrically about the center.
+    QVERIFY(window.document().state().layers[0].extent.width()>260);
+    QVERIFY(QLineF(effectTransform(window.document().state().layers[0]).map(QPointF(-.5,-.5)),pinned).length()<1.5); window.document().history()->undo();
     QTemporaryDir dir; const auto imagePath=dir.filePath("crop.png");
     QImage pixels(200,100,QImage::Format_ARGB32); pixels.fill(Qt::red);
     for (int y=0;y<100;++y) for (int x=100;x<200;++x) pixels.setPixelColor(x,y,Qt::blue);
@@ -2985,8 +3005,9 @@ void EditorTest::snapEffectAndGradient()
     from=canvas.viewportPoint({253,153}).toPoint();to=canvas.viewportPoint({247,147}).toPoint();
     QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);
     QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,to);
-    QCOMPARE(document.state().layers[0].center,QPointF(303,203));
-    QCOMPARE(document.state().layers[0].extent,QSizeF(106,106));
+    // The dragged corner snaps to (250,150) while the opposite corner stays at (353,253).
+    QCOMPARE(document.state().layers[0].center,QPointF(301.5,201.5));
+    QCOMPARE(document.state().layers[0].extent,QSizeF(103,103));
     document.history()->undo();
     canvas.setTool(LightingCanvas::Tool::Gradient);
     from=canvas.viewportPoint({253,154}).toPoint();to=canvas.viewportPoint({347,247}).toPoint();

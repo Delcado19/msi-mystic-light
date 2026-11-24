@@ -86,8 +86,9 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
 - Projects with the previous six-point M25 geometry keep their existing definition on migration.
   New attachments use the twelve-point model. Use Component Lab to prepare a replacement
   variant for an existing layout if desired.
-- Editor: Move tool does not grab a particle effect (falls back to marquee selection); effect
-  resize is only symmetric about the centre (no edge-anchored resize). Frame clipping is opt-in
+- Editor: Move tool does not grab a particle effect (falls back to marquee selection). Effect corner
+  resize (2026-11-24) pins the opposite corner and keeps the aspect ratio; Shift frees the aspect,
+  Alt scales about the center (offscreen test only, not tried by the owner). Frame clipping is opt-in
   (`clipToFrame`, branch `fix/effect-bounds-resize`, not HW/UI-tested).
 - Performance with several simultaneous effects is suspected to drop sharply; not measured.
   Every gradient/pattern source evaluates all canvas pixels per frame.

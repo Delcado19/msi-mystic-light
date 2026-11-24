@@ -850,7 +850,8 @@ void LightingCanvas::mousePressEvent(QMouseEvent* event)
         // Dragging the workspace margin moves the camera, never the selected source.
         autoFit_=false;panning_=true;updateCursor();last_=event->position();return;
     }
-    if((event->modifiers() & Qt::ShiftModifier) && (context_==Context::Layout || (!maskTarget_ && drawingTool_==Tool::Move))) {
+    // Shift on a selected effect's handle starts a free-aspect resize instead of toggling the selection.
+    if((event->modifiers() & Qt::ShiftModifier) && (context_==Context::Layout || (!maskTarget_ && drawingTool_==Tool::Move)) && !selectedHandleAt(start_)) {
         const auto hits=hitsAt(start_);auto ids=selectedIds_;
         if(!hits.isEmpty()){const auto id=hits.first();if(ids.contains(id))ids.remove(id);else ids.insert(id);selectMany(ids,ids.contains(id) ? id : QUuid{});return;}
     }
@@ -1094,9 +1095,26 @@ void LightingCanvas::updateEffectGesture(QPointF point)
         changed.rotation=std::remainder(original.rotation+(std::atan2(last.y(),last.x())-std::atan2(first.y(),first.x()))*180/3.141592653589793,360.0);
         if(snapGesture_) changed.rotation=SnapGrid{true,15}.snap(changed.rotation);
     } else {
-        const auto local=transform.inverted().map(point);
-        changed.extent={std::clamp(2*std::abs(local.x())*original.extent.width(),1.0,10000.0),
-            std::clamp(2*std::abs(local.y())*original.extent.height(),1.0,10000.0)};
+        // Corner handles 1-4 (top-left, top-right, bottom-right, bottom-left) pin the opposite corner and keep
+        // the aspect ratio; Shift allows free aspect, Alt scales about the center (drawing-program convention,
+        // owner request 2026-11-24; replaces the former center-only, free-aspect resize).
+        static const QPointF corners[]{{-.5,-.5},{.5,-.5},{.5,.5},{-.5,.5}};
+        const auto corner=corners[std::clamp(handle_,1,4)-1];
+        const bool fromCenter=pointerModifiers_ & Qt::AltModifier, proportional=!(pointerModifiers_ & Qt::ShiftModifier);
+        const auto anchor=fromCenter ? QPointF() : -corner;
+        const auto local=transform.inverted().map(point)-anchor;
+        // Local units are fractions of the press-time box, so these are scale factors per axis.
+        double sx=std::abs(local.x())*(fromCenter ? 2 : 1), sy=std::abs(local.y())*(fromCenter ? 2 : 1);
+        if(proportional) sx=sy=std::max(sx,sy);
+        changed.extent={std::clamp(sx*original.extent.width(),1.0,10000.0),std::clamp(sy*original.extent.height(),1.0,10000.0)};
+        if(!fromCenter) {
+            // Dragging past the anchor flips the box to that side; the anchor itself never moves.
+            const QPointF side(local.x()!=0 ? std::copysign(1.0,local.x()) : std::copysign(1.0,corner.x()),
+                               local.y()!=0 ? std::copysign(1.0,local.y()) : std::copysign(1.0,corner.y()));
+            const QPointF middle=anchor+QPointF(side.x()*changed.extent.width()/original.extent.width(),
+                                                side.y()*changed.extent.height()/original.extent.height())/2;
+            changed.center=original.center+transform.map(middle)-transform.map(QPointF());
+        }
     }
     if (original.maskLinked) changed.mask=transformedMask(original,effectTransform(original).inverted()*effectTransform(changed));
     workingEffect_=changed;
