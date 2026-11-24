@@ -3,6 +3,15 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R34 - 2026-11-24
+
+- Delivered as `Downloads/LightingStudio-local-r34.zip` with its `.zip.sha256` sidecar
+  (SHA-256 `afc145f4c3761a80c4ee849412f10eb74d6c27a9da039946f4236314280ce3b4`). Contains R33 plus the
+  photo decode fix, last-workspace-tab restore and anchored effect corner resize (Shift/Alt).
+- Checks: 21/21 CTest (installer-plan test excluded), ZIP CRC, same 56-file manifest as R33,
+  `GS-06-R34` marker in the editor, SHA-256 of the Downloads copy. Not run: packaged editor,
+  installer (not even `-WhatIf`), physical output.
+
 ## Redesign follow-up - 2026-11-22
 
 - The approved redesign plan (Codex, 2026-11-21) and its implementation status as of 2026-11-24
