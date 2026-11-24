@@ -248,6 +248,7 @@ private slots:
     void legacyArtworkToolbarRestore();
     void firstRunArtworkStartup();
     void sessionRestoresWorkspaceTab();
+    void panelsSurviveMinimizeAndClose();
     void recordedWindowArtworkStartup();
     void headerArtworkFits_data();
     void headerArtworkFits();
@@ -2066,6 +2067,35 @@ void EditorTest::sessionRestoresWorkspaceTab()
     const int fallback=invalid.findChild<QTabWidget*>("lightingViews")->currentIndex();
     AppSession guarded(invalid,settings,dir.filePath("recovery.json"));guarded.restore([]{return false;});
     QCOMPARE(invalid.findChild<QTabWidget*>("lightingViews")->currentIndex(),fallback);
+}
+
+void EditorTest::panelsSurviveMinimizeAndClose()
+{
+    // Owner report 2026-11-24: navigator and inspector were saved as hidden without a user action.
+    // Minimizing hid the docks and was recorded as the user's choice; window and tab changes must not be.
+    QTemporaryDir dir;QSettings settings(dir.filePath("panels.ini"),QSettings::IniFormat);
+    const QVariantMap shown{{"navigator",true},{"inspector",true}};
+    {
+        LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);window.resize(1400,900);
+        AppSession restore(window,settings,dir.filePath("recovery.json"));restore.restore([]{return false;});
+        window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto* tabs=window.findChild<QTabWidget*>("lightingViews");
+        const auto unchanged=[&]{QCoreApplication::processEvents();return window.workspacePanelPreferences()==shown;};
+        tabs->setCurrentIndex(1);QVERIFY(unchanged());
+        window.hide();QVERIFY(unchanged());window.show();QVERIFY(unchanged());
+        window.showMinimized();QVERIFY(unchanged());window.showNormal();QVERIFY(unchanged());
+        tabs->setCurrentIndex(2);QVERIFY(unchanged());window.showMaximized();QVERIFY(unchanged());
+        tabs->setCurrentIndex(1);window.showMinimized();QVERIFY(unchanged());
+        QVERIFY(window.close()); // Closing while minimized, as from the tray or the taskbar.
+    }
+    QCOMPARE(settings.value("window/panels").toMap(),shown);
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);window.resize(1400,900);
+    AppSession restore(window,settings,dir.filePath("recovery.json"));restore.restore([]{return false;});
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QCOMPARE(window.findChild<QTabWidget*>("lightingViews")->currentIndex(),1);
+    // The offscreen screen is 800 px wide; a restored maximized window would enter compact mode.
+    window.showNormal();window.resize(1400,900);QCoreApplication::processEvents();
+    QVERIFY(window.findChild<QDockWidget*>("layersDock")->isVisible());QVERIFY(window.findChild<QDockWidget*>("propertiesDock")->isVisible());
 }
 
 void EditorTest::legacyArtworkToolbarRestore()

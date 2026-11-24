@@ -1539,7 +1539,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         toggle->setShortcut(QKeySequence(panel==sidebarDock ? "Ctrl+Shift+L" : "Ctrl+Shift+P"));viewMenu->addAction(toggle);panelsMenu->addAction(toggle);
         connect(panel,&QDockWidget::visibilityChanged,this,[this,panel,sidebarDock](bool visible) {
             // Parent-window hiding and workspace switches must not overwrite the user's panel choices.
-            if(adjustingPanels_ || !isVisible())return;
+            // Minimizing hides the docks too; closing while minimized saved both panels as hidden
+            // (owner report 2026-11-24).
+            if(adjustingPanels_ || !isVisible() || isMinimized())return;
             if(panel==sidebarDock)navigatorShown_=visible;
             else {inspectorShown_=visible;if(compactWorkspace_)inspectorBeforeCompact_=visible;}
         });
