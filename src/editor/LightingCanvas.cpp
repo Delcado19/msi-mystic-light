@@ -334,13 +334,14 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
     const auto ledOffsets=document_.componentLedOffsets();
     const auto shared=(!previewOnly_ && context_==Context::Layout) ? document_.sharedColorNotes() : QMap<QUuid,QString>{};
     for (auto placement : document_.state().placements) {
+        if(hiddenPlacement(placement.id))continue;
         painter.save();
-        bool dimmed=false;
+        bool dimmed=disconnected_.contains(placement.id);
         if(!previewChannel_.isNull()) {
             bool inScope=false;for(const auto& assignment:document_.state().assignments)if(assignment.id==previewChannel_ && assignment.placements.contains(placement.id))inScope=true;
-            dimmed=!inScope;
-            if(dimmed)painter.setOpacity(.18);
+            dimmed|=!inScope;
         }
+        if(dimmed)painter.setOpacity(.18);
         placement=previewPlacement(placement);
         const auto points = componentPoints(placement);
         const auto& definition = document_.catalog()[placement.componentId];
@@ -407,6 +408,7 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
         painter.fillRect(title,QColor("#202735")); painter.setPen(QColor("#dce7ff")); painter.drawText(title,Qt::AlignCenter,assignment.channelId);
     }
     if(!previewOnly_ && (context_==Context::Layout || showLabels_)) for(const auto& placement:placements) {
+        if(hiddenPlacement(placement.id))continue;
         bool chained=false;for(const auto& assignment:document_.state().assignments)
             if(visibleChain(assignment) && assignment.placements.contains(placement.id))chained=true;
         if(context_==Context::Layout && !chained) {
@@ -439,7 +441,8 @@ void LightingCanvas::paintComponents(QPainter& painter,const QImage& frame,const
             painter.drawText(label,Qt::AlignLeft|Qt::AlignVCenter,componentLabelText(placement));painter.restore();
         }
     }
-    if(!previewOnly_ && context_==Context::Layout && !selected_.isNull()) {
+    // A disconnected device chosen in the Devices list stays selected for Remove, but gets no canvas handles.
+    if(!previewOnly_ && context_==Context::Layout && !selected_.isNull() && !disconnectedObject(selected_)) {
         auto bounds=selectionBounds();
 
         painter.setPen(QPen(QColor("#a9c2ff"),1.5/zoom_)); painter.setBrush(Qt::NoBrush);
@@ -458,6 +461,7 @@ QRectF LightingCanvas::navigationBounds() const
     if(context_==Context::Layout) {
         auto bounds=document_.layoutBounds(&placements);
         for(const auto& placement:placements) {
+            if(hiddenPlacement(placement.id))continue; // Fit must not frame the empty spot of an unplugged device.
             bounds=bounds.united(componentBounds(placement));
             // Reserve caption space even while hidden so holding the reveal key never shifts the camera.
             bounds=bounds.united(componentLabel(placement));
@@ -523,7 +527,7 @@ void LightingCanvas::paintMinimap(QPainter& painter)
     const auto rasterBounds=context_==Context::Layout ? document_.layoutBounds(&placements) : QRectF(0,0,640,400);
     const auto image=QRectF(map(rasterBounds.topLeft()),map(rasterBounds.bottomRight()));
     painter.drawImage(image,rendered_);painter.setPen(QColor("#e6f1ff"));
-    if(context_==Context::Layout)for(const auto& placement:previewPlacements())for(const auto& point:componentPoints(placement))painter.drawEllipse(map(point),2,2);
+    if(context_==Context::Layout)for(const auto& placement:previewPlacements())if(!hiddenPlacement(placement.id))for(const auto& point:componentPoints(placement))painter.drawEllipse(map(point),2,2);
     const auto viewport=QRectF(map(canvasPoint(contentRect().topLeft())),map(canvasPoint(contentRect().bottomRight()))).intersected(box);
     painter.setBrush(Qt::NoBrush);painter.setPen(QPen(QColor("#93bfff"),2));painter.drawRect(viewport);
     painter.setPen(QColor("#596981"));painter.drawRect(box);painter.restore();
@@ -757,7 +761,7 @@ void LightingCanvas::updateDrawing(QPointF point)
 bool LightingCanvas::visibleChain(const ChannelAssignment& assignment) const
 {
     // Dedicated peripherals have output assignments, but no user-facing component chain.
-    for(const auto& placement:document_.state().placements)if(assignment.placements.contains(placement.id)) {
+    for(const auto& placement:document_.state().placements)if(assignment.placements.contains(placement.id) && !hiddenPlacement(placement.id)) {
         const auto category=hardwareCategory(document_.catalog()[placement.componentId]);
         if(category!="Mice" && category!="Keyboards" && category!="RAM" && category!="Graphics cards" && category!="Motherboards")return true;
     }
@@ -1375,8 +1379,28 @@ QVector<QUuid> LightingCanvas::hitsAt(QPointF point) const
 }
 void LightingCanvas::selectAt(QPointF point) {const auto hits=hitsAt(point);selectMany(hits.isEmpty() ? QSet<QUuid>{} : QSet<QUuid>{hits.first()},hits.value(0));}
 
+bool LightingCanvas::disconnectedObject(const QUuid& id) const
+{
+    if(disconnected_.isEmpty() || id.isNull())return false;
+    if(disconnected_.contains(id))return true;
+    for(const auto& assignment:document_.state().assignments)if(assignment.id==id)
+        return !assignment.placements.isEmpty() && std::all_of(assignment.placements.cbegin(),assignment.placements.cend(),[this](const QUuid& item){return disconnected_.contains(item);});
+    return false;
+}
+void LightingCanvas::setDisconnectedPlacements(QSet<QUuid> ids,bool dim)
+{
+    if(ids==disconnected_ && dim==dimDisconnected_)return;
+    disconnected_=std::move(ids);dimDisconnected_=dim;
+    // Drop disconnected objects from the selection, so Delete or a drag cannot act on something unseen.
+    const auto before=selectedIds_;const auto primary=selected_;
+    selectedIds_.removeIf([this](const QUuid& id){return disconnectedObject(id);});
+    if(disconnectedObject(selected_))selected_=selectedIds_.isEmpty() ? QUuid{} : *selectedIds_.begin();
+    if(before!=selectedIds_ || primary!=selected_){cancelGesture();emit selectionChanged();}
+    syncScrollbars();update();
+}
 bool LightingCanvas::editable(const QUuid& id) const
 {
+    if(disconnectedObject(id))return false;
     for(const auto& layer:document_.state().layers)if(layer.id==id) {
         if(layer.locked)return false;
         if(layer.parentId.isNull())for(const auto& child:document_.state().layers)if(child.parentId==layer.id && child.locked)return false;

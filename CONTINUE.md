@@ -12,6 +12,15 @@ on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
   `GS-06-R34` marker in the editor, SHA-256 of the Downloads copy. Not run: packaged editor,
   installer (not even `-WhatIf`), physical output.
 
+## After R34 - 2026-11-24 (local, not packaged)
+
+- Panels: minimizing no longer records both docks as hidden (`7f6860a`).
+- *Edit > Settings...* with "Disconnected devices: Hide (default) / Dim". Components whose
+  controller the last scan did not find are hidden on Layout/Effects and not pickable; Devices
+  still lists them. Offscreen test only. Open: no automatic rescan on hotplug (manual "Scan
+  hardware" or restart); a peripheral on another USB port gets a new placement and the old
+  one stays hidden in the project.
+
 ## Redesign follow-up - 2026-11-22
 
 - The approved redesign plan (Codex, 2026-11-21) and its implementation status as of 2026-11-24

@@ -330,6 +330,23 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* redo = document_.history()->createRedoAction(this, "Redo");
     redo->setShortcuts({QKeySequence::Redo, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)});
     editMenu->addAction(redo);
+    editMenu->addSeparator();
+    // Program settings, stored per user in QSettings and never in the project (owner request 2026-11-24).
+    auto* settingsAction=editMenu->addAction("Settings...");settingsAction->setObjectName("programSettings");
+    connect(settingsAction,&QAction::triggered,this,[this] {
+        QDialog dialog(this);dialog.setWindowTitle("Settings");
+        auto* form=new QFormLayout(&dialog);
+        auto* disconnected=new QComboBox;disconnected->setObjectName("disconnectedDevicesSetting");
+        disconnected->addItem("Hide","hide");disconnected->addItem("Dim","dim");
+        disconnected->setCurrentIndex(std::max(0,disconnected->findData(QSettings().value("editor/disconnectedDevices","hide"))));
+        disconnected->setToolTip("Devices in the project that the last hardware scan did not find. They keep their layout and effects.");
+        form->addRow("Disconnected devices",disconnected);
+        auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);form->addRow(buttons);
+        connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
+        if(dialog.exec()!=QDialog::Accepted)return;
+        QSettings().setValue("editor/disconnectedDevices",disconnected->currentData());
+        refresh(); // A setting is not a document change, so nothing else repaints the canvases.
+    });
     auto* toolbar = studioHeaderToolbar("History",this);addToolBar(toolbar); toolbar->setObjectName("historyToolbar");
     toolbar->setMovable(false);
     auto* brand=new QLabel;brand->setObjectName("studioBrand");brand->setAccessibleName("Lighting Studio");brand->setPixmap(studioLogo());toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -2097,6 +2114,16 @@ void LightingWindow::syncSelectionTrees()
 
 void LightingWindow::refresh()
 {
+    // Devices the last scan did not find stay in the project, but the canvases hide them by default
+    // (Settings > Disconnected devices; owner request 2026-11-24). Without any scan result (offline
+    // planning, discovery off) everything shows. The match is exact, like the Devices list: a device on
+    // another USB port has another path and counts as disconnected at its old one.
+    QSet<QUuid> disconnected;
+    if(!discovered_.isEmpty()) for(const auto& assignment:document_.state().assignments)
+        if(std::none_of(discovered_.cbegin(),discovered_.cend(),[&](const auto& candidate){return candidate.profileId==assignment.profileId && candidate.device.path==assignment.endpoint;}))
+            for(const auto& id:assignment.placements) disconnected.insert(id);
+    const bool dim=QSettings().value("editor/disconnectedDevices","hide").toString()=="dim";
+    layoutCanvas_->setDisconnectedPlacements(disconnected,dim);effectsCanvas_->setDisconnectedPlacements(disconnected,dim);
     const bool needsController=discovered_.isEmpty() && offlineProfile_.isEmpty() && document_.state().assignments.isEmpty();
     findChild<QLabel*>("hardwareEmptyState")->setVisible(needsController);
     findChild<QComboBox*>("offlineController")->setVisible(discovered_.isEmpty());

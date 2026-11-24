@@ -167,7 +167,15 @@ zooms; explicit Zoom in/out and Fit controls also exist; middle drag pans. Effec
 
 Discovery reads descriptors and OS board identity without opening HID. Refresh
 headers repeats discovery and deduplicates profile/endpoint/header matches. Saved
-chains stay visible as offline groups when their controller is absent. Merely
+chains stay listed as offline groups in Devices when their controller is absent.
+On the Layout and Effects canvases, components of an absent controller are hidden
+by default; *Edit > Settings... > Disconnected devices* switches to Dim (per-user
+setting `editor/disconnectedDevices`, not stored in the project). Hidden or dimmed
+components cannot be picked on the canvas; they keep layout, effects and output data,
+and the Devices list can still select and remove them. Presence uses the exact
+profile and endpoint path of the last scan; a device on another USB port counts as
+absent at its old path, and discovery adds a new placement for the new one. Without
+any scan result (offline planning, discovery off) every component shows. Merely
 selecting or attaching components never starts output. Hotplug discovery is manual;
 a running output session still monitors endpoint presence independently.
 

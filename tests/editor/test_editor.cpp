@@ -249,6 +249,7 @@ private slots:
     void firstRunArtworkStartup();
     void sessionRestoresWorkspaceTab();
     void panelsSurviveMinimizeAndClose();
+    void disconnectedDevicesHidden();
     void recordedWindowArtworkStartup();
     void headerArtworkFits_data();
     void headerArtworkFits();
@@ -2067,6 +2068,36 @@ void EditorTest::sessionRestoresWorkspaceTab()
     const int fallback=invalid.findChild<QTabWidget*>("lightingViews")->currentIndex();
     AppSession guarded(invalid,settings,dir.filePath("recovery.json"));guarded.restore([]{return false;});
     QCOMPARE(invalid.findChild<QTabWidget*>("lightingViews")->currentIndex(),fallback);
+}
+
+void EditorTest::disconnectedDevicesHidden()
+{
+    QSettings().remove("editor/disconnectedDevices");
+    const auto profile=channelProfile();bool found=true;
+    LightingWindow window(catalog(),[&found,profile] {
+        QVector<ProfileCandidate> result;if(!found)return result;
+        ProfileCandidate candidate;candidate.profileId=profile.id;candidate.device.path="fake://one";result.append(candidate);return result;
+    },nullptr,{profile});
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTRY_COMPARE(window.discoveredHardware().size(),1);
+    const auto present=window.document().addComponent("test.strip"),absent=window.document().addComponent("test.strip");
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->selectMany({present,absent},absent);
+    window.document().edit("Attach",[&](LightingState& state) {
+        ChannelAssignment online;online.endpoint="fake://one";online.profileId=profile.id;online.channelId="Direct";online.placements={present};
+        auto offline=online;offline.id=QUuid::createUuid();offline.endpoint="fake://unplugged";offline.placements={absent};
+        state.assignments={online,offline};
+    });
+    // Default: hidden, and the selection made while it was still present drops it.
+    QCOMPARE(canvas->selections(),QSet<QUuid>({present}));QCOMPARE(canvas->selection(),present);
+    canvas->selectMany({present,absent},present);QCOMPARE(canvas->selections(),QSet<QUuid>({present}));
+    // Dim: still drawn, still not selectable.
+    QSettings().setValue("editor/disconnectedDevices","dim");window.findChild<QPushButton*>("refreshHeaders")->click();
+    canvas->selectMany({present,absent},present);QCOMPARE(canvas->selections(),QSet<QUuid>({present}));
+    // No scan result (offline planning): everything shows and is selectable again.
+    found=false;window.findChild<QPushButton*>("refreshHeaders")->click();QVERIFY(window.discoveredHardware().isEmpty());
+    canvas->selectMany({present,absent},present);QCOMPARE(canvas->selections(),QSet<QUuid>({present,absent}));
+    // The project keeps both devices whatever the canvas shows.
+    QCOMPARE(window.document().state().placements.size(),2);
+    QSettings().remove("editor/disconnectedDevices");window.document().history()->setClean();
 }
 
 void EditorTest::panelsSurviveMinimizeAndClose()
