@@ -3,6 +3,24 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R38 - 2026-11-25 late evening (local, not pushed)
+
+- Cause of the fan noise, measured (boot CPU trace + cdb stack samples): the logon-started tray editor
+  (`--background`) rendered its preview every 16 ms on the GUI thread, one core at 100% for the whole
+  session. The service itself used ~0.8% of one core for the same lights.
+- Fix `db48ec5`: no tray icon, no `--background`, no `Lighting Studio Editor` logon task (the installer
+  removes an existing one); closing the window ends the editor. Beside the service a minimized window
+  skips the preview render (`setRenderWhenMinimized(false)`, test `minimizedPreviewIdle`).
+- Delivered as `Downloads/LightingStudio-local-r38.zip` + `.zip.sha256`
+  (SHA-256 `dfed3fa6726996c4ac59842c84fb0342a778178494f1f636a2f5ebed27fc15e8`), 58 files (R37 + the AJAZZ
+  component and experimental profile from phase A). 23/23 CTest. Not run: installer, real window, LED output.
+- Owner state at that time: service `playback.json` had `enabled=false` since 19:38 (cause unknown), so
+  Lighting Studio did not drive the lights; SignalRGB did. Owner wants Lighting Studio to own the lights;
+  SignalRGB stays installed only as a code reference and must not autostart.
+- Still unmeasured: CPU of the editor with its window visible (one frame seems to take >= 16 ms).
+- Boot trace script `scripts/boot_cpu_trace.ps1` (untracked) and its CSVs in
+  `%ProgramData%\LightingStudioBootTrace` are kept for a re-measurement; its scheduled task is gone.
+
 ## After R37 - 2026-11-25 evening (local, NOT built into a ZIP, not pushed)
 
 State: branch `feat/lighting-studio-ux-redesign`, all local commits unpushed (PR #10 is the draft).
