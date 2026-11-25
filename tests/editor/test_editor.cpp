@@ -232,6 +232,7 @@ private slots:
     void deviceLedArrangement();
     void componentEditor();
     void componentDraftOperations();
+    void componentDraftLayers();
     void componentLibraryEditing();
     void componentCanvasInteractions();
     void componentEditorPageLibrary();
@@ -1243,6 +1244,38 @@ void EditorTest::componentDraftOperations()
     const auto big=withShape(empty,DraftShape::Matrix,1000); const auto snapshot=big;
     const auto changed=withShape(big,DraftShape::Ring,1000);
     QCOMPARE(big,snapshot);QVERIFY(!(changed==snapshot));QCOMPARE(big.positions.size(),1000);
+}
+
+void EditorTest::componentDraftLayers()
+{
+    // Display-only depth layers (owner request 2026-11-25): positions never move.
+    ComponentDraft empty; empty.id="custom.layers"; empty.name="L";
+    auto ring=withShape(empty,DraftShape::Ring,4);
+    QVERIFY(ring.layers.isEmpty()); QCOMPARE(ring.layerCount(),1);
+    auto back=withLayer(ring,{2,3},1);
+    QCOMPARE(back.layers,(QVector<int>{0,0,1,1})); QCOMPARE(back.layerCount(),2); QCOMPARE(back.positions,ring.positions);
+    QCOMPARE(withLayer(back,{0},2).layerCount(),3);
+    QVERIFY_EXCEPTION_THROWN(withLayer(back,{0},3),std::invalid_argument); // more than one new layer
+    QVERIFY_EXCEPTION_THROWN(withLayer(back,{0},-1),std::invalid_argument);
+    auto deep=ring; for(int layer=1;layer<16;++layer) deep=withLayer(deep,{0},layer);
+    QVERIFY_EXCEPTION_THROWN(withLayer(deep,{0},16),std::invalid_argument);
+    QCOMPARE(withAdded(back,{5,5},1).layers.last(),1);
+    QCOMPARE(withAdded(ring,{5,5}).layers.isEmpty(),true);
+    QCOMPARE(withAdded(ring,{5,5},1).layers,(QVector<int>{0,0,0,0,1}));
+    QCOMPARE(withRemoved(back,{0}).layers,(QVector<int>{0,1,1}));
+    QCOMPARE(withDuplicated(back,{3},{1,1}).layers.last(),1);
+    QCOMPARE(withMirror(back,{},Qt::Horizontal).layers,back.layers);
+    QCOMPARE(withRotation90(back,{}).layers,back.layers);
+    QCOMPARE(withPreset(back,WiringPreset::Clockwise).layers,back.layers);
+    QCOMPARE(withSharedAddress(back,{0,2},0).layers,back.layers);
+    QCOMPARE(withWireOrder(back,{3,2,1,0}).layers,back.layers);
+    QVERIFY(withShape(back,DraftShape::Strip,4).layers.isEmpty());
+    QVERIFY(!(back==ring));
+    // Saving drops empty layers and keeps their order.
+    auto gap=ring; gap.layers={0,2,2,0};
+    QCOMPARE(gap.toDefinition().layers,(QVector<int>{0,1,1,0}));
+    QCOMPARE(ComponentDraft::fromDefinition(back.toDefinition()).layers,back.layers);
+    QVERIFY(withLayer(back,{2,3},0).toDefinition().layers.isEmpty());
 }
 
 void EditorTest::componentLibraryEditing()

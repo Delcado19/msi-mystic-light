@@ -84,6 +84,9 @@ void installedProducts(ComponentCatalog& products)
                 // Import only validated geometry/mapping metadata. No upstream images, scripts or drivers are copied.
                 auto c=ComponentDefinition::fromJson({{"schemaVersion",1},{"id","hardware."+QString::fromLatin1(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex().left(16))},
                     {"name",displayName}, {"ledCount",number},{"positions",coordinates},{"mapping",mapping}});
+                // LEDs on an identical source coordinate sit behind each other (SWAFAN and Freezer 36 rings,
+                // CoreLiquid LED 4/5, Vertagear SL5000): keep positions for sampling, separate them by layer.
+                c.layers=overlapLayers(c.positions);
                 double left=1e100,top=1e100,right=-1e100,bottom=-1e100;
                 for(const auto& point:c.positions) {
                     if(std::abs(point.x())>100000 || std::abs(point.y())>100000) throw std::invalid_argument("Invalid product coordinates");

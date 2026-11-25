@@ -32,7 +32,7 @@ QVector<int> targetRows(const ComponentDraft& draft, const QSet<int>& rows)
 ComponentDraft ComponentDraft::fromDefinition(const ComponentDefinition& definition)
 {
     return {definition.id, definition.name, definition.manufacturer, definition.category,
-            definition.positions, definition.mapping, definition.nonPhysicalSlots};
+            definition.positions, definition.mapping, definition.nonPhysicalSlots, definition.layers};
 }
 
 ComponentDefinition ComponentDraft::toDefinitionUnchecked() const
@@ -40,6 +40,10 @@ ComponentDefinition ComponentDraft::toDefinitionUnchecked() const
     ComponentDefinition definition;
     definition.id = id; definition.name = name; definition.manufacturer = manufacturer; definition.category = category;
     definition.positions = positions; definition.mapping = mapping; definition.nonPhysicalSlots = nonPhysicalSlots;
+    // Saved definitions carry no empty layers: renumber the used ones in their order.
+    auto used = QSet<int>(layers.cbegin(), layers.cend()).values();
+    std::sort(used.begin(), used.end());
+    for (const int layer : layers) definition.layers.append(int(used.indexOf(layer)));
     return definition;
 }
 
@@ -54,7 +58,22 @@ ComponentDefinition ComponentDraft::toDefinition() const
 bool ComponentDraft::operator==(const ComponentDraft& other) const
 {
     return id == other.id && name == other.name && manufacturer == other.manufacturer && category == other.category
-        && positions == other.positions && mapping == other.mapping && nonPhysicalSlots == other.nonPhysicalSlots;
+        && positions == other.positions && mapping == other.mapping && nonPhysicalSlots == other.nonPhysicalSlots
+        && layers == other.layers;
+}
+
+int ComponentDraft::layerCount() const
+{
+    return layers.isEmpty() ? 1 : *std::max_element(layers.cbegin(), layers.cend()) + 1;
+}
+
+ComponentDraft withLayer(ComponentDraft draft, const QSet<int>& rows, int layer)
+{
+    if (layer < 0 || layer > draft.layerCount() || layer > 15) throw std::invalid_argument("Invalid LED layer");
+    draft.layers.resize(draft.positions.size());
+    for (const int row : rows) if (row >= 0 && row < draft.layers.size()) draft.layers[row] = layer;
+    if (std::all_of(draft.layers.cbegin(), draft.layers.cend(), [](int value) { return value == 0; })) draft.layers.clear();
+    return draft;
 }
 
 bool draftLocksCount(const ComponentDraft& draft) { return !draft.nonPhysicalSlots.isEmpty(); }
@@ -63,7 +82,7 @@ ComponentDraft withShape(ComponentDraft draft, DraftShape shape, int count)
 {
     requireUnlocked(draft);
     count = std::max(1, count);
-    draft.positions.clear(); draft.mapping.clear();
+    draft.positions.clear(); draft.mapping.clear(); draft.layers.clear();
     // Matrix, L and U use one component unit between neighbours; ring/fan/strip keep the
     // geometry of the hardware picker templates (radius 1.3, strip width 3).
     const int columns = int(std::ceil(std::sqrt(double(count))));
@@ -177,10 +196,11 @@ ComponentDraft withRotation90(ComponentDraft draft, const QSet<int>& rows)
     return draft;
 }
 
-ComponentDraft withAdded(ComponentDraft draft, QPointF point)
+ComponentDraft withAdded(ComponentDraft draft, QPointF point, int layer)
 {
     requireUnlocked(draft);
     const int next = draft.mapping.isEmpty() ? 0 : *std::max_element(draft.mapping.cbegin(), draft.mapping.cend()) + 1;
+    if (layer > 0 || !draft.layers.isEmpty()) { draft.layers.resize(draft.positions.size()); draft.layers.append(layer); }
     draft.positions.append(point); draft.mapping.append(next);
     return draft;
 }
@@ -191,7 +211,10 @@ ComponentDraft withRemoved(ComponentDraft draft, const QSet<int>& rows)
     auto sorted = rows.values();
     std::sort(sorted.begin(), sorted.end(), std::greater<int>());
     for (const int row : sorted)
-        if (row >= 0 && row < draft.positions.size()) { draft.positions.removeAt(row); draft.mapping.removeAt(row); }
+        if (row >= 0 && row < draft.positions.size()) {
+            draft.positions.removeAt(row); draft.mapping.removeAt(row);
+            if (!draft.layers.isEmpty()) draft.layers.removeAt(row);
+        }
     compress(draft);
     return draft;
 }
@@ -202,6 +225,7 @@ ComponentDraft withDuplicated(ComponentDraft draft, const QSet<int>& rows, QPoin
     auto sorted = rows.values();
     std::sort(sorted.begin(), sorted.end());
     for (const int row : sorted)
-        if (row >= 0 && row < draft.positions.size()) draft = withAdded(draft, draft.positions[row] + offset);
+        if (row >= 0 && row < draft.positions.size())
+            draft = withAdded(draft, draft.positions[row] + offset, draft.layers.value(row, 0));
     return draft;
 }

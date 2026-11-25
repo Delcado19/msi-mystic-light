@@ -9,6 +9,10 @@ struct ComponentDraft {
     QVector<QPointF> positions;   // component units
     QVector<int> mapping;         // zero-based address per position
     QVector<int> nonPhysicalSlots;
+    // Display-only depth layer per position; empty = all layer 0 (see ComponentDefinition::layers).
+    // May contain empty layers while editing; toDefinition() removes them.
+    QVector<int> layers;
+    int layerCount() const;
     static ComponentDraft fromDefinition(const ComponentDefinition& definition);
     ComponentDefinition toDefinition() const;
     // Field copy without validation, for presentation (names, artwork) of drafts that may be incomplete.
@@ -30,7 +34,10 @@ ComponentDraft withWireOrder(ComponentDraft draft, const QVector<int>& addressOr
 ComponentDraft withMirror(ComponentDraft draft, const QSet<int>& rows, Qt::Orientation orientation);
 ComponentDraft withRotation90(ComponentDraft draft, const QSet<int>& rows);
 // Count-changing edits throw std::invalid_argument for protocol-locked drafts (nonPhysicalSlots).
-ComponentDraft withAdded(ComponentDraft draft, QPointF point);
+ComponentDraft withAdded(ComponentDraft draft, QPointF point, int layer = 0);
 ComponentDraft withRemoved(ComponentDraft draft, const QSet<int>& rows);
 ComponentDraft withDuplicated(ComponentDraft draft, const QSet<int>& rows, QPointF offset);
+// Moves rows to `layer`; layerCount() creates a new layer. Throws std::invalid_argument for
+// negative layers, gaps beyond layerCount() or more than 16 layers. Allowed for locked drafts.
+ComponentDraft withLayer(ComponentDraft draft, const QSet<int>& rows, int layer);
 bool draftLocksCount(const ComponentDraft& draft);
