@@ -1,3 +1,4 @@
+#include "../OffscreenTestPlatform.h"
 #include "editor/ParameterSpinBox.h"
 #include <QDialogButtonBox>
 #include <QMenuBar>
@@ -6,6 +7,7 @@
 #include <QVariantAnimation>
 #include "editor/LightingWindow.h"
 #include "editor/ComponentEditor.h"
+#include "editor/ComponentDraft.h"
 #include "editor/SnapGrid.h"
 #include "editor/HardwareIdentity.h"
 #include "editor/HardwareArtwork.h"
@@ -227,6 +229,7 @@ private slots:
     void componentAuthoring();
     void deviceLedArrangement();
     void componentEditor();
+    void componentDraftOperations();
     void keyboardLedPresentation();
     void placementTransforms();
     void rgbaAndMask();
@@ -1210,6 +1213,47 @@ void EditorTest::deviceLedArrangement()
     });
     window.findChild<QPushButton*>("editLayoutLeds")->click();
     QVERIFY(window.document().state().placements[0].componentId!=definition.id);
+}
+
+void EditorTest::componentDraftOperations()
+{
+    ComponentDraft empty; empty.id="custom.t"; empty.name="T";
+    const auto ring=withShape(empty,DraftShape::Ring,12);
+    QCOMPARE(ring.positions.size(),12);
+    for(const auto& p:ring.positions) QVERIFY(qAbs(QLineF(p,QPointF(1.3,1.3)).length()-1.3)<1e-9);
+    QCOMPARE(ring.mapping,(QVector<int>{0,1,2,3,4,5,6,7,8,9,10,11}));
+    QCOMPARE(withShape(empty,DraftShape::Fan,12).category,QString("Fans"));
+    const auto strip=withShape(empty,DraftShape::Strip,16);
+    for(int i=1;i<16;++i) {QCOMPARE(strip.positions[i].y(),strip.positions[0].y());QVERIFY(strip.positions[i].x()>strip.positions[i-1].x());}
+    ComponentDraft matrix=empty; matrix.positions={{0,0},{1,0},{2,0},{0,1},{1,1},{2,1}}; matrix.mapping={5,4,3,2,1,0};
+    QCOMPARE(withPreset(matrix,WiringPreset::RowsSerpentine).mapping,(QVector<int>{0,1,2,5,4,3}));
+    QCOMPARE(withPreset(matrix,WiringPreset::RowsLeftToRight).mapping,(QVector<int>{0,1,2,3,4,5}));
+    const auto shared=withSharedAddress(ring,{0,11},0);
+    QCOMPARE(shared.mapping[0],0);QCOMPARE(shared.mapping[11],0);
+    QCOMPARE(*std::max_element(shared.mapping.begin(),shared.mapping.end()),10);
+    QCOMPARE(QSet<int>(shared.mapping.begin(),shared.mapping.end()).size(),11);
+    QCOMPARE(shared.toDefinition().addresses(),11);
+    const auto removed=withRemoved(strip,{3});
+    QCOMPARE(removed.positions.size(),15);QCOMPARE(removed.mapping,(QVector<int>{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14}));
+    const auto added=withAdded(strip,{9,9});QCOMPARE(added.positions.last(),QPointF(9,9));QCOMPARE(added.mapping.last(),16);
+    auto turned=ring; for(int i=0;i<4;++i) turned=withRotation90(turned,{});
+    for(int i=0;i<12;++i) QVERIFY(QLineF(turned.positions[i],ring.positions[i]).length()<1e-9);
+    QVERIFY(QLineF(withRotation90(matrix,{}).positions[2],matrix.positions[2]).length()>.5);
+    QCOMPARE(withMirror(withMirror(ring,{},Qt::Horizontal),{},Qt::Horizontal).positions,ring.positions);
+    QCOMPARE(withMirror(matrix,{},Qt::Horizontal).positions[0],QPointF(2,0));
+    const auto copy=withDuplicated(strip,{0,1},{0,1});
+    QCOMPARE(copy.positions.size(),18);QCOMPARE(copy.positions[16],strip.positions[0]+QPointF(0,1));QCOMPARE(copy.mapping[17],17);
+    QCOMPARE(withWireOrder(strip,QVector<int>{15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0}).mapping.first(),15);
+    const auto original=catalog().first();
+    QCOMPARE(ComponentDraft::fromDefinition(original).toDefinition().toJson(),original.toJson());
+    const auto vulcan=ComponentDraft::fromDefinition(loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-vulcan.json"));
+    QVERIFY(draftLocksCount(vulcan));QVERIFY(!draftLocksCount(strip));
+    QVERIFY_EXCEPTION_THROWN(withRemoved(vulcan,{0}),std::invalid_argument);
+    QCOMPARE(ComponentDraft::fromDefinition(vulcan.toDefinition()).nonPhysicalSlots,vulcan.nonPhysicalSlots);
+    // Review Focus 4: value semantics make whole-draft undo snapshots exact, even for large drafts.
+    const auto big=withShape(empty,DraftShape::Matrix,1000); const auto snapshot=big;
+    const auto changed=withShape(big,DraftShape::Ring,1000);
+    QCOMPARE(big,snapshot);QVERIFY(!(changed==snapshot));QCOMPARE(big.positions.size(),1000);
 }
 
 void EditorTest::componentAuthoring()
