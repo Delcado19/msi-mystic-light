@@ -3,6 +3,16 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R35 - 2026-11-25
+
+- Delivered as `Downloads/LightingStudio-local-r35.zip` with its `.zip.sha256` sidecar
+  (SHA-256 `1d905f73c768904a532b9e023658e98f0646244baf1c2d5081c021a068e79083`). Contains R34 plus the
+  full-window Component Editor, the Phanteks NV5 MKII internal strip (16 addresses) and GUI tests
+  that start without the ctest environment.
+- Checks: 22/22 CTest before the build-ID bump, ZIP CRC, same 56-file list as the R34 delivery
+  (three JSON files differ only in line endings), `GS-06-R35` marker in the editor. Not run: packaged
+  editor, installer, physical output; the Component Editor was only exercised offscreen.
+
 ## Build GS-06-R34 - 2026-11-24
 
 - Delivered as `Downloads/LightingStudio-local-r34.zip` with its `.zip.sha256` sidecar
