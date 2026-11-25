@@ -43,6 +43,9 @@ public:
     void loadProject(const QString& path, bool recovered = false, const QString& original = {}, const QJsonArray& playbackDefinitions = {});
     void saveProject(const QString& path);
     const QImage& previewFrame() const { return previewFrame_; }
+    // False beside the installed service: it renders the lights itself, so a minimized editor only keeps
+    // its clock and repaints once on restore. Portable output needs the frames, so the default is true.
+    void setRenderWhenMinimized(bool render) { renderWhenMinimized_ = render; }
 signals:
     void previewFrameChanged(const QImage& frame);
     void identifyRequested(const QUuid& placement); // ServicePanel forwards it to the installed service.
@@ -54,6 +57,7 @@ protected:
     void closeEvent(QCloseEvent*) override;
     void resizeEvent(QResizeEvent*) override;
     void paintEvent(QPaintEvent*) override;
+    void changeEvent(QEvent*) override;
     bool eventFilter(QObject*,QEvent*) override;
 private:
     void refresh();
@@ -125,6 +129,7 @@ private:
     QCheckBox* maskLinked_;
     QElapsedTimer previewClock_;
     double playbackStart_ = 0;
+    bool renderWhenMinimized_ = true, previewStale_ = false;
     QUuid selectedLayer_, activeLayer_;
     bool editingMask_ = false;
     bool labelsHeld_=false;

@@ -78,7 +78,7 @@
 
 namespace {
 // R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus. R18: canvas drags stream live, menus show only what acts in the current view. R19: no 5 s rescan while all outputs run, output stalls logged. R20: presence check off the output thread (150 ms LED freeze each second). R21: uninstaller backs up user files, never kills the editor. R22: tray icon and name, Layout menu without Add components. R23: product name Lighting Studio for settings and session data. R24: CodeRabbit fixes for PR #3, picker keeps the color on an outside click, Return applies.
-constexpr auto studioBuildId="GS-06-R37";
+constexpr auto studioBuildId="GS-06-R38";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -775,7 +775,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         if (previewTime_->value() >= 86400) playing_->setChecked(false);
     });
     connect(previewTime_, &QDoubleSpinBox::editingFinished, this, [this] { playing_->setChecked(false); });
-    connect(previewTime_, &QDoubleSpinBox::valueChanged, this, [this] { updatePreview(); });
+    // Minimized beside the service: skip the full render, catch up in changeEvent (owner report 2026-11-25).
+    connect(previewTime_, &QDoubleSpinBox::valueChanged, this, [this] {
+        if (!renderWhenMinimized_ && isMinimized()) { previewStale_ = true; return; }
+        updatePreview();
+    });
     auto* effectPanel = new QWidget;
     auto* effectControls = new QVBoxLayout(effectPanel);
     effectControls->setContentsMargins(8,8,8,8); effectControls->setSpacing(6);
@@ -2554,6 +2558,12 @@ void LightingWindow::closeEvent(QCloseEvent* event)
     if (!confirmDiscard()) { event->ignore(); return; }
     emit closing();
     event->accept();
+}
+
+void LightingWindow::changeEvent(QEvent* event)
+{
+    QMainWindow::changeEvent(event);
+    if (event->type()==QEvent::WindowStateChange && previewStale_ && !isMinimized()) { previewStale_=false; updatePreview(); }
 }
 
 void LightingWindow::loadProject(const QString& path, bool recovered, const QString& original, const QJsonArray& playbackDefinitions)

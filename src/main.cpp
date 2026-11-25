@@ -14,15 +14,9 @@
 #include "output/HardwareOutput.h"
 #include <QDockWidget>
 #include <QMenuBar>
-#include <QMenu>
 #include <QMessageBox>
 #include <QSettings>
 #include <QStandardPaths>
-#include <QSystemTrayIcon>
-#include <QIcon>
-#include <QImage>
-#include <QPixmap>
-#include <QStyle>
 #include <QLockFile>
 #include "editor/AppSession.h"
 #include "service/ServicePanel.h"
@@ -46,16 +40,6 @@ public:
         return false;
     }
 };
-// The tray showed a generic computer icon named "MSI Mystic Light" (owner report 2026-11-18). The
-// executable's own icon (src/app.rc, IDI_ICON1) is read directly: no ICO image plugin is deployed.
-QIcon applicationIcon() {
-    QIcon icon;
-    for(const int size:{16,24,32,48})
-        if(auto* handle=static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr),L"IDI_ICON1",IMAGE_ICON,size,size,LR_DEFAULTCOLOR))) {
-            icon.addPixmap(QPixmap::fromImage(QImage::fromHICON(handle)));DestroyIcon(handle);
-        }
-    return icon;
-}
 }
 #endif
 
@@ -79,7 +63,6 @@ int main(int argc, char** argv)
     parser.addOption({"scan", "List HID and read-only PCI profile candidates without changing lighting."});
     parser.addOption({"probe-ram", "Verify qualified RAM identity through PawnIO; selects read registers but does not write colors."});
     parser.addOption({"inspect", "Validate local catalogs only; do not show the startup conflict dialog."});
-    parser.addOption({"background", "Start installed editor in the tray without opening its window."});
     parser.addOption({"editor", "Open the editor without the startup conflict dialog; configured hardware receives the canvas automatically."});
     parser.process(app);
     const auto serviceHost=StudioService::installedHost();
@@ -164,25 +147,14 @@ int main(int argc, char** argv)
     if(!QDir().mkpath(sessionDirectory)) { QMessageBox::warning(nullptr,"Startup failed","Cannot create session directory"); return 1; }
     QLockFile instance(sessionDirectory+"/application.lock"); instance.setStaleLockTime(0);
     if(!instance.tryLock()) {
-        if(instance.error()==QLockFile::LockFailedError) QMessageBox::information(nullptr,"Already running","Another instance owns the lighting session. Open it from the tray.");
+        if(instance.error()==QLockFile::LockFailedError) QMessageBox::information(nullptr,"Already running","Lighting Studio is already open.");
         else QMessageBox::warning(nullptr,"Startup failed","Cannot lock the session directory");
         return 1;
     }
-    // The tray icon appears as soon as this instance owns the lock (owner report 2026-11-17): the
-    // conflict scan below blocks for seconds, and a second start meanwhile said "Open it from the tray"
-    // while no icon existed yet. Its menu is attached once the window exists.
-    QIcon trayIcon;
-#ifdef Q_OS_WIN
-    trayIcon=applicationIcon();
-#endif
-    if(trayIcon.isNull())trayIcon=app.style()->standardIcon(QStyle::SP_ComputerIcon);
-    QSystemTrayIcon tray(trayIcon);
-    tray.setToolTip("Lighting Studio - starting...");
-    if(QSystemTrayIcon::isSystemTrayAvailable())tray.show();
     // Opening the editor means "Lighting Studio controls the lighting now", so conflicts are offered
     // for stopping in the installed mode too (owner decision 2026-11-16); there the service stops them.
     // It runs after the instance lock so a second start ends at "Already running" without a dialog,
-    // and still before any hardware is opened. The silent logon start (--background) never prompts.
+    // and still before any hardware is opened.
     const auto resolveConflicts=[serviceInstalled](QWidget* parent) {
         std::unique_ptr<IConflictProcesses> processes;
         if(serviceInstalled)processes=std::make_unique<ServiceConflictProcesses>();else processes=std::make_unique<SystemConflictProcesses>();
@@ -191,7 +163,7 @@ int main(int argc, char** argv)
         ConflictDialog conflicts(*processes,parent);
         return conflicts.exec()==QDialog::Accepted;
     };
-    if(!parser.isSet("editor") && !(serviceInstalled && parser.isSet("background")) && !resolveConflicts(nullptr))return 0;
+    if(!parser.isSet("editor") && !resolveConflicts(nullptr))return 0;
     QSettings settings;
     LightingWindow window(catalog, [availableProfiles,serviceInstalled,serviceHost] {
         if(serviceInstalled)return serviceInventory(serviceHost.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":serviceHost);
@@ -218,27 +190,6 @@ int main(int argc, char** argv)
         app.installNativeEventFilter(&resume);
 #endif
     }
-    auto* view=window.findChild<QMenu*>("workspaceViewMenu");
-    tray.setToolTip("Lighting Studio");
-    auto* trayMenu=new QMenu(&window);
-    // Installed editors usually live in the tray since logon; opening the window is the deliberate start.
-    // The dialog's nested event loop can deliver another tray double-click; never open a second dialog.
-    auto resolving=std::make_shared<bool>(false);
-    auto show=[&window,serviceInstalled,resolveConflicts,resolving] {
-        if(*resolving)return;
-        if(serviceInstalled && !window.isVisible()) {
-            struct Reset {bool& flag;~Reset(){flag=false;}} reset{*resolving};*resolving=true;
-            // Cancel in the conflict dialog means "do not open the editor" (CodeRabbit review 2026-11-17).
-            if(!resolveConflicts(&window))return;
-        }
-        window.showNormal(); window.raise(); window.activateWindow();
-    };
-    QObject::connect(trayMenu->addAction("Show editor"),&QAction::triggered,&window,show);
-    QObject::connect(trayMenu->addAction("Stop output"),&QAction::triggered,&window,[=]{if(servicePanel)servicePanel->stopOutput();else outputPanel->stopOutput();});
-    QObject::connect(trayMenu->addAction("Quit"),&QAction::triggered,&window,&QWidget::close);
-    tray.setContextMenu(trayMenu);
-    QObject::connect(&tray,&QSystemTrayIcon::activated,&window,[show](QSystemTrayIcon::ActivationReason reason) { if(reason==QSystemTrayIcon::DoubleClick) show(); });
-    if(QSystemTrayIcon::isSystemTrayAvailable())QObject::connect(view->addAction("Hide to tray"),&QAction::triggered,&window,&QWidget::hide);
     AppSession session(window,settings,QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)+"/recovery.lighting.json");
     bool recovered=false;
     session.restore([&window,&recovered] {
@@ -250,10 +201,11 @@ int main(int argc, char** argv)
     const auto previous=qEnvironmentVariable("APPDATA")+"/MsiMysticLightApp/settings.json";
     if(!serviceInstalled && window.projectFile().isEmpty() && window.document().state().assignments.isEmpty() && QFileInfo::exists(previous))
         window.restoreLegacyHardware(previous);
-    if(!parser.isSet("background") || !QSystemTrayIcon::isSystemTrayAvailable())window.show();
+    // No tray and no logon start (owner decision 2026-11-25): a hidden editor rendered its preview at
+    // 60 fps beside the service, which already plays the lights. Closing the window ends the process.
+    if(serviceInstalled)window.setRenderWhenMinimized(false);
+    window.show();
     if(servicePanel)servicePanel->activate(recovered);else outputPanel->enableAutomaticOutput();
     const int code=app.exec();
-    // The tray outlives the window now; detach the window-owned menu before the window deletes it.
-    tray.hide();tray.setContextMenu(nullptr);
     return code;
 }

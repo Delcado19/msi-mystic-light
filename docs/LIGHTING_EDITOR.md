@@ -81,7 +81,7 @@ step. Subsequent parameter edits affect only the selected layer. No decorative a
 Devices: Stopped/Connecting/Running/Faulted is a read-only status in the bottom status bar, separate from Preview: playing/paused. Use Hardware to configure outputs. Its tooltip
 includes the current output status/reason; the Hardware status follows actual state.
 Changing workspace does not stop output; use Stop output. Output starts automatically for configured, detected hardware; there is no report
-approval checkbox. Tray Stop disables retries until Resume or the next app launch. Starting an animated output resumes
+approval checkbox. Stop output disables retries until Resume or the next app launch. Starting an animated output resumes
 a paused preview so devices receive moving frames. Static output does not force
 playback. See [output](OUTPUT_SESSION.md).
 
@@ -604,8 +604,10 @@ channels and rate 1/offset 0. New fields under older schema numbers are rejected
 Dirty projects are atomically autosaved on a two-second window from the first edit without
 marking undo history clean. Startup offers recovery and restores the last project,
 window and docks. Recovered documents remain unsaved. A single-instance lock
-protects the session. The tray offers Show editor, Stop output and Quit; hiding
-is explicit, and normal closing retains the unsaved-project prompt.
+protects the session. Since GS-06-R38 there is no tray icon: closing the window keeps the
+unsaved-project prompt and ends the process. Beside the installed service a minimized window skips
+the 60 fps preview render (the service plays the lights itself) and repaints once on restore;
+the portable editor keeps rendering because its frames drive the hardware.
 
 Continuous changes no longer restart the recovery countdown. Timing still depends
 on the GUI event loop; this is not a hard real-time guarantee. Failed writes show

@@ -267,6 +267,7 @@ private slots:
     void headerArtworkFits_data();
     void headerArtworkFits();
     void windowBackgroundResizes();
+    void minimizedPreviewIdle();
     void cropImageEditorContract();
     void maskInspectorMakesScopeExplicit();
     void maskBrushPresetsAndEraser();
@@ -812,6 +813,32 @@ void EditorTest::headerArtworkFits()
     QVERIFY(std::abs(occupied.left()-(pixels.width()-occupied.right()-1))<=rounding);
     QVERIFY(std::abs(occupied.top()-(pixels.height()-occupied.bottom()-1))<=rounding);
     QVERIFY(grab.save(artifactDirectory()+"/header-fit-"+QString::fromLatin1(QTest::currentDataTag())+".png"));
+}
+
+// A minimized editor beside the installed service rendered its preview every 16 ms and kept one core
+// busy (owner report 2026-11-25, fans spinning up); the service renders the lights itself.
+void EditorTest::minimizedPreviewIdle()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    window.setRenderWhenMinimized(false);
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QPushButton*>("playPreview")->setChecked(false); // Exact frame counts, no 16 ms ticks.
+    auto* time=window.findChild<QDoubleSpinBox*>("previewTime");QVERIFY(time);
+    QSignalSpy frames(&window,&LightingWindow::previewFrameChanged);
+    window.showMinimized();QCoreApplication::processEvents();QVERIFY(window.isMinimized());
+    frames.clear();
+    time->setValue(time->value()+1.5);
+    QCOMPARE(frames.size(),0);
+    QCOMPARE(window.previewSeconds(),time->value()); // The clock still advances for the service sync.
+    window.showNormal();QCoreApplication::processEvents();QVERIFY(!window.isMinimized());
+    QCOMPARE(frames.size(),1); // One catch-up frame on restore.
+    // Portable mode drives hardware from these frames, so the default keeps rendering while minimized.
+    LightingWindow portable(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    portable.show();QVERIFY(QTest::qWaitForWindowExposed(&portable));
+    portable.findChild<QPushButton*>("playPreview")->setChecked(false);portable.showMinimized();QCoreApplication::processEvents();
+    QSignalSpy portableFrames(&portable,&LightingWindow::previewFrameChanged);
+    auto* portableTime=portable.findChild<QDoubleSpinBox*>("previewTime");portableTime->setValue(portableTime->value()+1.5);
+    QCOMPARE(portableFrames.size(),1);
 }
 
 void EditorTest::cropImageEditorContract()
