@@ -875,7 +875,10 @@ whether different fans share or extend address ranges. No wiring remap is made.
 
 The official NV5 MKII product page does not specify a count for the built-in strip:
 https://phanteks.com/product/nv5-mk2-black/
-The suggested 18 LEDs remains unverified; no default count is asserted or changed.
+The hardware picker offers **Phanteks NV5 MKII / internal LED strip** with 16
+addresses: position 16 is the owner-confirmed last visible position and 17 stays
+dark (see [JARGB2_TOPOLOGY_TEST.md](JARGB2_TOPOLOGY_TEST.md)). This is an output
+boundary, not a count of physical LED packages.
 Phanteks lists 30 physical LEDs for D30-120, whereas the installed component
 metadata uses 15 addresses. These quantities must not be treated as interchangeable:
 https://phanteks.com/product/d30-120-black/

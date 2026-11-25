@@ -132,6 +132,14 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
         }
         if (!products_.contains(fan.id)) products_.insert(fan.id,fan);
     }
+    // Phanteks NV5 MKII case: built-in internal strip. Phanteks publishes no count; 16 is the
+    // owner-confirmed last visible position (17 dark), see docs/JARGB2_TOPOLOGY_TEST.md.
+    {
+        auto strip=generic("phanteks.nv5mk2.internal-strip","Phanteks NV5 MKII / internal LED strip",16,false);
+        strip.manufacturer="Phanteks"; strip.category="Strips";
+        for(int i=0;i<16;++i) strip.positions[i]={3.0*i/15,0};
+        if (!products_.contains(strip.id)) products_.insert(strip.id,strip);
+    }
     installedProducts(products_);
     for(auto it=products_.begin();it!=products_.end();) {
         if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products_.erase(it); else ++it;

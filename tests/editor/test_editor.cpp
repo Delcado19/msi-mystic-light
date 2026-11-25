@@ -3222,6 +3222,10 @@ void EditorTest::hardwareIdentityAndSave()
     QVERIFY(picker.findChild<QComboBox*>("hardwareManufacturer")->findText("Phanteks")>=0);
     auto* products=picker.findChild<QListWidget*>("hardwareProducts");
     for(int i=0;i<products->count();++i) QVERIFY(!products->item(i)->text().contains("Reverse",Qt::CaseInsensitive));
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("NV5 MKII");
+    QVERIFY(products->currentItem() && !products->currentItem()->isHidden());
+    const auto nv5=picker.component();
+    QCOMPARE(nv5.addresses(),16);QCOMPARE(hardwareCategory(nv5),QString("Strips"));QCOMPARE(hardwareManufacturer(nv5),QString("Phanteks"));
     QTemporaryDir directory;LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});
     window.document().addComponent("test.strip");
     const auto first=directory.filePath("first.lighting.json"), second=directory.filePath("second.lighting.json");

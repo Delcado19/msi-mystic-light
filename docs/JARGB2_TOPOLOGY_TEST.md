@@ -130,3 +130,8 @@ not edited, so the owner still has to set the positions and use a 16-LED strip
 component. The Hardware summary still adds up component LED counts and therefore
 overstates the number of occupied addresses for shared chains. The new routing
 has only been exercised by software tests, not on the JARGB2 hardware.
+
+Update 2026-11-25: the strip is the Phanteks NV5 MKII internal case strip. The
+hardware picker now offers it as a 16-address product. The owner's personal
+instance, previously mislabelled "Phantek D30-120" (a fan model), was renamed
+to this product; its 16 positions and wire order were not changed.
