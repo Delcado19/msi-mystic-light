@@ -115,6 +115,17 @@ private slots:
         QVERIFY(!driver->driver().pushColors("AjazzAk35iV4",proof.initial.channels[0].colors));
         QCOMPARE(device.operations.size(),std::size_t(2)); // failed START ACK: nothing else
     }
+    void previewAcceptsAjazzProfile() {
+        // The output review gate serializes a frame without hardware; ACK reads must not break it.
+        ModuleRegistry modules; QString error; QVERIFY2(modules.load(PERIPHERAL_MODULE_PATH,&error),qPrintable(error));
+        const auto proof=ajazzProof(); const auto frame=ajazzTransaction("direct-frame");
+        const auto reports=previewOutputReports(modules,proof);
+        QCOMPARE(reports.size(),11); // START, 04 20, 8 data, 04 02
+        const auto native=[](const std::vector<std::uint8_t>& bytes){return QByteArray(reinterpret_cast<const char*>(bytes.data()),qsizetype(bytes.size()));};
+        QCOMPARE(reports[0],native(ajazzNative(ajazzTransaction("global-blue-brightness2"),"set",0)));
+        for(int i=1;i<11;++i) QCOMPARE(reports[i],native(ajazzNative(frame,"set",i-1)));
+        QCOMPARE(previewOutputReports(modules,proof),reports); // stable for the connect-time recheck
+    }
     void invalidFrameSendsNothing() {
         ModuleRegistry modules; QString error; QVERIFY2(modules.load(PERIPHERAL_MODULE_PATH,&error),qPrintable(error));
         const auto proof=ajazzProof();
