@@ -43,6 +43,9 @@ on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 - Native Windows tests exercised these paths on test fixtures. The reported
   fullscreen edge offset was not reproduced in the 2560 x 1440 test fixture.
   Physical LED output and broader Component Lab feature parity remain open.
+- 2026-11-25: Custom components dialog and Component Lab replaced by the full-window Component
+  Editor (Devices > Component Editor; plan docs/superpowers/plans/2026-11-25-component-editor.md).
+  Offscreen tests only; not yet checked by the owner in the real app.
 - Review 2026-11-22 (Claude): Codex's tree committed as-is (ae0a68d, local, unpushed). Fix: the
   Devices thumbnail decoded a full-size hardware photo on every preview frame; photos are now
   decoded once, scaled to 512 px and kept in `QPixmapCache`. 22/22 CTest green; not run on the rig.
@@ -102,7 +105,7 @@ release (`vX.Y.Z`, last: `v0.1.0`); "stable" means the latest release, not `mast
   restarts a terminated `SignalRgb.exe` is unknown.
 - Installer: PawnIO/app update check (not started); DisplayVersion in the Apps entry.
 - Projects with the previous six-point M25 geometry keep their existing definition on migration.
-  New attachments use the twelve-point model. Use Component Lab to prepare a replacement
+  New attachments use the twelve-point model. Use the Component Editor to prepare a replacement
   variant for an existing layout if desired.
 - Editor: Move tool does not grab a particle effect (falls back to marquee selection). Effect corner
   resize (2026-11-24) pins the opposite corner and keeps the aspect ratio; Shift frees the aspect,

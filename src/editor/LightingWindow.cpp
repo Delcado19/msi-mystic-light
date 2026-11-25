@@ -19,7 +19,7 @@
 #include <QSplitterHandle>
 #include <QEnterEvent>
 #include <QButtonGroup>
-#include "ComponentEditor.h"
+#include "ComponentEditorPage.h"
 #include "ChannelEditor.h"
 #include "StudioWidgets.h"
 #include "StudioTheme.h"
@@ -437,71 +437,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* layoutControls = new QVBoxLayout(layoutPanel);
     layoutControls->setContentsMargins(8,8,8,8); layoutControls->setSpacing(6);
     addPanel(layoutPanel);
-    layoutControls->addWidget(new QLabel("Components"));
-    catalog_ = new QComboBox;
-    catalog_->setObjectName("componentCatalog");
-    for (const auto& component : document_.catalog()) catalog_->addItem(hardwareName(component), component.id);
-    layoutControls->addWidget(catalog_);
-    button(layoutControls, "Add component", [this] {
-        if (document_.state().placements.size() >= 256) { statusBar()->showMessage("Document limit: 256 components."); return; }
-        try {
-            if (catalog_->currentIndex() >= 0) layoutCanvas_->select(document_.addComponent(catalog_->currentData().toString()));
-        } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
-    })->setObjectName("addComponent");
-    button(layoutControls, "Create component", [this] {
-        ComponentDefinition initial; initial.id = "custom.component"; initial.name = "Custom component";
-        initial.positions = {{0, 0}}; initial.mapping = {0};
-        ComponentEditor editor(initial, false, this);
-        if (editor.exec() != QDialog::Accepted) return;
-        try {
-            const auto id = document_.registerComponent(editor.component());
-            refreshComponentCatalog();
-            catalog_->setCurrentIndex(catalog_->findData(id));
-        } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
-    });
-    button(layoutControls, "Edit component geometry", [this] {
-        const auto id = catalog_->currentData().toString();
-        ComponentDefinition definition;
-        try { definition = document_.customComponents().value(id, document_.catalog().value(id)); }
-        catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); return; }
-        if (definition.id.isEmpty()) return;
-        ComponentEditor editor(definition, true, this);
-        if (editor.exec() != QDialog::Accepted) return;
-        try { const auto variant = document_.registerComponent(editor.component()); refreshComponentCatalog(); catalog_->setCurrentIndex(catalog_->findData(variant)); }
-        catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
-    })->setObjectName("editComponent");
-    button(layoutControls, "Import component JSON", [this] {
-        const auto file = QFileDialog::getOpenFileName(this, "Import component definition", QDir::homePath(), "Component definitions (*.json)");
-        if (file.isEmpty()) return;
-        try {
-            document_.importComponent(file);
-            refreshComponentCatalog();
-            statusBar()->showMessage("Imported component definition. Select it and add an instance to the editor.", 6000);
-        } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
-    });
     auto* removeComponent=button(layoutControls, "Remove selected component", [this] {removeSelectedComponents();});
     removeComponent->setObjectName("removeComponent");
-    auto* library=new QDialog(this);
-    library->setWindowTitle("Custom components");
-    auto* libraryControls=new QVBoxLayout(library);
-    while(auto* item=layoutControls->takeAt(0)) {
-        if(item->widget()) libraryControls->addWidget(item->widget());
-        delete item;
-    }
-    library->setObjectName("customComponentLibrary");
-    button(libraryControls, "Export component definition", [this] {
-        try {
-            const auto id = catalog_->currentData().toString();
-            const auto definition = document_.customComponents().value(id, document_.catalog().value(id));
-            if (definition.id.isEmpty()) return;
-            const auto path = QFileDialog::getSaveFileName(this, "Export component definition", QDir::homePath(), "Component definitions (*.json)");
-            if (path.isEmpty()) return;
-            const auto bytes = QJsonDocument(definition.toJson()).toJson();
-            QSaveFile file(path);
-            if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
-                throw std::runtime_error("Could not export component definition");
-        } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()), 6000); }
-    });
     auto* hardwarePage=new QWidget; hardwarePage->setObjectName("hardwarePage");
     auto* hardwareColumns=new QHBoxLayout(hardwarePage); hardwareColumns->setContentsMargins(28,24,28,24); hardwareColumns->setSpacing(28);
     auto* hardwareOptions=new QWidget; auto* hardwareControls=new QVBoxLayout(hardwareOptions); hardwareControls->setContentsMargins(0,0,0,0);
@@ -514,7 +451,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardwareTitle=new QLabel("Devices"); hardwareTitle->setProperty("heading",true); hardwareControls->addWidget(hardwareTitle);
     auto* hardwareHelp=new QLabel("Select a connector to add components. Use Layout to arrange them, or Wiring to set their LED address order.");
     hardwareHelp->setWordWrap(true); hardwareControls->addWidget(hardwareHelp);
-    button(hardwareControls,"Custom components",[this,library] { refreshComponentCatalog(); library->show(); library->raise(); });
+    // Full-window Component Editor; replaces the former "Custom components" dialog (owner critique 2026-11-25).
+    auto* componentEditorButton=button(hardwareControls,"Component Editor",[this] { if (leaveComponentPage()) { componentPage()->openLibrary(); applicationPages_->setCurrentWidget(componentPage()); } });
+    componentEditorButton->setObjectName("openComponentEditor");
+    componentEditorButton->setToolTip("Create, edit, import, export and delete component definitions");
     auto* offline = new QComboBox;
     offline->setObjectName("offlineController");
     offline->setAccessibleName("Controller for offline planning");
@@ -539,16 +479,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
                     assignmentProfile(document_.profiles(),assignment.profileId),assignment.channelId));
                 break;
             }
-            const auto initial=document_.catalog().value(placement.componentId);
-            ComponentEditor editor(initial,true,this,arrangementOnly);
-            if (editor.exec()==QDialog::Accepted) {
-                try {
-                    const auto definition=editor.component();
-                    if (arrangementOnly) document_.setComponentGeometry(id,definition.positions);
-                    else if (definition.toJson()!=initial.toJson()) document_.applyComponentVariant(id,definition);
-                }
-                catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
-            }
+            if (!leaveComponentPage()) return;
+            componentPage()->openInstance(id,arrangementOnly);
+            applicationPages_->setCurrentWidget(componentPage());
             return;
         }
     };
@@ -1617,6 +1550,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         for(int i=0;i<previewChannel_->count();++i){auto* action=scopeMenu->addAction(previewChannel_->itemText(i));action->setCheckable(true);action->setChecked(i==previewChannel_->currentIndex());connect(action,&QAction::triggered,previewChannel_,[this,i]{previewChannel_->setCurrentIndex(i);});}
     });
     const auto openEditorWorkspace=[this](int index) {
+        if(!leaveComponentPage()) return;
         if(tabs_->currentIndex()==index) return;
         auto* before=tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_;
         const bool preserveCamera=isVisible() && before->isVisible();
@@ -1635,9 +1569,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         action->setCheckable(true);
         workspaceMenu->addAction(action);
         connect(tabs_,&QTabWidget::currentChanged,action,[action,index](int current) { action->setChecked(current==index); });
-        connect(action,&QAction::triggered,this,[openEditorWorkspace,index,action]{openEditorWorkspace(index);action->setChecked(true);});
+        connect(action,&QAction::triggered,this,[this,openEditorWorkspace,index,action]{openEditorWorkspace(index);action->setChecked(tabs_->currentIndex()==index && applicationPages_->currentWidget()==tabs_);});
     }
-    connect(hardwareAction,&QAction::triggered,this,[this]{tabs_->setCurrentIndex(2);});
+    connect(hardwareAction,&QAction::triggered,this,[this,hardwareAction]{if(leaveComponentPage())tabs_->setCurrentIndex(2);hardwareAction->setChecked(tabs_->currentIndex()==2 && applicationPages_->currentWidget()==tabs_);});
     auto* align=new QToolButton;align->setObjectName("alignSelection");align->setText("Align / Snap");align->setAccessibleName("Align and distribute selection");
     align->setToolTip("Align to selection bounds; distribute centers with at least three selected objects");align->setPopupMode(QToolButton::InstantPopup);
     auto* alignMenu=new QMenu(align);align->setMenu(alignMenu);previewToolbar->addWidget(align);
@@ -2067,18 +2001,23 @@ void LightingWindow::addHeaderComponents()
     } catch(const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),8000); }
 }
 
-void LightingWindow::refreshComponentCatalog()
+ComponentEditorPage* LightingWindow::componentPage()
 {
-    const auto current = catalog_->currentData();
-    auto products = document_.hasComponentLibrary() ? ComponentCatalog{} : document_.catalog();
-    try {
-        for (const auto& definition : document_.customComponents()) products.insert(definition.id, definition);
-    } catch (const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),6000); }
-    const QSignalBlocker block(catalog_);
-    catalog_->clear();
-    for (const auto& component : products) catalog_->addItem(hardwareName(component), component.id);
-    const int previous = catalog_->findData(current);
-    if (previous >= 0) catalog_->setCurrentIndex(previous);
+    // Built lazily: the built-in product list reads installed component metadata from disk.
+    if (!componentPage_) {
+        componentPage_=new ComponentEditorPage(document_,hardwareProducts(document_.installedCatalog()),applicationPages_);
+        applicationPages_->addWidget(componentPage_);
+        connect(componentPage_,&ComponentEditorPage::closeRequested,this,[this] { applicationPages_->setCurrentWidget(tabs_); });
+    }
+    return componentPage_;
+}
+
+bool LightingWindow::leaveComponentPage()
+{
+    if (!componentPage_ || applicationPages_->currentWidget()!=componentPage_) return true;
+    if (!componentPage_->confirmLeave()) return false;
+    applicationPages_->setCurrentWidget(tabs_);
+    return true;
 }
 
 void LightingWindow::refreshPlacement()
@@ -2201,9 +2140,6 @@ void LightingWindow::refresh()
             previewChannel_->addItem("Preview: "+assignment.channelId+" / "+assignment.endpoint,assignment.id);
         const int index=previewChannel_->findData(before); previewChannel_->setCurrentIndex(index<0 ? 0 : index);
     }
-    refreshComponentCatalog();
-    findChild<QPushButton*>("addComponent")->setEnabled(catalog_->count() > 0);
-    findChild<QPushButton*>("editComponent")->setEnabled(catalog_->count() > 0);
     QSignalBlocker blockTree(layers_);
     layers_->clear();
     const EffectLayer* selected = nullptr;
@@ -2599,6 +2535,7 @@ void LightingWindow::refreshProperties()
 
 void LightingWindow::closeEvent(QCloseEvent* event)
 {
+    if (componentPage_ && applicationPages_->currentWidget()==componentPage_ && !componentPage_->confirmLeave()) { event->ignore(); return; }
     if (!confirmDiscard()) { event->ignore(); return; }
     emit closing();
     event->accept();

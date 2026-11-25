@@ -210,14 +210,29 @@ QWidget* ComponentEditorPage::section(QVBoxLayout* column, const QString& title,
 
 void ComponentEditorPage::openLibrary(const QString& selectId)
 {
-    entry_ = Entry::None; instance_ = {}; arrangementOnly_ = false;
+    entry_ = Entry::None; entryId_.clear(); instance_ = {}; arrangementOnly_ = false;
     listColumn_->show(); canvas_->setLocked(false);
     draft_ = saved_ = {}; undo_.clear();
     refreshList(selectId);
     if (selectId.isEmpty()) showDraft();
 }
 
-void ComponentEditorPage::openInstance(const QUuid&, bool) {}
+void ComponentEditorPage::openInstance(const QUuid& placement, bool arrangementOnly)
+{
+    for (const auto& item : document_.state().placements) if (item.id == placement) {
+        instance_ = placement; arrangementOnly_ = arrangementOnly;
+        entry_ = Entry::Instance; entryId_ = item.componentId;
+        draft_ = saved_ = ComponentDraft::fromDefinition(document_.catalog().value(item.componentId));
+        undo_.clear();
+        listColumn_->hide();
+        showDraft(); canvas_->fit();
+        setMessage(arrangementOnly
+            ? "This connector has a fixed LED count: you can move, mirror and rotate its LEDs."
+            : "Apply changes only this component in the layout. Use Back to return without changes.");
+        return;
+    }
+    setMessage("Select a component first.");
+}
 
 void ComponentEditorPage::refreshList(const QString& selectId)
 {
@@ -289,7 +304,8 @@ void ComponentEditorPage::showDraft()
     const int addresses = int(QSet<int>(draft_.mapping.cbegin(), draft_.mapping.cend()).size());
     counts_->setText(QString("%1 LEDs · %2 addresses").arg(draft_.positions.size()).arg(addresses));
     identity_->setText(draft_.id.isEmpty() ? "(assigned on save)" : draft_.id);
-    title_->setText(!open ? "Component Editor" : (draft_.name.isEmpty() ? "Untitled component" : draft_.name) + (isDirty() ? "  •" : ""));
+    const auto name = draft_.name.isEmpty() ? QString("Untitled component") : hardwareName(draft_.toDefinitionUnchecked());
+    title_->setText(!open ? "Component Editor" : (entry_ == Entry::Instance ? "Editing " : QString()) + name + (isDirty() ? "  •" : ""));
     save_->setText(entry_ == Entry::BuiltIn ? "Save as copy" : entry_ == Entry::Instance ? "Apply" : "Save");
     save_->setEnabled(entry_ == Entry::BuiltIn || entry_ == Entry::New || (open && isDirty()));
     delete_->setEnabled(entry_ == Entry::Library || entry_ == Entry::Copy);
@@ -313,11 +329,18 @@ bool ComponentEditorPage::save()
             entryId_ = document_.saveComponentCopy(definition);
             draft_.id = entryId_; entry_ = Entry::Library;
         } else if (entry_ == Entry::Library || entry_ == Entry::Copy) document_.updateCustomComponent(definition);
-        else return false;
+        else if (entry_ == Entry::Instance) {
+            // Same rules as the former per-instance dialog: fixed connectors keep their definition and
+            // only move LEDs; other placements get a variant without touching sibling placements.
+            if (arrangementOnly_) document_.setComponentGeometry(instance_, definition.positions);
+            else if (definition.toJson() != document_.catalog().value(entryId_).toJson()) document_.applyComponentVariant(instance_, definition);
+            for (const auto& placement : document_.state().placements) if (placement.id == instance_) entryId_ = placement.componentId;
+            draft_ = ComponentDraft::fromDefinition(document_.catalog().value(entryId_));
+        } else return false;
         saved_ = draft_;
-        refreshList(entryId_);
+        if (entry_ != Entry::Instance) refreshList(entryId_);
         showDraft();
-        setMessage("Saved " + hardwareName(definition) + ".");
+        setMessage((entry_ == Entry::Instance ? "Applied " : "Saved ") + hardwareName(definition) + ".");
         return true;
     } catch (const std::exception& error) {
         setMessage(QString::fromUtf8(error.what()));

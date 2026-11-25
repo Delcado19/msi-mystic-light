@@ -503,25 +503,42 @@ silently lost. Layout transforms never modify effect-layer geometry or masks.
 
 ## Component authoring and import
 
-Open **Custom components** in Devices, then choose **Create component**.
-Component Lab offers Fan, Ring and Strip templates based on the light-point
-count. In **Place LEDs**, drag light points or double-click empty space to add one.
-In **Wire LEDs**, choose **Set order by clicking**, click the addresses in data
-order, then choose **Apply order**. Points sharing an address count as one step.
-The wiring view hides the component artwork. Cyan dashes connect addresses in
-order, and amber dotted lines connect light points sharing an address.
-Presets sort addresses by rows, serpentine rows, columns, or clockwise from the
-top. To share an address, choose it, select light points, and use **Assign
-selected points**. **Previous address** and **Next address** highlight all its
-light points.
+**Devices > Component Editor** opens a full-window editor (it replaced the former
+"Custom components" dialog and Component Lab on 2026-11-25). **Back** returns to the
+workspace; leaving with unsaved edits asks Save / Discard / Cancel, also when switching
+workspaces or closing the window.
+
+- **Component list** (left): *My components*, *Device copies* (per-placement copies
+  named `instance.*` / `restored.*`, collapsed, labelled with their user or "unused")
+  and *Built-in* (read-only; **Save as copy** stores an editable copy). A dot marks
+  definitions the open layout uses.
+- **Canvas**: click empty grid = add LED, drag LED = move the selection, drag empty
+  grid = box select, Shift adds to the selection, right-click LED = delete, middle-drag
+  or Space+drag = pan, wheel = zoom at the cursor. Moves snap to the Layout grid
+  setting; hold Alt to ignore it. Numbers are LED addresses; the dashed line follows
+  the wire order and dotted lines join LEDs sharing an address.
+- **Tool rail**: Edit (V), Wire order (W), Duplicate (D), Mirror (M / Shift+M),
+  Rotate 90° (R), Delete (Del), grid (G), wire path (P), zoom (+ / - / 0), Help (?).
+  Ctrl+Z / Ctrl+Y undo and redo every finished gesture; Ctrl+A selects all.
+- **Properties** (right): Device (name, manufacturer, category, ID), Add shapes
+  (Matrix, Strip, Ring, Fan, L-Shape, U-Shape at a chosen LED count; replaces all LEDs),
+  Wiring (presets: rows, serpentine rows, columns, clockwise; **Assign** gives the
+  selected LEDs one shared address), Danger zone (Clear all LEDs, Delete component).
+- **Save** overwrites the selected library entry in place (it no longer forks
+  `<id>.<hash>` variants); the open layout's copy updates in the same undoable edit.
+- **Delete** removes a library entry after confirmation. It is refused while the open
+  layout uses the entry; other saved layouts that still reference it report it as
+  missing when opened. Built-in entries cannot be deleted.
+
+**Devices > Edit component** (and **Layout > Edit LEDs**) opens the same page for the
+selected placement; **Apply** stores a variant for that placement only. On fixed
+connectors and for devices with protocol slots (e.g. keyboards) the LED count and wire
+order are locked: only moving, mirroring and rotating remain.
+
 Schema 2 component definitions store the number of addresses separately from the
 number of light points. Schema 1 definitions retain their one-to-one mappings.
-
-The library is stored in `%LOCALAPPDATA%/Lighting Studio/Editor/custom-components.json`.
-Use **Import component JSON** or **Export component definition** to exchange
-individual definitions. Geometry and wiring changes create variants. Saving
-through **Devices > Edit component** applies the variant to the selected
-instance. Undo restores its previous reference.
+The library is stored in `%LOCALAPPDATA%/Lighting Studio/Editor/custom-components.json`;
+**Import** and **Export** exchange individual definitions.
 
 ## Staged channel configuration
 

@@ -23,6 +23,7 @@ class QVBoxLayout;
 class ColorEditor;
 class ColorListEditor;
 
+class ComponentEditorPage;
 class LightingWindow : public QMainWindow {
     Q_OBJECT
 public:
@@ -60,7 +61,9 @@ private:
     void refreshHeader();
     QString offlineProfile_;
     void addHeaderComponents();
-    void refreshComponentCatalog();
+    ComponentEditorPage* componentPage();
+    // False when the user cancels leaving a Component Editor page with unsaved edits.
+    bool leaveComponentPage();
     ChannelAssignment selectedHeaderAssignment() const;
     ChannelAssignment connectorAssignment(const QVariantMap& connector) const;
     void moveComponentToConnector(const QUuid& id, ChannelAssignment connector);
@@ -95,7 +98,8 @@ private:
     QTreeWidget* components_=nullptr;
     QTabWidget* inspectorTabs_;
     QLabel* inspectorTitle_;
-    QComboBox *catalog_, *blend_;
+    QComboBox *blend_;
+    ComponentEditorPage* componentPage_ = nullptr;
     QComboBox* previewChannel_;
     QCheckBox* allChannels_;
     QListWidget* channelTargets_;

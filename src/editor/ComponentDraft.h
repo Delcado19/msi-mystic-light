@@ -11,6 +11,8 @@ struct ComponentDraft {
     QVector<int> nonPhysicalSlots;
     static ComponentDraft fromDefinition(const ComponentDefinition& definition);
     ComponentDefinition toDefinition() const;
+    // Field copy without validation, for presentation (names, artwork) of drafts that may be incomplete.
+    ComponentDefinition toDefinitionUnchecked() const;
     bool operator==(const ComponentDraft& other) const;
 };
 

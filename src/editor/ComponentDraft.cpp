@@ -35,11 +35,17 @@ ComponentDraft ComponentDraft::fromDefinition(const ComponentDefinition& definit
             definition.positions, definition.mapping, definition.nonPhysicalSlots};
 }
 
-ComponentDefinition ComponentDraft::toDefinition() const
+ComponentDefinition ComponentDraft::toDefinitionUnchecked() const
 {
     ComponentDefinition definition;
     definition.id = id; definition.name = name; definition.manufacturer = manufacturer; definition.category = category;
     definition.positions = positions; definition.mapping = mapping; definition.nonPhysicalSlots = nonPhysicalSlots;
+    return definition;
+}
+
+ComponentDefinition ComponentDraft::toDefinition() const
+{
+    auto definition = toDefinitionUnchecked();
     const int distinct = int(QSet<int>(mapping.cbegin(), mapping.cend()).size());
     if (distinct < mapping.size()) definition.addressCount = distinct;
     return ComponentDefinition::fromJson(definition.toJson());

@@ -103,8 +103,11 @@ void ComponentCanvas::fit()
     if (!bounds.isNull()) {
         const auto padded = bounds.adjusted(-3 * ledRadius, -3 * ledRadius, 3 * ledRadius, 3 * ledRadius);
         fitInView(padded, Qt::KeepAspectRatio);
-        // Do not blow a handful of LEDs up to the whole canvas.
-        if (zoom() > 4) { const auto center = padded.center(); resetTransform(); scale(4, 4); centerOn(center); }
+        // Do not magnify a single LED until it fills the canvas. Dense layouts (keyboards: 0.25 units
+        // between keys) need the full fit zoom so markers stay apart.
+        if (bounds.width() == 0 && bounds.height() == 0 && zoom() > 2) {
+            const auto center = padded.center(); resetTransform(); scale(2, 2); centerOn(center);
+        }
     } else centerOn(0, 0);
     emit zoomChanged(zoom());
 }
@@ -294,10 +297,7 @@ void ComponentCanvas::drawBackground(QPainter* painter, const QRectF& rect)
     painter->fillRect(rect, studioThemeColor("@surround"));
     if (tool_ == Tool::Select && !draft_.positions.isEmpty()) {
         // Housing artwork as a placement reference; wiring gets a clean workplane.
-        ComponentDefinition artwork;
-        artwork.category = draft_.category; artwork.name = draft_.name; artwork.id = draft_.id;
-        artwork.positions = draft_.positions; artwork.mapping = draft_.mapping; artwork.nonPhysicalSlots = draft_.nonPhysicalSlots;
-        painter->save(); painter->scale(unit, unit); drawHardwareComponentArtwork(*painter, artwork); painter->restore();
+        painter->save(); painter->scale(unit, unit); drawHardwareComponentArtwork(*painter, draft_.toDefinitionUnchecked()); painter->restore();
     }
     if (!grid_) return;
     // Dot grid on whole component units; skip dots until they are at least 16 screen pixels apart.
