@@ -1440,6 +1440,15 @@ void EditorTest::componentCanvasLayers()
     QCOMPARE(pathRuns(fan.positions,fan.layers),expected);
     QCOMPARE(pathRuns({{0,0},{1,0},{2,0},{9,0}},{}),(QVector<int>{0,0,-1}));
     QCOMPARE(pathRuns({{0,0},{1,0},{9,0}},{}),(QVector<int>{0,0})); // too few edges for a length jump
+    // Path edges are drawn only between visible LEDs: no false 12 -> 25 jump while layer 2 is hidden.
+    {
+        const auto lines=[&](bool dashedOnly){int count=0; for(auto* item:canvas.scene()->items()) if(auto* line=qgraphicsitem_cast<QGraphicsLineItem*>(item)) if(!dashedOnly || line->pen().style()==Qt::DashLine) ++count; return count;};
+        draft=layeredFan(); canvas.setDraft(draft); canvas.setTool(ComponentCanvas::Tool::Select);
+        canvas.setAllLayersVisible(false); canvas.setActiveLayer(0);
+        QCOMPARE(lines(false),16); QCOMPARE(lines(true),0); // 11 front-ring + 5 centre edges
+        canvas.setActiveLayer(1); QCOMPARE(lines(false),11); QCOMPARE(lines(true),0);
+        canvas.setAllLayersVisible(true); QCOMPARE(lines(false),29); QCOMPARE(lines(true),2);
+    }
     // Wire tool across layers: the pending order survives a layer switch and completes with every address.
     QVector<QVector<int>> orders;
     connect(&canvas,&ComponentCanvas::wireOrderFinished,&canvas,[&](const QVector<int>& order){orders.append(order);});

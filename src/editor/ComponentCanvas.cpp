@@ -144,8 +144,15 @@ void ComponentCanvas::rebuild()
     const auto selection = selectedRows();
     scene()->clear();
     const bool wiring = tool_ == Tool::Wire;
-    QMap<int, QPointF> firstOfAddress;
+    // The wire path is computed over every layer, so a hidden layer never joins two visible LEDs with a
+    // false edge (owner report 2026-11-25: SWAFAN 12 -> 25). Only edges with both ends visible are drawn.
+    QMap<int, QPointF> firstOfAddress, visibleFirst;
     QMap<int, int> layerOfAddress;
+    for (int row = 0; row < draft_.positions.size(); ++row) {
+        const int address = draft_.mapping.value(row);
+        if (draft_.nonPhysicalSlots.contains(address) || firstOfAddress.contains(address)) continue;
+        firstOfAddress.insert(address, draft_.positions[row] * unit); layerOfAddress.insert(address, draft_.layers.value(row, 0));
+    }
     const bool layered = draft_.layerCount() > 1;
     for (int row = 0; row < draft_.positions.size(); ++row) {
         const int address = draft_.mapping.value(row);
@@ -175,10 +182,10 @@ void ComponentCanvas::rebuild()
         text->setPos(-size.width() / 2, -size.height() / 2);
         text->setAcceptedMouseButtons(Qt::NoButton);
         if (path_) {
-            if (firstOfAddress.contains(address)) {
+            if (visibleFirst.contains(address)) {
                 QPen shared(studioThemeColor("@secondary", 170), 1.5, Qt::DotLine); shared.setCosmetic(true);
-                scene()->addLine(QLineF(firstOfAddress.value(address), point), shared)->setZValue(0);
-            } else { firstOfAddress.insert(address, point); layerOfAddress.insert(address, layer); }
+                scene()->addLine(QLineF(visibleFirst.value(address), point), shared)->setZValue(0);
+            } else visibleFirst.insert(address, point);
         }
     }
     if (path_) {
@@ -191,6 +198,8 @@ void ComponentCanvas::rebuild()
         for (const int address : order) { points.append(firstOfAddress.value(address)); layers.append(layerOfAddress.value(address)); }
         const auto runs = pathRuns(points, layers);
         for (int i = 0; i < runs.size(); ++i) {
+            if (visibleFirst.value(order[i]) != points[i] || visibleFirst.value(order[i + 1]) != points[i + 1]
+                || !visibleFirst.contains(order[i]) || !visibleFirst.contains(order[i + 1])) continue;
             const QLineF edge(points[i], points[i + 1]);
             QColor color = runs[i] < 0 ? studioThemeColor("@text", 150) : palette[runs[i] % 4];
             if (runs[i] >= 0) color.setAlpha(200);

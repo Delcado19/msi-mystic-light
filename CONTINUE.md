@@ -3,6 +3,40 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## After R37 - 2026-11-25 evening (local, NOT built into a ZIP, not pushed)
+
+State: branch `feat/lighting-studio-ux-redesign`, all local commits unpushed (PR #10 is the draft).
+23/23 CTest green in `build/r36` (build: `build\r36-build.cmd`, tests: `build\r36-ctest.cmd`,
+single test slots: `build\r37-slot.cmd <exe> -o <file> <slot>`).
+
+- Fixed after the owner's R37 screenshots, offscreen-tested only:
+  - Component Editor: the wire path is computed over all layers; edges are drawn only between
+    visible LEDs (R37 showed a false dashed 12 -> 25 jump on SWAFAN layer 1).
+  - Devices preview: the product photo keeps its aspect ratio (frame grows to the photo ratio instead of
+    stretching the photo into the LED bounds). Old behavior since `ae0a68d`, not an R36 regression.
+    No automated test; check in the real window.
+- Not changed, explained to the owner: ThermalTake Riing Quad v2 has two close rings in the SignalRGB
+  data (one grid unit apart, not identical), so 24 px markers overlap until zoomed in. Possible
+  follow-up: smaller markers or labels at low zoom; owner has not decided.
+- AJAZZ AK35I V4 phase A (`docs/superpowers/plans/2026-11-25-ajazz-ak35i-v4-phase-a.md`):
+  Tasks 1-4 done offline (`78bb4a0` encoder vs captures, `bc2e34f` scripted fake HID, `f768d32`
+  driver branch + profile `profiles/experimental/ajazz-ak35i-v4.json` + 105-key component,
+  `acf2a46` dry-run ACKs for the output review gate). Peripherals module is now API 3.
+  The experimental profile is NOT loaded by editor or service (both read `profiles/*.json`
+  non-recursively; checked by reading code, not by a test). No hardware I/O has happened.
+
+Next steps, in order:
+1. Owner checks in a new build: Devices preview proportions, SWAFAN layer 1 without the false jump,
+   layer box / path colors. Then bump to R38 and package (`scripts/package_release.py --runtime
+   build/r36/Release`).
+2. AJAZZ Task 5 needs explicit owner confirmation of D1 (Settings checkbox "AJAZZ AK35I V4
+   (experimental, I own this exact model)", default off, loads the experimental profile). Open
+   question before coding: how the service reads editor settings; stop and report if it does not.
+3. AJAZZ Task 6: docs (`docs/AJAZZ_AK35I_V4_PROTOCOL.md` status, `docs/HARDWARE_MODULES.md` API 3).
+4. Phase B (hardware, with the owner, step by step): START only, then Esc red / F1 green / F2 blue at
+   low brightness; verify the 65-byte GET length on Windows hidapi (driver requires exactly 65).
+5. Push to PR #10 only after owner approval.
+
 ## Build GS-06-R37 - 2026-11-25
 
 - Delivered as `Downloads/LightingStudio-local-r37.zip` with its `.zip.sha256` sidecar

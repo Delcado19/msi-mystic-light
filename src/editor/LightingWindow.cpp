@@ -2238,13 +2238,19 @@ void LightingWindow::updatePreview()
             image.fill(Qt::transparent);
             QPainter painter(&image);
             painter.setRenderHint(QPainter::Antialiasing);
-            const auto bounds=hardwareBodyBounds(definition);
+            const auto photo=hardwarePreviewPhoto(definition);
+            auto bounds=hardwareBodyBounds(definition);
+            if (!photo.isNull()) {
+                // Keep the photo's aspect ratio: grow the LED body frame instead of stretching the photo
+                // into it (owner report 2026-11-25: 240 mm AiO photo squeezed into a square LED frame).
+                auto size=QSizeF(photo.size()); size.scale(bounds.size(),Qt::KeepAspectRatioByExpanding);
+                bounds=QRectF(bounds.center()-QPointF(size.width()/2,size.height()/2),size);
+            }
             const double scale=qMin((area.width()-16.0)/qMax(.01,bounds.width()),(area.height()-16.0)/qMax(.01,bounds.height()));
             const double dot=qMax(3.5,3.5*qMin(area.width()/176.0,area.height()/110.0));
             painter.translate(area.width()/2.0,area.height()/2.0);
             painter.scale(scale,scale);
             painter.translate(-bounds.center());
-            const auto photo=hardwarePreviewPhoto(definition);
             if (photo.isNull()) drawHardwareComponentArtwork(painter,definition);
             else {
                 painter.setRenderHint(QPainter::SmoothPixmapTransform);
