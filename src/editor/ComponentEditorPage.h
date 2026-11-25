@@ -8,7 +8,10 @@
 
 class LightingDocument;
 class ComponentCanvas;
+class QButtonGroup;
 class QComboBox;
+class QSpinBox;
+class QToolButton;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -44,6 +47,12 @@ private:
     bool save();
     void removeCurrent();
     void setMessage(const QString& text);
+    void buildToolRail(QWidget* rail);
+    void buildShapesAndWiring(QVBoxLayout* column);
+    void buildShortcuts();
+    void editSelection(const std::function<ComponentDraft(const ComponentDraft&, const QSet<int>&)>& operation, const QString& label);
+    QSet<int> rowsForDelete() const;
+    void updateHint();
     LightingDocument& document_;
     ComponentCatalog builtIn_;
     ComponentDraft draft_, saved_;
@@ -59,4 +68,10 @@ private:
     QComboBox* category_ = nullptr;
     QLabel *title_ = nullptr, *message_ = nullptr, *counts_ = nullptr, *identity_ = nullptr;
     QPushButton *new_ = nullptr, *import_ = nullptr, *export_ = nullptr, *delete_ = nullptr, *save_ = nullptr;
+    QButtonGroup* tools_ = nullptr;
+    QToolButton *wireTool_ = nullptr, *grid_ = nullptr, *path_ = nullptr, *help_ = nullptr;
+    QSpinBox *shapeCount_ = nullptr, *address_ = nullptr;
+    QLabel *cursor_ = nullptr, *zoom_ = nullptr, *hint_ = nullptr;
+    QWidget* helpOverlay_ = nullptr;
+    QList<QWidget*> countEditing_, wiringEditing_; // disabled for protocol-locked or fixed instances
 };

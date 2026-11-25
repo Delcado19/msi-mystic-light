@@ -236,6 +236,7 @@ private slots:
     void componentLibraryEditing();
     void componentCanvasInteractions();
     void componentEditorPageLibrary();
+    void componentEditorPageEditing();
     void keyboardLedPresentation();
     void placementTransforms();
     void rgbaAndMask();
@@ -1404,6 +1405,55 @@ void EditorTest::componentEditorPageLibrary()
     QCOMPARE(name->text(),QString("Changed")); QVERIFY(page.isDirty()); QVERIFY(!page.confirmLeave());
     page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
     QVERIFY(page.confirmLeave()); QVERIFY(!page.isDirty());
+}
+
+void EditorTest::componentEditorPageEditing()
+{
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1400,800); page.openLibrary("custom.a"); page.show();
+    QVERIFY(QTest::qWaitForWindowActive(&page));
+    auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas"); canvas->setFocus();
+    const auto key=[&](Qt::Key k,Qt::KeyboardModifiers m=Qt::NoModifier){QTest::keyClick(canvas,k,m);};
+    QCOMPARE(page.draft().positions.size(),3);
+    page.findChild<QSpinBox*>("componentShapeCount")->setValue(12);
+    page.findChild<QPushButton*>("componentShapeRing")->click();
+    QCOMPARE(page.draft().positions.size(),12);
+    key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().positions.size(),3);
+    key(Qt::Key_Y,Qt::ControlModifier); QCOMPARE(page.draft().positions.size(),12);
+    const auto ring=page.draft().mapping;
+    page.findChild<QPushButton*>("componentPresetClockwise")->click();
+    QVERIFY(page.draft().mapping!=ring);
+    key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().mapping,ring);
+    canvas->selectRows({0,1});
+    page.findChild<QSpinBox*>("componentAddress")->setValue(1);
+    page.findChild<QPushButton*>("componentAssignAddress")->click();
+    QCOMPARE(page.draft().mapping[0],0); QCOMPARE(page.draft().mapping[1],0);
+    QCOMPARE(page.findChild<QLabel*>("componentStatusLeds")->text(),QString("12 LEDs · 11 addresses"));
+    key(Qt::Key_A,Qt::ControlModifier); key(Qt::Key_Delete);
+    QCOMPARE(page.draft().positions.size(),0);
+    key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().positions.size(),12);
+    canvas->selectRows({0}); const auto first=page.draft().positions[0];
+    key(Qt::Key_M); QVERIFY(page.draft().positions[0]==first); // mirroring one point about itself changes nothing
+    canvas->selectRows({}); key(Qt::Key_M); QVERIFY(page.draft().positions[0]!=first);
+    key(Qt::Key_D); QCOMPARE(page.draft().positions.size(),12); // nothing selected, nothing duplicated
+    canvas->selectRows({0}); key(Qt::Key_D); QCOMPARE(page.draft().positions.size(),13);
+    key(Qt::Key_W); QVERIFY(page.findChild<QToolButton*>("componentToolWire")->isChecked()); QCOMPARE(canvas->tool(),ComponentCanvas::Tool::Wire);
+    key(Qt::Key_Escape); QVERIFY(page.findChild<QToolButton*>("componentToolSelect")->isChecked());
+    auto* grid=page.findChild<QToolButton*>("componentGridToggle"); const bool gridOn=grid->isChecked();
+    key(Qt::Key_G); QCOMPARE(grid->isChecked(),!gridOn);
+    const double zoom=canvas->zoom(); key(Qt::Key_Plus); QVERIFY(canvas->zoom()>zoom);
+    QVERIFY(page.findChild<QLabel*>("componentStatusZoom")->text().startsWith("zoom "));
+    QVERIFY(!page.findChild<QLabel*>("componentStatusHint")->text().isEmpty());
+    page.findChild<QPushButton*>("componentClearAll")->click();
+    QCOMPARE(page.draft().positions.size(),0);
+    page.findChild<QToolButton*>("componentHelp")->click();
+    auto* help=page.findChild<QWidget*>("componentHelpOverlay"); QVERIFY(help); QVERIFY(help->isVisible());
+    const auto helpText=help->findChild<QLabel*>()->text();
+    for(const auto* shortcut:{"Ctrl+Z","Ctrl+Y","Ctrl+A","Del","Esc","Middle-drag","Right-click"}) QVERIFY2(helpText.contains(shortcut),shortcut);
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
 }
 
 void EditorTest::componentAuthoring()

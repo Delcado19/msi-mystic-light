@@ -1,5 +1,12 @@
 #include "ComponentEditorPage.h"
 #include "ComponentCanvas.h"
+#include "StudioWidgets.h"
+#include <QAbstractButton>
+#include <QButtonGroup>
+#include <QGraphicsEllipseItem>
+#include <QGridLayout>
+#include <QShortcut>
+#include <QSpinBox>
 #include "HardwareIdentity.h"
 #include "LightingDocument.h"
 #include <QComboBox>
@@ -83,6 +90,8 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
     body->addWidget(listColumn_);
 
     canvas_ = new ComponentCanvas;
+    auto* rail = new QWidget; rail->setObjectName("componentToolRail"); rail->setFixedWidth(44);
+    body->addWidget(rail);
     body->addWidget(canvas_, 1);
 
     auto* properties = new QScrollArea; properties->setObjectName("componentProperties");
@@ -98,17 +107,34 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
     category_->addItem("Automatic", QString());
     for (const auto& category : categories) category_->addItem(category, category);
     form->addRow("Category", category_);
-    counts_ = new QLabel; counts_->setObjectName("componentStatusLeds"); form->addRow(counts_);
     identity_ = new QLabel; identity_->setObjectName("componentIdentity");
     identity_->setTextInteractionFlags(Qt::TextSelectableByMouse); identity_->setWordWrap(true);
     form->addRow("ID", identity_);
+    buildShapesAndWiring(column);
     column->addStretch();
     properties->setWidget(panel);
     body->addWidget(properties);
 
     auto* status = new QHBoxLayout; root->addLayout(status);
     message_ = new QLabel; message_->setObjectName("componentMessage"); message_->setWordWrap(true);
+    counts_ = new QLabel; counts_->setObjectName("componentStatusLeds");
+    cursor_ = new QLabel("grid --, --"); cursor_->setObjectName("componentStatusGrid");
+    zoom_ = new QLabel; zoom_->setObjectName("componentStatusZoom");
+    hint_ = new QLabel; hint_->setObjectName("componentStatusHint"); hint_->setProperty("secondary", true);
+    for (auto* label : {counts_, cursor_, zoom_}) { status->addWidget(label); status->addSpacing(16); }
     status->addWidget(message_, 1);
+    status->addWidget(hint_);
+    buildToolRail(rail);
+    buildShortcuts();
+    connect(canvas_, &ComponentCanvas::cursorMoved, this, [this](std::optional<QPointF> point) {
+        cursor_->setText(point ? QString("grid %1, %2").arg(point->x(), 0, 'f', 1).arg(point->y(), 0, 'f', 1) : QString("grid --, --"));
+    });
+    connect(canvas_, &ComponentCanvas::zoomChanged, this, [this](double zoom) { zoom_->setText(QString("zoom %1%").arg(qRound(zoom * 100))); });
+    connect(canvas_, &ComponentCanvas::wireOrderFinished, this, [this](const QVector<int>& order) {
+        applyEdit(withWireOrder(draft_, order), "Set wire order");
+        tools_->button(0)->setChecked(true);
+        setMessage("Wire order applied.");
+    });
 
     connect(back, &QPushButton::clicked, this, [this] { if (confirmLeave()) emit closeRequested(); });
     connect(new_, &QPushButton::clicked, this, [this] {
@@ -267,6 +293,15 @@ void ComponentEditorPage::showDraft()
     save_->setText(entry_ == Entry::BuiltIn ? "Save as copy" : entry_ == Entry::Instance ? "Apply" : "Save");
     save_->setEnabled(entry_ == Entry::BuiltIn || entry_ == Entry::New || (open && isDirty()));
     delete_->setEnabled(entry_ == Entry::Library || entry_ == Entry::Copy);
+    // Protocol slots (e.g. keyboards) and fixed connectors keep LED count and wire order.
+    const bool countLocked = !open || draftLocksCount(draft_) || arrangementOnly_;
+    for (auto* widget : countEditing_) widget->setEnabled(!countLocked);
+    for (auto* widget : wiringEditing_) widget->setEnabled(!countLocked && !draft_.positions.isEmpty());
+    canvas_->setLocked(countLocked);
+    if (countLocked && tools_->checkedId() == 1) tools_->button(0)->setChecked(true);
+    address_->setMaximum(qMax(1, addresses));
+    zoom_->setText(QString("zoom %1%").arg(qRound(canvas_->zoom() * 100)));
+    updateHint();
     export_->setEnabled(open && !draft_.positions.isEmpty());
 }
 
@@ -317,3 +352,236 @@ bool ComponentEditorPage::confirmLeave()
 }
 
 void ComponentEditorPage::setMessage(const QString& text) { message_->setText(text); }
+
+void ComponentEditorPage::buildToolRail(QWidget* rail)
+{
+    auto* layout = new QVBoxLayout(rail); layout->setContentsMargins(4, 0, 4, 0); layout->setSpacing(4);
+    tools_ = new QButtonGroup(this); tools_->setExclusive(true);
+    const auto tool = [&](const QString& name, const QString& icon, const QString& tip, bool checkable = false) {
+        auto* button = new QToolButton; button->setObjectName(name);
+        button->setIcon(studioToolIcon(icon)); button->setIconSize({20, 20}); button->setFixedSize(36, 36);
+        button->setToolTip(tip); button->setAccessibleName(tip.section(" (", 0, 0)); button->setCheckable(checkable);
+        layout->addWidget(button, 0, Qt::AlignHCenter);
+        return button;
+    };
+    const auto separator = [&] { auto* line = new QFrame; line->setFrameShape(QFrame::HLine); layout->addWidget(line); };
+    auto* select = tool("componentToolSelect", "select", "Edit LEDs (V): click to add, drag to move, right-click to delete", true);
+    wireTool_ = tool("componentToolWire", "wire", "Wire order (W): click LEDs in data order", true);
+    tools_->addButton(select, 0); tools_->addButton(wireTool_, 1); select->setChecked(true);
+    connect(tools_, &QButtonGroup::idToggled, this, [this](int id, bool on) {
+        if (!on) return;
+        canvas_->setTool(id == 1 ? ComponentCanvas::Tool::Wire : ComponentCanvas::Tool::Select);
+        updateHint();
+    });
+    separator();
+    auto* duplicate = tool("componentDuplicate", "duplicate", "Duplicate selection (D)");
+    auto* mirrorH = tool("componentMirrorH", "mirror-h", "Mirror horizontally (M)");
+    auto* mirrorV = tool("componentMirrorV", "mirror-v", "Mirror vertically (Shift+M)");
+    auto* rotate = tool("componentRotate", "rotate", "Rotate 90 degrees clockwise (R)");
+    auto* remove = tool("componentDeleteLeds", "delete", "Delete selected LEDs (Del)");
+    separator();
+    grid_ = tool("componentGridToggle", "grid", "Show grid (G)", true); grid_->setChecked(true);
+    path_ = tool("componentPathToggle", "path", "Show wire path (P)", true); path_->setChecked(true);
+    separator();
+    auto* zoomIn = tool("componentZoomIn", "zoom-in", "Zoom in (+)");
+    auto* zoomOut = tool("componentZoomOut", "zoom-out", "Zoom out (-)");
+    auto* fit = tool("componentFit", "fit", "Fit LEDs (0)");
+    layout->addStretch();
+    help_ = tool("componentHelp", "help", "Help and shortcuts (?)");
+    countEditing_ << duplicate << remove << wireTool_;
+    connect(duplicate, &QToolButton::clicked, this, [this] {
+        editSelection([](const ComponentDraft& d, const QSet<int>& rows) { return rows.isEmpty() ? d : withDuplicated(d, rows, {1, 1}); }, "Duplicate LEDs");
+    });
+    connect(mirrorH, &QToolButton::clicked, this, [this] {
+        editSelection([](const ComponentDraft& d, const QSet<int>& rows) { return withMirror(d, rows, Qt::Horizontal); }, "Mirror horizontally");
+    });
+    connect(mirrorV, &QToolButton::clicked, this, [this] {
+        editSelection([](const ComponentDraft& d, const QSet<int>& rows) { return withMirror(d, rows, Qt::Vertical); }, "Mirror vertically");
+    });
+    connect(rotate, &QToolButton::clicked, this, [this] {
+        editSelection([](const ComponentDraft& d, const QSet<int>& rows) { return withRotation90(d, rows); }, "Rotate");
+    });
+    connect(remove, &QToolButton::clicked, this, [this] {
+        const auto rows = rowsForDelete();
+        if (rows.isEmpty()) return;
+        editSelection([rows](const ComponentDraft& d, const QSet<int>&) { return withRemoved(d, rows); }, "Delete LEDs");
+    });
+    connect(grid_, &QToolButton::toggled, canvas_, &ComponentCanvas::setGridVisible);
+    connect(path_, &QToolButton::toggled, canvas_, &ComponentCanvas::setPathVisible);
+    connect(zoomIn, &QToolButton::clicked, canvas_, [this] { canvas_->zoomBy(1.25); });
+    connect(zoomOut, &QToolButton::clicked, canvas_, [this] { canvas_->zoomBy(0.8); });
+    connect(fit, &QToolButton::clicked, canvas_, &ComponentCanvas::fit);
+
+    auto* overlay = new QFrame(this); overlay->setObjectName("componentHelpOverlay");
+    overlay->setProperty("popup", true); overlay->setAutoFillBackground(true); overlay->setFrameShape(QFrame::StyledPanel);
+    helpOverlay_ = overlay;
+    auto* helpLayout = new QVBoxLayout(overlay); helpLayout->setContentsMargins(20, 16, 20, 16);
+    auto* text = new QLabel(
+        "<h3>Help &amp; shortcuts</h3>"
+        "<p>A component is a set of LEDs with positions and a data (wire) order. Add LEDs with a shape or by "
+        "clicking the canvas, set the order with the Wire tool or a preset, then Save.</p>"
+        "<table cellspacing=\"6\">"
+        "<tr><td><b>Click</b> empty grid</td><td>add LED</td><td><b>Right-click</b> LED</td><td>delete it</td></tr>"
+        "<tr><td><b>Drag</b> LED</td><td>move selection</td><td><b>Drag</b> empty grid</td><td>box select</td></tr>"
+        "<tr><td><b>Shift+click/drag</b></td><td>add to selection</td><td><b>Middle-drag</b> / Space+drag</td><td>pan</td></tr>"
+        "<tr><td><b>Scroll</b></td><td>zoom at cursor</td><td><b>Alt</b> while dragging</td><td>ignore the grid</td></tr>"
+        "<tr><td><b>V</b></td><td>edit tool</td><td><b>W</b></td><td>wire order tool</td></tr>"
+        "<tr><td><b>R</b></td><td>rotate 90 degrees clockwise</td><td><b>D</b></td><td>duplicate selection</td></tr>"
+        "<tr><td><b>M</b> / <b>Shift+M</b></td><td>mirror H / V</td><td><b>Del</b> / Backspace</td><td>delete selection or LED under cursor</td></tr>"
+        "<tr><td><b>Ctrl+Z</b></td><td>undo</td><td><b>Ctrl+Y</b> / Ctrl+Shift+Z</td><td>redo</td></tr>"
+        "<tr><td><b>Ctrl+A</b></td><td>select all</td><td><b>Esc</b></td><td>leave wire mode / clear selection</td></tr>"
+        "<tr><td><b>G</b> / <b>P</b></td><td>grid / wire path</td><td><b>+</b> / <b>-</b> / <b>0</b></td><td>zoom in / out / fit</td></tr>"
+        "</table>");
+    text->setWordWrap(true); text->setTextFormat(Qt::RichText); helpLayout->addWidget(text);
+    auto* close = new QPushButton("Got it"); close->setProperty("primary", true);
+    helpLayout->addWidget(close, 0, Qt::AlignRight);
+    overlay->hide();
+    connect(close, &QPushButton::clicked, overlay, &QWidget::hide);
+    connect(help_, &QToolButton::clicked, this, [this] {
+        helpOverlay_->setVisible(!helpOverlay_->isVisible());
+        helpOverlay_->resize(qMin(720, width() - 80), helpOverlay_->sizeHint().height());
+        helpOverlay_->move((width() - helpOverlay_->width()) / 2, (height() - helpOverlay_->height()) / 2);
+        helpOverlay_->raise();
+    });
+}
+
+void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
+{
+    auto* shapes = section(column, "ADD SHAPES", true);
+    auto* shapeLayout = new QGridLayout(shapes); shapeLayout->setContentsMargins(0, 0, 0, 0);
+    const QList<QPair<QString, DraftShape>> shapeButtons{{"Matrix", DraftShape::Matrix}, {"Strip", DraftShape::Strip},
+        {"Ring", DraftShape::Ring}, {"Fan", DraftShape::Fan}, {"L-Shape", DraftShape::LShape}, {"U-Shape", DraftShape::UShape}};
+    for (int i = 0; i < shapeButtons.size(); ++i) {
+        const auto label = shapeButtons[i].first;
+        const auto shape = shapeButtons[i].second;
+        auto* button = new QPushButton(label); button->setObjectName("componentShape" + QString(label).remove('-'));
+        button->setToolTip("Replace all LEDs with a " + label.toLower() + " of the chosen LED count");
+        shapeLayout->addWidget(button, i / 3, i % 3);
+        countEditing_ << button;
+        connect(button, &QPushButton::clicked, this, [this, shape, label] {
+            try { applyEdit(withShape(draft_, shape, shapeCount_->value()), "Add " + label); }
+            catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
+        });
+    }
+    shapeCount_ = new QSpinBox; shapeCount_->setObjectName("componentShapeCount"); shapeCount_->setRange(1, 1024);
+    shapeCount_->setValue(12); shapeCount_->setAccessibleName("LEDs in the new shape");
+    auto* countRow = new QHBoxLayout; countRow->addWidget(new QLabel("LEDs")); countRow->addWidget(shapeCount_, 1);
+    shapeLayout->addLayout(countRow, 2, 0, 1, 3);
+    countEditing_ << shapeCount_;
+
+    auto* wiring = section(column, "WIRING", true);
+    auto* wiringLayout = new QVBoxLayout(wiring); wiringLayout->setContentsMargins(0, 0, 0, 0);
+    auto* info = new QLabel("The LED order must match the device's data line. Use the Wire tool (W) to click "
+        "LEDs in order, or apply a preset.");
+    info->setWordWrap(true); info->setProperty("secondary", true); wiringLayout->addWidget(info);
+    const QList<QPair<QString, WiringPreset>> presets{{"Rows: left to right", WiringPreset::RowsLeftToRight},
+        {"Rows: serpentine", WiringPreset::RowsSerpentine}, {"Columns: top to bottom", WiringPreset::ColumnsTopToBottom},
+        {"Clockwise around center", WiringPreset::Clockwise}};
+    const QStringList presetNames{"RowsLeftToRight", "RowsSerpentine", "ColumnsTopToBottom", "Clockwise"};
+    for (int i = 0; i < presets.size(); ++i) {
+        auto* button = new QPushButton(presets[i].first); button->setObjectName("componentPreset" + presetNames[i]);
+        wiringLayout->addWidget(button); wiringEditing_ << button;
+        const auto preset = presets[i].second;
+        const auto label = presets[i].first;
+        connect(button, &QPushButton::clicked, this, [this, preset, label] { applyEdit(withPreset(draft_, preset), "Wiring: " + label); });
+    }
+    auto* shareRow = new QHBoxLayout; wiringLayout->addLayout(shareRow);
+    shareRow->addWidget(new QLabel("Address"));
+    address_ = new QSpinBox; address_->setObjectName("componentAddress"); address_->setRange(1, 1);
+    address_->setAccessibleName("LED address for the selected LEDs"); shareRow->addWidget(address_, 1);
+    auto* assign = new QPushButton("Assign"); assign->setObjectName("componentAssignAddress");
+    assign->setToolTip("Give the selected LEDs this address so they share one color");
+    shareRow->addWidget(assign);
+    wiringEditing_ << address_ << assign;
+    connect(assign, &QPushButton::clicked, this, [this] {
+        editSelection([this](const ComponentDraft& d, const QSet<int>& rows) {
+            return rows.isEmpty() ? d : withSharedAddress(d, rows, address_->value() - 1);
+        }, "Share address");
+    });
+    connect(address_, &QSpinBox::valueChanged, this, [this](int value) {
+        // Stepping through addresses highlights every LED of that address for checking.
+        if (!address_->hasFocus()) return;
+        QSet<int> rows;
+        for (int row = 0; row < draft_.mapping.size(); ++row) if (draft_.mapping[row] == value - 1) rows.insert(row);
+        canvas_->selectRows(rows);
+    });
+
+    auto* danger = section(column, "DANGER ZONE", false);
+    auto* dangerLayout = new QVBoxLayout(danger); dangerLayout->setContentsMargins(0, 0, 0, 0);
+    auto* clear = new QPushButton("Clear all LEDs"); clear->setObjectName("componentClearAll"); clear->setProperty("danger", true);
+    dangerLayout->addWidget(clear); countEditing_ << clear;
+    connect(clear, &QPushButton::clicked, this, [this] {
+        if (draft_.positions.isEmpty()) return;
+        editSelection([](const ComponentDraft& d, const QSet<int>&) {
+            QSet<int> all; for (int row = 0; row < d.positions.size(); ++row) all.insert(row);
+            return withRemoved(d, all);
+        }, "Clear all LEDs");
+    });
+    auto* removeDefinition = new QPushButton("Delete component"); removeDefinition->setObjectName("componentDangerDelete");
+    removeDefinition->setProperty("danger", true); dangerLayout->addWidget(removeDefinition);
+    connect(removeDefinition, &QPushButton::clicked, this, [this] { removeCurrent(); });
+}
+
+void ComponentEditorPage::buildShortcuts()
+{
+    const auto bind = [this](const QKeySequence& keys, std::function<void()> action) {
+        auto* shortcut = new QShortcut(keys, this);
+        shortcut->setContext(Qt::WidgetWithChildrenShortcut);
+        connect(shortcut, &QShortcut::activated, this, std::move(action));
+    };
+    const auto click = [this](const char* name) {
+        return [this, name] { if (auto* b = findChild<QAbstractButton*>(name); b && b->isEnabled()) b->click(); };
+    };
+    bind(QKeySequence(Qt::Key_V), [this] { tools_->button(0)->setChecked(true); });
+    bind(QKeySequence(Qt::Key_W), [this] { if (wireTool_->isEnabled()) wireTool_->setChecked(true); });
+    bind(QKeySequence(Qt::Key_R), click("componentRotate"));
+    bind(QKeySequence(Qt::Key_D), click("componentDuplicate"));
+    bind(QKeySequence(Qt::Key_M), click("componentMirrorH"));
+    bind(QKeySequence(Qt::SHIFT | Qt::Key_M), click("componentMirrorV"));
+    bind(QKeySequence(Qt::Key_Delete), click("componentDeleteLeds"));
+    bind(QKeySequence(Qt::Key_Backspace), click("componentDeleteLeds"));
+    bind(QKeySequence::Undo, [this] { undo_.undo(); });
+    bind(QKeySequence(Qt::CTRL | Qt::Key_Y), [this] { undo_.redo(); });
+    bind(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), [this] { undo_.redo(); });
+    bind(QKeySequence(Qt::CTRL | Qt::Key_A), [this] {
+        QSet<int> all; for (int row = 0; row < draft_.positions.size(); ++row) all.insert(row);
+        canvas_->selectRows(all);
+    });
+    bind(QKeySequence(Qt::Key_Escape), [this] {
+        if (helpOverlay_->isVisible()) helpOverlay_->hide();
+        else if (tools_->checkedId() == 1) tools_->button(0)->setChecked(true);
+        else canvas_->selectRows({});
+    });
+    bind(QKeySequence(Qt::Key_G), [this] { grid_->toggle(); });
+    bind(QKeySequence(Qt::Key_P), [this] { path_->toggle(); });
+    bind(QKeySequence(Qt::Key_Plus), [this] { canvas_->zoomBy(1.25); });
+    bind(QKeySequence(Qt::Key_Equal), [this] { canvas_->zoomBy(1.25); });
+    bind(QKeySequence(Qt::Key_Minus), [this] { canvas_->zoomBy(0.8); });
+    bind(QKeySequence(Qt::Key_0), [this] { canvas_->fit(); });
+    bind(QKeySequence(Qt::Key_Question), [this] { help_->click(); });
+}
+
+void ComponentEditorPage::editSelection(const std::function<ComponentDraft(const ComponentDraft&, const QSet<int>&)>& operation, const QString& label)
+{
+    try { applyEdit(operation(draft_, canvas_->selectedRows()), label); }
+    catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
+}
+
+QSet<int> ComponentEditorPage::rowsForDelete() const
+{
+    auto rows = canvas_->selectedRows();
+    if (!rows.isEmpty()) return rows;
+    // Without a selection, Delete removes the LED under the mouse pointer.
+    for (auto* item : canvas_->items(canvas_->viewport()->mapFromGlobal(QCursor::pos()))) {
+        auto* led = item->parentItem() ? item->parentItem() : item;
+        if (led->type() == QGraphicsEllipseItem::Type) return {led->data(0).toInt()};
+    }
+    return {};
+}
+
+void ComponentEditorPage::updateHint()
+{
+    hint_->setText(tools_->checkedId() == 1
+        ? "click LEDs in data order · Esc = cancel · M-drag = pan · scroll = zoom"
+        : "click = add · drag LED = move · drag empty = box select · R-click = delete · M-drag = pan · scroll = zoom");
+}

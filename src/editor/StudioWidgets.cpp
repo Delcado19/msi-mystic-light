@@ -318,6 +318,17 @@ QIcon studioToolIcon(const QString& name)
             painter.drawLine(corner,corner+QPointF(0,corner.y()<12 ? 5 : -5));
         }
     }
+    // Component Editor tool rail.
+    else if(name=="select") { painter.setBrush(QColor("#e0e8fc")); painter.drawPolygon(QPolygonF{QPointF(6,3),QPointF(6,19),QPointF(10,15),QPointF(13,21),QPointF(15,20),QPointF(12,14),QPointF(18,14)}); }
+    else if(name=="wire") { painter.drawLine(QPointF(5,18),QPointF(12,7)); painter.drawLine(QPointF(12,7),QPointF(19,16)); for(const auto p:{QPointF(5,18),QPointF(12,7),QPointF(19,16)}) painter.drawEllipse(p,2.5,2.5); }
+    else if(name=="duplicate") { painter.drawRoundedRect(QRectF(3,7,12,13),2,2); painter.drawRoundedRect(QRectF(9,3,12,13),2,2); }
+    else if(name=="mirror-h") { painter.drawLine(12,3,12,21); painter.drawPolygon(QPolygonF{QPointF(9,7),QPointF(3,17),QPointF(9,17)}); painter.drawPolygon(QPolygonF{QPointF(15,7),QPointF(21,17),QPointF(15,17)}); }
+    else if(name=="mirror-v") { painter.drawLine(3,12,21,12); painter.drawPolygon(QPolygonF{QPointF(7,9),QPointF(17,3),QPointF(17,9)}); painter.drawPolygon(QPolygonF{QPointF(7,15),QPointF(17,21),QPointF(17,15)}); }
+    else if(name=="rotate") { painter.drawArc(QRectF(4,4,16,16),60*16,280*16); painter.drawLine(QPointF(16,5),QPointF(19,8)); painter.drawLine(QPointF(19,8),QPointF(15,10)); }
+    else if(name=="delete") { painter.drawLine(4,6,20,6); painter.drawLine(9,6,10,3); painter.drawLine(10,3,14,3); painter.drawLine(14,3,15,6); painter.drawPolygon(QPolygonF{QPointF(6,6),QPointF(7,21),QPointF(17,21),QPointF(18,6)}); }
+    else if(name=="grid") { for(int i:{8,16}) {painter.drawLine(i,3,i,21); painter.drawLine(3,i,21,i);} }
+    else if(name=="path") { QPainterPath curve; curve.moveTo(4,19); curve.cubicTo(8,4,16,20,20,5); painter.drawPath(curve); }
+    else if(name=="help") { painter.drawEllipse(QRectF(3,3,18,18)); QFont font=painter.font(); font.setPixelSize(13); font.setBold(true); painter.setFont(font); painter.drawText(QRectF(3,3,18,18),Qt::AlignCenter,"?"); }
     else if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }
     else if(name=="save") { painter.drawRect(4,3,16,18); painter.drawRect(7,3,10,6); painter.drawRect(7,14,10,7); }
     else if(name=="save-as") {
