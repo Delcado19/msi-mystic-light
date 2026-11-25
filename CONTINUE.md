@@ -3,6 +3,21 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R37 - 2026-11-25
+
+- Delivered as `Downloads/LightingStudio-local-r37.zip` with its `.zip.sha256` sidecar
+  (SHA-256 `e98685a7243bd19e785be993916e6921f9920dd692136e071890b8fffb68c0ad`). R36 plus display-only
+  LED layers in the Component Editor (plan `docs/superpowers/plans/2026-11-25-component-led-layers.md`):
+  layer box below the tool rail, LAYERS section, PgUp/PgDn and Ctrl+PgUp/PgDn, colored wiring runs
+  with dashed jump arrows, SignalRGB import puts LEDs on identical coordinates on separate layers
+  (SWAFAN, Freezer 36, CoreLiquid block, Vertagear SL5000). Positions and effects are unchanged.
+- Checks: 22/22 CTest with the R37 ID, same 56-file list as R36, `GS-06-R37` marker inside the ZIP.
+  Not run: real window (colors on the dark canvas, layer box placement), installer, physical output.
+- Unverified: whether projects that already embed a SWAFAN definition pick up the import layers or keep
+  their embedded copy without layers until the component is placed again or edited.
+- Next: AJAZZ AK35I V4 phase A (`docs/superpowers/plans/2026-11-25-ajazz-ak35i-v4-phase-a.md`),
+  D1 = Settings checkbox (owner agreed 2026-11-25).
+
 ## Build GS-06-R36 - 2026-11-25
 
 - Delivered as `Downloads/LightingStudio-local-r36.zip` with its `.zip.sha256` sidecar

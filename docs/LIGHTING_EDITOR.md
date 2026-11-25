@@ -515,15 +515,29 @@ workspaces or closing the window.
 - **Canvas**: click empty grid = add LED, drag LED = move the selection, drag empty
   grid = box select, Shift adds to the selection, right-click LED = delete, middle-drag
   or Space+drag = pan, wheel = zoom at the cursor. Moves snap to the Layout grid
-  setting; hold Alt to ignore it. Numbers are LED addresses; the dashed line follows
-  the wire order and dotted lines join LEDs sharing an address.
+  setting; hold Alt to ignore it. Numbers are LED addresses; the wire path is split
+  into colored runs (cyan, amber, magenta, green), and a dashed arrow marks each jump
+  between runs (a layer change or an edge longer than 2.5x the median). Dotted lines
+  join LEDs sharing an address.
 - **Tool rail**: Edit (V), Wire order (W), Duplicate (D), Mirror (M / Shift+M),
   Rotate 90° (R), Delete (Del), grid (G), wire path (P), zoom (+ / - / 0), Help (?).
   Ctrl+Z / Ctrl+Y undo and redo every finished gesture; Ctrl+A selects all.
 - **Properties** (right): Device (name, manufacturer, category, ID), Add shapes
   (Matrix, Strip, Ring, Fan, L-Shape, U-Shape at a chosen LED count; replaces all LEDs),
   Wiring (presets: rows, serpentine rows, columns, clockwise; **Assign** gives the
-  selected LEDs one shared address), Danger zone (Clear all LEDs, Delete component).
+  selected LEDs one shared address), Layers (move the selection to a layer; the highest
+  value creates a new one), Danger zone (Clear all LEDs, Delete component).
+- **Layers** (2026-11-25): LEDs that sit behind each other, such as the front and back
+  ring of a ThermalTake SWAFAN, keep identical positions so effects light them alike,
+  but get separate display layers. The box below the tool rail shows *active/count*
+  (layer 1 is the front); ▲ / PgUp goes one layer back, ▼ / PgDn to the front, the
+  layer icon shows all layers with the inactive ones dimmed and locked (the Wire tool
+  can still click them). Ctrl+PgUp / Ctrl+PgDn move the selection one layer back or
+  front. Layers are stored as the optional `layers` array of a definition and only
+  written when an LED is on a layer above 1; empty layers are dropped on save. The
+  SignalRGB import puts the n-th LED on an already used coordinate on layer n (SWAFAN,
+  ARCTIC Freezer 36, MSI CoreLiquid block, Vertagear SL5000). Layout and Effects ignore
+  layers.
 - **Save** overwrites the selected library entry in place (it no longer forks
   `<id>.<hash>` variants); the open layout's copy updates in the same undoable edit.
 - **Delete** removes a library entry after confirmation. It is refused while the open
