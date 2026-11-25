@@ -480,6 +480,7 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
         const auto label = shapeButtons[i].first;
         const auto shape = shapeButtons[i].second;
         auto* button = new QPushButton(label); button->setObjectName("componentShape" + QString(label).remove('-'));
+        button->setIcon(studioToolIcon("shape-" + QString(label).remove('-').toLower()));
         button->setToolTip("Replace all LEDs with a " + label.toLower() + " of the chosen LED count");
         shapeLayout->addWidget(button, i / 3, i % 3);
         countEditing_ << button;

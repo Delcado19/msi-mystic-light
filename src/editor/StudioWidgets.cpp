@@ -327,6 +327,17 @@ QIcon studioToolIcon(const QString& name)
     else if(name=="rotate") { painter.drawArc(QRectF(4,4,16,16),60*16,280*16); painter.drawLine(QPointF(16,5),QPointF(19,8)); painter.drawLine(QPointF(19,8),QPointF(15,10)); }
     else if(name=="delete") { painter.drawLine(4,6,20,6); painter.drawLine(9,6,10,3); painter.drawLine(10,3,14,3); painter.drawLine(14,3,15,6); painter.drawPolygon(QPolygonF{QPointF(6,6),QPointF(7,21),QPointF(17,21),QPointF(18,6)}); }
     else if(name=="grid") { for(int i:{8,16}) {painter.drawLine(i,3,i,21); painter.drawLine(3,i,21,i);} }
+    // Component Editor "Add shapes" buttons: LED dots in the shape's footprint (owner request 2026-11-25).
+    else if(name.startsWith("shape-")) {
+        QList<QPointF> dots;
+        if(name=="shape-matrix") { for(int y:{5,12,19}) for(int x:{5,12,19}) dots<<QPointF(x,y); }
+        else if(name=="shape-strip") { for(int x:{3,9,15,21}) dots<<QPointF(x,12); }
+        else if(name=="shape-ring" || name=="shape-fan") { for(int i=0;i<8;++i) dots<<QPointF(12+8*std::cos(i*3.14159265358979/4),12+8*std::sin(i*3.14159265358979/4)); if(name=="shape-fan") painter.drawEllipse(QPointF(12,12),3,3); }
+        else if(name=="shape-lshape") { for(int y:{4,10,16}) dots<<QPointF(5,y); for(int x:{5,11,17}) dots<<QPointF(x,20); }
+        else if(name=="shape-ushape") { for(int y:{4,10,16}) { dots<<QPointF(4,y); dots<<QPointF(20,y); } dots<<QPointF(12,20); }
+        painter.setPen(Qt::NoPen); painter.setBrush(QColor("#e0e8fc"));
+        for(const auto& dot:dots) painter.drawEllipse(dot,2.2,2.2);
+    }
     else if(name=="path") { QPainterPath curve; curve.moveTo(4,19); curve.cubicTo(8,4,16,20,20,5); painter.drawPath(curve); }
     else if(name=="help") { painter.drawEllipse(QRectF(3,3,18,18)); QFont font=painter.font(); font.setPixelSize(13); font.setBold(true); painter.setFont(font); painter.drawText(QRectF(3,3,18,18),Qt::AlignCenter,"?"); }
     else if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }

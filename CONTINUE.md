@@ -3,6 +3,18 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R36 - 2026-11-25
+
+- Delivered as `Downloads/LightingStudio-local-r36.zip` with its `.zip.sha256` sidecar
+  (SHA-256 `b2515c30adb04f1fa536732c8f963896f43ec7fff4fac7627f54b966d555e871`). R35 plus: Devices
+  preview renders at the panel size, preview and output endpoint list share the spare height (1:2)
+  instead of a trailing spacer, Component Editor shape buttons have icons.
+- Built in a fresh `build/r36` tree: the old trees still point at the pre-move paths
+  (`Software_Projects/msi-mystic-light`, `Software_Projects/OpenRGB`). `build/r36-build.cmd` uses
+  `Lighting-Projects/OpenRGB/OpenRGB/dependencies/hidapi-win`.
+- Checks: 22/22 CTest with the R36 ID, same 56-file list as R35, `GS-06-R36` marker in the editor.
+  Not run: the new layout in a real window, packaged editor, installer, physical output.
+
 ## Build GS-06-R35 - 2026-11-25
 
 - Delivered as `Downloads/LightingStudio-local-r35.zip` with its `.zip.sha256` sidecar

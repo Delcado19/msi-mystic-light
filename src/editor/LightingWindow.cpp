@@ -78,7 +78,7 @@
 
 namespace {
 // R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus. R18: canvas drags stream live, menus show only what acts in the current view. R19: no 5 s rescan while all outputs run, output stalls logged. R20: presence check off the output thread (150 ms LED freeze each second). R21: uninstaller backs up user files, never kills the editor. R22: tray icon and name, Layout menu without Add components. R23: product name Lighting Studio for settings and session data. R24: CodeRabbit fixes for PR #3, picker keeps the color on an outside click, Return applies.
-constexpr auto studioBuildId="GS-06-R35";
+constexpr auto studioBuildId="GS-06-R36";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -652,7 +652,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     componentPreview->setObjectName("deviceComponentPreview");
     componentPreview->setAlignment(Qt::AlignCenter);
     componentPreview->setAccessibleName("Selected component and LED address preview");
-    headerControls->addWidget(componentPreview);
+    // The pixmap is rendered at the label's size (updatePreview), so the label must not size itself from it.
+    componentPreview->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Ignored);
+    componentPreview->setMinimumHeight(110);
+    headerControls->addWidget(componentPreview,1);
     auto* deviceActions=new QWidget;
     deviceActions->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Fixed);
     auto* deviceActionRows=new QVBoxLayout(deviceActions);
@@ -667,7 +670,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     headerControls->removeWidget(headerSettings);
     deviceActionRows->addWidget(headerSettings);
     deviceOutput_->insertWidget(0,deviceActions);
-    deviceOutput_->insertWidget(1,headerPanel);
+    // Preview and the output endpoint list share the spare height (1:2) instead of a trailing spacer.
+    deviceOutput_->insertWidget(1,headerPanel,1);
     auto* moveComponentAction = actions->addAction("Move to connector...");
     connect(moveComponentAction,&QAction::triggered,this,[this] {
         const auto id = layoutCanvas_->selection();
@@ -2177,7 +2181,7 @@ void LightingWindow::refresh()
 
 void LightingWindow::installOutputPanel(QWidget* panel)
 {
-    deviceOutput_->insertWidget(deviceOutput_->count()-1,panel);
+    deviceOutput_->insertWidget(deviceOutput_->count()-1,panel,2);
 }
 
 namespace {
@@ -2226,13 +2230,18 @@ void LightingWindow::updatePreview()
         for (const auto& placement : document_.state().placements) if (placement.id==layoutCanvas_->selection()) {
             const auto& definition=document_.catalog()[placement.componentId];
             const auto colors=document_.previewComponentColors(previewFrame_,seconds).value(placement.id);
-            QPixmap image(176,110);
+            // shortcut: re-rendered on the next preview tick only, so a resize while paused keeps the old size.
+            const QSize area=thumbnail->size().expandedTo({176,110});
+            const qreal ratio=thumbnail->devicePixelRatioF();
+            QPixmap image(area*ratio);
+            image.setDevicePixelRatio(ratio);
             image.fill(Qt::transparent);
             QPainter painter(&image);
             painter.setRenderHint(QPainter::Antialiasing);
             const auto bounds=hardwareBodyBounds(definition);
-            const double scale=qMin(160.0/qMax(.01,bounds.width()),94.0/qMax(.01,bounds.height()));
-            painter.translate(image.width()/2.0,image.height()/2.0);
+            const double scale=qMin((area.width()-16.0)/qMax(.01,bounds.width()),(area.height()-16.0)/qMax(.01,bounds.height()));
+            const double dot=qMax(3.5,3.5*qMin(area.width()/176.0,area.height()/110.0));
+            painter.translate(area.width()/2.0,area.height()/2.0);
             painter.scale(scale,scale);
             painter.translate(-bounds.center());
             const auto photo=hardwarePreviewPhoto(definition);
@@ -2246,7 +2255,7 @@ void LightingWindow::updatePreview()
                 const int address=definition.mapping.at(i);
                 if (definition.nonPhysicalSlots.contains(address)) continue;
                 painter.setBrush(colors.value(address,Qt::black));
-                painter.drawEllipse(definition.positions[i],3.5/scale,3.5/scale);
+                painter.drawEllipse(definition.positions[i],dot/scale,dot/scale);
             }
             painter.end();
             thumbnail->setPixmap(image);
