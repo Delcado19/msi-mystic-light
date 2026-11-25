@@ -1268,6 +1268,20 @@ void EditorTest::componentLibraryEditing()
     QCOMPARE(document.catalog().value("custom.b").positions[0],QPointF(0,5));
     document.history()->undo();
     QCOMPARE(document.catalog().value("custom.b").positions[0],b.positions[0]);
+    // The service may still play the previous definition (e.g. after that undo). Reopening must not
+    // fail; the project keeps the playing geometry under a variant and the library keeps the edit.
+    {
+        LightingDocument service(catalog(),nullptr,{},library);
+        service.addComponent("custom.b");
+        const auto projectFile=folder.filePath("service.lighting.json");
+        QJsonArray playing; service.save(projectFile,false,nullptr,&playing);
+        LightingDocument reopened(catalog(),nullptr,{},library);
+        reopened.load(projectFile,QJsonArray{b.toJson()});
+        const auto shown=reopened.state().placements.first().componentId;
+        QVERIFY(shown!="custom.b");
+        QCOMPARE(reopened.catalog().value(shown).positions,b.positions);
+        QCOMPARE(reopened.customComponents().value("custom.b").positions[0],QPointF(0,5));
+    }
     // Updating never writes built-in definitions; a copy gets a fresh custom ID.
     QVERIFY_EXCEPTION_THROWN(document.updateCustomComponent(catalog().first()),std::invalid_argument);
     const auto copy=document.saveComponentCopy(catalog().first());

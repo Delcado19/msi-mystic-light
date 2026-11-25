@@ -993,8 +993,13 @@ void LightingDocument::load(const QString& fileName, const QJsonArray& playbackD
             if (bundled.contains(definition.id) || initialCatalog_.contains(definition.id))
                 throw std::invalid_argument("Conflicting playback component ID");
             bundled.insert(definition.id);
-            if (!libraryPath_.isEmpty() && custom.contains(definition.id) && custom.value(definition.id).toJson() != definition.toJson())
-                throw std::invalid_argument("Playback component conflicts with the user's library");
+            if (!libraryPath_.isEmpty() && custom.contains(definition.id) && custom.value(definition.id).toJson() != definition.toJson()) {
+                // The Component Editor saves library entries in place, so the service can still play an
+                // older definition under the same ID. Keep what is playing for this project under a
+                // content-derived variant (local copy only; the library keeps the user's edit).
+                migratedIds.insert(definition.id, reconcileDefinition(definition, initialCatalog_, custom));
+                continue;
+            }
             custom.insert(definition.id, definition);
         }
         for (const auto& definition : custom) if (!initialCatalog_.contains(definition.id))
