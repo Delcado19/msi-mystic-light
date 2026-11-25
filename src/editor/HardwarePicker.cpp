@@ -108,12 +108,11 @@ void installedProducts(ComponentCatalog& products)
     }
 }
 }
-HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<HeaderChoice>& headers,const QVariantMap& selected,QWidget* parent)
-    :QDialog(parent),products_(catalog),headers_(headers)
+ComponentCatalog hardwareProducts(const ComponentCatalog& catalog)
 {
-    setObjectName("hardwarePicker"); setWindowTitle("Add hardware"); resize(760,640);
-    for(int count:{6,8,12,16}) { auto c=generic(QString("generic.fan.%1").arg(count),QString("Generic fan / %1 addresses").arg(count),count,true); if(!products_.contains(c.id)) products_.insert(c.id,c); }
-    for(int count:{8,30,60}) { auto c=generic(QString("generic.strip.%1").arg(count),QString("Generic strip / %1 LEDs").arg(count),count,false); if(!products_.contains(c.id)) products_.insert(c.id,c); }
+    auto products=catalog;
+    for(int count:{6,8,12,16}) { auto c=generic(QString("generic.fan.%1").arg(count),QString("Generic fan / %1 addresses").arg(count),count,true); if(!products.contains(c.id)) products.insert(c.id,c); }
+    for(int count:{8,30,60}) { auto c=generic(QString("generic.strip.%1").arg(count),QString("Generic strip / %1 LEDs").arg(count),count,false); if(!products.contains(c.id)) products.insert(c.id,c); }
     // Restore the original user's installed M25 models: six addresses for paired physical LEDs.
     {
         ComponentDefinition fan;
@@ -130,7 +129,7 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
                 fan.mapping.append(address);
             }
         }
-        if (!products_.contains(fan.id)) products_.insert(fan.id,fan);
+        if (!products.contains(fan.id)) products.insert(fan.id,fan);
     }
     // Phanteks NV5 MKII case: built-in internal strip. Phanteks publishes no count; 16 is the
     // owner-confirmed last visible position (17 dark), see docs/JARGB2_TOPOLOGY_TEST.md.
@@ -138,12 +137,19 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
         auto strip=generic("phanteks.nv5mk2.internal-strip","Phanteks NV5 MKII / internal LED strip",16,false);
         strip.manufacturer="Phanteks"; strip.category="Strips";
         for(int i=0;i<16;++i) strip.positions[i]={3.0*i/15,0};
-        if (!products_.contains(strip.id)) products_.insert(strip.id,strip);
+        if (!products.contains(strip.id)) products.insert(strip.id,strip);
     }
-    installedProducts(products_);
-    for(auto it=products_.begin();it!=products_.end();) {
-        if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products_.erase(it); else ++it;
+    installedProducts(products);
+    for(auto it=products.begin();it!=products.end();) {
+        if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products.erase(it); else ++it;
     }
+    return products;
+}
+HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<HeaderChoice>& headers,const QVariantMap& selected,QWidget* parent)
+    :QDialog(parent),products_(catalog),headers_(headers)
+{
+    setObjectName("hardwarePicker"); setWindowTitle("Add hardware"); resize(760,640);
+    products_=hardwareProducts(catalog);
     auto* root=new QVBoxLayout(this); root->setContentsMargins(20,20,20,20); root->setSpacing(12);
     auto* heading=new QLabel("Choose your hardware"); heading->setProperty("heading",true); root->addWidget(heading);
     header_=new QComboBox; header_->setObjectName("hardwareHeader"); header_->setPlaceholderText("No supported header detected - connect your controller and refresh headers"); root->addWidget(header_);

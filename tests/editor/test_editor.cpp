@@ -9,6 +9,8 @@
 #include "editor/ComponentEditor.h"
 #include "editor/ComponentDraft.h"
 #include "editor/ComponentCanvas.h"
+#include "editor/ComponentEditorPage.h"
+#include <QMessageBox>
 #include "editor/SnapGrid.h"
 #include "editor/HardwareIdentity.h"
 #include "editor/HardwareArtwork.h"
@@ -233,6 +235,7 @@ private slots:
     void componentDraftOperations();
     void componentLibraryEditing();
     void componentCanvasInteractions();
+    void componentEditorPageLibrary();
     void keyboardLedPresentation();
     void placementTransforms();
     void rgbaAndMask();
@@ -1349,6 +1352,58 @@ void EditorTest::componentCanvasInteractions()
     QTest::mouseClick(viewport,Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(QPointF(9,9)*ComponentCanvas::unit));
     QTest::mouseClick(viewport,Qt::RightButton,Qt::NoModifier,canvas.mapFromScene(draft.positions[0]*ComponentCanvas::unit));
     QCOMPARE(edits.size(),count); QCOMPARE(draft.positions.size(),3);
+}
+
+void EditorTest::componentEditorPageLibrary()
+{
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    for(const auto& [id,label]:{qMakePair(QString("custom.a"),QString("Alpha")),qMakePair(QString("instance.x"),QString("Copy")),qMakePair(QString("custom.used"),QString("Used"))}) {
+        auto definition=catalog().first(); definition.id=id; definition.name=label; document.registerComponent(definition);
+    }
+    document.addComponent("custom.used");
+    ComponentEditorPage page(document,document.installedCatalog());
+    QStringList confirmations; page.confirm=[&](const QString& text){confirmations.append(text);return true;};
+    page.resize(1400,800); page.openLibrary(); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
+    auto* list=page.findChild<QTreeWidget*>("componentList"); QVERIFY(list);
+    const auto find=[list](const QString& id)->QTreeWidgetItem* {
+        for(QTreeWidgetItemIterator it(list);*it;++it) if((*it)->data(0,Qt::UserRole).toString()==id) return *it;
+        return nullptr;
+    };
+    QCOMPARE(list->topLevelItemCount(),3);
+    QCOMPARE(list->topLevelItem(0)->text(0),QString("My components"));
+    QCOMPARE(list->topLevelItem(1)->text(0),QString("Device copies (1)"));
+    QCOMPARE(list->topLevelItem(2)->text(0),QString("Built-in"));
+    QCOMPARE(find("instance.x")->parent(),list->topLevelItem(1));
+    QCOMPARE(find("custom.a")->parent(),list->topLevelItem(0));
+    QCOMPARE(find("test.strip")->parent(),list->topLevelItem(2));
+    auto* save=page.findChild<QPushButton*>("componentSave"); auto* remove=page.findChild<QPushButton*>("componentDelete");
+    list->setCurrentItem(find("test.strip"));
+    QCOMPARE(save->text(),QString("Save as copy")); QVERIFY(!remove->isEnabled());
+    list->setCurrentItem(find("custom.a"));
+    QCOMPARE(save->text(),QString("Save")); QVERIFY(remove->isEnabled());
+    auto* name=page.findChild<QLineEdit*>("componentName");
+    name->setText("Alpha 2"); emit name->editingFinished();
+    QVERIFY(page.isDirty());
+    save->click();
+    QVERIFY(!page.isDirty());
+    QCOMPARE(document.customComponents().value("custom.a").name,QString("Alpha 2"));
+    QCOMPARE(document.customComponents().size(),3);
+    remove->click();
+    QCOMPARE(confirmations.size(),1);
+    QVERIFY(!document.customComponents().contains("custom.a")); QVERIFY(!find("custom.a"));
+    list->setCurrentItem(find("custom.used")); remove->click();
+    QVERIFY(document.customComponents().contains("custom.used"));
+    QVERIFY(page.findChild<QLabel*>("componentMessage")->text().contains("is used by"));
+    QCOMPARE(confirmations.size(),1);
+    // A cancelled switch keeps the unsaved draft and the selection.
+    name->setText("Changed"); emit name->editingFinished();
+    page.askUnsaved=[](const QString&){return QMessageBox::Cancel;};
+    list->setCurrentItem(find("instance.x"));
+    QCOMPARE(list->currentItem()->data(0,Qt::UserRole).toString(),QString("custom.used"));
+    QCOMPARE(name->text(),QString("Changed")); QVERIFY(page.isDirty()); QVERIFY(!page.confirmLeave());
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    QVERIFY(page.confirmLeave()); QVERIFY(!page.isDirty());
 }
 
 void EditorTest::componentAuthoring()
