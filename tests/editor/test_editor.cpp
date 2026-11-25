@@ -1440,6 +1440,19 @@ void EditorTest::componentCanvasLayers()
     QCOMPARE(pathRuns(fan.positions,fan.layers),expected);
     QCOMPARE(pathRuns({{0,0},{1,0},{2,0},{9,0}},{}),(QVector<int>{0,0,-1}));
     QCOMPARE(pathRuns({{0,0},{1,0},{9,0}},{}),(QVector<int>{0,0})); // too few edges for a length jump
+    // Wire tool across layers: the pending order survives a layer switch and completes with every address.
+    QVector<QVector<int>> orders;
+    connect(&canvas,&ComponentCanvas::wireOrderFinished,&canvas,[&](const QVector<int>& order){orders.append(order);});
+    draft=layeredFan(); canvas.setDraft(draft); canvas.setAllLayersVisible(false); canvas.setActiveLayer(0); canvas.fit();
+    canvas.setTool(ComponentCanvas::Tool::Wire);
+    const auto click=[&](int row){QTest::mouseClick(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(draft.positions[row]*ComponentCanvas::unit));};
+    for(int row=0;row<12;++row) click(row);
+    for(int row=24;row<30;++row) click(row);
+    QVERIFY(orders.isEmpty());
+    canvas.setActiveLayer(1);
+    for(int row=12;row<24;++row) click(row);
+    QCOMPARE(orders.size(),1); QCOMPARE(orders.first().size(),30);
+    QCOMPARE(orders.first().mid(18),(QVector<int>{12,13,14,15,16,17,18,19,20,21,22,23}));
 }
 
 void EditorTest::componentEditorPageLibrary()
@@ -1584,6 +1597,26 @@ void EditorTest::componentEditorPageLayers()
     page.findChild<QToolButton*>("componentHelp")->click();
     const auto helpText=page.findChild<QWidget*>("componentHelpOverlay")->findChild<QLabel*>()->text();
     for(const auto* shortcut:{"PgUp","PgDn","Ctrl+PgUp","Ctrl+PgDn"}) QVERIFY2(helpText.contains(shortcut),shortcut);
+    // Wire mode tells how to reach LEDs behind the active layer.
+    page.openLibrary("custom.fan"); canvas->setFocus(); key(Qt::Key_W);
+    QVERIFY(page.findChild<QLabel*>("componentStatusHint")->text().contains("PgUp"));
+    key(Qt::Key_Escape);
+    // Saving drops empty layers in the open draft too.
+    canvas->setActiveLayer(0); canvas->selectRows({0}); target->setValue(3); page.findChild<QPushButton*>("componentMoveLayerApply")->click();
+    canvas->setActiveLayer(1); {QSet<int> back; for(int row=12;row<24;++row) back.insert(row); canvas->selectRows(back);}
+    target->setValue(1); page.findChild<QPushButton*>("componentMoveLayerApply")->click();
+    QCOMPARE(page.draft().layerCount(),3); // layer 2 is empty now
+    page.findChild<QPushButton*>("componentSave")->click();
+    QCOMPARE(page.draft().layerCount(),2); QCOMPARE(page.draft().layers[0],1); QVERIFY(!page.isDirty());
+    QCOMPARE(label->text().section('/',1),QString("2"));
+    // Review Focus 5: arrangement-only placements keep layer moves on Apply (library-backed document).
+    const auto placement=document.addComponent("custom.fan");
+    page.openInstance(placement,true); canvas->setFocus();
+    canvas->setActiveLayer(0); canvas->selectRows({1});
+    key(Qt::Key_PageUp,Qt::ControlModifier); QCOMPARE(page.draft().layers[1],1);
+    page.findChild<QPushButton*>("componentSave")->click();
+    QString placed; for(const auto& item:document.state().placements) if(item.id==placement) placed=item.componentId;
+    QCOMPARE(document.catalog().value(placed).layers.value(1),1);
 }
 
 void EditorTest::componentEditorInstanceMode()

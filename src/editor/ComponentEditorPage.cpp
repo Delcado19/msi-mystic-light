@@ -332,6 +332,8 @@ bool ComponentEditorPage::save()
             entryId_ = document_.saveComponentCopy(definition);
             draft_.id = entryId_; entry_ = Entry::Library;
         } else if (entry_ == Entry::Library || entry_ == Entry::Copy) document_.updateCustomComponent(definition);
+        // Keep the open draft as saved: empty layers are gone after a save (owner request 2026-11-25).
+        if (entry_ != Entry::Instance) draft_.layers = ComponentDraft::fromDefinition(definition).layers;
         else if (entry_ == Entry::Instance) {
             // Same rules as the former per-instance dialog: fixed connectors keep their definition and
             // only move LEDs; other placements get a variant without touching sibling placements.
@@ -695,7 +697,9 @@ void ComponentEditorPage::updateLayerBox()
 
 void ComponentEditorPage::updateHint()
 {
+    // LEDs behind the active layer are reached by switching layers; the pending wire order is kept.
+    const QString layers = draft_.layerCount() > 1 ? " · PgUp/PgDn = other layer" : "";
     hint_->setText(tools_->checkedId() == 1
-        ? "click LEDs in data order · Esc = cancel · M-drag = pan · scroll = zoom"
-        : "click = add · drag LED = move · drag empty = box select · R-click = delete · M-drag = pan · scroll = zoom");
+        ? "click LEDs in data order" + layers + " · Esc = cancel · M-drag = pan · scroll = zoom"
+        : "click = add · drag LED = move · drag empty = box select · R-click = delete · M-drag = pan · scroll = zoom" + layers);
 }

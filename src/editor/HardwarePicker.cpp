@@ -84,9 +84,6 @@ void installedProducts(ComponentCatalog& products)
                 // Import only validated geometry/mapping metadata. No upstream images, scripts or drivers are copied.
                 auto c=ComponentDefinition::fromJson({{"schemaVersion",1},{"id","hardware."+QString::fromLatin1(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex().left(16))},
                     {"name",displayName}, {"ledCount",number},{"positions",coordinates},{"mapping",mapping}});
-                // LEDs on an identical source coordinate sit behind each other (SWAFAN and Freezer 36 rings,
-                // CoreLiquid LED 4/5, Vertagear SL5000): keep positions for sampling, separate them by layer.
-                c.layers=overlapLayers(c.positions);
                 double left=1e100,top=1e100,right=-1e100,bottom=-1e100;
                 for(const auto& point:c.positions) {
                     if(std::abs(point.x())>100000 || std::abs(point.y())>100000) throw std::invalid_argument("Invalid product coordinates");
@@ -104,6 +101,10 @@ void installedProducts(ComponentCatalog& products)
                 if(c.category=="Strips" && hardwareArtworkCategory(c)!="Cables") {
                     for(int i=0;i<c.positions.size();++i) c.positions[i]={3.0*i/std::max(1,int(c.positions.size())-1),0};
                 }
+                // LEDs on an identical coordinate sit behind each other (SWAFAN and Freezer 36 rings, CoreLiquid
+                // LED 4/5, Vertagear SL5000): keep positions for sampling, separate them by layer. Computed after
+                // the D30/strip templates, which make every position distinct.
+                c.layers=overlapLayers(c.positions);
                 products.insert(c.id,ComponentDefinition::fromJson(c.toJson()));
             } catch(const std::exception&) { /* Malformed local metadata is not a usable hardware definition. */ }
         }
