@@ -124,6 +124,12 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
     zoom_ = new QLabel; zoom_->setObjectName("componentStatusZoom");
     hint_ = new QLabel; hint_->setObjectName("componentStatusHint"); hint_->setProperty("secondary", true);
     for (auto* label : {counts_, cursor_, zoom_}) { status->addWidget(label); status->addSpacing(16); }
+    // Reserve the widest text: a label growing on mouse move squeezed the word-wrapped message
+    // onto two lines, and the taller status row made the whole canvas jump.
+    for (auto [label, widest] : {std::pair{cursor_, "grid -0000.0, -0000.0"}, std::pair{zoom_, "zoom 9999%"}}) {
+        label->ensurePolished();
+        label->setMinimumWidth(label->fontMetrics().horizontalAdvance(QString::fromLatin1(widest)));
+    }
     status->addWidget(message_, 1);
     status->addWidget(hint_);
     buildToolRail(rail);

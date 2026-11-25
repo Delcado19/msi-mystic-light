@@ -1675,6 +1675,16 @@ void EditorTest::componentEditorInstanceMode()
     window.findChild<QPushButton*>("editLayoutLeds")->click();
     QCOMPARE(pages->currentWidget(),page);
     QVERIFY(!page->findChild<QTreeWidget*>("componentList")->isVisible());
+    // Moving the mouse must not resize the status labels: a wider "grid" text squeezed the
+    // word-wrapped message onto two lines and the whole canvas jumped (owner report R38).
+    {
+        auto* pageCanvas=page->findChild<ComponentCanvas*>("componentCanvas");
+        auto* grid=page->findChild<QLabel*>("componentStatusGrid"); auto* zoom=page->findChild<QLabel*>("componentStatusZoom");
+        emit pageCanvas->cursorMoved(QPointF(1.9,0.7)); emit pageCanvas->zoomChanged(8.14); QCoreApplication::processEvents();
+        const auto gridWidth=grid->width(), zoomWidth=zoom->width();
+        emit pageCanvas->cursorMoved(QPointF(-123.4,-567.8)); emit pageCanvas->zoomChanged(12.5); QCoreApplication::processEvents();
+        QCOMPARE(grid->width(),gridWidth); QCOMPARE(zoom->width(),zoomWidth);
+    }
     auto* apply=page->findChild<QPushButton*>("componentSave");
     QCOMPARE(apply->text(),QString("Apply"));
     QVERIFY(page->findChild<QPushButton*>("componentShapeRing")->isEnabled());

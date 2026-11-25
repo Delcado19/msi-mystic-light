@@ -3,6 +3,24 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## After R38 - 2026-11-25 night (local, not built into a ZIP, not pushed)
+
+- Owner ran R38. Component Editor status row jumped on mouse move: the "grid x, y" label grew,
+  squeezed the word-wrapped hint onto two lines and the canvas moved. Fixed: grid/zoom labels reserve
+  their widest text (`ComponentEditorPage.cpp`, test in `componentEditorInstanceMode`, fails without
+  the fix). 23/23 CTest. Not checked by the owner in the real app.
+- Razer (owner observation, R38): Synapse 4 (`RazerAppEngine.exe` app-4.0.896, ~10 processes +
+  `RzEngineMon.exe`) writes lighting to Basilisk V3 `VID_1532&PID_0099&MI_03`; mouse flickers while
+  both run, also after closing the Synapse window (processes stay). "Terminate all" restores our
+  output but kills the mouse button functions. Synapse offers no separate lighting module (Chroma app
+  not installed). Unmeasured: whether Synapse writes continuously or only on events.
+- MSI: owner can uninstall the Mystic Light module in MSI Center separately (keeps the rest).
+- Options discussed for Razer, nothing decided or built: (a) save the button mapping to the
+  Basilisk's onboard memory in Synapse, then run without Synapse (whether onboard keeps all of the
+  owner's functions, e.g. macros, is unverified); (b) "leave device to the suite" from
+  `docs/VENDOR_SUITE_COEXISTENCE.md`; (c) Chroma SDK path (unresearched). Open owner questions are in
+  that doc.
+
 ## Build GS-06-R38 - 2026-11-25 late evening (local, not pushed)
 
 - Cause of the fan noise, measured (boot CPU trace + cdb stack samples): the logon-started tray editor
