@@ -113,6 +113,15 @@ public:
     bool hasComponentLibrary() const { return !libraryPath_.isEmpty(); }
     QString registerComponent(const ComponentDefinition& definition);
     void applyComponentVariant(const QUuid& placement, const ComponentDefinition& definition);
+    // Placements of the open document that reference the definition, in placement order.
+    QVector<QUuid> componentUsers(const QString& id) const;
+    // Removes a library entry; throws std::invalid_argument for built-ins or definitions the open document uses.
+    void removeCustomComponent(const QString& id);
+    // Overwrites the library entry with the same ID (no variant fork). The open document's copy changes in
+    // one undoable edit; nothing is written when channel validation fails.
+    void updateCustomComponent(const ComponentDefinition& definition);
+    // Registers a copy under "custom.<slug>.<8 hex>" and returns the new ID.
+    QString saveComponentCopy(const ComponentDefinition& definition);
     QUuid duplicateComponent(const QUuid& placement);
     void removeComponents(const QSet<QUuid>& placements);
     void moveComponent(const QUuid& placement, ChannelAssignment destination);

@@ -230,6 +230,7 @@ private slots:
     void deviceLedArrangement();
     void componentEditor();
     void componentDraftOperations();
+    void componentLibraryEditing();
     void keyboardLedPresentation();
     void placementTransforms();
     void rgbaAndMask();
@@ -1254,6 +1255,43 @@ void EditorTest::componentDraftOperations()
     const auto big=withShape(empty,DraftShape::Matrix,1000); const auto snapshot=big;
     const auto changed=withShape(big,DraftShape::Ring,1000);
     QCOMPARE(big,snapshot);QVERIFY(!(changed==snapshot));QCOMPARE(big.positions.size(),1000);
+}
+
+void EditorTest::componentLibraryEditing()
+{
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    const auto library=folder.filePath("custom-components.json");
+    LightingDocument document(catalog(),nullptr,{},library);
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha";
+    auto b=catalog().first(); b.id="custom.b"; b.name="Bravo";
+    document.registerComponent(a); document.registerComponent(b);
+    document.removeCustomComponent("custom.a");
+    QVERIFY(!document.customComponents().contains("custom.a"));
+    QVERIFY_EXCEPTION_THROWN(document.removeCustomComponent("test.strip"),std::invalid_argument);
+    const auto placement=document.addComponent("custom.b");
+    QCOMPARE(document.componentUsers("custom.b"),QVector<QUuid>{placement});
+    try { document.removeCustomComponent("custom.b"); QFAIL("in-use definition was removed"); }
+    catch(const std::invalid_argument& error) { QVERIFY(QString::fromUtf8(error.what()).contains("Bravo")); }
+    QVERIFY(document.customComponents().contains("custom.b"));
+    auto moved=b; moved.positions[0]={0,5};
+    document.updateCustomComponent(moved);
+    QCOMPARE(document.customComponents().size(),1);
+    QCOMPARE(document.customComponents().value("custom.b").positions[0],QPointF(0,5));
+    QCOMPARE(document.catalog().value("custom.b").positions[0],QPointF(0,5));
+    document.history()->undo();
+    QCOMPARE(document.catalog().value("custom.b").positions[0],b.positions[0]);
+    // Updating never writes built-in definitions; a copy gets a fresh custom ID.
+    QVERIFY_EXCEPTION_THROWN(document.updateCustomComponent(catalog().first()),std::invalid_argument);
+    const auto copy=document.saveComponentCopy(catalog().first());
+    QVERIFY(copy.startsWith("custom."));QVERIFY(document.customComponents().contains(copy));
+    QCOMPARE(document.installedCatalog().keys(),catalog().keys());
+    // Review Focus 1: deleting an entry a closed layout still references makes that layout report it missing.
+    LightingDocument other(catalog(),nullptr,{},library);
+    other.addComponent(copy);
+    const auto file=folder.filePath("other.lighting.json"); other.save(file);
+    document.removeCustomComponent(copy);
+    LightingDocument reopened(catalog(),nullptr,{},library);
+    QVERIFY_EXCEPTION_THROWN(reopened.load(file),MissingComponents);
 }
 
 void EditorTest::componentAuthoring()

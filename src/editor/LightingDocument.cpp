@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QLockFile>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -408,6 +409,69 @@ void LightingDocument::applyComponentVariant(const QUuid& id, const ComponentDef
         }
         throw std::invalid_argument("Select a component first");
     });
+}
+
+QVector<QUuid> LightingDocument::componentUsers(const QString& id) const
+{
+    QVector<QUuid> users;
+    for (const auto& placement : state_.placements) if (placement.componentId == id) users.append(placement.id);
+    return users;
+}
+
+void LightingDocument::removeCustomComponent(const QString& id)
+{
+    if (initialCatalog_.contains(id)) throw std::invalid_argument("Built-in components cannot be deleted");
+    // Deleting a definition the open layout still uses would leave placements without geometry.
+    if (const auto users = componentUsers(id); !users.isEmpty()) {
+        QStringList names;
+        for (const auto& placement : state_.placements) if (users.contains(placement.id)) names.append(componentName(placement));
+        throw std::invalid_argument(QString("%1 is used by %2. Remove it from the layout first.")
+            .arg(hardwareName(catalog().value(id)), names.join(", ")).toStdString());
+    }
+    if (libraryPath_.isEmpty()) {
+        if (!state_.components.contains(id)) throw std::invalid_argument("Unknown custom component");
+        edit("Delete component", [&](LightingState& state) { state.components.remove(id); });
+        return;
+    }
+    QLockFile lock(libraryPath_ + ".lock");
+    if (!lock.tryLock()) throw std::runtime_error("Custom component library is busy");
+    auto custom = readLibrary(libraryPath_);
+    if (!custom.remove(id)) throw std::invalid_argument("Unknown custom component");
+    writeLibrary(libraryPath_, custom);
+    state_.components.remove(id);
+}
+
+void LightingDocument::updateCustomComponent(const ComponentDefinition& definition)
+{
+    // Deliberately bypasses reconcileDefinition(): saving an edited library entry must overwrite it,
+    // not fork an "<id>.<sha256>" variant (the source of duplicate entries in owners' libraries).
+    const auto validated = ComponentDefinition::fromJson(definition.toJson());
+    if (initialCatalog_.contains(validated.id)) throw std::invalid_argument("Built-in components cannot be changed; save a copy");
+    std::unique_ptr<QLockFile> lock;
+    ComponentCatalog custom;
+    if (!libraryPath_.isEmpty()) {
+        lock = std::make_unique<QLockFile>(libraryPath_ + ".lock");
+        if (!lock->tryLock()) throw std::runtime_error("Custom component library is busy");
+        custom = readLibrary(libraryPath_);
+        if (!custom.contains(validated.id)) throw std::invalid_argument("Unknown custom component");
+    } else if (!state_.components.contains(validated.id)) throw std::invalid_argument("Unknown custom component");
+    const bool used = state_.components.contains(validated.id);
+    // edit() validates channel capacity before anything is written to the library.
+    if (used) edit("Edit component", [&](LightingState& state) { state.components.insert(validated.id, validated); });
+    if (!lock) return;
+    custom.insert(validated.id, validated);
+    try { writeLibrary(libraryPath_, custom); }
+    catch (...) { if (used) history_.undo(); throw; }
+}
+
+QString LightingDocument::saveComponentCopy(const ComponentDefinition& definition)
+{
+    auto copy = definition;
+    auto slug = definition.name.toLower();
+    slug.replace(QRegularExpression("[^a-z0-9]+"), "-");
+    slug = slug.mid(0, 40).remove(QRegularExpression("^-+|-+$"));
+    copy.id = QString("custom.%1.%2").arg(slug.isEmpty() ? "component" : slug, QUuid::createUuid().toString(QUuid::Id128).left(8));
+    return registerComponent(copy);
 }
 
 QUuid LightingDocument::duplicateComponent(const QUuid& id)
