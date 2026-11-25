@@ -318,6 +318,7 @@ void ComponentEditorPage::showDraft()
     canvas_->setLocked(countLocked);
     if (countLocked && tools_->checkedId() == 1) tools_->button(0)->setChecked(true);
     address_->setMaximum(qMax(1, addresses));
+    updateLayerBox();
     zoom_->setText(QString("zoom %1%").arg(qRound(canvas_->zoom() * 100)));
     updateHint();
     export_->setEnabled(open && !draft_.positions.isEmpty());
@@ -334,7 +335,7 @@ bool ComponentEditorPage::save()
         else if (entry_ == Entry::Instance) {
             // Same rules as the former per-instance dialog: fixed connectors keep their definition and
             // only move LEDs; other placements get a variant without touching sibling placements.
-            if (arrangementOnly_) document_.setComponentGeometry(instance_, definition.positions);
+            if (arrangementOnly_) document_.setComponentGeometry(instance_, definition.positions, definition.layers);
             else if (definition.toJson() != document_.catalog().value(entryId_).toJson()) document_.applyComponentVariant(instance_, definition);
             for (const auto& placement : document_.state().placements) if (placement.id == instance_) entryId_ = placement.componentId;
             draft_ = ComponentDraft::fromDefinition(document_.catalog().value(entryId_));
@@ -411,6 +412,16 @@ void ComponentEditorPage::buildToolRail(QWidget* rail)
     auto* zoomIn = tool("componentZoomIn", "zoom-in", "Zoom in (+)");
     auto* zoomOut = tool("componentZoomOut", "zoom-out", "Zoom out (-)");
     auto* fit = tool("componentFit", "fit", "Fit LEDs (0)");
+    separator();
+    // Layer box below the tools (owner sketch 2026-11-25): view toggle, next layer back, active/count, front.
+    layerView_ = tool("componentLayerView", "layers", "Show all layers (inactive layers are dimmed and locked)", true);
+    layerBack_ = tool("componentLayerBack", "layer-back", "Next layer back (PgUp)");
+    layerLabel_ = new QLabel("1/1"); layerLabel_->setObjectName("componentLayerLabel"); layerLabel_->setAlignment(Qt::AlignCenter);
+    layerLabel_->setToolTip("Active layer / layers. Layer 1 is the front."); layout->addWidget(layerLabel_);
+    layerFront_ = tool("componentLayerFront", "layer-front", "Next layer to the front (PgDn)");
+    connect(layerView_, &QToolButton::toggled, canvas_, &ComponentCanvas::setAllLayersVisible);
+    connect(layerBack_, &QToolButton::clicked, this, [this] { setActiveLayer(canvas_->activeLayer() + 1); });
+    connect(layerFront_, &QToolButton::clicked, this, [this] { setActiveLayer(canvas_->activeLayer() - 1); });
     layout->addStretch();
     help_ = tool("componentHelp", "help", "Help and shortcuts (?)");
     countEditing_ << duplicate << remove << wireTool_;
@@ -456,7 +467,10 @@ void ComponentEditorPage::buildToolRail(QWidget* rail)
         "<tr><td><b>Ctrl+Z</b></td><td>undo</td><td><b>Ctrl+Y</b> / Ctrl+Shift+Z</td><td>redo</td></tr>"
         "<tr><td><b>Ctrl+A</b></td><td>select all</td><td><b>Esc</b></td><td>leave wire mode / clear selection</td></tr>"
         "<tr><td><b>G</b> / <b>P</b></td><td>grid / wire path</td><td><b>+</b> / <b>-</b> / <b>0</b></td><td>zoom in / out / fit</td></tr>"
-        "</table>");
+        "<tr><td><b>PgUp</b> / <b>PgDn</b></td><td>next layer back / front</td><td><b>Ctrl+PgUp</b> / <b>Ctrl+PgDn</b></td><td>move selection one layer back / front</td></tr>"
+        "</table>"
+        "<p>Layers separate LEDs that sit behind each other (e.g. front and back ring of a fan). They only "
+        "affect this editor; effects use the LED positions.</p>");
     text->setWordWrap(true); text->setTextFormat(Qt::RichText); helpLayout->addWidget(text);
     auto* close = new QPushButton("Got it"); close->setProperty("primary", true);
     helpLayout->addWidget(close, 0, Qt::AlignRight);
@@ -532,6 +546,19 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
         canvas_->selectRows(rows);
     });
 
+    auto* layers = section(column, "LAYERS", true);
+    auto* layersLayout = new QVBoxLayout(layers); layersLayout->setContentsMargins(0, 0, 0, 0);
+    auto* layersInfo = new QLabel("Layers separate LEDs behind each other. They do not change positions or effects.");
+    layersInfo->setWordWrap(true); layersInfo->setProperty("secondary", true); layersLayout->addWidget(layersInfo);
+    auto* moveRow = new QHBoxLayout; layersLayout->addLayout(moveRow);
+    moveRow->addWidget(new QLabel("Layer"));
+    moveLayer_ = new QSpinBox; moveLayer_->setObjectName("componentMoveLayer"); moveLayer_->setRange(1, 2);
+    moveLayer_->setToolTip("The highest value creates a new layer"); moveLayer_->setAccessibleName("Target layer for the selected LEDs");
+    moveRow->addWidget(moveLayer_, 1);
+    auto* moveApply = new QPushButton("Move selected"); moveApply->setObjectName("componentMoveLayerApply");
+    moveApply->setToolTip("Move the selected LEDs to this layer"); moveRow->addWidget(moveApply);
+    connect(moveApply, &QPushButton::clicked, this, [this] { moveSelectionToLayer(moveLayer_->value() - 1); });
+
     auto* danger = section(column, "DANGER ZONE", false);
     auto* dangerLayout = new QVBoxLayout(danger); dangerLayout->setContentsMargins(0, 0, 0, 0);
     auto* clear = new QPushButton("Clear all LEDs"); clear->setObjectName("componentClearAll"); clear->setProperty("danger", true);
@@ -593,6 +620,10 @@ void ComponentEditorPage::buildShortcuts()
     bind(QKeySequence(Qt::Key_Minus), [this] { canvas_->zoomBy(0.8); });
     bind(QKeySequence(Qt::Key_0), [this] { canvas_->fit(); });
     bind(QKeySequence(Qt::Key_Question), [this] { help_->click(); });
+    bind(QKeySequence(Qt::Key_PageUp), [this] { setActiveLayer(canvas_->activeLayer() + 1); });
+    bind(QKeySequence(Qt::Key_PageDown), [this] { setActiveLayer(canvas_->activeLayer() - 1); });
+    bind(QKeySequence(Qt::CTRL | Qt::Key_PageUp), [this] { moveSelectionToLayer(canvas_->activeLayer() + 1); });
+    bind(QKeySequence(Qt::CTRL | Qt::Key_PageDown), [this] { if (canvas_->activeLayer() > 0) moveSelectionToLayer(canvas_->activeLayer() - 1); });
 }
 
 bool ComponentEditorPage::eventFilter(QObject* watched, QEvent* event)
@@ -625,9 +656,41 @@ QSet<int> ComponentEditorPage::rowsForDelete() const
     // Without a selection, Delete removes the LED under the mouse pointer.
     for (auto* item : canvas_->items(canvas_->viewport()->mapFromGlobal(QCursor::pos()))) {
         auto* led = item->parentItem() ? item->parentItem() : item;
-        if (led->type() == QGraphicsEllipseItem::Type) return {led->data(0).toInt()};
+        if (led->type() == QGraphicsEllipseItem::Type && led->data(2).toBool()) return {led->data(0).toInt()};
     }
     return {};
+}
+
+void ComponentEditorPage::setActiveLayer(int layer)
+{
+    // PgUp/PgDn and the arrows only step through existing layers.
+    canvas_->setActiveLayer(std::clamp(layer, 0, draft_.layerCount() - 1));
+    updateLayerBox();
+}
+
+void ComponentEditorPage::moveSelectionToLayer(int layer)
+{
+    const auto rows = canvas_->selectedRows();
+    if (rows.isEmpty() || entry_ == Entry::None) return;
+    try {
+        applyEdit(withLayer(draft_, rows, layer), QString("Move to layer %1").arg(layer + 1));
+        // The moved LEDs stay selected on the layer they now belong to.
+        setActiveLayer(layer); canvas_->selectRows(rows);
+    } catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
+}
+
+void ComponentEditorPage::updateLayerBox()
+{
+    const int count = draft_.layerCount();
+    if (canvas_->activeLayer() > count - 1) canvas_->setActiveLayer(count - 1);
+    const int active = canvas_->activeLayer();
+    layerLabel_->setText(QString("%1/%2").arg(active + 1).arg(count));
+    layerBack_->setEnabled(active < count - 1);
+    layerFront_->setEnabled(active > 0);
+    layerView_->setEnabled(count > 1);
+    if (count == 1 && layerView_->isChecked()) layerView_->setChecked(false);
+    moveLayer_->setRange(1, qMin(16, count + 1));
+    moveLayer_->setEnabled(entry_ != Entry::None);
 }
 
 void ComponentEditorPage::updateHint()

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "components/ComponentCatalog.h"
+#include <optional>
 #include "EffectRenderer.h"
 #include "ChannelAssignment.h"
 #include <QColor>
@@ -107,7 +108,9 @@ public:
     QUuid importImage(const QString& fileName, const QUuid& parent = {});
     void defineComponent(const ComponentDefinition& component, bool replace = false);
     // Isolates geometry for one placement; physical LED count and wire order stay unchanged.
-    void setComponentGeometry(const QUuid& placement, const QVector<QPointF>& positions);
+    // Display layers (Component Editor) are replaced when given, otherwise kept.
+    void setComponentGeometry(const QUuid& placement, const QVector<QPointF>& positions,
+                              const std::optional<QVector<int>>& layers = std::nullopt);
     void importComponent(const QString& fileName);
     ComponentCatalog customComponents() const;
     bool hasComponentLibrary() const { return !libraryPath_.isEmpty(); }

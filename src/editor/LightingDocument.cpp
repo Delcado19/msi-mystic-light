@@ -315,7 +315,8 @@ void LightingDocument::defineComponent(const ComponentDefinition& component, boo
     });
 }
 
-void LightingDocument::setComponentGeometry(const QUuid& id, const QVector<QPointF>& positions)
+void LightingDocument::setComponentGeometry(const QUuid& id, const QVector<QPointF>& positions,
+                                             const std::optional<QVector<int>>& layers)
 {
     if (!libraryPath_.isEmpty()) {
         for (const auto& placement : state_.placements) if (placement.id == id) {
@@ -323,6 +324,7 @@ void LightingDocument::setComponentGeometry(const QUuid& id, const QVector<QPoin
             if (definition.positions.size() != positions.size())
                 throw std::invalid_argument("Device LED count cannot change here");
             definition.positions = positions;
+            if (layers) definition.layers = *layers;
             applyComponentVariant(id, definition);
             return;
         }
@@ -335,6 +337,7 @@ void LightingDocument::setComponentGeometry(const QUuid& id, const QVector<QPoin
         auto definition = state.components.value(placement->componentId);
         if (positions.size() != definition.positions.size()) throw std::invalid_argument("Device LED count cannot change here");
         definition.positions = positions;
+        if (layers) definition.layers = *layers;
         // Copy-on-edit uses portable definitions without changing siblings or the saved project schema.
         const QString localId = "instance." + id.toString(QUuid::WithoutBraces);
         if (placement->componentId != localId && state.components.contains(localId))

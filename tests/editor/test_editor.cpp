@@ -238,6 +238,7 @@ private slots:
     void componentCanvasLayers();
     void componentEditorPageLibrary();
     void componentEditorPageEditing();
+    void componentEditorPageLayers();
     void componentEditorInstanceMode();
     void keyboardLedPresentation();
     void placementTransforms();
@@ -1183,6 +1184,12 @@ void EditorTest::deviceLedArrangement()
     QVERIFY_EXCEPTION_THROWN(document.setComponentGeometry(first,{}),std::invalid_argument);
     QVERIFY_EXCEPTION_THROWN(document.setComponentGeometry(QUuid::createUuid(),positions),std::invalid_argument);
     QCOMPARE(document.history()->index(),index);
+    // Arrangement-only edits carry display layers; omitting them keeps the current ones.
+    document.setComponentGeometry(first,positions,QVector<int>{0,1,1});
+    QCOMPARE(document.catalog()[document.state().placements[0].componentId].layers,(QVector<int>{0,1,1}));
+    document.setComponentGeometry(first,positions);
+    QCOMPARE(document.catalog()[document.state().placements[0].componentId].layers,(QVector<int>{0,1,1}));
+    document.history()->undo(); document.history()->undo();
     QTemporaryDir directory; const auto file=directory.filePath("geometry.json"); document.save(file);
     LightingDocument loaded({}); loaded.load(file);
     QCOMPARE(loaded.catalog()[local].positions,positions);
@@ -1534,6 +1541,49 @@ void EditorTest::componentEditorPageEditing()
     const auto helpText=help->findChild<QLabel*>()->text();
     for(const auto* shortcut:{"Ctrl+Z","Ctrl+Y","Ctrl+A","Del","Esc","Middle-drag","Right-click"}) QVERIFY2(helpText.contains(shortcut),shortcut);
     page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+}
+
+void EditorTest::componentEditorPageLayers()
+{
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    auto fan=layeredFan().toDefinition(); fan.id="custom.fan"; document.registerComponent(fan);
+    auto single=catalog().first(); single.id="custom.single"; single.name="Single"; document.registerComponent(single);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1400,800); page.openLibrary("custom.fan"); page.show();
+    QVERIFY(QTest::qWaitForWindowActive(&page));
+    auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas"); canvas->setFocus();
+    const auto key=[&](Qt::Key k,Qt::KeyboardModifiers m=Qt::NoModifier){QTest::keyClick(canvas,k,m);};
+    auto* label=page.findChild<QLabel*>("componentLayerLabel"); QVERIFY(label);
+    auto* back=page.findChild<QToolButton*>("componentLayerBack"); auto* front=page.findChild<QToolButton*>("componentLayerFront");
+    auto* view=page.findChild<QToolButton*>("componentLayerView"); QVERIFY(back && front && view);
+    QCOMPARE(label->text(),QString("1/2")); QVERIFY(back->isEnabled()); QVERIFY(!front->isEnabled());
+    key(Qt::Key_PageUp); QCOMPARE(label->text(),QString("2/2")); QCOMPARE(canvas->activeLayer(),1); QVERIFY(!back->isEnabled());
+    key(Qt::Key_PageDown); QCOMPARE(canvas->activeLayer(),0); front->click(); QCOMPARE(canvas->activeLayer(),0);
+    back->click(); QCOMPARE(canvas->activeLayer(),1);
+    view->click(); QVERIFY(canvas->allLayersVisible()); view->click(); QVERIFY(!canvas->allLayersVisible());
+    // Moving LEDs between layers is an edit; changing the visible layer is not.
+    canvas->selectRows({12});
+    key(Qt::Key_PageUp,Qt::ControlModifier);
+    QCOMPARE(page.draft().layers[12],2); QCOMPARE(label->text(),QString("3/3")); QCOMPARE(canvas->activeLayer(),2);
+    key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().layers[12],1); QCOMPARE(label->text(),QString("2/2"));
+    canvas->setActiveLayer(1); canvas->selectRows({13});
+    key(Qt::Key_PageDown,Qt::ControlModifier); QCOMPARE(page.draft().layers[13],0); QCOMPARE(canvas->activeLayer(),0);
+    // LAYERS section moves the selection to a chosen (or new) layer.
+    canvas->selectRows({0,1});
+    auto* target=page.findChild<QSpinBox*>("componentMoveLayer"); QVERIFY(target); QCOMPARE(target->maximum(),3);
+    target->setValue(3); page.findChild<QPushButton*>("componentMoveLayerApply")->click();
+    QCOMPARE(page.draft().layers[0],2); QCOMPARE(page.draft().layers[1],2); QCOMPARE(label->text(),QString("3/3"));
+    // Deleting every LED of the active layer clamps the view to an existing layer.
+    canvas->selectRows({0,1}); key(Qt::Key_Delete);
+    QCOMPARE(page.draft().layerCount(),2); QCOMPARE(label->text(),QString("2/2")); QCOMPARE(canvas->activeLayer(),1);
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    page.openLibrary("custom.single");
+    QCOMPARE(label->text(),QString("1/1")); QVERIFY(!back->isEnabled()); QVERIFY(!front->isEnabled()); QVERIFY(!view->isEnabled());
+    QCOMPARE(canvas->activeLayer(),0);
+    page.findChild<QToolButton*>("componentHelp")->click();
+    const auto helpText=page.findChild<QWidget*>("componentHelpOverlay")->findChild<QLabel*>()->text();
+    for(const auto* shortcut:{"PgUp","PgDn","Ctrl+PgUp","Ctrl+PgDn"}) QVERIFY2(helpText.contains(shortcut),shortcut);
 }
 
 void EditorTest::componentEditorInstanceMode()

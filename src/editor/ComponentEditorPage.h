@@ -57,6 +57,10 @@ private:
     void editSelection(const std::function<ComponentDraft(const ComponentDraft&, const QSet<int>&)>& operation, const QString& label);
     QSet<int> rowsForDelete() const;
     void updateHint();
+    // Display-only depth layers (owner request 2026-11-25): view state, not undo state.
+    void setActiveLayer(int layer);
+    void moveSelectionToLayer(int layer);
+    void updateLayerBox();
     LightingDocument& document_;
     ComponentCatalog builtIn_;
     ComponentDraft draft_, saved_;
@@ -74,6 +78,9 @@ private:
     QPushButton *new_ = nullptr, *import_ = nullptr, *export_ = nullptr, *delete_ = nullptr, *save_ = nullptr;
     QButtonGroup* tools_ = nullptr;
     QToolButton *wireTool_ = nullptr, *grid_ = nullptr, *path_ = nullptr, *help_ = nullptr;
+    QToolButton *layerView_ = nullptr, *layerBack_ = nullptr, *layerFront_ = nullptr;
+    QLabel* layerLabel_ = nullptr;
+    QSpinBox* moveLayer_ = nullptr;
     QSpinBox *shapeCount_ = nullptr, *address_ = nullptr;
     QLabel *cursor_ = nullptr, *zoom_ = nullptr, *hint_ = nullptr;
     QWidget* helpOverlay_ = nullptr;

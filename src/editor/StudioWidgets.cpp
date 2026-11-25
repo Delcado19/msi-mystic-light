@@ -338,6 +338,12 @@ QIcon studioToolIcon(const QString& name)
         painter.setPen(Qt::NoPen); painter.setBrush(QColor("#e0e8fc"));
         for(const auto& dot:dots) painter.drawEllipse(dot,2.2,2.2);
     }
+    // Component Editor layer box (owner sketch 2026-11-25).
+    else if(name=="layers") { for(int y:{9,14}) painter.drawPolygon(QPolygonF{QPointF(7,y-4),QPointF(22,y-4),QPointF(17,y+4),QPointF(2,y+4)}); }
+    else if(name=="layer-back" || name=="layer-front") {
+        painter.setPen(Qt::NoPen); painter.setBrush(QColor("#e0e8fc"));
+        painter.drawPolygon(name=="layer-back" ? QPolygonF{QPointF(12,6),QPointF(20,17),QPointF(4,17)} : QPolygonF{QPointF(12,18),QPointF(20,7),QPointF(4,7)});
+    }
     else if(name=="path") { QPainterPath curve; curve.moveTo(4,19); curve.cubicTo(8,4,16,20,20,5); painter.drawPath(curve); }
     else if(name=="help") { painter.drawEllipse(QRectF(3,3,18,18)); QFont font=painter.font(); font.setPixelSize(13); font.setBold(true); painter.setFont(font); painter.drawText(QRectF(3,3,18,18),Qt::AlignCenter,"?"); }
     else if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }
