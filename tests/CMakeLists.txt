@@ -151,11 +151,13 @@ if(WIN32)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_hidapi_runtime.cmake")
 endif()
 
-add_executable(test_peripherals output/test_peripherals.cpp)
+add_executable(test_peripherals output/test_peripherals.cpp ../src/protocol/AjazzAk35iV4Protocol.cpp)
 target_link_libraries(test_peripherals PRIVATE lighting_output_ui Qt6::Test)
 target_compile_definitions(test_peripherals PRIVATE
     PERIPHERAL_MODULE_PATH="$<TARGET_FILE:peripherals_module>"
-    PROFILE_DIRECTORY="${PROJECT_SOURCE_DIR}/profiles")
+    PROFILE_DIRECTORY="${PROJECT_SOURCE_DIR}/profiles"
+    COMPONENT_DIRECTORY="${PROJECT_SOURCE_DIR}/components"
+    AJAZZ_FIXTURE_FILE="${PROJECT_SOURCE_DIR}/docs/hardware-inventory/ajazz-ak35i-v4-rgb-fixtures.json")
 add_dependencies(test_peripherals peripherals_module)
 add_test(NAME peripheral_reports COMMAND test_peripherals)
 if(WIN32)

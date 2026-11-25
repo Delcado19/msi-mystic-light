@@ -4,6 +4,7 @@
 #include "protocol/RazerBasiliskProtocol.h"
 #include "protocol/SteelSeriesApex3Protocol.h"
 #include "protocol/RoccatVulcanProtocol.h"
+#include "protocol/AjazzAk35iV4Protocol.h"
 #include <QObject>
 #include <QJsonArray>
 
@@ -26,6 +27,16 @@ public:
             if(!initialized_ && !output(BuildApex3BrightnessPacket(100))) return false;
             initialized_=true; return output(BuildApex3ColorsPacket(rgb));
         }
+        if(protocol=="ajazz-ak35i-v4") {
+            // Captured Direct RGB transaction, docs/AJAZZ_AK35I_V4_PROTOCOL.md section 4: START once per
+            // session, then 04 20 + ACK, eight data reports, 04 02 + ACK. Any failed step ends the frame
+            // with false; nothing is replayed and no persistent command is sent. Experimental, no hardware test yet.
+            const auto chunks=BuildAjazzDirectChunks(rgb);
+            if(!initialized_) { if(!ajazzCommand(0x18)) return false; initialized_=true; }
+            if(!ajazzCommand(0x20,8)) return false;
+            for(const auto& chunk:chunks) if(!feature(chunk)) return false;
+            return ajazzCommand(0x02);
+        }
         if(protocol=="vulcan") {
             // Paired transport routes feature reports to control, output reports to the exact LED endpoint.
             if(!initialized_ && !feature(BuildVulcanEnableDirectReport(true))) return false;
@@ -38,6 +49,13 @@ public:
 private:
     template<class Packet> bool feature(const Packet& packet) { return transport_.sendFeatureReport(packet.data(),packet.size()); }
     template<class Packet> bool output(const Packet& packet) { return transport_.writeOutputReport(packet.data(),packet.size()); }
+    // Feature SET, then a 65-byte GET (byte 0 = report ID 0) that must acknowledge the same opcode.
+    // Unverified on hardware: whether Windows hidapi reports 65 bytes for report ID 0 (Phase B check).
+    bool ajazzCommand(std::uint8_t opcode,std::uint8_t arg8=0) {
+        if(!feature(BuildAjazzCommand(opcode,arg8))) return false;
+        AjazzReport reply{};
+        return AjazzAckOk(reply.data(),transport_.getFeatureReport(reply.data(),reply.size()),opcode);
+    }
     IHidDevice& transport_; ChannelProfile channel_; bool initialized_=false;
 };
 }
@@ -56,8 +74,11 @@ public:
         const bool basilisk=protocol=="basilisk" && vid==0x1532 && pid==0x0099 && iface==3 && usage==12 && channel.id=="RazerBasiliskV3";
         const bool apex=protocol=="apex3" && vid==0x1038 && pid==0x161a && iface==3 && channel.id=="SteelSeriesApex3";
         const bool vulcan=protocol=="vulcan" && vid==0x1e7d && (pid==0x307a || pid==0x3098) && iface==3 && usage==1 && channel.id=="RoccatVulcan";
-        const int count=vulcan ? 144 : apex ? 10 : 11;
-        if(!(kone || basilisk || apex || vulcan) || !channel.direct || !channel.nativeModes.isEmpty() || channel.maxLeds!=count || channel.fixedLeds!=count) return reject();
+        // AK35I V4: only the FF13:0001 control collection; never the FF68 TFT collection or the FEFE receiver.
+        const bool ajazz=protocol=="ajazz-ak35i-v4" && vid==0x0c45 && pid==0x8009 && iface==3 && usage==0xff13 &&
+            profile.match.value("usage").toInt(-1)==1 && channel.id=="AjazzAk35iV4";
+        const int count=ajazz ? AJAZZ_V4_LEDS : vulcan ? 144 : apex ? 10 : 11;
+        if(!(kone || basilisk || apex || vulcan || ajazz) || !channel.direct || !channel.nativeModes.isEmpty() || channel.maxLeds!=count || channel.fixedLeds!=count) return reject();
         return true;
     }
     std::unique_ptr<IDriver> create(IHidDevice& transport,const DeviceProfile& profile) override {

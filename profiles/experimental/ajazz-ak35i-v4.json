@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "ajazz-ak35i-v4",
+  "driverId": "lighting.peripherals",
+  "name": "AJAZZ AK35I V4",
+  "match": {
+    "vendorId": 3141,
+    "productId": 32777,
+    "usagePage": 65299,
+    "usage": 1,
+    "interfaceNumber": 3
+  },
+  "channels": [
+    {
+      "id": "AjazzAk35iV4",
+      "maxLeds": 105,
+      "fixedLeds": 105,
+      "direct": true,
+      "nativeModes": [],
+      "address": {
+        "protocol": "ajazz-ak35i-v4",
+        "componentId": "peripheral.ajazz-ak35i-v4"
+      }
+    }
+  ]
+}
