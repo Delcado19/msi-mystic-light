@@ -1,6 +1,12 @@
 add_executable(test_msi_protocol protocol/test_msi_protocol.cpp)
 target_link_libraries(test_msi_protocol PRIVATE msi_protocol Qt6::Test)
 add_test(NAME msi_protocol COMMAND test_msi_protocol)
+add_executable(test_ajazz_ak35i_v4 protocol/test_ajazz_ak35i_v4.cpp ../src/protocol/AjazzAk35iV4Protocol.cpp)
+target_include_directories(test_ajazz_ak35i_v4 PRIVATE ../src)
+target_compile_definitions(test_ajazz_ak35i_v4 PRIVATE
+    FIXTURE_FILE="${PROJECT_SOURCE_DIR}/docs/hardware-inventory/ajazz-ak35i-v4-rgb-fixtures.json")
+target_link_libraries(test_ajazz_ak35i_v4 PRIVATE Qt6::Test)
+add_test(NAME ajazz_ak35i_v4_protocol COMMAND test_ajazz_ak35i_v4)
 add_executable(test_hid_backend hid/test_hid_backend.cpp ../src/hid/HidApiDevice.cpp)
 target_include_directories(test_hid_backend PRIVATE ../src
     "$<TARGET_PROPERTY:hidapi::hidapi,INTERFACE_INCLUDE_DIRECTORIES>")

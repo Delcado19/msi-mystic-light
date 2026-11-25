@@ -36,7 +36,8 @@ set_target_properties(msi_gen1_module PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
 add_library(peripherals_module MODULE modules/peripherals/PeripheralModule.cpp
     src/protocol/RoccatKoneProtocol.cpp src/protocol/RazerBasiliskProtocol.cpp
-    src/protocol/SteelSeriesApex3Protocol.cpp src/protocol/RoccatVulcanProtocol.cpp)
+    src/protocol/SteelSeriesApex3Protocol.cpp src/protocol/RoccatVulcanProtocol.cpp
+    src/protocol/AjazzAk35iV4Protocol.cpp)
 target_include_directories(peripherals_module PRIVATE src)
 target_link_libraries(peripherals_module PRIVATE Qt6::Core)
 set_target_properties(peripherals_module PROPERTIES
