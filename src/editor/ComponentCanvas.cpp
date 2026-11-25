@@ -10,6 +10,8 @@
 #include <QScrollBar>
 #include <QStyleOptionGraphicsItem>
 #include <QWheelEvent>
+#include <QGraphicsPolygonItem>
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -29,6 +31,21 @@ public:
         QGraphicsEllipseItem::paint(painter, &plain, widget);
     }
 };
+}
+
+QVector<int> pathRuns(const QVector<QPointF>& points, const QVector<int>& layers)
+{
+    QVector<double> lengths;
+    for (int i = 1; i < points.size(); ++i) lengths.append(QLineF(points[i - 1], points[i]).length());
+    auto sorted = lengths; std::sort(sorted.begin(), sorted.end());
+    const double limit = sorted.size() >= 3 ? 2.5 * sorted[sorted.size() / 2] : -1;
+    QVector<int> runs; int run = 0;
+    for (int i = 0; i < lengths.size(); ++i) {
+        const bool jump = layers.value(i, 0) != layers.value(i + 1, 0) || (limit > 0 && lengths[i] > limit);
+        if (jump) { runs.append(-1); if (i > 0 && runs[i - 1] != -1) ++run; }
+        else runs.append(run);
+    }
+    return runs;
 }
 
 ComponentCanvas::ComponentCanvas(QWidget* parent) : QGraphicsView(parent)
@@ -83,6 +100,16 @@ void ComponentCanvas::selectRows(const QSet<int>& rows)
 
 void ComponentCanvas::setGridVisible(bool visible) { grid_ = visible; viewport()->update(); }
 void ComponentCanvas::setPathVisible(bool visible) { path_ = visible; rebuild(); }
+void ComponentCanvas::setActiveLayer(int layer)
+{
+    const auto selection = selectedRows();
+    activeLayer_ = std::max(0, layer); rebuild(); selectRows(selection);
+}
+void ComponentCanvas::setAllLayersVisible(bool visible)
+{
+    const auto selection = selectedRows();
+    allLayers_ = visible; rebuild(); selectRows(selection);
+}
 double ComponentCanvas::zoom() const { return transform().m11(); }
 
 void ComponentCanvas::zoomBy(double factor)
@@ -118,19 +145,26 @@ void ComponentCanvas::rebuild()
     scene()->clear();
     const bool wiring = tool_ == Tool::Wire;
     QMap<int, QPointF> firstOfAddress;
+    QMap<int, int> layerOfAddress;
+    const bool layered = draft_.layerCount() > 1;
     for (int row = 0; row < draft_.positions.size(); ++row) {
         const int address = draft_.mapping.value(row);
         if (draft_.nonPhysicalSlots.contains(address)) continue;
+        const int layer = draft_.layers.value(row, 0);
+        const bool active = layer == activeLayer_;
+        if (!active && !allLayers_) continue;
         const auto point = draft_.positions[row] * unit;
         const int pending = wiring ? int(wireOrder_.indexOf(address)) : -1;
         auto* led = new LedItem(-ledRadius, -ledRadius, 2 * ledRadius, 2 * ledRadius);
         led->setBrush(pending >= 0 ? studioThemeColor("@accent", 150) : studioThemeColor("@selected"));
-        led->setData(0, row); led->setData(1, address);
+        led->setData(0, row); led->setData(1, address); led->setData(2, active);
         led->setPos(point);
-        led->setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIgnoresTransformations);
-        led->setFlag(QGraphicsItem::ItemIsMovable, !wiring);
-        led->setToolTip(QString("LED %1 · %2, %3").arg(address + 1).arg(draft_.positions[row].x()).arg(draft_.positions[row].y()));
-        led->setZValue(1);
+        led->setFlags(active ? QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIgnoresTransformations : QGraphicsItem::ItemIgnoresTransformations);
+        led->setFlag(QGraphicsItem::ItemIsMovable, active && !wiring);
+        led->setToolTip(QString("LED %1 · %2, %3").arg(address + 1).arg(draft_.positions[row].x()).arg(draft_.positions[row].y())
+            + (layered ? QString(" · layer %1").arg(layer + 1) : QString()));
+        led->setZValue(active ? 2 : 1);
+        if (!active) led->setOpacity(0.35);
         scene()->addItem(led);
         const auto label = wiring ? (pending >= 0 ? QString::number(pending + 1) : QString()) : QString::number(address + 1);
         auto* text = new QGraphicsSimpleTextItem(label, led);
@@ -144,14 +178,32 @@ void ComponentCanvas::rebuild()
             if (firstOfAddress.contains(address)) {
                 QPen shared(studioThemeColor("@secondary", 170), 1.5, Qt::DotLine); shared.setCosmetic(true);
                 scene()->addLine(QLineF(firstOfAddress.value(address), point), shared)->setZValue(0);
-            } else firstOfAddress.insert(address, point);
+            } else { firstOfAddress.insert(address, point); layerOfAddress.insert(address, layer); }
         }
     }
     if (path_) {
-        QPen pathPen(studioThemeColor("@accent", 170), 1.5, Qt::DashLine); pathPen.setCosmetic(true);
-        const auto order = wiring ? wireOrder_ : firstOfAddress.keys().toVector();
-        for (int i = 1; i < order.size(); ++i)
-            scene()->addLine(QLineF(firstOfAddress.value(order[i - 1]), firstOfAddress.value(order[i])), pathPen)->setZValue(0);
+        // One color per run, dashed arrows for jumps between runs (owner request 2026-11-25). The theme has
+        // a single hue, so the run palette is local.
+        static const QColor palette[] = {QColor("#45DDF5"), QColor("#F5B945"), QColor("#E56BF0"), QColor("#7EE06A")};
+        auto order = wiring ? wireOrder_ : firstOfAddress.keys().toVector();
+        order.erase(std::remove_if(order.begin(), order.end(), [&](int address) { return !firstOfAddress.contains(address); }), order.end());
+        QVector<QPointF> points; QVector<int> layers;
+        for (const int address : order) { points.append(firstOfAddress.value(address)); layers.append(layerOfAddress.value(address)); }
+        const auto runs = pathRuns(points, layers);
+        for (int i = 0; i < runs.size(); ++i) {
+            const QLineF edge(points[i], points[i + 1]);
+            QColor color = runs[i] < 0 ? studioThemeColor("@text", 150) : palette[runs[i] % 4];
+            if (runs[i] >= 0) color.setAlpha(200);
+            QPen pen(color, runs[i] < 0 ? 1.5 : 2, runs[i] < 0 ? Qt::DashLine : Qt::SolidLine); pen.setCosmetic(true);
+            scene()->addLine(edge, pen)->setZValue(0);
+            if (runs[i] < 0 && edge.length() > 0) {
+                // Arrowhead in screen pixels, just outside the target LED marker.
+                auto* head = scene()->addPolygon(QPolygonF{QPointF(-ledRadius, 0), QPointF(-ledRadius - 9, -4.5), QPointF(-ledRadius - 9, 4.5)}, Qt::NoPen, color);
+                head->setFlag(QGraphicsItem::ItemIgnoresTransformations);
+                head->setPos(edge.p2()); head->setRotation(-edge.angle());
+                head->setZValue(0);
+            }
+        }
     }
     // A generous margin keeps panning possible in every direction, like an endless canvas.
     const auto bounds = scene()->itemsBoundingRect();
@@ -160,11 +212,11 @@ void ComponentCanvas::rebuild()
     viewport()->update();
 }
 
-QGraphicsItem* ComponentCanvas::ledAt(QPoint position) const
+QGraphicsItem* ComponentCanvas::ledAt(QPoint position, bool includeInactive) const
 {
     for (auto* item : items(position)) {
         auto* led = item->parentItem() ? item->parentItem() : item;
-        if (led->type() == QGraphicsEllipseItem::Type) return led;
+        if (led->type() == QGraphicsEllipseItem::Type && (includeInactive || led->data(2).toBool())) return led;
     }
     return nullptr;
 }
@@ -192,7 +244,7 @@ void ComponentCanvas::mousePressEvent(QMouseEvent* event)
     }
     if (event->button() != Qt::LeftButton) { QGraphicsView::mousePressEvent(event); return; }
     if (tool_ == Tool::Wire) {
-        if (auto* led = ledAt(position)) {
+        if (auto* led = ledAt(position, true)) {
             const int address = led->data(1).toInt();
             // A repeated click on a point in a shared zone counts only once.
             if (!wireOrder_.contains(address)) wireOrder_.append(address);
@@ -251,7 +303,7 @@ void ComponentCanvas::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
     if (!locked_ && (position - pressPosition_).manhattanLength() < QApplication::startDragDistance()) {
-        try { emit draftEdited(withAdded(draft_, snapped(mapToScene(position), event->modifiers()) / unit), "Add LED"); }
+        try { emit draftEdited(withAdded(draft_, snapped(mapToScene(position), event->modifiers()) / unit, activeLayer_), "Add LED"); }
         catch (const std::invalid_argument&) {}
     }
 }

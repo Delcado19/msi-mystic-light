@@ -235,6 +235,7 @@ private slots:
     void componentDraftLayers();
     void componentLibraryEditing();
     void componentCanvasInteractions();
+    void componentCanvasLayers();
     void componentEditorPageLibrary();
     void componentEditorPageEditing();
     void componentEditorInstanceMode();
@@ -1382,6 +1383,56 @@ void EditorTest::componentCanvasInteractions()
     QTest::mouseClick(viewport,Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(QPointF(9,9)*ComponentCanvas::unit));
     QTest::mouseClick(viewport,Qt::RightButton,Qt::NoModifier,canvas.mapFromScene(draft.positions[0]*ComponentCanvas::unit));
     QCOMPARE(edits.size(),count); QCOMPARE(draft.positions.size(),3);
+}
+
+namespace {
+// SWAFAN-like: front ring (layer 0), back ring on the same points (layer 1), centre ring (layer 0).
+ComponentDraft layeredFan()
+{
+    ComponentDraft fan; fan.id="custom.swafan"; fan.name="Layered fan";
+    for(int ring=0;ring<2;++ring) for(int i=0;i<12;++i) fan.positions.append({6+6*std::cos(i*3.141592653589793/6),6+6*std::sin(i*3.141592653589793/6)});
+    for(int i=0;i<6;++i) fan.positions.append({6+2*std::cos(i*3.141592653589793/3),6+2*std::sin(i*3.141592653589793/3)});
+    for(int row=0;row<30;++row) { fan.mapping.append(row); fan.layers.append(row>=12 && row<24 ? 1 : 0); }
+    return fan;
+}
+int ledItems(ComponentCanvas& canvas,bool selectableOnly=false)
+{
+    int count=0;
+    for(auto* item:canvas.scene()->items()) if(item->type()==QGraphicsEllipseItem::Type && (!selectableOnly || (item->flags() & QGraphicsItem::ItemIsSelectable))) ++count;
+    return count;
+}
+}
+
+void EditorTest::componentCanvasLayers()
+{
+    const auto savedGrid=SnapGrid::load(); auto noSnap=savedGrid; noSnap.enabled=false; noSnap.save();
+    const auto restoreGrid=qScopeGuard([savedGrid]{savedGrid.save();});
+    ComponentCanvas canvas; canvas.resize(640,420);
+    auto draft=layeredFan();
+    connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString&){draft=after;canvas.setDraft(after);});
+    canvas.setDraft(draft); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas));
+    QCOMPARE(canvas.activeLayer(),0); QVERIFY(!canvas.allLayersVisible());
+    QCOMPARE(ledItems(canvas),18);
+    canvas.setActiveLayer(1); QCOMPARE(ledItems(canvas),12);
+    canvas.setAllLayersVisible(true); QCOMPARE(ledItems(canvas),30); QCOMPARE(ledItems(canvas,true),12);
+    // Select all reaches only the active layer.
+    QSet<int> all; for(int row=0;row<30;++row) all.insert(row);
+    canvas.selectRows(all); QCOMPARE(canvas.selectedRows().size(),12);
+    for(int row:canvas.selectedRows()) QCOMPARE(draft.layers[row],1);
+    // A click on empty canvas adds the LED on the active layer.
+    canvas.fit(); canvas.zoomBy(1.0/canvas.zoom());
+    QTest::mouseClick(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(QPointF(20,20)*ComponentCanvas::unit));
+    QCOMPARE(draft.positions.size(),31); QCOMPARE(draft.layers.last(),1);
+    // Right-click delete never reaches a dimmed LED of another layer.
+    canvas.setActiveLayer(0);
+    QTest::mouseClick(canvas.viewport(),Qt::RightButton,Qt::NoModifier,canvas.mapFromScene(QPointF(20,20)*ComponentCanvas::unit));
+    QCOMPARE(draft.positions.size(),31);
+    // Wiring path: one run per ring, dashed jumps 12->13 and 24->25.
+    const auto fan=layeredFan();
+    QVector<int> expected; for(int edge=0;edge<29;++edge) expected.append(edge<11 ? 0 : edge==11 ? -1 : edge<23 ? 1 : edge==23 ? -1 : 2);
+    QCOMPARE(pathRuns(fan.positions,fan.layers),expected);
+    QCOMPARE(pathRuns({{0,0},{1,0},{2,0},{9,0}},{}),(QVector<int>{0,0,-1}));
+    QCOMPARE(pathRuns({{0,0},{1,0},{9,0}},{}),(QVector<int>{0,0})); // too few edges for a length jump
 }
 
 void EditorTest::componentEditorPageLibrary()

@@ -3,6 +3,11 @@
 #include <QGraphicsView>
 #include <optional>
 
+// Wiring path runs (owner request 2026-11-25): one entry per edge between consecutive points, the run
+// index (>= 0) or -1 for a jump. A jump changes layer or is longer than 2.5x the median edge
+// (length jumps need at least 3 edges).
+QVector<int> pathRuns(const QVector<QPointF>& points, const QVector<int>& layers);
+
 // Component Editor drawing surface. It never owns undo state: every finished gesture is reported once
 // through draftEdited(), and the page decides whether to accept it (setDraft) and record it.
 class ComponentCanvas : public QGraphicsView {
@@ -20,6 +25,11 @@ public:
     void selectRows(const QSet<int>& rows);
     void setGridVisible(bool visible);
     void setPathVisible(bool visible);
+    // Display-only depth layers: other layers are hidden, or dimmed and locked when all are visible.
+    void setActiveLayer(int layer);
+    int activeLayer() const { return activeLayer_; }
+    void setAllLayersVisible(bool visible);
+    bool allLayersVisible() const { return allLayers_; }
     void zoomBy(double factor);
     void fit();
     double zoom() const;
@@ -39,11 +49,13 @@ protected:
     void drawBackground(QPainter* painter, const QRectF& rect) override;
 private:
     void rebuild();
-    QGraphicsItem* ledAt(QPoint viewportPosition) const;
+    // Inactive-layer LEDs are only found for wiring, so deletes never reach a dimmed LED.
+    QGraphicsItem* ledAt(QPoint viewportPosition, bool includeInactive = false) const;
     QPointF snapped(QPointF scenePoint, Qt::KeyboardModifiers modifiers) const;
     ComponentDraft draft_;
     Tool tool_ = Tool::Select;
-    bool locked_ = false, grid_ = true, path_ = true;
+    bool locked_ = false, grid_ = true, path_ = true, allLayers_ = false;
+    int activeLayer_ = 0;
     QVector<int> wireOrder_;
     QPoint pressPosition_, lastPan_;
     bool pressOnLed_ = false, panning_ = false, spaceHeld_ = false;
