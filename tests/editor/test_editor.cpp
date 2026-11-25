@@ -8,6 +8,7 @@
 #include "editor/LightingWindow.h"
 #include "editor/ComponentEditor.h"
 #include "editor/ComponentDraft.h"
+#include "editor/ComponentCanvas.h"
 #include "editor/SnapGrid.h"
 #include "editor/HardwareIdentity.h"
 #include "editor/HardwareArtwork.h"
@@ -231,6 +232,7 @@ private slots:
     void componentEditor();
     void componentDraftOperations();
     void componentLibraryEditing();
+    void componentCanvasInteractions();
     void keyboardLedPresentation();
     void placementTransforms();
     void rgbaAndMask();
@@ -1292,6 +1294,61 @@ void EditorTest::componentLibraryEditing()
     document.removeCustomComponent(copy);
     LightingDocument reopened(catalog(),nullptr,{},library);
     QVERIFY_EXCEPTION_THROWN(reopened.load(file),MissingComponents);
+}
+
+void EditorTest::componentCanvasInteractions()
+{
+    const auto savedGrid=SnapGrid::load(); auto noSnap=savedGrid; noSnap.enabled=false; noSnap.save();
+    const auto restoreGrid=qScopeGuard([savedGrid]{savedGrid.save();});
+    ComponentCanvas canvas; canvas.resize(640,420);
+    auto draft=ComponentDraft::fromDefinition(catalog().first()); // (0,0) (1,0) (2,0), addresses 2 1 0
+    QVector<ComponentDraft> edits; QVector<QVector<int>> orders;
+    connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString&){edits.append(after);draft=after;canvas.setDraft(after);});
+    connect(&canvas,&ComponentCanvas::wireOrderFinished,&canvas,[&](const QVector<int>& order){orders.append(order);});
+    canvas.setDraft(draft); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas));
+    canvas.fit(); canvas.zoomBy(1.0/canvas.zoom()); QVERIFY(qAbs(canvas.zoom()-1)<1e-9);
+    const auto at=[&](QPointF unit){return canvas.mapFromScene(unit*ComponentCanvas::unit);};
+    auto* viewport=canvas.viewport();
+    QTest::mouseClick(viewport,Qt::LeftButton,Qt::NoModifier,at({1,3}));
+    QCOMPARE(edits.size(),1); QCOMPARE(draft.positions.size(),4); QVERIFY(QLineF(draft.positions.last(),QPointF(1,3)).length()<.05);
+    QTest::mouseClick(viewport,Qt::RightButton,Qt::NoModifier,at({0,0}));
+    QCOMPARE(draft.positions.size(),3); QCOMPARE(draft.positions.first(),QPointF(1,0));
+    edits.clear();
+    const auto from=at({1,0}),to=from+QPoint(0,24);
+    QTest::mousePress(viewport,Qt::LeftButton,Qt::NoModifier,from);
+    for(int step=1;step<=4;++step) {QMouseEvent move(QEvent::MouseMove,QPointF(from+QPoint(0,6*step)),viewport->mapToGlobal(QPointF(from+QPoint(0,6*step))),Qt::NoButton,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(viewport,&move);}
+    QTest::mouseRelease(viewport,Qt::LeftButton,Qt::NoModifier,to);
+    QCOMPARE(edits.size(),1); QVERIFY(qAbs(draft.positions[0].y()-1)<.05); QVERIFY(qAbs(draft.positions[0].x()-1)<.05);
+    // Box selection over everything.
+    QTest::mousePress(viewport,Qt::LeftButton,Qt::NoModifier,at({-1,-1}));
+    for(int step=1;step<=4;++step) {const auto p=at(QPointF(-1+step,-1+step*1.25));QMouseEvent move(QEvent::MouseMove,QPointF(p),viewport->mapToGlobal(QPointF(p)),Qt::NoButton,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(viewport,&move);}
+    QTest::mouseRelease(viewport,Qt::LeftButton,Qt::NoModifier,at({3,4}));
+    QCOMPARE(canvas.selectedRows().size(),3); QCOMPARE(edits.size(),1);
+    // Zoom at the cursor keeps the scene point under it.
+    const QPoint cursor=at({1,0}); const auto before=canvas.mapToScene(cursor);
+    QWheelEvent wheel(QPointF(cursor),viewport->mapToGlobal(QPointF(cursor)),QPoint(),QPoint(0,120),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
+    QApplication::sendEvent(viewport,&wheel);
+    QVERIFY(canvas.zoom()>1); QVERIFY(QLineF(canvas.mapToScene(cursor),before).length()<=1.0/canvas.zoom()+1e-6);
+    // Middle-drag pans without editing.
+    const int scroll=canvas.horizontalScrollBar()->value();
+    QTest::mousePress(viewport,Qt::MiddleButton,Qt::NoModifier,QPoint(300,200));
+    {QMouseEvent move(QEvent::MouseMove,QPointF(200,200),viewport->mapToGlobal(QPointF(200,200)),Qt::NoButton,Qt::MiddleButton,Qt::NoModifier);QApplication::sendEvent(viewport,&move);}
+    QTest::mouseRelease(viewport,Qt::MiddleButton,Qt::NoModifier,QPoint(200,200));
+    QVERIFY(canvas.horizontalScrollBar()->value()!=scroll); QCOMPARE(edits.size(),1);
+    // Wire tool: clicking LEDs reports their addresses in data order.
+    canvas.fit(); canvas.setTool(ComponentCanvas::Tool::Wire);
+    for(int row:{2,1,0}) QTest::mouseClick(viewport,Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(draft.positions[row]*ComponentCanvas::unit));
+    QCOMPARE(orders.size(),1); QCOMPARE(orders.first(),(QVector<int>{draft.mapping[2],draft.mapping[1],draft.mapping[0]}));
+    // Hover text names the LED number and position.
+    canvas.setTool(ComponentCanvas::Tool::Select);
+    QString tip; for(auto* item:canvas.scene()->items()) if(item->data(0).toInt()==2 && item->type()==QGraphicsEllipseItem::Type) tip=item->toolTip();
+    QCOMPARE(tip,QString("LED %1 · %2, %3").arg(draft.mapping[2]+1).arg(draft.positions[2].x()).arg(draft.positions[2].y()));
+    // Locked instances cannot add, delete or rewire.
+    canvas.setLocked(true); canvas.setTool(ComponentCanvas::Tool::Wire); QCOMPARE(canvas.tool(),ComponentCanvas::Tool::Select);
+    const int count=edits.size();
+    QTest::mouseClick(viewport,Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(QPointF(9,9)*ComponentCanvas::unit));
+    QTest::mouseClick(viewport,Qt::RightButton,Qt::NoModifier,canvas.mapFromScene(draft.positions[0]*ComponentCanvas::unit));
+    QCOMPARE(edits.size(),count); QCOMPARE(draft.positions.size(),3);
 }
 
 void EditorTest::componentAuthoring()
