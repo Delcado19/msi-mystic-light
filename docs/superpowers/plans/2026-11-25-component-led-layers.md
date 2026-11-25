@@ -88,7 +88,7 @@
 - Behavior:
   - Active-only view: LEDs of other layers are not drawn; path edges with an invisible end are not drawn.
   - All-layers view: other layers drawn with opacity 0.35, `ItemIsSelectable`/`ItemIsMovable` off, z below the active layer; path drawn fully.
-  - Path pen per run from a fixed 4-color palette (`@accent`, `@secondary`, and two existing theme colors — use `studioThemeColor` names that already exist; check `StudioTheme.h`), solid; jumps dashed in `@text` at 60 % with a small arrowhead at the target.
+  - Path pen per run, cycling a fixed 4-color palette local to `ComponentCanvas.cpp` (the theme has only one hue): `#45DDF5` (= `@accent`), `#F5B945`, `#E56BF0`, `#7EE06A`, alpha 200, solid; jumps dashed in `@text` at 60 % with a small arrowhead at the target.
   - Clicking empty canvas adds the LED on the active layer (`withAdded(..., activeLayer())`).
   - Shared-address dotted lines unchanged.
 
