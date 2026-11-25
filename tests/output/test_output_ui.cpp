@@ -1,3 +1,4 @@
+#include "../OffscreenTestPlatform.h"
 #include <QDialog>
 #include <QPainter>
 #include "output/HardwareOutput.h"

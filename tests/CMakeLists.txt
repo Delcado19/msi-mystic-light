@@ -199,3 +199,8 @@ if(WIN32)
         -Runtime "$<TARGET_FILE_DIR:msi_mystic_light>")
     set_tests_properties(service_installer_plan PROPERTIES TIMEOUT 30)
 endif()
+
+# Let GUI tests start directly as well as through ctest (see tests/OffscreenTestPlatform.h).
+foreach(gui_test IN ITEMS test_editor test_output_ui test_service test_startup)
+    target_compile_definitions(${gui_test} PRIVATE TEST_QPA_PLUGIN_DIR="$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>")
+endforeach()

@@ -1,3 +1,4 @@
+#include "../OffscreenTestPlatform.h"
 #include "service/ServiceProtocol.h"
 #include "service/ServiceRuntime.h"
 #include "service/ServicePanel.h"

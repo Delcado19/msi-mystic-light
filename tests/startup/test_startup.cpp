@@ -1,3 +1,4 @@
+#include "../OffscreenTestPlatform.h"
 #include "startup/ConflictDialog.h"
 #include "startup/DeviceConflicts.h"
 #include <QtTest>
