@@ -1,6 +1,8 @@
 #include "ComponentCatalog.h"
 
 #include <QDir>
+#include <QHash>
+#include <algorithm>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -76,6 +78,15 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
         // Older embedded Vulcan definitions predate explicit reserved slots; Esc wire 0 is physical.
         component.nonPhysicalSlots = {22, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 58, 64, 71, 77, 81, 90, 91, 92, 93, 94, 95, 97, 98, 112, 118, 123, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143};
     }
+    if (json.contains("layers")) {
+        if (!json.value("layers").isArray() || json.value("layers").toArray().size() != count)
+            throw std::invalid_argument("Invalid LED layers");
+        bool any = false;
+        for (const auto& value : json.value("layers").toArray()) {
+            component.layers.append(integer(value, 0, 15)); any = any || component.layers.back() > 0;
+        }
+        if (!any) component.layers.clear();
+    }
     if(count==15 && component.name.contains("D30-120",Qt::CaseInsensitive)) {
         const QVector<int> oldX{2,1,1,0,0,0,0,0,0,0,0,0,1,1,2};
         bool legacy=true;
@@ -99,11 +110,25 @@ QJsonObject ComponentDefinition::toJson() const
     if (addressCount) result.insert("addressCount", addressCount);
     if(!manufacturer.isEmpty()) result.insert("manufacturer",manufacturer);
     if(!category.isEmpty()) result.insert("category",category);
+    if (std::any_of(layers.cbegin(), layers.cend(), [](int layer) { return layer > 0; })) {
+        QJsonArray values; for (int layer : layers) values.append(layer);
+        result.insert("layers", values);
+    }
     if (!nonPhysicalSlots.isEmpty()) {
         QJsonArray reserved; for (int wire : nonPhysicalSlots) reserved.append(wire);
         result.insert("nonPhysicalSlots", reserved);
     }
     return result;
+}
+
+QVector<int> overlapLayers(const QVector<QPointF>& positions)
+{
+    QVector<int> layers; QHash<QPair<double, double>, int> seen; bool any = false;
+    for (const auto& point : positions) {
+        const int layer = seen[{point.x(), point.y()}]++;
+        layers.append(layer); any = any || layer > 0;
+    }
+    return any ? layers : QVector<int>{};
 }
 
 ComponentDefinition loadComponentDefinition(const QString& fileName)

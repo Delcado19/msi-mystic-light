@@ -15,6 +15,26 @@ class ComponentsTest : public QObject {
             {"positions", QJsonArray{QJsonArray{0, 0}, QJsonArray{1, 0}}}};
     }
 private slots:
+    void componentLayersJson() {
+        // Display-only depth layers (owner request 2026-11-25): optional, never written when all zero.
+        auto plain = ComponentDefinition::fromJson(definition());
+        QVERIFY(plain.layers.isEmpty()); QCOMPARE(plain.layerOf(1), 0);
+        QVERIFY(!plain.toJson().contains("layers"));
+        auto layered = definition(); layered["layers"] = QJsonArray{0, 1};
+        const auto parsed = ComponentDefinition::fromJson(layered);
+        QCOMPARE(parsed.layers, (QVector<int>{0, 1})); QCOMPARE(parsed.layerOf(1), 1);
+        QCOMPARE(ComponentDefinition::fromJson(parsed.toJson()).layers, (QVector<int>{0, 1}));
+        auto zeros = definition(); zeros["layers"] = QJsonArray{0, 0};
+        QVERIFY(ComponentDefinition::fromJson(zeros).layers.isEmpty());
+        QVERIFY(!ComponentDefinition::fromJson(zeros).toJson().contains("layers"));
+        for (const auto& bad : {QJsonValue(QJsonArray{0}), QJsonValue(QJsonArray{0, 16}), QJsonValue(QJsonArray{-1, 0}),
+                                QJsonValue(QJsonArray{0, 0.5}), QJsonValue("1")}) {
+            auto invalid = definition(); invalid["layers"] = bad;
+            QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(invalid), std::invalid_argument);
+        }
+        QCOMPARE(overlapLayers({{0, 0}, {1, 0}, {0, 0}, {0, 0}}), (QVector<int>{0, 0, 1, 2}));
+        QVERIFY(overlapLayers({{0, 0}, {1, 0}}).isEmpty());
+    }
     void parseAndMap() {
         const auto component = ComponentDefinition::fromJson(definition());
         QCOMPARE(component.positions[1], QPointF(1, 0));

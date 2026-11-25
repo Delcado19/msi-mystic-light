@@ -15,11 +15,17 @@ struct ComponentDefinition {
     QVector<int> mapping;
     // Reserved wire slots remain in reports but have no physical LED to arrange.
     QVector<int> nonPhysicalSlots;
+    // Display-only depth layer per position (0 = front), for LEDs physically behind each other.
+    // Empty means all layer 0. Never used for sampling or output (owner request 2026-11-25).
+    QVector<int> layers;
+    int layerOf(int row) const { return layers.value(row, 0); }
     QJsonObject toJson() const;
     static ComponentDefinition fromJson(const QJsonObject& json);
 };
 
 using ComponentCatalog = QMap<QString, ComponentDefinition>;
+// The n-th repeat of an exactly equal point gets layer n; empty when no point repeats.
+QVector<int> overlapLayers(const QVector<QPointF>& positions);
 // All-or-nothing import of data only. Duplicate IDs are errors, not overrides.
 ComponentDefinition loadComponentDefinition(const QString& fileName);
 ComponentCatalog loadComponentCatalog(const QString& directory);
