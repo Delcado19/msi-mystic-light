@@ -12,7 +12,7 @@ target_include_directories(test_hid_backend PRIVATE ../src
     "$<TARGET_PROPERTY:hidapi::hidapi,INTERFACE_INCLUDE_DIRECTORIES>")
 target_compile_definitions(test_hid_backend PRIVATE HID_API_NO_EXPORT_DEFINE)
 target_link_libraries(test_hid_backend PRIVATE Qt6::Test)
-add_test(NAME hid_backend COMMAND test_hid_backend lifecycle failedOpen writes reads fakeFailures fakeReads enumeration exactPath)
+add_test(NAME hid_backend COMMAND test_hid_backend lifecycle failedOpen writes reads fakeFailures fakeReads fakeQueuedReads enumeration exactPath)
 add_test(NAME hid_init_failure COMMAND test_hid_backend initializationFailure)
 set_tests_properties(hid_init_failure PROPERTIES ENVIRONMENT "HID_TEST_INIT_FAIL=1")
 add_library(incompatible_module MODULE modules/IncompatibleModule.cpp)

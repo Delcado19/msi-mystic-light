@@ -216,6 +216,23 @@ private slots:
         QCOMPARE(device.sentReports.size(), std::size_t{1});
     }
 
+    void fakeQueuedReads()
+    {
+        // Scripted replies for ACK-based drivers (AJAZZ AK35I V4); short replies stay short.
+        FakeHidDevice device; QVERIFY(device.open(1, 2));
+        device.featureReportQueue.push_back(std::vector<std::uint8_t>(65, 7));
+        device.featureReportQueue.push_back(std::vector<std::uint8_t>(10, 8));
+        device.featureReportResponse = {0x52};
+        std::uint8_t buffer[65]{};
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{65}); QCOMPARE(buffer[64], std::uint8_t{7});
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{10}); QCOMPARE(buffer[0], std::uint8_t{8});
+        QCOMPARE(device.getFeatureReport(buffer, sizeof(buffer)), std::size_t{1}); QCOMPARE(buffer[0], std::uint8_t{0x52});
+        const std::uint8_t report[]{0, 4};
+        QVERIFY(device.sendFeatureReport(report, sizeof(report)));
+        QCOMPARE(device.operations.size(), std::size_t{4});
+        QCOMPARE(device.operations[0].front(), std::uint8_t{'G'});
+        QCOMPARE(device.operations[3], (std::vector<std::uint8_t>{'S', 0, 4}));
+    }
     void fakeReads()
     {
         FakeHidDevice device;
