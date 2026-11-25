@@ -1481,6 +1481,22 @@ void EditorTest::componentEditorInstanceMode()
     QVERIFY(placed.componentId!="test.strip");
     QCOMPARE(window.document().catalog().value(placed.componentId).mapping,catalog().first().mapping);
     QVERIFY(!page->isDirty());
+    // Inside the main window the page's keys win over menu shortcuts (Undo, Redo, Select all, Delete).
+    {
+        auto* pageCanvas=page->findChild<ComponentCanvas*>("componentCanvas");
+        window.activateWindow(); QVERIFY(QTest::qWaitForWindowActive(&window)); pageCanvas->setFocus();
+        const auto historyIndex=window.document().history()->index();
+        page->findChild<QToolButton*>("componentRotate")->click(); QVERIFY(page->isDirty());
+        QTest::keyClick(pageCanvas,Qt::Key_Z,Qt::ControlModifier);
+        QVERIFY(!page->isDirty()); QCOMPARE(window.document().history()->index(),historyIndex);
+        QTest::keyClick(pageCanvas,Qt::Key_Y,Qt::ControlModifier); QVERIFY(page->isDirty());
+        QTest::keyClick(pageCanvas,Qt::Key_Z,Qt::ControlModifier); QVERIFY(!page->isDirty());
+        QTest::keyClick(pageCanvas,Qt::Key_A,Qt::ControlModifier);
+        QCOMPARE(pageCanvas->selectedRows().size(),int(page->draft().positions.size()));
+        QTest::keyClick(pageCanvas,Qt::Key_Delete); QVERIFY(page->draft().positions.isEmpty());
+        QTest::keyClick(pageCanvas,Qt::Key_Z,Qt::ControlModifier); QVERIFY(!page->isDirty());
+        QCOMPARE(window.document().history()->index(),historyIndex);
+    }
     // Review Focus 5: leaving through the workspace navigation asks about unsaved edits first.
     page->findChild<QToolButton*>("componentRotate")->click(); QVERIFY(page->isDirty());
     page->askUnsaved=[](const QString&){return QMessageBox::Cancel;};

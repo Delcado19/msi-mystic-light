@@ -10,6 +10,7 @@ class LightingDocument;
 class ComponentCanvas;
 class QButtonGroup;
 class QComboBox;
+class QKeyEvent;
 class QSpinBox;
 class QToolButton;
 class QLabel;
@@ -37,7 +38,10 @@ public:
     std::function<QMessageBox::StandardButton(const QString&)> askUnsaved;
 signals:
     void closeRequested();
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
 private:
+    struct KeyBinding { std::function<bool(const QKeyEvent*)> matches; std::function<void()> action; };
     enum class Entry { None, New, Library, Copy, BuiltIn, Instance };
     QWidget* section(QVBoxLayout* column, const QString& title, bool open);
     void refreshList(const QString& selectId);
@@ -73,5 +77,6 @@ private:
     QSpinBox *shapeCount_ = nullptr, *address_ = nullptr;
     QLabel *cursor_ = nullptr, *zoom_ = nullptr, *hint_ = nullptr;
     QWidget* helpOverlay_ = nullptr;
+    QVector<KeyBinding> bindings_;
     QList<QWidget*> countEditing_, wiringEditing_; // disabled for protocol-locked or fixed instances
 };

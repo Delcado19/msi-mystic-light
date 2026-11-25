@@ -5,7 +5,9 @@
 #include <QButtonGroup>
 #include <QGraphicsEllipseItem>
 #include <QGridLayout>
-#include <QShortcut>
+#include <QAbstractSpinBox>
+#include <QApplication>
+#include <QKeyEvent>
 #include <QSpinBox>
 #include "HardwareIdentity.h"
 #include "LightingDocument.h"
@@ -547,11 +549,19 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
 
 void ComponentEditorPage::buildShortcuts()
 {
+    // Keys are matched in eventFilter() instead of QShortcut: identical menu shortcuts of the main
+    // window (Undo, Redo, ...) would otherwise make both ambiguous and neither would fire.
     const auto bind = [this](const QKeySequence& keys, std::function<void()> action) {
-        auto* shortcut = new QShortcut(keys, this);
-        shortcut->setContext(Qt::WidgetWithChildrenShortcut);
-        connect(shortcut, &QShortcut::activated, this, std::move(action));
+        bindings_.append({[keys](const QKeyEvent* event) {
+            if (keys == QKeySequence(QKeySequence::Undo)) return event->matches(QKeySequence::Undo);
+            const auto modifiers = event->modifiers() & ~Qt::KeypadModifier;
+            if (keys == QKeySequence(QKeyCombination(modifiers, Qt::Key(event->key())))) return true;
+            // Punctuation such as "?" or "+" may need Shift depending on the keyboard layout.
+            return (modifiers & Qt::ShiftModifier) && (event->key() < Qt::Key_A || event->key() > Qt::Key_Z)
+                && keys == QKeySequence(QKeyCombination(modifiers & ~Qt::ShiftModifier, Qt::Key(event->key())));
+        }, std::move(action)});
     };
+    qApp->installEventFilter(this);
     const auto click = [this](const char* name) {
         return [this, name] { if (auto* b = findChild<QAbstractButton*>(name); b && b->isEnabled()) b->click(); };
     };
@@ -582,6 +592,23 @@ void ComponentEditorPage::buildShortcuts()
     bind(QKeySequence(Qt::Key_Minus), [this] { canvas_->zoomBy(0.8); });
     bind(QKeySequence(Qt::Key_0), [this] { canvas_->fit(); });
     bind(QKeySequence(Qt::Key_Question), [this] { help_->click(); });
+}
+
+bool ComponentEditorPage::eventFilter(QObject* watched, QEvent* event)
+{
+    if ((event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) && isVisible()) {
+        auto* widget = qobject_cast<QWidget*>(watched);
+        // Text fields keep their own editing keys (Ctrl+Z in a name field undoes typing).
+        if (widget && (widget == this || isAncestorOf(widget)) && !qobject_cast<QLineEdit*>(widget) && !qobject_cast<QAbstractSpinBox*>(widget)) {
+            const auto* key = static_cast<QKeyEvent*>(event);
+            for (const auto& binding : bindings_) if (binding.matches(key)) {
+                event->accept(); // ShortcutOverride: deliver as a key press instead of a window shortcut
+                if (event->type() == QEvent::KeyPress) binding.action();
+                return true;
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void ComponentEditorPage::editSelection(const std::function<ComponentDraft(const ComponentDraft&, const QSet<int>&)>& operation, const QString& label)
