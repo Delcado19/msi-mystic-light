@@ -88,6 +88,9 @@ private:
     QVector<KeyBinding> bindings_;
     QList<QWidget*> countEditing_, wiringEditing_; // disabled for protocol-locked or fixed instances
     bool countLocked() const { return draftLocksCount(draft_) || arrangementOnly_; }
+    // Built-in catalog parts are view-only; "Make a copy" creates an editable one (owner review 2026-11-26).
+    bool readOnly() const { return entry_ == Entry::BuiltIn; }
+    QList<QWidget*> arrangeEditing_; // mirror, rotate, layer moves: allowed on fixed counts, not on built-ins
     QList<QPushButton*> shapeButtons_; // add a shape, or rearrange the existing LEDs when the count is locked
     QLabel* wiringInfo_ = nullptr;
     QPushButton* assign_ = nullptr;

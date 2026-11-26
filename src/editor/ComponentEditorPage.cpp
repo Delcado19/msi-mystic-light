@@ -235,6 +235,7 @@ void ComponentEditorPage::openInstance(const QUuid& placement, bool arrangementO
         entry_ = Entry::Instance; entryId_ = item.componentId;
         draft_ = saved_ = ComponentDraft::fromDefinition(document_.catalog().value(item.componentId));
         undo_.clear();
+        { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(qMax(1, int(draft_.positions.size()))); }
         listColumn_->hide();
         showDraft(); canvas_->fit();
         setMessage(arrangementOnly
@@ -290,13 +291,15 @@ void ComponentEditorPage::load(const QString& id, Entry kind)
     draft_ = saved_ = ComponentDraft::fromDefinition(definition);
     entry_ = kind; entryId_ = id;
     undo_.clear();
+    // The LEDs field starts at the part's own count; it kept the last part's value (owner review 2026-11-26).
+    { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(qMax(1, int(draft_.positions.size()))); }
     showDraft(); canvas_->fit();
-    setMessage(kind == Entry::BuiltIn ? "Built-in components are read-only. Save as copy to keep your changes." : QString());
+    setMessage(kind == Entry::BuiltIn ? "Built-in components are read-only. Make a copy to change it." : QString());
 }
 
 void ComponentEditorPage::applyEdit(const ComponentDraft& after, const QString& label)
 {
-    if (after == draft_ || entry_ == Entry::None) { showDraft(); return; }
+    if (after == draft_ || entry_ == Entry::None || readOnly()) { showDraft(); return; }
     undo_.push(new DraftCommand(label, draft_, after, [this](const ComponentDraft& draft) { draft_ = draft; showDraft(); }));
 }
 
@@ -311,32 +314,35 @@ void ComponentEditorPage::showDraft()
         const int index = category_->findData(draft_.category);
         category_->setCurrentIndex(index >= 0 ? index : 0);
     }
-    for (auto* field : std::initializer_list<QWidget*>{name_, manufacturer_, category_}) field->setEnabled(open && entry_ != Entry::Instance);
+    for (auto* field : std::initializer_list<QWidget*>{name_, manufacturer_, category_}) field->setEnabled(open && entry_ != Entry::Instance && !readOnly());
     const int addresses = int(QSet<int>(draft_.mapping.cbegin(), draft_.mapping.cend()).size());
     counts_->setText(QString("%1 LEDs · %2 addresses").arg(draft_.positions.size()).arg(addresses));
     identity_->setText(draft_.id.isEmpty() ? "(assigned on save)" : draft_.id);
     const auto name = draft_.name.isEmpty() ? QString("Untitled component") : hardwareName(draft_.toDefinitionUnchecked());
     title_->setText(!open ? "Component Editor" : (entry_ == Entry::Instance ? "Editing " : QString()) + name + (isDirty() ? "  •" : ""));
-    save_->setText(entry_ == Entry::BuiltIn ? "Save as copy" : entry_ == Entry::Instance ? "Apply" : "Save");
+    save_->setText(entry_ == Entry::BuiltIn ? "Make a copy" : entry_ == Entry::Instance ? "Apply" : "Save");
     save_->setEnabled(entry_ == Entry::BuiltIn || entry_ == Entry::New || (open && isDirty()));
     delete_->setEnabled(entry_ == Entry::Library || entry_ == Entry::Copy);
     // Protocol slots (e.g. keyboards) and fixed connectors keep LED count and wire order.
-    const bool countLocked = !open || this->countLocked();
+    const bool readOnly = this->readOnly();
+    const bool countLocked = !open || this->countLocked() || readOnly;
     for (auto* widget : countEditing_) widget->setEnabled(!countLocked);
+    for (auto* widget : arrangeEditing_) widget->setEnabled(open && !readOnly);
     // Shapes stay usable on fixed parts: they rearrange the existing LEDs, whose count the field shows.
     const int existing = int(draft_.positions.size());
     for (auto* button : shapeButtons_) {
-        button->setEnabled(open && (!countLocked || existing > 0));
+        button->setEnabled(open && !readOnly && (!countLocked || existing > 0));
         const auto shape = button->text().toLower();
         button->setToolTip(countLocked ? QString("Arrange the %1 existing LEDs as a %2").arg(existing).arg(shape)
-                                       : "Replace all LEDs with a " + shape + " of the chosen LED count");
+            : "Arrange the LEDs as a " + shape + ". The same LED count keeps their wiring; another count replaces them.");
     }
-    if (open && countLocked) { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(existing); }
-    wiringInfo_->setText(open && countLocked
-        ? "This device's LED order is fixed by its controller, so it cannot be rewired here."
+    if (open && countLocked) { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(qMax(1, existing)); }
+    wiringInfo_->setText(readOnly ? "Built-in component: make a copy to change its LEDs or wiring."
+        : open && countLocked ? "This device's LED order is fixed by its controller, so it cannot be rewired here."
         : "The LED order must match the device's data line. Use the Wire tool (W) to click LEDs in order, or apply a preset.");
     for (auto* widget : wiringEditing_) widget->setEnabled(!countLocked && !draft_.positions.isEmpty());
     canvas_->setLocked(countLocked);
+    canvas_->setReadOnly(readOnly);
     if (countLocked && tools_->checkedId() == 1) tools_->button(0)->setChecked(true);
     address_->setMaximum(qMax(1, addresses));
     syncAddressField();
@@ -449,6 +455,7 @@ void ComponentEditorPage::buildToolRail(QWidget* rail)
     layout->addStretch();
     help_ = tool("componentHelp", "help", "Help and shortcuts (?)");
     countEditing_ << duplicate << remove << wireTool_;
+    arrangeEditing_ << mirrorH << mirrorV << rotate;
     connect(duplicate, &QToolButton::clicked, this, [this] {
         editSelection([](const ComponentDraft& d, const QSet<int>& rows) { return rows.isEmpty() ? d : withDuplicated(d, rows, {1, 1}); }, "Duplicate LEDs");
     });
@@ -515,7 +522,7 @@ void ComponentEditorPage::syncAddressField()
     const auto rows = canvas_->selectedRows();
     QSet<int> addresses;
     for (const int row : rows) if (row >= 0 && row < draft_.mapping.size()) addresses.insert(draft_.mapping[row]);
-    const bool editable = !countLocked() && !draft_.positions.isEmpty() && entry_ != Entry::None;
+    const bool editable = !countLocked() && !readOnly() && !draft_.positions.isEmpty() && entry_ != Entry::None;
     const QSignalBlocker block(address_);
     address_->setSpecialValueText(addresses.size() > 1 ? "mixed" : " ");
     address_->setValue(addresses.size() == 1 ? *addresses.cbegin() + 1 : 0);
@@ -525,7 +532,7 @@ void ComponentEditorPage::syncAddressField()
 
 void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
 {
-    auto* shapes = section(column, "ADD SHAPES", true);
+    auto* shapes = section(column, "SHAPE", true);
     auto* shapeLayout = new QGridLayout(shapes); shapeLayout->setContentsMargins(0, 0, 0, 0);
     const QList<QPair<QString, DraftShape>> shapeButtons{{"Matrix", DraftShape::Matrix}, {"Strip", DraftShape::Strip},
         {"Ring", DraftShape::Ring}, {"Fan", DraftShape::Fan}, {"L-Shape", DraftShape::LShape}, {"U-Shape", DraftShape::UShape}};
@@ -538,9 +545,12 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
         shapeButtons_ << button;
         connect(button, &QPushButton::clicked, this, [this, shape, label] {
             try {
-                // A fixed LED count reshapes the existing LEDs instead of replacing them (owner request 2026-11-26).
-                if (countLocked()) applyEdit(withReshaped(draft_, shape), "Arrange as " + label);
-                else applyEdit(withShape(draft_, shape, shapeCount_->value()), "Add " + label);
+                // A fixed LED count, or an unchanged one, reshapes the existing LEDs and keeps their wiring;
+                // only a different count replaces them (owner review 2026-11-26: L-Shape turned a 16-LED
+                // strip into one LED because the field still held another part's count).
+                const int existing = int(draft_.positions.size());
+                if (countLocked() || (existing > 0 && shapeCount_->value() == existing)) applyEdit(withReshaped(draft_, shape), "Arrange as " + label);
+                else applyEdit(withShape(draft_, shape, shapeCount_->value()), "Replace with " + label);
             } catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
         });
     }
@@ -595,7 +605,7 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
     moveLayer_ = new QSpinBox; moveLayer_->setObjectName("componentMoveLayer"); moveLayer_->setRange(1, 2);
     moveLayer_->setToolTip("The highest value creates a new layer"); moveLayer_->setAccessibleName("Target layer for the selected LEDs");
     moveRow->addWidget(moveLayer_, 1);
-    auto* moveApply = new QPushButton("Move selected"); moveApply->setObjectName("componentMoveLayerApply");
+    auto* moveApply = new QPushButton("Move selected"); moveApply->setObjectName("componentMoveLayerApply"); arrangeEditing_ << moveApply;
     moveApply->setToolTip("Move the selected LEDs to this layer"); moveRow->addWidget(moveApply);
     connect(moveApply, &QPushButton::clicked, this, [this] { moveSelectionToLayer(moveLayer_->value() - 1); });
 
@@ -730,7 +740,7 @@ void ComponentEditorPage::updateLayerBox()
     layerView_->setEnabled(count > 1);
     if (count == 1 && layerView_->isChecked()) layerView_->setChecked(false);
     moveLayer_->setRange(1, qMin(16, count + 1));
-    moveLayer_->setEnabled(entry_ != Entry::None);
+    moveLayer_->setEnabled(entry_ != Entry::None && !readOnly());
 }
 
 void ComponentEditorPage::updateHint()

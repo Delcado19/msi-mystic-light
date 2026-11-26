@@ -511,20 +511,24 @@ workspaces or closing the window.
 
 - **Component list** (left): *My components*, *Device copies* (per-placement copies
   named `instance.*` / `restored.*`, collapsed, labelled with their user or "unused")
-  and *Built-in* (read-only; **Save as copy** stores an editable copy). A dot marks
+  and *Built-in* (view only: fields, shapes, wiring and canvas edits are disabled;
+  **Make a copy** stores an editable copy and opens it). A dot marks
   definitions the open layout uses.
 - **Canvas**: click empty grid = add LED, drag LED = move the selection, drag empty
   grid = box select, Shift adds to the selection, right-click LED = delete, middle-drag
-  or Space+drag = pan, wheel = zoom at the cursor. Moves snap to the Layout grid
-  setting; hold Alt to ignore it. Numbers are LED addresses; the wire path is split
+  or Space+drag = pan, wheel = zoom at the cursor. Moves snap to a quarter component
+  unit when the Layout's snap switch is on (the dot grid shows that spacing); hold Alt
+  to ignore it. Numbers are LED addresses; the wire path is split
   into colored runs (cyan, amber, magenta, green), and a dashed arrow marks each jump
   between runs (a layer change or an edge longer than 2.5x the median). Dotted lines
   join LEDs sharing an address.
 - **Tool rail**: Edit (V), Wire order (W), Duplicate (D), Mirror (M / Shift+M),
   Rotate 90° (R), Delete (Del), grid (G), wire path (P), zoom (+ / - / 0), Help (?).
   Ctrl+Z / Ctrl+Y undo and redo every finished gesture; Ctrl+A selects all.
-- **Properties** (right): Device (name, manufacturer, category, ID), Add shapes
-  (Matrix, Strip, Ring, Fan, L-Shape, U-Shape at a chosen LED count; replaces all LEDs),
+- **Properties** (right): Device (name, manufacturer, category, ID), Shape
+  (Matrix, Strip, Ring, Fan, L-Shape, U-Shape; the LEDs field opens at the part's own
+  count, which arranges the existing LEDs and keeps their wiring; another count replaces
+  all LEDs),
   Wiring (presets: rows, serpentine rows, columns, clockwise; **Assign** gives the
   selected LEDs one shared address), Layers (move the selection to a layer; the highest
   value creates a new one), Danger zone (Clear all LEDs, Delete component).

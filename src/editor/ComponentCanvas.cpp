@@ -85,6 +85,14 @@ void ComponentCanvas::setLocked(bool locked)
     if (locked_ && tool_ == Tool::Wire) setTool(Tool::Select);
 }
 
+void ComponentCanvas::setReadOnly(bool readOnly)
+{
+    if (readOnly_ == readOnly) return;
+    readOnly_ = readOnly;
+    if (readOnly_ && tool_ == Tool::Wire) tool_ = Tool::Select;
+    rebuild();
+}
+
 QSet<int> ComponentCanvas::selectedRows() const
 {
     QSet<int> rows;
@@ -167,7 +175,7 @@ void ComponentCanvas::rebuild()
         led->setData(0, row); led->setData(1, address); led->setData(2, active);
         led->setPos(point);
         led->setFlags(active ? QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIgnoresTransformations : QGraphicsItem::ItemIgnoresTransformations);
-        led->setFlag(QGraphicsItem::ItemIsMovable, active && !wiring);
+        led->setFlag(QGraphicsItem::ItemIsMovable, active && !wiring && !readOnly_);
         led->setToolTip(QString("LED %1 · %2, %3").arg(address + 1).arg(draft_.positions[row].x()).arg(draft_.positions[row].y())
             + (layered ? QString(" · layer %1").arg(layer + 1) : QString()));
         led->setZValue(active ? 2 : 1);
@@ -232,9 +240,11 @@ QGraphicsItem* ComponentCanvas::ledAt(QPoint position, bool includeInactive) con
 
 QPointF ComponentCanvas::snapped(QPointF point, Qt::KeyboardModifiers modifiers) const
 {
+    // The Layout's snap switch applies, but not its spacing: 10 Layout px (half a unit) was coarser than
+    // the LED pitch of real strips (owner review 2026-11-26: "grid is really coarse").
     auto grid = SnapGrid::load();
     if (!grid.enabled || (modifiers & Qt::AltModifier)) return point;
-    grid.spacing *= unit / 20; // grid spacing is in Layout pixels; one component unit is 20 Layout pixels
+    grid.spacing = gridStep * unit;
     return grid.snap(point);
 }
 
@@ -245,7 +255,7 @@ void ComponentCanvas::mousePressEvent(QMouseEvent* event)
         panning_ = true; lastPan_ = position; viewport()->setCursor(Qt::ClosedHandCursor); event->accept(); return;
     }
     if (event->button() == Qt::RightButton) {
-        if (auto* led = ledAt(position); led && !locked_) {
+        if (auto* led = ledAt(position); led && !locked_ && !readOnly_) {
             try { emit draftEdited(withRemoved(draft_, {led->data(0).toInt()}), "Delete LED"); }
             catch (const std::invalid_argument&) {}
         }
@@ -311,7 +321,7 @@ void ComponentCanvas::mouseReleaseEvent(QMouseEvent* event)
         emit draftEdited(after, "Move LEDs");
         return;
     }
-    if (!locked_ && (position - pressPosition_).manhattanLength() < QApplication::startDragDistance()) {
+    if (!locked_ && !readOnly_ && (position - pressPosition_).manhattanLength() < QApplication::startDragDistance()) {
         try { emit draftEdited(withAdded(draft_, snapped(mapToScene(position), event->modifiers()) / unit, activeLayer_), "Add LED"); }
         catch (const std::invalid_argument&) {}
     }
@@ -361,8 +371,8 @@ void ComponentCanvas::drawBackground(QPainter* painter, const QRectF& rect)
         painter->save(); painter->scale(unit, unit); drawHardwareComponentArtwork(*painter, draft_.toDefinitionUnchecked()); painter->restore();
     }
     if (!grid_) return;
-    // Dot grid on whole component units; skip dots until they are at least 16 screen pixels apart.
-    double step = unit;
+    // Dots on the snap spacing; when zoomed out, every 2nd/4th/... dot until they are 16 screen pixels apart.
+    double step = gridStep * unit;
     while (step * zoom() < 16) step *= 2;
     painter->save();
     painter->setPen(QPen(studioThemeColor("@separator"), 2.5 / zoom(), Qt::SolidLine, Qt::RoundCap));

@@ -78,7 +78,7 @@
 
 namespace {
 // R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus. R18: canvas drags stream live, menus show only what acts in the current view. R19: no 5 s rescan while all outputs run, output stalls logged. R20: presence check off the output thread (150 ms LED freeze each second). R21: uninstaller backs up user files, never kills the editor. R22: tray icon and name, Layout menu without Add components. R23: product name Lighting Studio for settings and session data. R24: CodeRabbit fixes for PR #3, picker keeps the color on an outside click, Return applies.
-constexpr auto studioBuildId="GS-06-R41";
+constexpr auto studioBuildId="GS-06-R41b";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -723,8 +723,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     previewChannel_=new QComboBox; previewChannel_->setObjectName("previewChannel");
     previewChannel_->setMaximumWidth(160);
     previewChannel_->addItem("Preview: All outputs",QUuid{}); previewChannel_->setToolTip("Preview one output composition. This does not change effect destinations.");
-    auto* previewScope=previewToolbar->addWidget(previewChannel_);previewScope->setVisible(false);
-    connect(tabs_,&QTabWidget::currentChanged,this,[previewScope](int index){previewScope->setVisible(index<2);});
+    previewToolbar->addWidget(previewChannel_);
     previewToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
     auto* fit=previewToolbar->addAction(studioToolIcon("fit"),"Fit canvas"); fit->setObjectName("fitCanvas"); fit->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
     connect(fit,&QAction::triggered,this,[this] { (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->fitToView(); });
@@ -1687,10 +1686,17 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     const auto scopeHint=[this]{previewChannel_->setToolTip(previewChannel_->currentText()+"\nDisplay scope only; device output is unchanged. Other channels are dimmed. Global effects can look identical on multiple channels.");};
     connect(previewChannel_,&QComboBox::currentTextChanged,this,[scopeHint](const QString&){scopeHint();});scopeHint();
     cropButton->setToolTip("Crop image: drag a frame, move it or resize its corners. Enter or double-click applies; Escape cancels.");
+    // Canvas commands stay in place and are disabled in Devices and the Component Editor, like the menus
+    // (owner decision "greyed out", review 2026-11-26: the toolbar still hid them). History and the
+    // playback button act everywhere and keep their own state.
     const auto editorCommands=previewToolbar->actions();
-    connect(tabs_,&QTabWidget::currentChanged,this,[editorCommands,historyCommands](int index){
-        for(auto* action:editorCommands)
-            action->setVisible((index<2 || historyCommands.contains(action)) && action->objectName()!="projectNameAction");
+    connect(tabs_,&QTabWidget::currentChanged,this,[this,previewToolbar,editorCommands,historyCommands](int index){
+        for(auto* action:editorCommands) {
+            if(action->objectName()=="projectNameAction"){action->setVisible(false);continue;}
+            auto* widget=previewToolbar->widgetForAction(action);
+            if(historyCommands.contains(action) || widget==playing_)continue;
+            action->setEnabled(index<2);if(widget)widget->setEnabled(index<2);
+        }
     });
     tabs_->tabBar()->hide();
     // Devices has no canvas: entries that act on one stay in the menus but are disabled, so the menu

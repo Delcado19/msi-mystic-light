@@ -239,6 +239,7 @@ private slots:
     void componentCanvasLayers();
     void componentEditorPageLibrary();
     void componentEditorPageEditing();
+    void componentEditorBuiltInReadOnly();
     void componentEditorPageLayers();
     void componentEditorInstanceMode();
     void disabledControlsLookDisabled();
@@ -1542,7 +1543,7 @@ void EditorTest::componentEditorPageLibrary()
     QCOMPARE(find("test.strip")->parent(),list->topLevelItem(2));
     auto* save=page.findChild<QPushButton*>("componentSave"); auto* remove=page.findChild<QPushButton*>("componentDelete");
     list->setCurrentItem(find("test.strip"));
-    QCOMPARE(save->text(),QString("Save as copy")); QVERIFY(!remove->isEnabled());
+    QCOMPARE(save->text(),QString("Make a copy")); QVERIFY(!remove->isEnabled());
     list->setCurrentItem(find("custom.a"));
     QCOMPARE(save->text(),QString("Save")); QVERIFY(remove->isEnabled());
     auto* name=page.findChild<QLineEdit*>("componentName");
@@ -1567,6 +1568,42 @@ void EditorTest::componentEditorPageLibrary()
     QCOMPARE(name->text(),QString("Changed")); QVERIFY(page.isDirty()); QVERIFY(!page.confirmLeave());
     page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
     QVERIFY(page.confirmLeave()); QVERIFY(!page.isDirty());
+}
+
+void EditorTest::componentEditorBuiltInReadOnly()
+{
+    // Owner review 2026-11-26: built-ins looked editable, the LEDs field kept another part's count, and
+    // L-Shape then replaced a 16-LED strip with one LED.
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    auto single=catalog().first(); single.id="custom.single"; single.name="Single";
+    single.positions={QPointF(0,0)}; single.mapping={0}; document.registerComponent(single);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1400,800); page.openLibrary("custom.single"); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
+    auto* list=page.findChild<QTreeWidget*>("componentList"); auto* count=page.findChild<QSpinBox*>("componentShapeCount");
+    const auto find=[list](const QString& id)->QTreeWidgetItem* {
+        for(QTreeWidgetItemIterator it(list);*it;++it) if((*it)->data(0,Qt::UserRole).toString()==id) return *it;
+        return nullptr;
+    };
+    QCOMPARE(count->value(),1);
+    list->setCurrentItem(find("test.strip"));
+    const auto builtIn=page.draft(); QVERIFY(builtIn.positions.size()>1);
+    QCOMPARE(count->value(),int(builtIn.positions.size()));
+    for(const auto* name:{"componentName","componentShapeLShape","componentShapeCount","componentMirrorH","componentRotate","componentToolWire","componentDeleteLeds"})
+        QVERIFY2(!page.findChild<QWidget*>(name)->isEnabled(),name);
+    auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas");
+    QTest::mouseClick(canvas->viewport(),Qt::LeftButton,Qt::NoModifier,QPoint(8,8));
+    QVERIFY(page.draft()==builtIn); QVERIFY(!page.isDirty());
+    auto* save=page.findChild<QPushButton*>("componentSave"); QCOMPARE(save->text(),QString("Make a copy"));
+    save->click();
+    QCOMPARE(save->text(),QString("Save")); QVERIFY(page.findChild<QWidget*>("componentShapeLShape")->isEnabled());
+    QVERIFY(page.draft().id!=QString("test.strip")); QVERIFY(document.customComponents().contains(page.draft().id));
+    // The same count arranges the existing LEDs and keeps their wiring; it no longer replaces them.
+    const auto before=page.draft();
+    page.findChild<QPushButton*>("componentShapeLShape")->click();
+    QCOMPARE(page.draft().positions.size(),before.positions.size()); QCOMPARE(page.draft().mapping,before.mapping);
+    QVERIFY(page.draft().positions!=before.positions);
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
 }
 
 void EditorTest::componentEditorPageEditing()
@@ -3648,8 +3685,9 @@ void EditorTest::snapLedArrangement()
     auto from=view.mapFromScene({0,0}),to=view.mapFromScene({19,17});
     QTest::mousePress(view.viewport(),Qt::LeftButton,Qt::NoModifier,from);
     QTest::mouseMove(view.viewport(),to);QTest::mouseRelease(view.viewport(),Qt::LeftButton,Qt::NoModifier,to);
-    // 24 scene units = one component unit = 20 Layout pixels; 10 px snaps to half units.
-    QCOMPARE(draft.positions[0],QPointF(1,.5));
+    // 24 scene units = one component unit. The editor snaps to quarter units whatever the Layout
+    // spacing (owner review 2026-11-26: half units were coarser than strip LED pitch).
+    QCOMPARE(draft.positions[0],QPointF(.75,.75));
     QCOMPARE(draft.positions[1],QPointF(3.25,0));
     QCOMPARE(draft.mapping,component.mapping);
 }
@@ -5370,7 +5408,14 @@ void EditorTest::menusFollowWorkspace()
     auto* previewMenu=window.findChild<QMenu*>("previewMenu");
     QVERIFY(previewMenu->menuAction()->isVisible());QVERIFY(!previewMenu->menuAction()->isEnabled());
     for(const auto& name:canvasEdits+QStringList{"resetWorkspace","toggleNavigator"})QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
+    // The canvas toolbar is greyed, not hidden, as well (owner review 2026-11-26).
+    auto* fitCanvas=window.findChild<QAction*>("fitCanvas");auto* scope=window.findChild<QComboBox*>("previewChannel");
+    auto* zoomButton=window.findChild<QToolButton*>("zoomMenuButton");
+    QVERIFY(fitCanvas->isVisible());QVERIFY(!fitCanvas->isEnabled());
+    QVERIFY(scope->isVisible());QVERIFY(!scope->isEnabled());QVERIFY(zoomButton->isVisible());QVERIFY(!zoomButton->isEnabled());
+    QVERIFY(window.findChild<QAction*>("saveProject")->isEnabled());
     window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();
+    QVERIFY(fitCanvas->isEnabled());QVERIFY(scope->isEnabled());QVERIFY(zoomButton->isEnabled());
     QVERIFY(toolsMenu->menuAction()->isEnabled());QVERIFY(previewMenu->menuAction()->isEnabled());
     for(const auto& name:canvasEdits)QVERIFY2(window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
     // Components: the strip offers only Move and Pan, so the Tools menu lists only those.

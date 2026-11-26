@@ -13,6 +13,21 @@ surfaces, big image only at start/empty views); scope = everything incl. P2, ste
 Order: shape (workspace model) -> harden (disabled style, Component Editor items below, conflict
 dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify with real-window screenshots.
 
+## Build GS-06-R41b - 2026-11-26 evening (local, not pushed) - fixes from the owner's R41 review
+
+- Delivered as `Downloads/LightingStudio-local-r41b.zip` + `.zip.sha256`
+  (SHA-256 `6258f92300be7301010cdeaf7e19d65a52a590723c7d1194d5a45a038427e29e`), 58 files. 23/23 CTest.
+  Not run in the real window by me; owner to check.
+- Canvas toolbar (Panels, preview scope, fit, zoom, Align/Snap) is greyed, not hidden, in Devices and
+  the Component Editor; history and the play button stay active.
+- Built-in components are view-only (fields, shapes, wiring, mirror/rotate, layer move, canvas edits
+  disabled; edits are ignored); the button reads "Make a copy" and opens the editable copy.
+- The Shape "LEDs" field opens at the part's own count; the same count arranges the existing LEDs
+  (withReshaped, wiring kept), another count replaces them. Section renamed "SHAPE".
+- Component grid: snapping and dots use a quarter unit (ComponentCanvas::gridStep); the Layout snap
+  switch still applies, its spacing no longer does.
+- Not addressed here: truncated Layout hint line, overlapping "same as" badge, Glacier AiO component.
+
 ## Build GS-06-R41 - 2026-11-26 afternoon (local, not pushed) - workspace model + harden
 
 - Delivered as `Downloads/LightingStudio-local-r41.zip` + `.zip.sha256`
