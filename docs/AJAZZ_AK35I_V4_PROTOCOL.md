@@ -31,6 +31,23 @@ answer faulted the output and the reconnect left the keys black for ~3 s.
 Not yet tested: full key map on 0109, 2.4 GHz dongle
 (0C45:FEFE, needs its own capture) and Bluetooth (no data).
 
+Wireless findings 2026-11-26 (owner present; raw captures stay local because they contain keystrokes):
+- Bluetooth: the keyboard pairs as BLE HID "AK35i BT-1", 0C45:FEFE rev 0138, with only standard
+  collections (keyboard, consumer, system, mouse). No vendor collection (FF13/FF68/FFFF), so the wired
+  path cannot work over Bluetooth. A vendor GATT service FEE0 exists; whether it accepts lighting is
+  unknown (would need a BLE capture of software that changes lighting over Bluetooth).
+- 2.4 GHz dongle 0C45:FEFE rev 0138: vendor collections FF60:0061 (MI_03), FF59:0061 (MI_04), FFFF:0001.
+  USBPcap capture of the vendor software: 32-byte interrupt OUT reports on EP 0x05 (FF60), each answered
+  on EP 0x85; byte 31 = sum of bytes 0..30 mod 256 (165/165 packets). Commands seen:
+  `05 10 00 <mode> R G B .. 06 <speed?> .. aa 55` mode + one color for all keys; mode 0x80 = per-key, then
+  `14 1c <seq 0..19>` + 7 records [id r g b] from byte 3 (140 slots, absent LEDs id 0) and commit
+  `14 10 14 .. aa 55`; `0b 1c ..` music-mode levels every 30 ms (no colors); `20 01` battery (reply byte 3 =
+  percent, polled every 15 s); `0c 10 .. 1a 0b 1a 14 08 33` clock sync (yy mm dd hh mm ss); `02 00` info.
+- Replayed by us through the dongle: whole keyboard green (one packet) and one per-key table (Esc/F1/F2
+  green, rest dark), both confirmed by the owner. The per-key table SURVIVED a keyboard power cycle, so it
+  is stored persistently (flash or battery-backed; not distinguished). A per-key update takes 22 packets
+  at ~25 ms (~0.5 s). Do not stream effects this way: continuous persistent writes risk flash wear.
+
 ## 2. Identity, transport, exact matching
 
 | Property | Wired | Receiver |
