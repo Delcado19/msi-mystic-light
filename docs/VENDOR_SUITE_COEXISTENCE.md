@@ -1,4 +1,4 @@
-# Vendor suite coexistence (concept, not built)
+# Vendor suite coexistence (concept, partly built)
 
 Status: proposal from 2026-11-22; the Razer findings below (2026-11-26) are implemented in R39/R40, the rest is not.
 Termination behaviour in `src/startup/` is unchanged.
