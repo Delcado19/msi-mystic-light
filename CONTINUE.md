@@ -16,7 +16,7 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
 ## Build GS-06-R41 - 2026-11-26 afternoon (local, not pushed) - workspace model + harden
 
 - Delivered as `Downloads/LightingStudio-local-r41.zip` + `.zip.sha256`
-  (SHA-256 `30b68b51ab96b7af036ea029f43e35c083e7d6a6a89eae80c2212453d07fb10e`), 58 files. 23/23 CTest.
+  (SHA-256 `105991cef70e96fafacd5334825c37da3508c021b2bdd16c6e901e45ead3e19b`, repackaged after review fixes), 58 files. 23/23 CTest.
   Checked by offscreen screenshots only; real window, installer and hardware not run.
 - Workspace model: Component Editor always full window (workspaceIndex(), docks/tools/canvas menus
   restored on any exit); Edit LEDs only in Layout; "Connector settings..." for every connector
@@ -28,6 +28,9 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
   properties column 400 px without sideways scrolling, ID as read-only field; conflict dialog with
   one row per program, coexistence-first text and Check again as primary; permanent status-bar
   notice for service-wide errors (no protocol change).
+- Review fixes before delivery: typing an address keeps the selection (step-to-highlight dropped);
+  notice is a permanent status-bar widget; no area highlighted while the editor is open; reshape fits
+  the template to the part's centre and extent; split preview disabled (not hidden) outside Effects.
 - Next: R42 clarify (jargon: endpoint table, profile ID, path, mask text), then R43 quieter + polish.
   Owner tests: R40 wake-up, R41 look and feel.
 
