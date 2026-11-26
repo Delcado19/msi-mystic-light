@@ -1258,6 +1258,21 @@ void EditorTest::componentDraftOperations()
     QCOMPARE(shared.mapping[0],0);QCOMPARE(shared.mapping[11],0);
     QCOMPARE(*std::max_element(shared.mapping.begin(),shared.mapping.end()),10);
     QCOMPARE(QSet<int>(shared.mapping.begin(),shared.mapping.end()).size(),11);
+    // Reshape keeps count, addresses, layers and slots of fixed parts; only positions move (2026-11-26).
+    for(const int n:{8,11}) {
+        ComponentDraft fixed=empty; fixed.nonPhysicalSlots={3};
+        for(int i=0;i<n;++i){fixed.positions.append({double(i),0.0});fixed.mapping.append(n-1-i);fixed.layers.append(i%2);}
+        QVERIFY(draftLocksCount(fixed));
+        for(const auto shape:{DraftShape::Matrix,DraftShape::Strip,DraftShape::Ring,DraftShape::Fan,DraftShape::LShape,DraftShape::UShape}) {
+            const auto reshaped=withReshaped(fixed,shape);
+            QCOMPARE(reshaped.positions.size(),n);QCOMPARE(reshaped.mapping,fixed.mapping);
+            QCOMPARE(reshaped.layers,fixed.layers);QCOMPARE(reshaped.nonPhysicalSlots,fixed.nonPhysicalSlots);
+            QCOMPARE(reshaped.category,fixed.category);
+            // Address order walks the template: address 0 sits on the template's first slot.
+            const auto templatePoints=withShape(empty,shape,n).positions;
+            for(int row=0;row<n;++row)QCOMPARE(reshaped.positions[row],templatePoints[fixed.mapping[row]]);
+        }
+    }
     QCOMPARE(shared.toDefinition().addresses(),11);
     const auto removed=withRemoved(strip,{3});
     QCOMPARE(removed.positions.size(),15);QCOMPARE(removed.mapping,(QVector<int>{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14}));
@@ -1564,9 +1579,14 @@ void EditorTest::componentEditorPageEditing()
     page.findChild<QPushButton*>("componentPresetClockwise")->click();
     QVERIFY(page.draft().mapping!=ring);
     key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().mapping,ring);
+    // The address field mirrors the selection (owner review 2026-11-26).
+    auto* addressField=page.findChild<QSpinBox*>("componentAddress"); auto* assignAddress=page.findChild<QPushButton*>("componentAssignAddress");
+    canvas->selectRows({}); QVERIFY(!addressField->isEnabled()); QVERIFY(!assignAddress->isEnabled());
+    canvas->selectRows({4}); QCOMPARE(addressField->value(),page.draft().mapping[4]+1); QVERIFY(assignAddress->isEnabled());
     canvas->selectRows({0,1});
-    page.findChild<QSpinBox*>("componentAddress")->setValue(1);
-    page.findChild<QPushButton*>("componentAssignAddress")->click();
+    QCOMPARE(addressField->value(),0); QCOMPARE(addressField->text(),QString("mixed")); QVERIFY(!assignAddress->isEnabled());
+    addressField->setValue(1); QVERIFY(assignAddress->isEnabled());
+    assignAddress->click();
     QCOMPARE(page.draft().mapping[0],0); QCOMPARE(page.draft().mapping[1],0);
     QCOMPARE(page.findChild<QLabel*>("componentStatusLeds")->text(),QString("12 LEDs · 11 addresses"));
     key(Qt::Key_A,Qt::ControlModifier); key(Qt::Key_Delete);
@@ -1742,8 +1762,11 @@ void EditorTest::componentEditorInstanceMode()
     layout->select(keyboard);
     window.findChild<QPushButton*>("editLayoutLeds")->click();
     QCOMPARE(pages->currentWidget(),page);
-    for(const auto* name:{"componentShapeRing","componentShapeCount","componentAssignAddress","componentClearAll","componentToolWire","componentDeleteLeds","componentDuplicate"})
+    for(const auto* name:{"componentShapeCount","componentAssignAddress","componentClearAll","componentToolWire","componentDeleteLeds","componentDuplicate"})
         QVERIFY2(!page->findChild<QWidget*>(name)->isEnabled(),name);
+    // Shapes rearrange locked parts; the count field shows the real LED count (owner request 2026-11-26).
+    QVERIFY(page->findChild<QPushButton*>("componentShapeRing")->isEnabled());
+    QCOMPARE(page->findChild<QSpinBox*>("componentShapeCount")->value(),int(page->draft().positions.size()));
     page->findChild<QToolButton*>("componentMirrorH")->click(); QVERIFY(page->isDirty());
     apply->click();
     QString keyboardId;
@@ -1753,7 +1776,12 @@ void EditorTest::componentEditorInstanceMode()
     QCOMPARE(window.document().catalog().value(keyboardId).nonPhysicalSlots,vulcan.nonPhysicalSlots);
     // Fixed connectors only allow arranging the existing LEDs.
     page->openInstance(id,true);
-    QVERIFY(!page->findChild<QPushButton*>("componentShapeRing")->isEnabled());
+    {
+        const auto before=page->draft();
+        page->findChild<QPushButton*>("componentShapeRing")->click();
+        QCOMPARE(page->draft().positions.size(),before.positions.size()); QCOMPARE(page->draft().mapping,before.mapping);
+        QVERIFY(page->draft().positions!=before.positions); QVERIFY(page->isDirty());
+    }
     QVERIFY(page->findChild<QToolButton*>("componentRotate")->isEnabled());
     QVERIFY(!window.findChild<QWidget*>("customComponentLibrary"));
     QVERIFY(!window.findChild<QWidget*>("componentLab"));

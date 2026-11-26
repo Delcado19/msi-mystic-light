@@ -114,6 +114,19 @@ ComponentDraft withShape(ComponentDraft draft, DraftShape shape, int count)
     return draft;
 }
 
+ComponentDraft withReshaped(ComponentDraft draft, DraftShape shape)
+{
+    const int count = int(draft.positions.size());
+    if (count == 0) return draft;
+    // Positions come from the unlocked template generator; nothing but positions is taken over.
+    const auto templatePoints = withShape(ComponentDraft{}, shape, count).positions;
+    QVector<int> rows(count);
+    for (int i = 0; i < count; ++i) rows[i] = i;
+    std::stable_sort(rows.begin(), rows.end(), [&](int a, int b) { return draft.mapping.value(a) < draft.mapping.value(b); });
+    for (int i = 0; i < count; ++i) draft.positions[rows[i]] = templatePoints[i];
+    return draft;
+}
+
 ComponentDraft withWireOrder(ComponentDraft draft, const QVector<int>& addressOrder)
 {
     QHash<int, int> addresses;

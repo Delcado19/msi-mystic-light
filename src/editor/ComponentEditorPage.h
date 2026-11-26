@@ -86,4 +86,9 @@ private:
     QWidget* helpOverlay_ = nullptr;
     QVector<KeyBinding> bindings_;
     QList<QWidget*> countEditing_, wiringEditing_; // disabled for protocol-locked or fixed instances
+    bool countLocked() const { return draftLocksCount(draft_) || arrangementOnly_; }
+    QList<QPushButton*> shapeButtons_; // add a shape, or rearrange the existing LEDs when the count is locked
+    QLabel* wiringInfo_ = nullptr;
+    QPushButton* assign_ = nullptr;
+    void syncAddressField();
 };

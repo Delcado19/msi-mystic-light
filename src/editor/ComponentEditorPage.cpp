@@ -21,6 +21,7 @@
 #include <QPushButton>
 #include <QSaveFile>
 #include <QScrollArea>
+#include <QGraphicsScene>
 #include <QSignalBlocker>
 #include <QToolButton>
 #include <QTreeWidget>
@@ -318,12 +319,25 @@ void ComponentEditorPage::showDraft()
     save_->setEnabled(entry_ == Entry::BuiltIn || entry_ == Entry::New || (open && isDirty()));
     delete_->setEnabled(entry_ == Entry::Library || entry_ == Entry::Copy);
     // Protocol slots (e.g. keyboards) and fixed connectors keep LED count and wire order.
-    const bool countLocked = !open || draftLocksCount(draft_) || arrangementOnly_;
+    const bool countLocked = !open || this->countLocked();
     for (auto* widget : countEditing_) widget->setEnabled(!countLocked);
+    // Shapes stay usable on fixed parts: they rearrange the existing LEDs, whose count the field shows.
+    const int existing = int(draft_.positions.size());
+    for (auto* button : shapeButtons_) {
+        button->setEnabled(open && (!countLocked || existing > 0));
+        const auto shape = button->text().toLower();
+        button->setToolTip(countLocked ? QString("Arrange the %1 existing LEDs as a %2").arg(existing).arg(shape)
+                                       : "Replace all LEDs with a " + shape + " of the chosen LED count");
+    }
+    if (open && countLocked) { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(existing); }
+    wiringInfo_->setText(open && countLocked
+        ? "This device's LED order is fixed by its controller, so it cannot be rewired here."
+        : "The LED order must match the device's data line. Use the Wire tool (W) to click LEDs in order, or apply a preset.");
     for (auto* widget : wiringEditing_) widget->setEnabled(!countLocked && !draft_.positions.isEmpty());
     canvas_->setLocked(countLocked);
     if (countLocked && tools_->checkedId() == 1) tools_->button(0)->setChecked(true);
     address_->setMaximum(qMax(1, addresses));
+    syncAddressField();
     updateLayerBox();
     zoom_->setText(QString("zoom %1%").arg(qRound(canvas_->zoom() * 100)));
     updateHint();
@@ -492,6 +506,21 @@ void ComponentEditorPage::buildToolRail(QWidget* rail)
     });
 }
 
+// The address field mirrors the selection (owner review 2026-11-26: it always showed 1).
+void ComponentEditorPage::syncAddressField()
+{
+    if (!address_ || !assign_) return;
+    const auto rows = canvas_->selectedRows();
+    QSet<int> addresses;
+    for (const int row : rows) if (row >= 0 && row < draft_.mapping.size()) addresses.insert(draft_.mapping[row]);
+    const bool editable = !countLocked() && !draft_.positions.isEmpty() && entry_ != Entry::None;
+    const QSignalBlocker block(address_);
+    address_->setSpecialValueText(addresses.size() > 1 ? "mixed" : " ");
+    address_->setValue(addresses.size() == 1 ? *addresses.cbegin() + 1 : 0);
+    address_->setEnabled(editable && !addresses.isEmpty());
+    assign_->setEnabled(address_->isEnabled() && address_->value() > 0);
+}
+
 void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
 {
     auto* shapes = section(column, "ADD SHAPES", true);
@@ -503,12 +532,14 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
         const auto shape = shapeButtons[i].second;
         auto* button = new QPushButton(label); button->setObjectName("componentShape" + QString(label).remove('-'));
         button->setIcon(studioToolIcon("shape-" + QString(label).remove('-').toLower()));
-        button->setToolTip("Replace all LEDs with a " + label.toLower() + " of the chosen LED count");
         shapeLayout->addWidget(button, i / 3, i % 3);
-        countEditing_ << button;
+        shapeButtons_ << button;
         connect(button, &QPushButton::clicked, this, [this, shape, label] {
-            try { applyEdit(withShape(draft_, shape, shapeCount_->value()), "Add " + label); }
-            catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
+            try {
+                // A fixed LED count reshapes the existing LEDs instead of replacing them (owner request 2026-11-26).
+                if (countLocked()) applyEdit(withReshaped(draft_, shape), "Arrange as " + label);
+                else applyEdit(withShape(draft_, shape, shapeCount_->value()), "Add " + label);
+            } catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
         });
     }
     shapeCount_ = new QSpinBox; shapeCount_->setObjectName("componentShapeCount"); shapeCount_->setRange(1, 1024);
@@ -519,8 +550,7 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
 
     auto* wiring = section(column, "WIRING", true);
     auto* wiringLayout = new QVBoxLayout(wiring); wiringLayout->setContentsMargins(0, 0, 0, 0);
-    auto* info = new QLabel("The LED order must match the device's data line. Use the Wire tool (W) to click "
-        "LEDs in order, or apply a preset.");
+    auto* info = new QLabel; wiringInfo_ = info;
     info->setWordWrap(true); info->setProperty("secondary", true); wiringLayout->addWidget(info);
     const QList<QPair<QString, WiringPreset>> presets{{"Rows: left to right", WiringPreset::RowsLeftToRight},
         {"Rows: serpentine", WiringPreset::RowsSerpentine}, {"Columns: top to bottom", WiringPreset::ColumnsTopToBottom},
@@ -535,20 +565,25 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
     }
     auto* shareRow = new QHBoxLayout; wiringLayout->addLayout(shareRow);
     shareRow->addWidget(new QLabel("Address"));
-    address_ = new QSpinBox; address_->setObjectName("componentAddress"); address_->setRange(1, 1);
+    // 0 is the "no single value" state: blank without a selection, "mixed" for differing addresses.
+    address_ = new QSpinBox; address_->setObjectName("componentAddress"); address_->setRange(0, 1);
     address_->setAccessibleName("LED address for the selected LEDs"); shareRow->addWidget(address_, 1);
-    auto* assign = new QPushButton("Assign"); assign->setObjectName("componentAssignAddress");
+    address_->setToolTip("Position of the selected LEDs on the device's data line. Give several LEDs the same "
+        "address to make them always show the same colour, e.g. the front and back ring of a fan.");
+    auto* assign = new QPushButton("Assign"); assign->setObjectName("componentAssignAddress"); assign_ = assign;
     assign->setToolTip("Give the selected LEDs this address so they share one color");
     shareRow->addWidget(assign);
     wiringEditing_ << address_ << assign;
+    connect(canvas_->scene(), &QGraphicsScene::selectionChanged, this, [this] { syncAddressField(); });
     connect(assign, &QPushButton::clicked, this, [this] {
         editSelection([this](const ComponentDraft& d, const QSet<int>& rows) {
             return rows.isEmpty() ? d : withSharedAddress(d, rows, address_->value() - 1);
         }, "Share address");
     });
     connect(address_, &QSpinBox::valueChanged, this, [this](int value) {
+        assign_->setEnabled(address_->isEnabled() && value > 0);
         // Stepping through addresses highlights every LED of that address for checking.
-        if (!address_->hasFocus()) return;
+        if (!address_->hasFocus() || value == 0) return;
         QSet<int> rows;
         for (int row = 0; row < draft_.mapping.size(); ++row) if (draft_.mapping[row] == value - 1) rows.insert(row);
         canvas_->selectRows(rows);

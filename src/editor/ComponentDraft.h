@@ -25,6 +25,10 @@ enum class WiringPreset { RowsLeftToRight, RowsSerpentine, ColumnsTopToBottom, C
 
 // Replaces every LED; addresses become 0..count-1. Fan and Strip also set the category.
 ComponentDraft withShape(ComponentDraft draft, DraftShape shape, int count);
+// Keeps every LED, its address, layer and slot and moves the existing LEDs onto `shape`, in address
+// order (ties by row), so the wire order follows the shape. Allowed for count-locked drafts: fixed
+// connectors may be rearranged but not resized (owner request 2026-11-26).
+ComponentDraft withReshaped(ComponentDraft draft, DraftShape shape);
 ComponentDraft withPreset(ComponentDraft draft, WiringPreset preset);
 // Rows share `address` (zero-based); unused addresses are compressed afterwards.
 ComponentDraft withSharedAddress(ComponentDraft draft, const QSet<int>& rows, int address);
