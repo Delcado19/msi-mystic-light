@@ -1671,10 +1671,20 @@ void EditorTest::componentEditorInstanceMode()
     // Instance mode: editing a placed component applies a variant to that placement only.
     const auto id=window.document().addComponent("test.strip");
     auto* layout=window.findChild<LightingCanvas*>("layoutCanvas");
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(0);
+    auto* navigatorDock=window.findChild<QDockWidget*>("layersDock"); auto* inspectorDock=window.findChild<QDockWidget*>("propertiesDock");
+    auto* drawingTools=window.findChild<QToolBar*>("effectTools");
+    QVERIFY(navigatorDock->isVisible() && inspectorDock->isVisible() && drawingTools->isVisible());
     layout->select(id);
     window.findChild<QPushButton*>("editLayoutLeds")->click();
     QCOMPARE(pages->currentWidget(),page);
     QVERIFY(!page->findChild<QTreeWidget*>("componentList")->isVisible());
+    // The editor takes the full window whatever area opened it (owner review 2026-11-26).
+    QVERIFY(!navigatorDock->isVisible()); QVERIFY(!inspectorDock->isVisible()); QVERIFY(!drawingTools->isVisible());
+    QVERIFY(!window.findChild<QToolBar*>("drawingOptions")->isVisible());
+    page->findChild<QPushButton*>("componentBack")->click();
+    QVERIFY(navigatorDock->isVisible() && inspectorDock->isVisible() && drawingTools->isVisible()); // choices kept
+    window.findChild<QPushButton*>("editLayoutLeds")->click(); QCOMPARE(pages->currentWidget(),page);
     // Moving the mouse must not resize the status labels: a wider "grid" text squeezed the
     // word-wrapped message onto two lines and the whole canvas jumped (owner report R38).
     {

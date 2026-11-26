@@ -406,6 +406,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     tabs_->addTab(effectWorkspace, "Effects");
     applicationPages_=new QStackedWidget; applicationPages_->setObjectName("applicationPages");
     applicationPages_->addWidget(tabs_); setCentralWidget(applicationPages_);
+    // The Component Editor is a page, not a tab: replay the tab change with workspaceIndex() so every
+    // tab handler hides docks, drawing tools and canvas commands while it is open and restores them on
+    // any exit (owner review 2026-11-26: the editor looked different depending on where it was opened).
+    connect(applicationPages_,&QStackedWidget::currentChanged,this,[this](int) { emit tabs_->currentChanged(workspaceIndex()); });
     connect(this,&LightingWindow::outputRequested,this,[this] { findChild<QAction*>("workspaceHardware")->trigger(); });
 
     auto* dock = new QDockWidget("INSPECTOR", this); dock->setObjectName("propertiesDock");
@@ -1753,11 +1757,16 @@ void LightingWindow::restoreWorkspacePanelPreferences(const QVariantMap& panels)
     updateWorkspacePanels();
 }
 
+int LightingWindow::workspaceIndex() const
+{
+    return applicationPages_ && applicationPages_->currentWidget()!=tabs_ ? 2 : tabs_->currentIndex();
+}
+
 void LightingWindow::updateWorkspacePanels()
 {
     auto* navigator=findChild<QDockWidget*>("layersDock");auto* inspector=findChild<QDockWidget*>("propertiesDock");
     if(!navigator || !inspector)return;
-    const bool editing=tabs_->currentIndex()!=2;
+    const bool editing=workspaceIndex()!=2;
     adjustingPanels_=true;navigator->setVisible(editing && navigatorShown_);inspector->setVisible(editing && inspectorShown_);adjustingPanels_=false;
     for(const auto* name:{"toggleNavigator","toggleInspector"})if(auto* action=findChild<QAction*>(name))action->setEnabled(editing);
 }
@@ -2363,7 +2372,7 @@ void LightingWindow::refreshToolOptions()
                 .arg(tool==LightingCanvas::Tool::Fill ? "Fill" : tool==LightingCanvas::Tool::Pencil ? "Pencil" : "This tool").arg(percent));
     }
     // Photoshop-style options keep a stable row so switching tools never shifts the canvas under the pointer.
-    options->setVisible(tabs_->currentIndex()<2);
+    options->setVisible(workspaceIndex()<2);
 }
 
 void LightingWindow::refreshProperties()

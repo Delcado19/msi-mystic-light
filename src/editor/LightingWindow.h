@@ -83,6 +83,8 @@ private:
     void refreshPlacement();
     void syncSelectionTrees();
     void updateWorkspacePanels();
+    // Current tab, or 2 (no canvas, like Devices) while a full-window page such as the Component Editor is open.
+    int workspaceIndex() const;
     void cyclePanelFocus(bool backwards);
     void moveSelectedLayer(int direction);
     void setLabelsHeld(bool held);
@@ -96,7 +98,7 @@ private:
     QImage previewFrame_;
     LightingCanvas *layoutCanvas_, *effectsCanvas_, *hardwarePreview_;
     QTabWidget* tabs_;
-    QStackedWidget* applicationPages_;
+    QStackedWidget* applicationPages_=nullptr;
     QVBoxLayout* deviceOutput_;
     QTreeWidget* layers_=nullptr;
     QTreeWidget* components_=nullptr;
