@@ -31,13 +31,13 @@ Owner: "noch nichts machen, festhalten". Owner verdict: serious UX defects. Find
 5. Help overlay (`componentHelpOverlay`) has no opaque background: unreadable over the canvas. Make it
    opaque, dim the canvas behind it.
 6. Properties column showed a horizontal scrollbar; the Navigator cannot be narrowed below 220 px
-   (`sidebarDock->setMinimumWidth(220)`). Fixed by item 4 for the editor; Navigator min width in Layout
-   is an open owner question.
+   (`sidebarDock->setMinimumWidth(220)`). Owner: the scrollbars showed missing space; item 4 (editor takes
+   the full window) fixes it. Navigator min width stays 220 px (owner, 2026-11-26).
 7. App-wide: add a visible disabled style for controls that stay disabled.
 8. Verification must include screenshots of the real window, not only enabled-flag tests (the old tests
    passed while the UI was unusable).
 
-Open owner decisions: item 3 (where the single entry lives), item 6 (Navigator min width).
+Open owner decision: item 3 (where the single entry lives; proposal: Layout).
 
 ## Build GS-06-R40 - 2026-11-26 (local, not pushed)
 
