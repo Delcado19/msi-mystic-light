@@ -23,7 +23,12 @@ x64 from a probe script): exactly one FF13:0001 collection (interface 3). START 
 `04 18 00 01` + zeros (65-byte GET verified on Windows hidapi; the reply carries no model identity, so
 START cannot tell V4 from AK820 / V3 MAX). One Direct RGB frame (header `04 20 .. 08`, eight chunks,
 `04 02`): both ACKs as documented; owner confirmed Esc red, F1 green, F2 blue (~25 %), other keys dark.
-Not yet tested: full key map on 0109, frame rate, output through Lighting Studio, 2.4 GHz dongle
+Output through Lighting Studio works (owner, wired). Stress test (probe script, service channel paused):
+a full transaction takes ~36 ms (about 27 frames/s at most); the keyboard periodically answers ACKs with
+status 00 (re-reading after a few ms often clears it) or FF for up to ~2 s, then recovers by itself. The
+driver skips busy frames instead of failing them (fault only after 150 in a row); before, each busy
+answer faulted the output and the reconnect left the keys black for ~3 s.
+Not yet tested: full key map on 0109, 2.4 GHz dongle
 (0C45:FEFE, needs its own capture) and Bluetooth (no data).
 
 ## 2. Identity, transport, exact matching

@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QJsonArray>
 #include <chrono>
+#include <thread>
 
 namespace {
 class PeripheralDriver final : public IDriver {
@@ -40,13 +41,28 @@ public:
         }
         if(protocol=="ajazz-ak35i-v4") {
             // Captured Direct RGB transaction, docs/AJAZZ_AK35I_V4_PROTOCOL.md section 4: START once per
-            // session, then 04 20 + ACK, eight data reports, 04 02 + ACK. Any failed step ends the frame
-            // with false; nothing is replayed and no persistent command is sent. Experimental, no hardware test yet.
+            // session, then 04 20 + ACK, eight data reports, 04 02 + ACK. Nothing is replayed and no
+            // persistent command is sent.
+            // Owner hardware test 2026-11-26 (firmware 0109): the keyboard regularly answers an ACK with
+            // status 00 or FF for up to ~2 s, then recovers by itself. Failing the frame faulted the output
+            // and the reconnect left the keys black for 3 s. A busy answer now skips only this frame; the
+            // next frame starts a fresh transaction. More than maxBusyFrames in a row still fail visibly.
             const auto chunks=BuildAjazzDirectChunks(rgb);
-            if(!initialized_) { if(!ajazzCommand(0x18)) return false; initialized_=true; }
-            if(!ajazzCommand(0x20,8)) return false;
-            for(const auto& chunk:chunks) if(!feature(chunk)) return false;
-            return ajazzCommand(0x02);
+            const auto busy=[this] { return ++busyFrames_<=maxBusyFrames; };
+            if(!initialized_) {
+                const auto start=ajazzCommand(0x18);
+                if(start==Ack::Failed) return false;
+                if(start==Ack::Busy) return busy();
+                initialized_=true;
+            }
+            auto ack=ajazzCommand(0x20,8);
+            if(ack==Ack::Ok) {
+                for(const auto& chunk:chunks) if(!feature(chunk)) return false;
+                ack=ajazzCommand(0x02);
+            }
+            if(ack==Ack::Failed) return false;
+            if(ack==Ack::Busy) return busy();
+            busyFrames_=0; return true;
         }
         if(protocol=="vulcan") {
             // Paired transport routes feature reports to control, output reports to the exact LED endpoint.
@@ -60,14 +76,25 @@ public:
 private:
     template<class Packet> bool feature(const Packet& packet) { return transport_.sendFeatureReport(packet.data(),packet.size()); }
     template<class Packet> bool output(const Packet& packet) { return transport_.writeOutputReport(packet.data(),packet.size()); }
-    // Feature SET, then a 65-byte GET (byte 0 = report ID 0) that must acknowledge the same opcode.
-    // Unverified on hardware: whether Windows hidapi reports 65 bytes for report ID 0 (Phase B check).
-    bool ajazzCommand(std::uint8_t opcode,std::uint8_t arg8=0) {
-        if(!feature(BuildAjazzCommand(opcode,arg8))) return false;
-        AjazzReport reply{};
-        return AjazzAckOk(reply.data(),transport_.getFeatureReport(reply.data(),reply.size()),opcode);
+    // Feature SET, then a 65-byte GET (byte 0 = report ID 0, verified on Windows hidapi 2026-11-26) that
+    // must echo the opcode with status 01. A well-formed echo with status 00 (not done yet) is re-read a
+    // few times without repeating the SET; FF, or 00 that never clears, means busy. Anything else fails.
+    enum class Ack { Ok, Busy, Failed };
+    Ack ajazzCommand(std::uint8_t opcode,std::uint8_t arg8=0) {
+        if(!feature(BuildAjazzCommand(opcode,arg8))) return Ack::Failed;
+        for(int read=0;read<4;++read) {
+            AjazzReport reply{};
+            const auto length=transport_.getFeatureReport(reply.data(),reply.size());
+            if(AjazzAckOk(reply.data(),length,opcode)) return Ack::Ok;
+            const bool echo=length==AJAZZ_V4_REPORT && reply[0]==0 && reply[1]==0x04 && reply[2]==opcode;
+            if(!echo || (reply[4]!=0x00 && reply[4]!=0xFF)) return Ack::Failed;
+            if(reply[4]==0xFF) return Ack::Busy;
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        return Ack::Busy;
     }
-    IHidDevice& transport_; ChannelProfile channel_; bool initialized_=false;
+    static constexpr int maxBusyFrames=150; // about 5 s at 30 fps; busy phases seen on hardware lasted ~2 s
+    IHidDevice& transport_; ChannelProfile channel_; bool initialized_=false; int busyFrames_=0;
     std::chrono::steady_clock::time_point brightnessSent_;
 };
 }

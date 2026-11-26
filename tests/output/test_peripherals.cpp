@@ -101,7 +101,7 @@ private slots:
         ModuleRegistry modules; QString error; QVERIFY2(modules.load(PERIPHERAL_MODULE_PATH,&error),qPrintable(error));
         const auto proof=ajazzProof(); const auto frame=ajazzTransaction("direct-frame");
         const auto start=ajazzNative(ajazzTransaction("global-blue-brightness2"),"get",0);
-        auto badStatus=ajazzNative(frame,"get",0); badStatus[4]=0;
+        auto badStatus=ajazzNative(frame,"get",0); badStatus[4]=0x02; // neither done, pending nor busy
         auto wrongOpcode=ajazzNative(frame,"get",1); // 04 02 reply where 04 20 is expected
         for(const auto& reply:{std::vector<std::uint8_t>(10,0),badStatus,wrongOpcode,std::vector<std::uint8_t>{}}) {
             FakeHidDevice device; QVERIFY(device.open(0,0));
@@ -115,6 +115,32 @@ private slots:
         device.featureReportQueue={std::vector<std::uint8_t>(65,0)};
         QVERIFY(!driver->driver().pushColors("AjazzAk35iV4",proof.initial.channels[0].colors));
         QCOMPARE(device.operations.size(),std::size_t(2)); // failed START ACK: nothing else
+    }
+    void busyKeyboardSkipsFrames() {
+        // Owner hardware test 2026-11-26: status 00/FF phases of ~2 s; they must not fault the output.
+        ModuleRegistry modules; QString error; QVERIFY2(modules.load(PERIPHERAL_MODULE_PATH,&error),qPrintable(error));
+        const auto proof=ajazzProof(); const auto frame=ajazzTransaction("direct-frame");
+        const auto start=ajazzNative(ajazzTransaction("global-blue-brightness2"),"get",0);
+        auto busy=ajazzNative(frame,"get",0); busy[4]=0xFF;
+        auto pending=ajazzNative(frame,"get",0); pending[4]=0x00;
+        FakeHidDevice device; QVERIFY(device.open(0,0));
+        auto driver=modules.create(proof.identity,proof.profile,device,&error); QVERIFY(driver);
+        const auto colors=proof.initial.channels[0].colors;
+        // FF: frame skipped after the header, no data chunk is sent.
+        device.featureReportQueue={start,busy};
+        QVERIFY(driver->driver().pushColors("AjazzAk35iV4",colors));
+        QCOMPARE(device.operations.size(),std::size_t(4)); // START, ACK, 04 20, busy ACK
+        // 00 is re-read (no second SET) and a later 01 completes the frame normally.
+        device.operations.clear(); device.featureReportQueue={pending,pending,ajazzNative(frame,"get",0),ajazzNative(frame,"get",1)};
+        QVERIFY(driver->driver().pushColors("AjazzAk35iV4",colors));
+        QCOMPARE(device.operations.size(),std::size_t(14)); // 04 20, G, G, G, 8 data, 04 02, G
+        QCOMPARE(device.operations[1],std::vector<std::uint8_t>{'G'}); QCOMPARE(device.operations[4][0],std::uint8_t('S'));
+        // A keyboard that stays busy fails visibly after 150 skipped frames in a row.
+        for(int frameIndex=1;frameIndex<=151;++frameIndex) {
+            device.featureReportQueue={busy};
+            const bool ok=driver->driver().pushColors("AjazzAk35iV4",colors);
+            QCOMPARE(ok,frameIndex<=150);
+        }
     }
     void previewAcceptsAjazzProfile() {
         // The output review gate serializes a frame without hardware; ACK reads must not break it.
