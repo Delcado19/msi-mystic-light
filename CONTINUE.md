@@ -3,6 +3,16 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Whole-app critique - 2026-11-26 (impeccable critique, 19/40 "Poor"; NOTHING BUILT YET)
+
+Report: `.impeccable/critique/2026-11-26T11-50-28Z__src-editor-lightingwindow-cpp.md`. P1: no unified
+workspace model; disabled controls look enabled; jargon for beginners (endpoint/profile/path/mask);
+conflict dialog pushes termination instead of coexistence. P2: banner ~25% height, photo behind data,
+hints in three places. Owner decisions: workspace model first; slim header (small logo, calm opaque data
+surfaces, big image only at start/empty views); scope = everything incl. P2, step by step.
+Order: shape (workspace model) -> harden (disabled style, Component Editor items below, conflict
+dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify with real-window screenshots.
+
 ## Component Editor UX defects - owner review of R40, 2026-11-26 (NOTHING BUILT YET)
 
 Owner: "noch nichts machen, festhalten". Owner verdict: serious UX defects. Findings, code-checked:
