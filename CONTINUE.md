@@ -45,7 +45,11 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
   device copy and a `restored.b7ec5bb2...` legacy-import copy, both "Glacier One M25 Gen2 / pump",
   12 LEDs; the picker lists device copies as products. (2) HardwareArtwork maps category AiO to
   `aio_240_rgb` regardless of size. (3) Name lacks "360"; display rewrites "/ pump" to "/ AiO".
-  Unknown: whether 12 LEDs model the whole AiO (pump + 3 fans) or the pump only - owner to confirm.
+  Owner 2026-11-26: three 120 mm fans plus a fan on the pump cap. phanteks.com lists "LED Number 12"
+  for the M25G2-120 D-RGB fan (product/m25g2-120-black-d-rgb/); no zone count (owner assumes 6 zones of
+  2 LEDs, unconfirmed) and no pump-cap LED count. D-RGB runs over one Linq6 cable. Unknown, needs a
+  hardware test: are the daisy-chained fans separate addresses (36) or mirrored (12), and what the cap
+  adds - set a higher LED count on that output, light single addresses and watch.
   Proposed: picker hides or merges identical device copies; AiO artwork by size from name/LED data;
   rename to "Glacier One 360M25 G2 AIO".
 - Owner finding 2026-11-26 (recorded only): Help > Keyboard shortcuts is a cramped QMessageBox of plain
