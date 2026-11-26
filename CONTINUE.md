@@ -48,6 +48,9 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
   Unknown: whether 12 LEDs model the whole AiO (pump + 3 fans) or the pump only - owner to confirm.
   Proposed: picker hides or merges identical device copies; AiO artwork by size from name/LED data;
   rename to "Glacier One 360M25 G2 AIO".
+- Owner finding 2026-11-26 (recorded only): Help > Keyboard shortcuts is a cramped QMessageBox of plain
+  lines (keys and actions mixed, no spacing, info icon). Proposed for R43 polish: same two-column
+  key/action table as the Component Editor help, grouped (View, Tools, Selection, Panels), with spacing.
 - Next: R42 clarify (jargon: endpoint table, profile ID, path, mask text), then R43 quieter + polish.
   Owner tests: R40 wake-up, R41 look and feel.
 
