@@ -36,6 +36,13 @@ Wireless findings 2026-11-26 (owner present; raw captures stay local because the
   collections (keyboard, consumer, system, mouse). No vendor collection (FF13/FF68/FFFF), so the wired
   path cannot work over Bluetooth. A vendor GATT service FEE0 exists; whether it accepts lighting is
   unknown (would need a BLE capture of software that changes lighting over Bluetooth).
+  BLE test 2026-11-26 (WinRT via bleak's winrt packages, keyboard already connected): FEE0 holds one
+  characteristic FEE1 (read, write, write-without-response; no notify), read value empty. Controlled
+  test: keyboard set to static red over the dongle, switched to Bluetooth (stayed red), then the byte-exact
+  dongle "static green" packet written to FEE1 with response: write accepted, nothing readable, keyboard
+  STAYED RED. FEE1 does not accept the dongle command format. The vendor PC software has no Bluetooth
+  mode at all (`config.xml` lists USB and 2.4G only), so there is no reference to capture. Lighting
+  control over Bluetooth is unsupported; no further blind writes.
 - 2.4 GHz dongle 0C45:FEFE rev 0138: vendor collections FF60:0061 (MI_03), FF59:0061 (MI_04), FFFF:0001.
   USBPcap capture of the vendor software: 32-byte interrupt OUT reports on EP 0x05 (FF60), each answered
   on EP 0x85; byte 31 = sum of bytes 0..30 mod 256 (165/165 packets). Commands seen:
