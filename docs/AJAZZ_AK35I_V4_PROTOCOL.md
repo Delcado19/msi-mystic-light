@@ -10,6 +10,15 @@ Evidence labels: VERIFIED = actual AK35I V4 response or source configuration dir
 
 This is the proprietary (non-QMK) ISO keyboard, sold as AK35I V4 / AK35I V4 Tri-Mode. Vendor installer mislabels it AK45I V4; do not infer hardware identity from installer name. Owner tested wired USB and 2.4 GHz typing after update. Vendor firmware changed USB bcdDevice 0102 to 0109; the owner recovered the wireless pairing after update. No further flash is necessary or authorized. RGB capture fixtures were acquired before the firmware update unless independently proven otherwise; repeat RGB validation on 0109. OpenKey USB handshake was obtained after update. No native Lighting Studio output has yet been hardware-tested.
 
+Implementation status (2026-11-26): Phase A done offline. Encoder and ACK check
+(`src/protocol/AjazzAk35iV4Protocol.*`, test `ajazz_ak35i_v4_protocol`), scripted fake HID, driver branch in
+`lighting.peripherals` (API 3), profile `profiles/experimental/ajazz-ak35i-v4.json`, 105-key component,
+dry-run review gate. Model selection (D1): Edit > Settings "AJAZZ AK35I V4 keyboard (experimental, I own
+this exact model)", default off, takes effect after a restart; the editor loads the experimental profile
+only then. The service always loads it (it runs as LocalSystem and cannot read the editor setting) and
+drives only channels a project assigns (test `experimentalProfileInactiveByDefault`). **No hardware test
+yet** (Phase B: START only, then Esc red / F1 green / F2 blue at low brightness).
+
 ## 2. Identity, transport, exact matching
 
 | Property | Wired | Receiver |

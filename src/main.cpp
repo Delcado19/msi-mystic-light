@@ -79,7 +79,9 @@ int main(int argc, char** argv)
     QVector<DeviceProfile> availableProfiles;
     const QDir profiles(parser.value("profile-dir"));
     if (!profiles.exists()) { qWarning() << "Profile directory does not exist"; failed = true; }
-    for (const auto& file : profiles.entryInfoList({"*.json"}, QDir::Files, QDir::Name)) {
+    // Experimental profiles (AJAZZ AK35I V4) only after the explicit opt-in in Edit > Settings (D1).
+    const bool experimental = QSettings().value("devices/ajazzAk35iV4", false).toBool();
+    for (const auto& file : deviceProfileFiles(profiles.absolutePath(), experimental)) {
         try {
             const auto profile = DeviceProfile::load(file.absoluteFilePath());
             QString error;

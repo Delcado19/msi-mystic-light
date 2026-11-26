@@ -1,5 +1,6 @@
 #include "DeviceProfile.h"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -79,6 +80,13 @@ DeviceProfile DeviceProfile::fromJson(const QJsonObject& json)
         profile.channels.append(channel);
     }
     return profile;
+}
+
+QFileInfoList deviceProfileFiles(const QString& directory, bool includeExperimental)
+{
+    auto files = QDir(directory).entryInfoList({"*.json"}, QDir::Files, QDir::Name);
+    if (includeExperimental) files += QDir(directory + "/experimental").entryInfoList({"*.json"}, QDir::Files, QDir::Name);
+    return files;
 }
 
 DeviceProfile DeviceProfile::load(const QString& fileName)

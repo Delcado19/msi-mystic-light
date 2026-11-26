@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QFileInfoList>
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
@@ -33,3 +34,10 @@ struct DeviceProfile {
     static DeviceProfile fromJson(const QJsonObject& json);
     static DeviceProfile load(const QString& fileName);
 };
+
+// Profile files of a profiles folder, sorted by name. Files in its "experimental" subfolder are added
+// only with includeExperimental: the AJAZZ AK35I V4 shares VID:PID 0C45:8009 with other keyboards, so the
+// editor loads it only after the owner's explicit opt-in in Edit > Settings (decision D1, 2026-11-26).
+// The service always loads it; it sends only to channels a project assigns, and only an opted-in editor
+// can assign it (docs/AJAZZ_AK35I_V4_PROTOCOL.md).
+QFileInfoList deviceProfileFiles(const QString& directory, bool includeExperimental);

@@ -78,7 +78,7 @@
 
 namespace {
 // R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus. R18: canvas drags stream live, menus show only what acts in the current view. R19: no 5 s rescan while all outputs run, output stalls logged. R20: presence check off the output thread (150 ms LED freeze each second). R21: uninstaller backs up user files, never kills the editor. R22: tray icon and name, Layout menu without Add components. R23: product name Lighting Studio for settings and session data. R24: CodeRabbit fixes for PR #3, picker keeps the color on an outside click, Return applies.
-constexpr auto studioBuildId="GS-06-R42";
+constexpr auto studioBuildId="GS-06-R43";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -364,11 +364,16 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         auto* splash=new QCheckBox("Show the start screen");splash->setObjectName("showSplashSetting");
         splash->setChecked(QSettings().value("editor/showSplash",true).toBool());
         splash->setToolTip("Shows the large Lighting Studio banner while the program starts.");form->addRow("Start",splash);
+        auto* ajazz=new QCheckBox("AJAZZ AK35I V4 keyboard (experimental, I own this exact model)");ajazz->setObjectName("ajazzAk35iV4Setting");
+        ajazz->setChecked(QSettings().value("devices/ajazzAk35iV4",false).toBool());
+        ajazz->setToolTip("Other AJAZZ keyboards use the same USB identity, so this profile is never chosen automatically.\nTakes effect after restarting Lighting Studio.");
+        form->addRow("Keyboards",ajazz);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);form->addRow(buttons);
         connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
         if(dialog.exec()!=QDialog::Accepted)return;
         QSettings().setValue("editor/disconnectedDevices",disconnected->currentData());
         QSettings().setValue("editor/showSplash",splash->isChecked());
+        QSettings().setValue("devices/ajazzAk35iV4",ajazz->isChecked());
         refresh(); // A setting is not a document change, so nothing else repaints the canvases.
     });
     auto* toolbar = studioHeaderToolbar("History",this);addToolBar(toolbar); toolbar->setObjectName("historyToolbar");
@@ -1917,6 +1922,10 @@ void LightingWindow::scanHeaders()
 {
     try {
         discovered_=scan_();
+        // The service also reports devices of experimental profiles this editor has not opted into.
+        discovered_.removeIf([this](const ProfileCandidate& candidate) {
+            return std::none_of(document_.profiles().cbegin(),document_.profiles().cend(),[&](const DeviceProfile& profile){return profile.id==candidate.profileId;});
+        });
         for(const auto& candidate:discovered_) {
             const auto& profile=assignmentProfile(document_.profiles(),candidate.profileId);
             const bool dedicated=profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary";

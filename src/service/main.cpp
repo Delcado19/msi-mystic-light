@@ -123,7 +123,9 @@ int run(int argc,char** argv,bool managed) {
     ModuleRegistry modules;const auto errors=modules.loadDirectory(root+"/modules");
     if(!errors.isEmpty())throw std::runtime_error(errors.join("\n").toStdString());
     QVector<DeviceProfile> profiles;
-    for(const auto& path:QDir(root+"/profiles").entryInfoList({"*.json"},QDir::Files)) {
+    // The service runs as LocalSystem and cannot read the editor's opt-in, so it always loads the
+    // experimental profiles; it drives only channels the project assigns (decision D1, owner 2026-11-26).
+    for(const auto& path:deviceProfileFiles(root+"/profiles",true)) {
         auto profile=DeviceProfile::load(path.absoluteFilePath());QString error;
         if(!modules.acceptsProfile(profile,&error))throw std::runtime_error(error.toStdString());profiles.append(profile);
     }

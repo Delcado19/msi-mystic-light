@@ -55,6 +55,7 @@ std::vector<std::uint8_t> tagged(char tag, std::vector<std::uint8_t> bytes) { by
 class PeripheralTest : public QObject {
     Q_OBJECT
 private slots:
+    void experimentalProfileInactiveByDefault();
     void ajazzProfileAccepted() {
         ModuleRegistry modules; QString error; QVERIFY2(modules.load(PERIPHERAL_MODULE_PATH,&error),qPrintable(error));
         const auto profile=ajazzProfile();
@@ -189,5 +190,15 @@ private slots:
         }
     }
 };
+void PeripheralTest::experimentalProfileInactiveByDefault()
+{
+    // Decision D1 (2026-11-26): the V4 profile shares VID:PID with AK820 MAX PLUS / V3 MAX and loads only on opt-in.
+    const auto names = [](const QFileInfoList& files) { QStringList result; for (const auto& file : files) result.append(file.fileName()); return result; };
+    const auto off = names(deviceProfileFiles(QString(PROFILE_DIRECTORY), false));
+    QVERIFY(!off.isEmpty()); QVERIFY(!off.contains("ajazz-ak35i-v4.json"));
+    const auto on = names(deviceProfileFiles(QString(PROFILE_DIRECTORY), true));
+    QVERIFY(on.contains("ajazz-ak35i-v4.json")); QCOMPARE(on.size(), off.size() + 1);
+}
+
 QTEST_GUILESS_MAIN(PeripheralTest)
 #include "test_peripherals.moc"
