@@ -128,7 +128,7 @@ ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_
         auto c=command("channels");c["keys"]=keys;c["paused"]=pause;send(c);
     });
     status_=new QLabel;status_->setObjectName("outputStatus");status_->setTextFormat(Qt::PlainText);status_->setWordWrap(true);layout->addWidget(status_);
-    outputs_=new QTreeWidget;outputs_->setObjectName("outputEndpoints");outputs_->setHeaderLabels({"Endpoint / channel","Profile","State"});
+    outputs_=new QTreeWidget;outputs_->setObjectName("outputEndpoints");outputs_->setHeaderLabels({"Output","Device","State"});
     outputs_->setSelectionMode(QAbstractItemView::ExtendedSelection);outputs_->setTextElideMode(Qt::ElideMiddle);
     outputs_->header()->setSectionResizeMode(0,QHeaderView::Stretch);
     outputs_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
@@ -177,8 +177,12 @@ void ServicePanel::display(const QJsonObject& reply) {
     outputs_->clear();int running=0,errors=0;
     QStringList messages;const auto discovery=reply.value("discoveryError").toString();if(!discovery.isEmpty())messages.append("RAM discovery: "+discovery);const auto error=reply.value("error").toString();if(!error.isEmpty())messages.append(error);
     for(const auto& entry:reply.value("outputs").toArray()) {
-        const auto item=entry.toObject();auto* row=new QTreeWidgetItem(outputs_,{item.value("endpoint").toString()+" / "+item.value("channel").toString(),item.value("profileId").toString(),item.value("state").toString()});
-        row->setToolTip(0,row->text(0));row->setData(0,Qt::UserRole,item.value("key").toString());row->setSelected(selected.contains(item.value("key").toString()));
+        const auto item=entry.toObject();
+        // Beginners read connector and device names; the USB path and profile ID are details (critique 2026-11-26).
+        QString device=item.value("profileId").toString();
+        for(const auto& profile:window_.document().profiles())if(profile.id==device && !profile.name.isEmpty())device=profile.name;
+        auto* row=new QTreeWidgetItem(outputs_,{item.value("channel").toString(),device,item.value("state").toString()});
+        row->setToolTip(0,item.value("endpoint").toString()+" / "+item.value("channel").toString());row->setToolTip(1,item.value("profileId").toString());row->setData(0,Qt::UserRole,item.value("key").toString());row->setSelected(selected.contains(item.value("key").toString()));
         if(item.value("state").toString()=="Running")++running;
         const auto failure=item.value("error").toString();if(!failure.isEmpty()){++errors;messages.append(failure);row->setToolTip(2,failure);}
     }

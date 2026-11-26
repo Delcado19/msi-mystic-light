@@ -143,6 +143,29 @@ ComponentCatalog hardwareProducts(const ComponentCatalog& catalog)
         for(int i=0;i<16;++i) strip.positions[i]={3.0*i/15,0};
         if (!products.contains(strip.id)) products.insert(strip.id,strip);
     }
+    // Phanteks Glacier One 360M25 G2 AIO, from the owner's hardware test 2026-11-26 (one address lit at a
+    // time on JARGB3): 8 addresses. The three radiator fans mirror addresses 1-6 and are not individually
+    // addressable; the pump-cap fan ring uses 1-8. Both rings start at 3 o'clock and run counterclockwise;
+    // the owner chose even spacing (60 / 45 degrees). Name contains "360" so the 360 artwork is used.
+    {
+        ComponentDefinition aio;
+        aio.id = "phanteks.glacier-one-360m25g2";
+        aio.name = "Phanteks Glacier One 360M25 G2 AIO";
+        aio.manufacturer = "Phanteks";
+        aio.category = "AiO";
+        aio.addressCount = 8;
+        const double pi = 3.141592653589793;
+        const auto ring = [&](QPointF centre, double radius, int count) {
+            for (int address = 0; address < count; ++address) {
+                const double angle = address * 2 * pi / count; // screen y points down: minus sine runs counterclockwise
+                aio.positions.append(centre + QPointF(radius * std::cos(angle), -radius * std::sin(angle)));
+                aio.mapping.append(address);
+            }
+        };
+        for (const double x : {1.5, 4.5, 7.5}) ring({x, 1.5}, 1.2, 6);
+        ring({4.5, 4.4}, 0.8, 8);
+        if (!products.contains(aio.id)) products.insert(aio.id, aio);
+    }
     installedProducts(products);
     for(auto it=products.begin();it!=products.end();) {
         if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products.erase(it); else ++it;
@@ -154,6 +177,11 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<Hea
 {
     setObjectName("hardwarePicker"); setWindowTitle("Add hardware"); resize(760,640);
     products_=hardwareProducts(catalog);
+    // Per-placement copies (instance.*, restored.*) are variants of placed parts, not products to add;
+    // they showed one AiO twice in Add hardware (owner finding 2026-11-26). They stay in the Component Editor.
+    for(auto it=products_.begin();it!=products_.end();) {
+        if(it.key().startsWith("instance.") || it.key().startsWith("restored.")) it=products_.erase(it); else ++it;
+    }
     auto* root=new QVBoxLayout(this); root->setContentsMargins(20,20,20,20); root->setSpacing(12);
     auto* heading=new QLabel("Choose your hardware"); heading->setProperty("heading",true); root->addWidget(heading);
     header_=new QComboBox; header_->setObjectName("hardwareHeader"); header_->setPlaceholderText("No supported header detected - connect your controller and refresh headers"); root->addWidget(header_);

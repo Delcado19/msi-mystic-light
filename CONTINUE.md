@@ -13,6 +13,25 @@ surfaces, big image only at start/empty views); scope = everything incl. P2, ste
 Order: shape (workspace model) -> harden (disabled style, Component Editor items below, conflict
 dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify with real-window screenshots.
 
+## Build GS-06-R42 - 2026-11-26 evening (local, not pushed) - clarify + quieter/polish part 1
+
+- Delivered as `Downloads/LightingStudio-local-r42.zip` + `.zip.sha256` (SHA-256 `14b1d978d5cede38ccf34e31f34753ea5553c266d155486d0f5dc3237bdb52c8`). 23/23 CTest.
+  Offscreen screenshot checked (Layout); real window not run by me.
+- Clarify: output status once (pill + tooltip; Devices `hardwareStatus` no longer repeats it; no
+  "Service connected" in the tooltip); service output table "Output / Device / State" with device names,
+  USB path and profile ID in tooltips; Devices column "LEDs"; one-line mask explanation; Address/Assign
+  explanation in the Component Editor.
+- Polish: labelled Play/Stop button; "Remove selected component" uses the new @danger style; preview
+  scope wider; Layout hint shortened.
+- Quieter: header logo 56 px instead of 140; window photo under a near-opaque overlay (alpha 205);
+  start screen (QSplashScreen, large banner, only while startup runs, after the conflict dialog),
+  switch in Edit > Settings ("Show the start screen", editor/showSplash, default on).
+- Help > Keyboard shortcuts: grouped two-column table dialog (keys checked against the code).
+- Glacier: built-in product "Phanteks Glacier One 360M25 G2 AIO" (8 addresses, three 6-point fan rings +
+  8-point pump ring, 3 o'clock, counterclockwise). Add hardware hides instance.*/restored.* copies.
+  The owner's placed Glacier still uses the old 12-LED copy: replace it via Devices to use the new one.
+- Still open: Option A housing frame + dimmed `_fv` photos; overlapping "same as" badge.
+
 ## Build GS-06-R41c - 2026-11-26 evening (local, not pushed) - owner review of R41b
 
 - Delivered as `Downloads/LightingStudio-local-r41c.zip` + `.zip.sha256` (SHA-256 `025593d4f454af583428bae7771357465bbb351b22ffea631c795f1cb864113d`). 23/23 CTest.

@@ -78,7 +78,7 @@
 
 namespace {
 // R3: shared LED outputs and Header settings redesign. R4: aligned rows, Space panning, layers-only drawing options, logo right, auto-fit follows edits. R5: saved layouts no longer move the logo left; undistorted effect area covering all housings; numbered keys. R6: menu cleanup, one unit per wheel notch, trimmed larger logo. R7: audit fixes (PawnIO path, HID padding, Apex 3, service idle, resume reconnect, installer). R9: identify flash, shared-aware LED counts, LED column and component ranges. R10: service survives hung device opens, conflict dialog checks every discovered device. R11: UAC stop per process, outputs reinitialized after a conflict stop. R12: CodeRabbit review fixes (probe-gated opening, physical device match, installer results). R13: exited family members count as stopped. R14: scan deadline, stale writer filter. R15: 12 s scan deadline, stale scan results rejected. R16: gray stops take a hue, live drag output, menus only where they act, sorted effect library. R17: edits stream during a drag without a rescan, Tools hidden in Devices, effect categories as submenus. R18: canvas drags stream live, menus show only what acts in the current view. R19: no 5 s rescan while all outputs run, output stalls logged. R20: presence check off the output thread (150 ms LED freeze each second). R21: uninstaller backs up user files, never kills the editor. R22: tray icon and name, Layout menu without Add components. R23: product name Lighting Studio for settings and session data. R24: CodeRabbit fixes for PR #3, picker keeps the color on an outside click, Return applies.
-constexpr auto studioBuildId="GS-06-R41c";
+constexpr auto studioBuildId="GS-06-R42";
 void setEffectControlRange(QDoubleSpinBox* field,double minimum,double maximum,double current)
 {
     // Keep legacy values visible without rewriting projects; sliders use only the practical range.
@@ -202,7 +202,8 @@ QPushButton* button(QVBoxLayout* layout, const QString& label, std::function<voi
 }
 void updatePlaybackButton(QPushButton* button,bool playing)
 {
-    button->setText({});button->setFixedSize(40,36);button->setIconSize({24,24});
+    // Labelled: the bare red square read as an unknown control (critique 2026-11-26).
+    button->setText(playing ? "Stop" : "Play");button->setMinimumWidth(84);button->setIconSize({18,18});
     button->setIcon(studioToolIcon(playing ? "preview-stop" : "preview-play"));
     button->setAccessibleName(playing ? "Stop preview" : "Play preview");
     button->setToolTip(playing ? "Stop preview animation; keep the current frame" : "Play preview animation");
@@ -261,7 +262,8 @@ QPixmap studioLogo()
     QImage image(":/branding/lighting-studio-header.png");image=image.convertToFormat(QImage::Format_ARGB32);
     QRect used;for(int y=0;y<image.height();++y)for(int x=0;x<image.width();++x)if(qAlpha(image.pixel(x,y))>8)used=used.united(QRect(x,y,1,1));
     if(!used.isEmpty())image=image.copy(used.adjusted(-4,-4,4,4).intersected(image.rect()));
-    return QPixmap::fromImage(image.scaled(760,140,Qt::KeepAspectRatio,Qt::SmoothTransformation));
+    // Slim header (owner decision 2026-11-26): 56 px instead of 140; the large banner is the splash screen.
+    return QPixmap::fromImage(image.scaled(320,56,Qt::KeepAspectRatio,Qt::SmoothTransformation));
 }
 }
 LightingWindow::LightingWindow(ComponentCatalog catalog,
@@ -308,10 +310,27 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     auto* help=menuBar()->addMenu("Help");
     auto* shortcuts=help->addAction("Keyboard shortcuts");shortcuts->setObjectName("keyboardShortcuts");
-    connect(shortcuts,&QAction::triggered,this,[this]{QMessageBox::information(this,"Keyboard shortcuts",
-        "Space + drag: move the canvas view\nH: Pan tool    V: Move tool\nB, I, U, O, G, F, E: Pencil, Line, Rectangle, Ellipse, Gradient, Fill, Eraser\n"
-        "Hold L: show component names\nCtrl+D: duplicate selection\nCtrl+Shift+G: snap to grid on/off (hold Alt to place freely)\n"
-        "Alt+R: reset the focused number field to its default\nF6 / Shift+F6: move keyboard focus to the next / previous panel");});
+    // Grouped key/action table (owner finding 2026-11-26: the old message box was cramped and unreadable).
+    connect(shortcuts,&QAction::triggered,this,[this]{
+        const QList<QPair<QString,QList<QPair<QString,QString>>>> groups{
+            {"Project",{{"Ctrl+O","Open layout"},{"Ctrl+S","Save layout"},{"Ctrl+Shift+S","Save layout as"},{"Ctrl+Z","Undo"},{"Ctrl+Y / Ctrl+Shift+Z","Redo"}}},
+            {"View",{{"Space + drag","Move the canvas view"},{"Mouse wheel","Zoom at the cursor"},{"Ctrl+0","Fit canvas"},{"Hold L","Show component names"}}},
+            {"Tools",{{"V","Move"},{"H","Pan"},{"B","Pencil"},{"I","Line"},{"U","Rectangle"},{"O","Ellipse"},{"G","Gradient"},{"F","Fill"},{"E","Eraser"},{"C","Crop image"}}},
+            {"Selection",{{"Ctrl+D","Duplicate selection"},{"Del","Delete selection"},{"Ctrl+PgUp / Ctrl+PgDn","Move layer up / down"},{"Ctrl+Shift+G","Snap to grid on / off"},{"Hold Alt","Place freely, ignoring the grid"}}},
+            {"Panels and fields",{{"Ctrl+Shift+L","Navigator on / off"},{"Ctrl+Shift+P","Inspector on / off"},{"F6 / Shift+F6","Next / previous panel"},{"Alt+R","Reset the focused number field"}}}};
+        QString html="<table cellspacing=\"0\" cellpadding=\"5\">";
+        for(const auto& group:groups) {
+            html+="<tr><td colspan=\"2\" style=\"padding-top:12px\"><b>"+group.first.toHtmlEscaped()+"</b></td></tr>";
+            for(const auto& entry:group.second)html+="<tr><td style=\"padding-right:28px\"><b>"+entry.first.toHtmlEscaped()+"</b></td><td>"+entry.second.toHtmlEscaped()+"</td></tr>";
+        }
+        html+="</table><p>The Component Editor lists its own keys under its ? button.</p>";
+        QDialog dialog(this);dialog.setWindowTitle("Keyboard shortcuts");dialog.setObjectName("keyboardShortcutsDialog");
+        auto* layout=new QVBoxLayout(&dialog);auto* scroll=new QScrollArea;scroll->setWidgetResizable(true);scroll->setFrameShape(QFrame::NoFrame);
+        auto* text=new QLabel(html);text->setObjectName("keyboardShortcutsTable");text->setTextFormat(Qt::RichText);text->setContentsMargins(8,0,8,0);
+        scroll->setWidget(text);layout->addWidget(scroll,1);
+        auto* close=new QDialogButtonBox(QDialogButtonBox::Close);layout->addWidget(close);
+        connect(close,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
+        dialog.resize(520,640);dialog.exec();});
     auto* about=help->addAction("About Lighting Studio");about->setObjectName("aboutLightingStudio");
     connect(about,&QAction::triggered,this,[this]{QDialog dialog(this);dialog.setWindowTitle("Lighting Studio");auto* stack=new QVBoxLayout(&dialog);stack->addWidget(studioBanner(&dialog,210));auto* description=new QLabel(QString("Lighting Studio — build %1\nRGB layout, effects and hardware control.\nBanner artwork depicts a conceptual interface.").arg(studioBuildId));description->setWordWrap(true);stack->addWidget(description);auto* executable=new QLabel(QCoreApplication::applicationFilePath());executable->setObjectName("runningExecutablePath");executable->setWordWrap(true);executable->setTextFormat(Qt::PlainText);executable->setTextInteractionFlags(Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard);stack->addWidget(executable);auto* close=new QDialogButtonBox(QDialogButtonBox::Close);stack->addWidget(close);connect(close,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);dialog.resize(800,300);dialog.exec();});
     auto* artworkCredits=help->addAction("Artwork credits");artworkCredits->setObjectName("artworkCredits");
@@ -342,10 +361,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         disconnected->setCurrentIndex(std::max(0,disconnected->findData(QSettings().value("editor/disconnectedDevices","hide"))));
         disconnected->setToolTip("Devices in the project that the last hardware scan did not find. They keep their layout and effects.");
         form->addRow("Disconnected devices",disconnected);
+        auto* splash=new QCheckBox("Show the start screen");splash->setObjectName("showSplashSetting");
+        splash->setChecked(QSettings().value("editor/showSplash",true).toBool());
+        splash->setToolTip("Shows the large Lighting Studio banner while the program starts.");form->addRow("Start",splash);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);form->addRow(buttons);
         connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
         if(dialog.exec()!=QDialog::Accepted)return;
         QSettings().setValue("editor/disconnectedDevices",disconnected->currentData());
+        QSettings().setValue("editor/showSplash",splash->isChecked());
         refresh(); // A setting is not a document change, so nothing else repaints the canvases.
     });
     auto* toolbar = studioHeaderToolbar("History",this);addToolBar(toolbar); toolbar->setObjectName("historyToolbar");
@@ -446,6 +469,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     layoutControls->setContentsMargins(8,8,8,8); layoutControls->setSpacing(6);
     addPanel(layoutPanel);
     auto* removeComponent=button(layoutControls, "Remove selected component", [this] {removeSelectedComponents();});
+    removeComponent->setProperty("danger",true);
     removeComponent->setObjectName("removeComponent");
     auto* hardwarePage=new QWidget; hardwarePage->setObjectName("hardwarePage");
     auto* hardwareColumns=new QHBoxLayout(hardwarePage); hardwareColumns->setContentsMargins(28,24,28,24); hardwareColumns->setSpacing(28);
@@ -554,7 +578,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardwareScroll=new QScrollArea; hardwareScroll->setWidgetResizable(true); hardwareScroll->setWidget(hardwarePage);
     tabs_->addTab(hardwareScroll,"Devices");
     components_=new QTreeWidget; components_->setObjectName("layoutComponents");
-    components_->setHeaderLabels({"Connector / component","Status / manufacturer","Addresses"});
+    components_->setHeaderLabels({"Connector / component","Status / manufacturer","LEDs"});
     auto* hardwareTree=new DeviceTree;
     hardwareTree->setObjectName("hardwareComponents");
     hardwareTree->setMinimumHeight(220);
@@ -725,7 +749,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     previewToolbar->setMovable(false);
     previewToolbar->addWidget(playing_); previewTime_->hide(); // Keep the animation clock internal, without a numeric toolbar field.
     previewChannel_=new QComboBox; previewChannel_->setObjectName("previewChannel");
-    previewChannel_->setMaximumWidth(160);
+    previewChannel_->setMaximumWidth(230);
     previewChannel_->addItem("Preview: All outputs",QUuid{}); previewChannel_->setToolTip("Preview one output composition. This does not change effect destinations.");
     previewToolbar->addWidget(previewChannel_);
     previewToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -800,6 +824,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* motion=new QWidget; auto* motionControls=new QVBoxLayout(motion); motionControls->setContentsMargins(0,8,0,0); motionControls->setSpacing(6);
     auto* maskProperties=new QWidget; auto* maskControls=new QVBoxLayout(maskProperties); maskControls->setContentsMargins(0,8,0,0); maskControls->setSpacing(6);
     maskControls->setSizeConstraint(QLayout::SetMinimumSize);
+    {auto* explanation=new QLabel("A mask decides where this effect shows: white shows it, black hides it, gray shows it partly.");
+     explanation->setObjectName("maskExplanation");explanation->setWordWrap(true);explanation->setProperty("secondary",true);maskControls->addWidget(explanation);}
     inspectorTabs_->addTab(appearance,"Source"); inspectorTabs_->addTab(motion,"Motion"); inspectorTabs_->addTab(maskProperties,"Mask");
     connect(inspectorTabs_,&QTabWidget::currentChanged,this,[this](int page) {
         if(page==2) {
@@ -1806,7 +1832,7 @@ void LightingWindow::paintEvent(QPaintEvent* event)
                                    (background.height()-sourceSize.height())/2),sourceSize);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
         painter.drawPixmap(QRectF(rect()),background,source);
-        painter.fillRect(rect(),QColor(4,12,22,60));
+        painter.fillRect(rect(),QColor(4,12,22,205)); // calm, near-opaque surface over the photo (critique 2026-11-26)
     }
 }
 
@@ -2236,14 +2262,15 @@ QString outputTrafficLight(const QString& state)
 void LightingWindow::setOutputState(const QString& state)
 {
     auto* action=findChild<QAction*>("reviewOutput"); action->setText("Output: "+state);
-    const auto description=state=="Running" ? QString("Output is running. Canvas edits and playback update software channels live.") :
-        state=="Stopped" ? QString("Output is stopped. Screen preview sends no colors. Open Hardware to resume output.") : "Output: "+state;
-    findChild<QLabel*>("hardwareStatus")->setText(description);
-    const auto* detail=findChild<QLabel*>("outputStatus");
-    action->setToolTip(description+(detail ? "\n"+detail->text() : QString{}));
+    // Shown once: the status pill and its tooltip. It was repeated in the tooltip and as a Devices line
+    // (owner review 2026-11-26: "redundant"); the service panel keeps its own per-output list.
+    const auto explanation=state=="Running" ? QString("Canvas edits and playback update the lights live.") :
+        state=="Stopped" ? QString("No colors are sent. Resume output in Devices.") : QString();
+    const auto summary="Output: "+state+(explanation.isEmpty() ? QString() : "\n"+explanation);
+    action->setToolTip(summary);
     auto labels=findChildren<QLabel*>("fullscreenOutputStatus");labels.prepend(findChild<QLabel*>("toolbarOutputStatus"));
     for(auto* label:labels) {
-        label->setText(outputTrafficLight(state));label->setToolTip("Output: "+state+"\n"+action->toolTip());label->setProperty("outputState",state.contains(" errors") ? "faulted" : state.contains(" active") ? (state.startsWith("0 active") ? "stopped" : "running") : state.toLower());
+        label->setText(outputTrafficLight(state));label->setToolTip(summary);label->setProperty("outputState",state.contains(" errors") ? "faulted" : state.contains(" active") ? (state.startsWith("0 active") ? "stopped" : "running") : state.toLower());
         label->style()->unpolish(label);label->style()->polish(label);
     }
 }
@@ -2373,7 +2400,7 @@ void LightingWindow::refreshToolOptions()
     // Pan is a real tool: keep help and brush visibility aligned; bounds-check future tool additions.
     const QStringList hints{"Move: select and drag an object", "Pencil: draw on the canvas", "Line (I): drag from start to end", "Rectangle: drag to draw", "Ellipse: drag to draw", "Gradient (G): drag to create; existing grips edit the selected gradient", "Fill: click a connected area", "Eraser: remove pixels or hide the source mask", "Pan (H): drag to move the canvas; Space temporarily pans from any tool"};
     auto* toolHint=findChild<QLabel*>("toolHint");
-    const QString hint=editing || panning ? hints.value(int(tool),"Choose a tool") : "Components: select and drag; Shift adds to selection; hold L for labels";
+    const QString hint=editing || panning ? hints.value(int(tool),"Choose a tool") : "Drag to move · Shift adds · hold L for labels";
     toolHint->setText(toolHint->fontMetrics().elidedText(hint,Qt::ElideRight,toolHint->width()-8));toolHint->setToolTip(hint);
     if(auto* summary=findChild<QLabel*>("maskBrushSummary")) {
         const double visibility=findChild<QDoubleSpinBox*>("maskPaintValue")->value();

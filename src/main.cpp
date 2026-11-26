@@ -16,6 +16,8 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSettings>
+#include <QSplashScreen>
+#include <memory>
 #include <QStandardPaths>
 #include <QLockFile>
 #include "editor/AppSession.h"
@@ -165,6 +167,18 @@ int main(int argc, char** argv)
     };
     if(!parser.isSet("editor") && !resolveConflicts(nullptr))return 0;
     QSettings settings;
+    // Start screen with the large banner (owner decision 2026-11-26): shown only while startup runs,
+    // after the conflict dialog so it never covers it; switched off in Edit > Settings.
+    std::unique_ptr<QSplashScreen> splash;
+    if(settings.value("editor/showSplash",true).toBool()) {
+        Q_INIT_RESOURCE(branding); // lives in lighting_editor; the window registers it only later
+        const QPixmap banner(":/branding/lighting-studio-banner.png");
+        if(!banner.isNull()) {
+            splash=std::make_unique<QSplashScreen>(banner.scaledToWidth(std::min(900,banner.width()),Qt::SmoothTransformation));
+            splash->show();splash->showMessage("Starting Lighting Studio...",Qt::AlignBottom|Qt::AlignHCenter,QColor(234,247,255));
+            QCoreApplication::processEvents();
+        }
+    }
     LightingWindow window(catalog, [availableProfiles,serviceInstalled,serviceHost] {
         if(serviceInstalled)return serviceInventory(serviceHost.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":serviceHost);
         auto candidates=findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
@@ -205,6 +219,7 @@ int main(int argc, char** argv)
     // 60 fps beside the service, which already plays the lights. Closing the window ends the process.
     if(serviceInstalled)window.setRenderWhenMinimized(false);
     window.show();
+    if(splash)splash->finish(&window);
     if(servicePanel)servicePanel->activate(recovered);else outputPanel->enableAutomaticOutput();
     const int code=app.exec();
     return code;

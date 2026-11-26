@@ -141,6 +141,8 @@ void applyStudioStyle(QWidget* window)
         QLineEdit[readOnly="true"] { color: @disabled; background: @chrome; border-color: @separator; }
         QCheckBox:disabled, QRadioButton:disabled, QLabel:disabled { color: @disabled; }
         QPushButton[primary="true"] { background: @selected; border-color: @accent; color: @text; font-weight: 600; }
+        QPushButton[danger="true"] { color: @danger; border-color: @danger; }
+        QPushButton[danger="true"]:disabled { color: @disabled; border-color: @separator; }
         QPushButton[primary="true"]:disabled { background: transparent; border-color: @separator; color: @disabled; font-weight: 400; }
         QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid @border; border-radius: 4px; background: @input; padding: 3px 4px; min-height: 1.3em; }
         QComboBox { padding-right: 24px; }

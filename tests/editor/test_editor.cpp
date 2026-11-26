@@ -240,6 +240,7 @@ private slots:
     void componentEditorPageLibrary();
     void componentEditorPageEditing();
     void componentEditorBuiltInReadOnly();
+    void glacierOneProduct();
     void componentEditorPageLayers();
     void componentEditorInstanceMode();
     void disabledControlsLookDisabled();
@@ -894,8 +895,8 @@ void EditorTest::windowBackgroundResizes()
         window.resize(size);QCoreApplication::processEvents();
         auto* logo=window.findChild<QLabel*>("studioBrand");QVERIFY(logo && logo->isVisible());
         QVERIFY(logo->width()>=logo->pixmap().width());
-        QCOMPARE(logo->pixmap().height(),140); // Transparent margins trimmed, visible logo fills its row.
-        QVERIFY(logo->height()>=140);
+        QCOMPARE(logo->pixmap().height(),56); // Slim header (2026-11-26); transparent margins trimmed.
+        QVERIFY(logo->height()>=56);
         // The logo sits at the right end of its row.
         auto* row=window.findChild<QToolBar*>("workspaceNavigation");
         QVERIFY(logo->mapTo(row,QPoint(logo->width(),0)).x()>row->width()-80);
@@ -907,7 +908,7 @@ void EditorTest::windowBackgroundResizes()
         QPixmap expected(window.size());QPainter paint(&expected);
         paint.setRenderHint(QPainter::SmoothPixmapTransform);
         paint.drawPixmap(QRectF(window.rect()),source,QRectF(QPointF((source.width()-crop.width())/2,(source.height()-crop.height())/2),crop));
-        paint.fillRect(window.rect(),QColor(4,12,22,60));paint.end();
+        paint.fillRect(window.rect(),QColor(4,12,22,205));paint.end();
         QCOMPARE(actual.toImage(),expected.toImage());
     }
     window.resize(1440,940);QCoreApplication::processEvents();
@@ -1568,6 +1569,23 @@ void EditorTest::componentEditorPageLibrary()
     QCOMPARE(name->text(),QString("Changed")); QVERIFY(page.isDirty()); QVERIFY(!page.confirmLeave());
     page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
     QVERIFY(page.confirmLeave()); QVERIFY(!page.isDirty());
+}
+
+void EditorTest::glacierOneProduct()
+{
+    // Owner hardware test 2026-11-26: 8 addresses; three fan rings share 1-6, the pump ring uses 1-8.
+    auto parts=catalog(); auto copy=parts.first(); copy.id="instance.glacier"; parts.insert(copy.id,copy);
+    const auto products=hardwareProducts(parts);
+    QVERIFY(products.contains("phanteks.glacier-one-360m25g2"));
+    const auto aio=products.value("phanteks.glacier-one-360m25g2");
+    QCOMPARE(aio.addresses(),8); QCOMPARE(aio.positions.size(),26); QCOMPARE(aio.category,QString("AiO"));
+    for(int fan=0;fan<3;++fan) for(int i=0;i<6;++i) QCOMPARE(aio.mapping[fan*6+i],i);
+    for(int i=0;i<8;++i) QCOMPARE(aio.mapping[18+i],i);
+    // Address 1 at 3 o'clock, address 2 counterclockwise above it (screen y grows downwards).
+    QVERIFY(aio.positions[0].x()>1.5 && qAbs(aio.positions[0].y()-1.5)<1e-9); QVERIFY(aio.positions[1].y()<1.5);
+    HardwarePicker picker(parts,{},{});
+    auto* list=picker.findChild<QListWidget*>("hardwareProducts");
+    for(int row=0;row<list->count();++row) QVERIFY(!list->item(row)->data(Qt::UserRole).toString().startsWith("instance."));
 }
 
 void EditorTest::componentEditorBuiltInReadOnly()
@@ -3262,8 +3280,8 @@ void EditorTest::expandingLayoutAndFullscreen()
     QTemporaryDir directory;const auto file=directory.filePath("layout.json");window.document().save(file);
     LightingDocument restored(catalog(),nullptr,{channelProfile()});restored.load(file);QCOMPARE(restored.layoutBounds(),bounds);
     window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
-    auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(false);QVERIFY(play->text().isEmpty());QCOMPARE(play->accessibleName(),QString("Play preview"));
-    QTest::mouseClick(play,Qt::LeftButton);QVERIFY(play->text().isEmpty());QCOMPARE(play->accessibleName(),QString("Stop preview"));play->setChecked(false);
+    auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(false);QCOMPARE(play->text(),QString("Play"));QCOMPARE(play->accessibleName(),QString("Play preview"));
+    QTest::mouseClick(play,Qt::LeftButton);QCOMPARE(play->text(),QString("Stop"));QCOMPARE(play->accessibleName(),QString("Stop preview"));play->setChecked(false);
     QVERIFY(window.findChild<QLabel*>("toolbarOutputStatus")->isVisible());
     auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->fitToView();
     auto* originalParent=canvas->parentWidget();auto* fullscreen=canvas->findChild<QPushButton*>("canvasFullscreenButton");
@@ -5786,7 +5804,7 @@ void EditorTest::activeLayerPickingAndCanvasControls()
     const auto fixed=componentEye->pos();components->zoomBy(4);components->repaint();QCOMPARE(componentEye->pos(),fixed);
     QTest::mouseClick(componentEye,Qt::LeftButton);QVERIFY(!canvas->showLabels());QVERIFY(!components->showLabels());
     const auto iconColor=[&]{auto image=play->icon().pixmap(QSize(24,24)).toImage();return image.pixelColor(image.width()/2,image.height()/2);};
-    QVERIFY(play->text().isEmpty());QVERIFY(iconColor().green()>iconColor().red());QCOMPARE(play->accessibleName(),QString("Play preview"));
+    QCOMPARE(play->text(),QString("Play"));QVERIFY(iconColor().green()>iconColor().red());QCOMPARE(play->accessibleName(),QString("Play preview"));
     QTest::mouseClick(play,Qt::LeftButton);QVERIFY(play->isChecked());QVERIFY(iconColor().red()>iconColor().green());QCOMPARE(play->accessibleName(),QString("Stop preview"));
     QTest::mouseClick(play,Qt::LeftButton);const auto held=window.previewSeconds();QTest::qWait(60);QCOMPARE(window.previewSeconds(),held);
     QVERIFY(window.grab().save(artifactDirectory()+"/canvas-header-controls.png"));doc.history()->setClean();

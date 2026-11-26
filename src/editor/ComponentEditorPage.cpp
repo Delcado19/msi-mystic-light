@@ -576,6 +576,10 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
         connect(button, &QPushButton::clicked, this, [this, preset, label] { applyEdit(withPreset(draft_, preset), "Wiring: " + label); });
     }
     auto* shareRow = new QHBoxLayout; wiringLayout->addLayout(shareRow);
+    {auto* explanation = new QLabel("Address = position on the data line. Select LEDs, enter a number and press Assign; "
+                                    "LEDs with the same address always show the same color.");
+     explanation->setObjectName("componentAddressHelp"); explanation->setWordWrap(true); explanation->setProperty("secondary", true);
+     wiringLayout->addWidget(explanation);}
     shareRow->addWidget(new QLabel("Address"));
     // 0 is the "no single value" state: blank without a selection, "mixed" for differing addresses.
     address_ = new QSpinBox; address_->setObjectName("componentAddress"); address_->setRange(0, 1);
