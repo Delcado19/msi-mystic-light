@@ -13,9 +13,13 @@ Owner: "noch nichts machen, festhalten". Owner verdict: serious UX defects. Find
    also failed for the owner is unverified (code does not disable them).
    Owner wants: LEDs field shows the fixed count and is locked; shape buttons stay usable and RESHAPE the
    existing LEDs (LED i -> slot i of the shape, wire order kept).
-2. Address/Assign is unexplained in the UI. Owner understood correctly: normal fan = 1:1. Needed only for
-   shared addresses (mirrored rings) or a data order differing from the drawing. Proposal: move into a
-   collapsed "Advanced" section with one sentence of explanation.
+2. Address/Assign is unexplained in the UI. Owner understood correctly: normal fan = 1:1. Needed for
+   shared addresses (double-ring fan) or a data order differing from the drawing. Bug (code-checked):
+   `address_` never follows the selection, it keeps the last typed value (initially 1).
+   Owner decision: NO "Advanced" section, the field stays visible. Agreed behaviour: one LED selected ->
+   field shows its address; several with the same address -> that address; different addresses -> empty
+   "mixed", Assign gives all the typed address; nothing selected -> empty and disabled. Add a short
+   explanation (tooltip or one line).
 3. Devices "Edit component" and Layout "Edit LEDs" call the same lambda (`editDeviceLeds`,
    LightingWindow.cpp) under two names. Owner: "Murks". Proposal (not decided): Devices = component
    library only (Component Editor button: new/import/export); Layout = the single entry to edit LEDs of a
