@@ -31,6 +31,12 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
 - Review fixes before delivery: typing an address keeps the selection (step-to-highlight dropped);
   notice is a permanent status-bar widget; no area highlighted while the editor is open; reshape fits
   the template to the part's centre and extent; split preview disabled (not hidden) outside Effects.
+- Owner finding on R41 (2026-11-26, recorded only, not fixed): output status is shown three times.
+  The status pill tooltip repeats "Output: N active / ..." twice (setOutputState builds it from
+  "Output: "+state plus the action tooltip, which already starts with the same line for any state
+  other than Running/Stopped) and adds "Service connected..." again; the Devices label `hardwareStatus`
+  shows the same "Output: ..." line, and "Service connected..." also sits under the output buttons.
+  Fix in R42/R43: one place per fact (pill = summary, Devices = detail), no repeated lines.
 - Next: R42 clarify (jargon: endpoint table, profile ID, path, mask text), then R43 quieter + polish.
   Owner tests: R40 wake-up, R41 look and feel.
 
