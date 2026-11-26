@@ -240,6 +240,7 @@ private slots:
     void componentEditorPageEditing();
     void componentEditorPageLayers();
     void componentEditorInstanceMode();
+    void disabledControlsLookDisabled();
     void keyboardLedPresentation();
     void placementTransforms();
     void rgbaAndMask();
@@ -1685,6 +1686,13 @@ void EditorTest::componentEditorInstanceMode()
     page->findChild<QPushButton*>("componentBack")->click();
     QVERIFY(navigatorDock->isVisible() && inspectorDock->isVisible() && drawingTools->isVisible()); // choices kept
     window.findChild<QPushButton*>("editLayoutLeds")->click(); QCOMPARE(pages->currentWidget(),page);
+    {   // The help overlay is opaque over the canvas (it was unreadable, owner review 2026-11-26).
+        page->findChild<QToolButton*>("componentHelp")->click();
+        auto* help=page->findChild<QWidget*>("componentHelpOverlay"); QVERIFY(help->isVisible());
+        const auto pixel=help->grab().toImage().pixelColor(10,help->height()-10);
+        QCOMPARE(pixel.name(),studioThemeColor("@panel").name());
+        page->findChild<QToolButton*>("componentHelp")->click(); QVERIFY(!help->isVisible());
+    }
     // Moving the mouse must not resize the status labels: a wider "grid" text squeezed the
     // word-wrapped message onto two lines and the whole canvas jumped (owner report R38).
     {
@@ -3900,6 +3908,27 @@ void EditorTest::initialMaskBrushSize()
     auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,200}).toPoint());
     const auto mask=window.document().state().layers.last().mask;QVERIFY(mask.constScanLine(200)[320]<32);QCOMPARE(mask.constScanLine(200)[330],uchar(255));
     window.document().history()->setClean();
+}
+
+void EditorTest::disabledControlsLookDisabled()
+{
+    // Disabled controls looked active, so the owner took locked editor sections for a defect (2026-11-26).
+    // Compare the brightest text pixel of an enabled and a disabled control of each kind.
+    QWidget window;applyStudioStyle(&window);window.resize(420,200);
+    QPushButton on("Matrix",&window),off("Matrix",&window),primaryOn("Apply",&window),primaryOff("Apply",&window);
+    primaryOn.setProperty("primary",true);primaryOff.setProperty("primary",true);
+    QLineEdit fieldOn("12",&window),fieldOff("12",&window);
+    on.setGeometry(10,10,120,32);off.setGeometry(150,10,120,32);primaryOn.setGeometry(10,60,120,32);primaryOff.setGeometry(150,60,120,32);
+    fieldOn.setGeometry(10,110,120,30);fieldOff.setGeometry(150,110,120,30);
+    for(auto* control:std::initializer_list<QWidget*>{&off,&primaryOff,&fieldOff})control->setEnabled(false);
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTest::mouseMove(&window,{410,190});QCoreApplication::processEvents();
+    const auto brightest=[](QWidget& widget){
+        const auto image=widget.grab().toImage();int best=0;
+        for(int y=0;y<image.height();++y)for(int x=0;x<image.width();++x)best=std::max(best,qGray(image.pixel(x,y)));
+        return best;
+    };
+    for(auto pair:{std::pair<QWidget*,QWidget*>{&on,&off},{&primaryOn,&primaryOff},{&fieldOn,&fieldOff}})
+        QVERIFY2(brightest(*pair.first)-brightest(*pair.second)>=60,qPrintable(pair.first->metaObject()->className()));
 }
 
 void EditorTest::scrollbarAppearance()

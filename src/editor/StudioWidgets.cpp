@@ -136,8 +136,11 @@ void applyStudioStyle(QWidget* window)
         QPushButton, QToolButton { background: @panel; border: 1px solid @border; border-radius: 4px; padding: 4px 8px; min-height: 1.3em; }
         QPushButton:hover, QToolButton:hover { background: @hover; border-color: @border; }
         QPushButton:pressed, QToolButton:pressed, QToolButton:checked, QPushButton:checked { background: @selected; border-color: @accent; }
-        QPushButton:disabled, QToolButton:disabled { color: @secondary; background: @panel; border-color: @separator; }
+        QPushButton:disabled, QToolButton:disabled { color: @disabled; background: transparent; border-color: @separator; }
+        QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled { color: @disabled; background: @chrome; border-color: @separator; }
+        QCheckBox:disabled, QRadioButton:disabled, QLabel:disabled { color: @disabled; }
         QPushButton[primary="true"] { background: @selected; border-color: @accent; color: @text; font-weight: 600; }
+        QPushButton[primary="true"]:disabled { background: transparent; border-color: @separator; color: @disabled; font-weight: 400; }
         QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid @border; border-radius: 4px; background: @input; padding: 3px 4px; min-height: 1.3em; }
         QComboBox { padding-right: 24px; }
         QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 20px; border: 0; border-top-right-radius: 4px; border-bottom-right-radius: 4px; background: transparent; }
@@ -193,6 +196,9 @@ void applyStudioStyle(QWidget* window)
         QLabel[emptyState="true"] { padding: 24px; border: 1px solid @border; border-radius: 6px; background: @chrome; }
         QToolButton#workspacePanels { border-color: @border; }
         QToolTip { color: @text; background: @hover; border: 1px solid @border; padding: 6px; }
+        /* Overlays drawn over a canvas need an opaque surface; the global transparent QWidget rule made the */
+        /* Component Editor help unreadable over the LED artwork (owner review 2026-11-26). */
+        QFrame[popup="true"] { background: @panel; border: 1px solid @border; border-radius: 6px; }
     )");
     for(const auto& token:studioThemeColors)sheet.replace(QString::fromLatin1(token.name),QString::fromLatin1(token.value));
     window->setStyleSheet(sheet);
