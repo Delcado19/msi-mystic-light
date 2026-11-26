@@ -14,7 +14,7 @@ RUNTIME = (
 )
 
 
-def package(root: Path, runtime: Path, archive: Path) -> str:
+def package(root: Path, runtime: Path, archive: Path, top: str = "LightingStudio", checksum: bool = True) -> str:
     files = {name: runtime / name for name in RUNTIME}
     for name in ("LICENSE", "PORTABLE_README.txt", "THIRD_PARTY_NOTICES.md",
                  "third_party/pawnio/SmbusPIIX4.bin", "third_party/pawnio/source-0.2.11.zip"):
@@ -36,13 +36,14 @@ def package(root: Path, runtime: Path, archive: Path) -> str:
     temporary = archive.with_suffix(".tmp")
     with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as output:
         for name, path in sorted(files.items()):
-            output.write(path, "LightingStudio/" + name)
+            output.write(path, top + "/" + name)
     with zipfile.ZipFile(temporary) as output:
         if output.testzip() is not None:
             raise ValueError("Release archive failed CRC verification")
     temporary.replace(archive)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    archive.with_suffix(archive.suffix + ".sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii")
+    if checksum:
+        archive.with_suffix(archive.suffix + ".sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii")
     return digest
 
 
@@ -52,5 +53,9 @@ if __name__ == "__main__":
     parser.add_argument("--runtime", type=Path, default=root / "build/next/Release")
     parser.add_argument("--archive", type=Path,
                         default=root / "build/dist/MSI-Mystic-Light-0.1.0-windows-x64.zip")
+    # Local builds name the top folder after the build (e.g. LightingStudio-r43) so the unpacked
+    # folder shows its version (owner request 2026-11-26).
+    parser.add_argument("--folder", default="LightingStudio")
+    parser.add_argument("--no-checksum", action="store_true", help="skip the .sha256 sidecar (local builds)")
     args = parser.parse_args()
-    print(package(root, args.runtime, args.archive), args.archive)
+    print(package(root, args.runtime, args.archive, args.folder, not args.no_checksum), args.archive)
