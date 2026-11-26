@@ -13,6 +13,18 @@ surfaces, big image only at start/empty views); scope = everything incl. P2, ste
 Order: shape (workspace model) -> harden (disabled style, Component Editor items below, conflict
 dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify with real-window screenshots.
 
+## Builds GS-06-R43 / R44 - 2026-11-26 night (local, not pushed) - AJAZZ AK35I V4 keyboard
+
+- Delivered as `Downloads/LightingStudio-local-r43.zip` / `-r44.zip` (top folder `LightingStudio-rNN`,
+  no .sha256 for local builds: `package_release.py --folder LightingStudio-rNN --no-checksum`).
+- R43: Edit > Settings opt-in "AJAZZ AK35I V4 keyboard (experimental, I own this exact model)" (D1);
+  editor loads `profiles/experimental` only then, the service always (inert until assigned). Phase B on
+  hardware: START ACK, Esc/F1/F2 correct; owner confirmed output through Lighting Studio over USB.
+- R44: busy ACKs (status 00/FF, phases up to ~2 s) skip a frame instead of faulting the output; before,
+  each one blacked the keys for ~3 s (reconnect). Owner after installing R44: "sieht alles fluide aus".
+- Open for the keyboard: full key map check on firmware 0109; 2.4 GHz dongle (0C45:FEFE) needs a USB
+  capture of the vendor software setting colors over the dongle; Bluetooth has no data at all.
+
 ## Build GS-06-R42 - 2026-11-26 evening (local, not pushed) - clarify + quieter/polish part 1
 
 - Delivered as `Downloads/LightingStudio-local-r42.zip` + `.zip.sha256` (SHA-256 `14b1d978d5cede38ccf34e31f34753ea5553c266d155486d0f5dc3237bdb52c8`). 23/23 CTest.
