@@ -59,6 +59,19 @@ Wireless findings 2026-11-26 (owner present; raw captures stay local because the
   Rhythm = levels only, owner screenshots 2026-11-26), and no command to upload pre-computed LED
   animations is known (`04 72` uploads to the TFT screen, not to the key LEDs). Live custom effects are
   therefore wired-only.
+- Static analysis of the vendor `DeviceDriver.exe` (Beta 1.0.0.2, Ghidra 12.1.3 headless, 2026-11-26; for
+  interoperability, no code copied): `config.xml` lists USB = 0C45:8009 MI_00 and 2.4G = 0C45:FEFE MI_03
+  (FF60) only. Every live per-key path (music, custom-light preview, a third live page) builds `04 20` +
+  key table + `04 02` and sends it only when the connection mode is USB; in 2.4G mode the music path sends
+  `0b 1c` levels instead, and the other live paths have no 2.4G branch. Dongle sends found (one sender
+  that appends the byte-sum checksum): `05 10` mode, `05 10 .. 80` + `14 1c`/`14 18`/`14 10` per-key table,
+  `0b 1c` levels, `0c 10` clock, `09 1c` table writes, `7f 03`, `03`/`0d`, `1f`, `05 01` settings (exact
+  meaning of the last ones not traced). No non-persistent per-key colour command for 2.4G exists in this
+  software. FF59:0061 (MI_04, 64-byte in/out) is not referenced by `DeviceDriver.exe`; one START (`04 18`)
+  written to it returned `0f 01 01 11` (meaning unknown), so it is not the wired protocol. Its purpose is
+  unknown (pairing/firmware suspected, not proven); do not probe it further. A screen-capture routine
+  (`ScreenLight`, 480x270 every 33 ms into a colour grid) exists but has no visible UI entry; where its
+  output goes was not traced.
 
 ## 2. Identity, transport, exact matching
 
