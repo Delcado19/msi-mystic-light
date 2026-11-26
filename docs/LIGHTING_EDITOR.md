@@ -106,12 +106,13 @@ drive. Use **Component actions** to duplicate, remove, or move a component.
 A duplicate uses its own addresses on the same connector. These project changes
 can be undone.
 
-Select an attached component and choose **Edit component** in Devices or
-**Edit LEDs** in Layout to open its **Place LEDs** and **Wire LEDs** views.
+Select an attached component and choose **Edit LEDs** in Layout (the single entry point
+since 2026-11-26) to open its **Place LEDs** and **Wire LEDs** views.
 Built-in outputs with fixed wiring offer LED positioning. The connector's
-**Wiring** button opens the chain order for all attached components.
+**Connector settings...** button in Devices opens the chain order for all attached
+components; on fixed devices it holds the device playback clock.
 
-**Layout** holds the spatial placement, rotation and grid. Open **Wiring** for a
+**Layout** holds the spatial placement, rotation and grid. Open **Connector settings...** for a
 connector to review its data order, shared colors and address capacity before
 applying changes. Drag to reorder or use **Move up** and **Move down**. Drag a
 component to another connector in Devices or use **Move to connector** from
@@ -544,7 +545,7 @@ workspaces or closing the window.
   layout uses the entry; other saved layouts that still reference it report it as
   missing when opened. Built-in entries cannot be deleted.
 
-**Devices > Edit component** (and **Layout > Edit LEDs**) opens the same page for the
+**Layout > Edit LEDs** opens the page, always in the full window, for the
 selected placement; **Apply** stores a variant for that placement only. On fixed
 connectors and for devices with protocol slots (e.g. keyboards) the LED count and wire
 order are locked: only moving, mirroring and rotating remain.
@@ -714,8 +715,7 @@ confirms changing reports; actual device behavior remains a separate observation
 
 ### Per-device LED arrangement
 
-Select an individual component and choose **Edit LEDs** in Layout or
-**Edit component** in Devices. Under **Place LEDs** the **Shapes and transforms**
+Select an individual component and choose **Edit LEDs** in Layout. Under **Place LEDs** the **Shapes and transforms**
 menu offers Line, Circle, Ellipse, Rectangle, Matrix, L-Shape, and U-Shape.
 Mirror commands reflect the selected points, or all visible points when no points
 are selected. These operations preserve LED addresses. You can

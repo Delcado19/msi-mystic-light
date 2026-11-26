@@ -1232,7 +1232,7 @@ void EditorTest::deviceLedArrangement()
     const auto id=window.document().addComponent(definition.id);
     window.findChild<LightingCanvas*>("layoutCanvas")->select(id);
     QVERIFY(window.findChild<QPushButton*>("editLayoutLeds")->isEnabled());
-    QVERIFY(window.findChild<QPushButton*>("editHardwareLeds")->isEnabled());
+    QVERIFY(!window.findChild<QPushButton*>("editHardwareLeds")); // single entry: Layout only (2026-11-26)
     window.findChild<QPushButton*>("editLayoutLeds")->click();
     auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page);
     page->findChild<QToolButton*>("componentRotate")->click();
@@ -4496,7 +4496,7 @@ void EditorTest::dedicatedDeviceIsNotAChain()
     QTest::mouseClick(tree->viewport(),Qt::LeftButton,Qt::NoModifier,tree->visualItemRect(device).center());QTRY_COMPARE(window.findChild<LightingCanvas*>("layoutCanvas")->selection(),window.document().state().placements[0].id);
     bool rotation=false,oldName=false;for(auto* label:window.findChildren<QLabel*>()){rotation|=label->text()=="Rotation";oldName|=label->text()=="Rotation deg";}
     QVERIFY(rotation);QVERIFY(!oldName);
-    auto* settings=window.findChild<QPushButton*>("headerSettings");QCOMPARE(settings->text(),QString("Device settings"));
+    auto* settings=window.findChild<QPushButton*>("headerSettings");QCOMPARE(settings->text(),QString("Connector settings..."));
     bool seen=false,appendVisible=true,removeEnabled=true;QTimer::singleShot(0,[&] {
         if(auto* dialog=dynamic_cast<ChannelEditor*>(QApplication::activeModalWidget())) {
             seen=true;appendVisible=dialog->findChild<QPushButton*>("appendInstance")->isVisible();
@@ -4822,10 +4822,9 @@ void EditorTest::offlineDevicesWorkflow()
     QVERIFY(opensWiring("editLayoutLeds"));
     window.findChild<QAction*>("workspaceHardware")->trigger();
     canvas->select(id);
-    QVERIFY(opensWiring("editHardwareLeds"));
     const auto actionRows=[&window] {
         QVector<int> rows;
-        for(const auto* name:{"editHardwareLeds","identifyDeviceComponent","removeHardwareComponent","headerSettings"})
+        for(const auto* name:{"identifyDeviceComponent","removeHardwareComponent","headerSettings"})
             rows.append(window.findChild<QAbstractButton*>(name)->mapToGlobal(QPoint()).y());
         return rows;
     };
@@ -4834,7 +4833,6 @@ void EditorTest::offlineDevicesWorkflow()
     canvas->select(assignment.id);
     QCoreApplication::processEvents();
     QCOMPARE(actionRows(),componentRows);
-    QVERIFY(!window.findChild<QPushButton*>("editHardwareLeds")->isEnabled());
     canvas->select(id);
     auto* wiring=window.findChild<QPushButton*>("headerSettings");
     QVERIFY(wiring->isEnabled());
@@ -5286,12 +5284,15 @@ void EditorTest::menusFollowWorkspace()
         auto* action=window.findChild<QAction*>(name);QVERIFY2(action->isVisible() && action->isEnabled(),name);
     }
     for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
-    auto* toolsMenu=window.findChild<QMenu*>("drawingToolsMenu");QVERIFY(!toolsMenu->menuAction()->isVisible());
-    // Devices has no canvas, so canvas-only entries leave the menus (owner review 2026-11-18).
-    QVERIFY(!window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
-    for(const auto& name:canvasEdits+QStringList{"splitHardwarePreview","resetWorkspace","toggleNavigator"})QVERIFY2(!window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
+    // Devices has no canvas: canvas-only menus stay in place but are disabled, so the menu bar is the
+    // same in every area (workspace brief 2026-11-26; replaces hiding them, owner review 2026-11-18).
+    auto* toolsMenu=window.findChild<QMenu*>("drawingToolsMenu");
+    QVERIFY(toolsMenu->menuAction()->isVisible());QVERIFY(!toolsMenu->menuAction()->isEnabled());
+    auto* previewMenu=window.findChild<QMenu*>("previewMenu");
+    QVERIFY(previewMenu->menuAction()->isVisible());QVERIFY(!previewMenu->menuAction()->isEnabled());
+    for(const auto& name:canvasEdits+QStringList{"resetWorkspace","toggleNavigator"})QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
     window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();
-    QVERIFY(toolsMenu->menuAction()->isVisible());QVERIFY(window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
+    QVERIFY(toolsMenu->menuAction()->isEnabled());QVERIFY(previewMenu->menuAction()->isEnabled());
     for(const auto& name:canvasEdits)QVERIFY2(window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
     // Components: the strip offers only Move and Pan, so the Tools menu lists only those.
     window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(0);QCoreApplication::processEvents();emit toolsMenu->aboutToShow();

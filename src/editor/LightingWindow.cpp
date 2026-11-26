@@ -452,11 +452,15 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* hardwareEmpty=new QLabel("No compatible controller detected\n\nConnect a supported device and choose Refresh. Saved layouts remain editable offline; arranging components does not connect hardware.");
     hardwareEmpty->setObjectName("hardwareEmptyState");hardwareEmpty->setWordWrap(true);hardwareEmpty->setProperty("emptyState",true);
     deviceOutput_->addWidget(hardwareEmpty);deviceOutput_->addStretch();
-    auto* hardwareTitle=new QLabel("Devices"); hardwareTitle->setProperty("heading",true); hardwareControls->addWidget(hardwareTitle);
-    auto* hardwareHelp=new QLabel("Select a connector to add components. Use Layout to arrange them, or Wiring to set their LED address order.");
+    auto* hardwareTitle=new QLabel("Devices"); hardwareTitle->setProperty("heading",true);
+    // The component library opens from the top of Devices, next to the title (workspace brief 2026-11-26).
+    auto* titleRow=new QHBoxLayout; titleRow->setContentsMargins(0,0,0,0); titleRow->addWidget(hardwareTitle,1);
+    hardwareControls->addLayout(titleRow);
+    auto* hardwareHelp=new QLabel("Select a connector to add components. Use Layout to arrange them; Connector settings sets their LED order.");
     hardwareHelp->setWordWrap(true); hardwareControls->addWidget(hardwareHelp);
     // Full-window Component Editor; replaces the former "Custom components" dialog (owner critique 2026-11-25).
-    auto* componentEditorButton=button(hardwareControls,"Component Editor",[this] { if (leaveComponentPage()) { componentPage()->openLibrary(); applicationPages_->setCurrentWidget(componentPage()); } });
+    auto* componentEditorButton=new QPushButton("Component Editor"); titleRow->addWidget(componentEditorButton);
+    connect(componentEditorButton,&QPushButton::clicked,this,[this] { if (leaveComponentPage()) { componentPage()->openLibrary(); applicationPages_->setCurrentWidget(componentPage()); } });
     componentEditorButton->setObjectName("openComponentEditor");
     componentEditorButton->setToolTip("Create, edit, import, export and delete component definitions");
     auto* offline = new QComboBox;
@@ -489,17 +493,14 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             return;
         }
     };
-    auto* editHardwareLeds=button(hardwareControls,"Edit component",editDeviceLeds);
-    editHardwareLeds->setObjectName("editHardwareLeds");
+    // One entry point: LEDs of a placed part are edited from Layout only (workspace brief 2026-11-26).
     auto* editLayoutLeds=button(layoutControls,"Edit LEDs",editDeviceLeds);
     editLayoutLeds->setObjectName("editLayoutLeds");
-    const auto updateLedActions=[this,editHardwareLeds,editLayoutLeds] {
+    const auto updateLedActions=[this,editLayoutLeds] {
         bool placed=false;
         for (const auto& placement:document_.state().placements) if(placement.id==layoutCanvas_->selection()) placed=!placement.locked;
-        for(auto* action:{editHardwareLeds,editLayoutLeds}) {
-            action->setEnabled(placed);
-            action->setToolTip("Place LEDs and edit their address order. Devices with fixed wiring support positioning.");
-        }
+        editLayoutLeds->setEnabled(placed);
+        editLayoutLeds->setToolTip("Place LEDs and edit their address order. Devices with fixed wiring support positioning.");
     };
     connect(layoutCanvas_,&LightingCanvas::selectionChanged,this,updateLedActions);
     connect(&document_,&LightingDocument::changed,this,updateLedActions);
@@ -644,7 +645,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* addHardware=new QPushButton("Attach fans or strips..."); addHardware->setObjectName("addHeaderComponents");
     addHardware->setToolTip("Choose products and quantities to attach to a detected header"); hardwareControls->insertWidget(2,addHardware);
     connect(addHardware,&QPushButton::clicked,this,[this] { addHeaderComponents(); });
-    auto* headerSettings=button(headerControls,"Wiring",[this] {
+    // One name for every connector; fixed devices still get their playback clock there (2026-11-26).
+    auto* headerSettings=button(headerControls,"Connector settings...",[this] {
         if(selectedHeader_.isEmpty()) return;
         try {
             ChannelEditor editor(document_,selectedHeaderAssignment(),this);
@@ -665,7 +667,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* deviceActionRows=new QVBoxLayout(deviceActions);
     deviceActionRows->setContentsMargins(0,0,0,0);
     auto* componentActions=new QHBoxLayout;
-    for (auto* control:{editHardwareLeds,identify,detachHardware}) {
+    for (auto* control:{identify,detachHardware}) {
         hardwareControls->removeWidget(control);
         componentActions->addWidget(control);
     }
@@ -1028,6 +1030,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         } catch (const std::exception& error) { QMessageBox::warning(this,"Effect insert failed",QString::fromUtf8(error.what())); }
     });
     customEffects->setObjectName("customEffects");
+    // The effect library sits at the top beside New layer / Add effect, like the component library
+    // at the top of Devices (workspace brief 2026-11-26); it used to hide below the layer list.
+    layerStack->removeWidget(customEffects); layerStack->insertWidget(1,customEffects);
     auto* description=new QLabel;description->setObjectName("effectDescription");description->setWordWrap(true);description->setProperty("muted",true);appearanceControls->insertWidget(0,description);
     auto* intensity=new QWidget;auto* intensityForm=new QFormLayout(intensity);intensityForm->setContentsMargins(0,0,0,0);
     auto* intensityMode=new QComboBox;intensityMode->setObjectName("intensityMode");intensityMode->addItems({"Off","Pulse","Breathe","Combined"});intensityForm->addRow("Mode",intensityMode);
@@ -1517,8 +1522,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(previousPanel,&QAction::triggered,this,[this]{cyclePanelFocus(true);});
     connect(tabs_,&QTabWidget::currentChanged,this,[nextPanel,previousPanel](int index){nextPanel->setEnabled(index<2);previousPanel->setEnabled(index<2);});
     auto* toolsMenu=menuBar()->addMenu("Tools");toolsMenu->setObjectName("drawingToolsMenu");
-    // Drawing tools only act on a canvas, so the whole menu leaves Devices (owner review 2026-11-17).
-    connect(tabs_,&QTabWidget::currentChanged,toolsMenu,[toolsMenu](int index){toolsMenu->menuAction()->setVisible(index<2);});
+    // Drawing tools only act on a canvas. The menu stays in place and is disabled in Devices and the
+    // Component Editor (workspace brief 2026-11-26; replaces hiding it, owner review 2026-11-17).
+    connect(tabs_,&QTabWidget::currentChanged,toolsMenu,[toolsMenu](int index){toolsMenu->menuAction()->setEnabled(index<2);});
     auto* toolActions=new QActionGroup(toolsMenu);toolActions->setExclusive(true);
     for(auto* control:toolGroup->buttons()) {
         auto* action=toolsMenu->addAction(control->icon(),control->accessibleName());
@@ -1687,12 +1693,17 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             action->setVisible((index<2 || historyCommands.contains(action)) && action->objectName()!="projectNameAction");
     });
     tabs_->tabBar()->hide();
-    // Devices has no canvas: entries that act on one leave the menus there, as their toolbar
-    // counterparts already do (owner review 2026-11-18).
+    // Devices has no canvas: entries that act on one stay in the menus but are disabled, so the menu
+    // bar is the same in every area (workspace brief 2026-11-26; replaces hiding them, 2026-11-18).
+    // Toolbar counterparts still leave the toolbar there.
     const QList<QAction*> canvasOnly{canvasMenu->menuAction(),alignMenu->menuAction(),previewMenu->menuAction(),
         panAction,resetWorkspace,findChild<QAction*>("toggleNavigator"),findChild<QAction*>("toggleInspector"),
         findChild<QAction*>("lockSelection"),findChild<QAction*>("unlockSelection"),findChild<QAction*>("duplicateSelection"),findChild<QAction*>("deleteSelection")};
-    connect(tabs_,&QTabWidget::currentChanged,this,[canvasOnly](int index){for(auto* action:canvasOnly)action->setVisible(index<2);});
+    connect(tabs_,&QTabWidget::currentChanged,this,[this,canvasOnly](int index){
+        for(auto* action:canvasOnly)action->setEnabled(index<2);
+        // Selection-dependent entries (duplicate, delete, lock) must not stay enabled without a selection.
+        if(index<2){refreshToolOptions();updateWorkspacePanels();}
+    });
     tabs_->setCurrentIndex(1);
     tabs_->setCurrentIndex(document_.hasComponentLibrary() ? 2 : 0);
     menuBar()->removeAction(help->menuAction());menuBar()->addMenu(help);
@@ -1947,7 +1958,6 @@ void LightingWindow::refreshHeader()
     const auto assignment=selectedHeaderAssignment();
     const auto& profile=assignmentProfile(document_.profiles(),assignment.profileId);
     const auto& channel=assignmentChannel(profile,assignment.channelId);
-    findChild<QPushButton*>("headerSettings")->setText(channelHasFixedComponent(channel) ? "Device settings" : "Wiring");
     const auto available = document_.availableAddresses(assignment);
     const bool attachable = channel.direct && !channelHasFixedComponent(channel);
     add->setEnabled(attachable && available > 0);
