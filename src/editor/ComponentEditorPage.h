@@ -33,6 +33,7 @@ public:
     bool confirmLeave();
     bool isDirty() const { return !(draft_ == saved_); }
     const ComponentDraft& draft() const { return draft_; }
+    QUndoStack* undoStack() { return &undo_; } // joins the window's undo group while the page is shown
     // Dialog hooks; tests replace them to answer without modal message boxes.
     std::function<bool(const QString&)> confirm;
     std::function<QMessageBox::StandardButton(const QString&)> askUnsaved;

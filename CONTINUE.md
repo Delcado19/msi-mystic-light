@@ -13,6 +13,14 @@ surfaces, big image only at start/empty views); scope = everything incl. P2, ste
 Order: shape (workspace model) -> harden (disabled style, Component Editor items below, conflict
 dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify with real-window screenshots.
 
+## Build GS-06-R41c - 2026-11-26 evening (local, not pushed) - owner review of R41b
+
+- Delivered as `Downloads/LightingStudio-local-r41c.zip` + `.zip.sha256` (SHA-256 `025593d4f454af583428bae7771357465bbb351b22ffea631c795f1cb864113d`). 23/23 CTest.
+- Edit > Undo/Redo and the toolbar buttons use a QUndoGroup: the Component Editor's draft stack while
+  the editor page is shown, the project otherwise. Before, Undo after a shape did nothing for the draft
+  and undid a hidden project edit instead.
+- Read-only line edits (component ID) use the disabled colors.
+
 ## Build GS-06-R41b - 2026-11-26 evening (local, not pushed) - fixes from the owner's R41 review
 
 - Delivered as `Downloads/LightingStudio-local-r41b.zip` + `.zip.sha256`

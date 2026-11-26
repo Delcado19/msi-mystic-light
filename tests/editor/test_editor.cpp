@@ -1839,6 +1839,12 @@ void EditorTest::componentEditorInstanceMode()
         page->findChild<QPushButton*>("componentShapeRing")->click();
         QCOMPARE(page->draft().positions.size(),before.positions.size()); QCOMPARE(page->draft().mapping,before.mapping);
         QVERIFY(page->draft().positions!=before.positions); QVERIFY(page->isDirty());
+        // The window's Undo/Redo act on the open draft, not on the project (owner review 2026-11-26).
+        QCOMPARE(pages->currentWidget(),page);
+        auto* history=window.document().history(); const int index=history->index(); const auto shaped=page->draft();
+        window.findChild<QAction*>("editUndo")->trigger();
+        QVERIFY(page->draft()==before); QCOMPARE(history->index(),index);
+        window.findChild<QAction*>("editRedo")->trigger(); QVERIFY(page->draft()==shaped);
     }
     QVERIFY(page->findChild<QToolButton*>("componentRotate")->isEnabled());
     QVERIFY(!window.findChild<QWidget*>("customComponentLibrary"));

@@ -3,6 +3,7 @@
 #include "LightingCanvas.h"
 #include "discovery/HardwareDiscovery.h"
 #include <QMainWindow>
+#include <QUndoGroup>
 #include <QElapsedTimer>
 #include <QVariantMap>
 
@@ -99,6 +100,9 @@ private:
     LightingCanvas *layoutCanvas_, *effectsCanvas_, *hardwarePreview_;
     QTabWidget* tabs_;
     QStackedWidget* applicationPages_=nullptr;
+    // Edit > Undo/Redo and the toolbar act on the visible page: the project, or the Component Editor's
+    // draft (owner review 2026-11-26: Undo after a shape did nothing there and undid the project instead).
+    QUndoGroup* undoGroup_=nullptr;
     QVBoxLayout* deviceOutput_;
     QTreeWidget* layers_=nullptr;
     QTreeWidget* components_=nullptr;

@@ -138,6 +138,7 @@ void applyStudioStyle(QWidget* window)
         QPushButton:pressed, QToolButton:pressed, QToolButton:checked, QPushButton:checked { background: @selected; border-color: @accent; }
         QPushButton:disabled, QToolButton:disabled { color: @disabled; background: transparent; border-color: @separator; }
         QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled { color: @disabled; background: @chrome; border-color: @separator; }
+        QLineEdit[readOnly="true"] { color: @disabled; background: @chrome; border-color: @separator; }
         QCheckBox:disabled, QRadioButton:disabled, QLabel:disabled { color: @disabled; }
         QPushButton[primary="true"] { background: @selected; border-color: @accent; color: @text; font-weight: 600; }
         QPushButton[primary="true"]:disabled { background: transparent; border-color: @separator; color: @disabled; font-weight: 400; }
