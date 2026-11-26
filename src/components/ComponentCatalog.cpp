@@ -87,6 +87,14 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
         }
         if (!any) component.layers.clear();
     }
+    if (json.contains("housing")) {
+        const auto box = json.value("housing").toArray();
+        QVector<double> v; for (const auto& value : box) v.append(value.toDouble(qQNaN()));
+        if (!json.value("housing").isArray() || v.size() != 4 || std::any_of(v.cbegin(), v.cend(), [](double x) { return !std::isfinite(x) || std::abs(x) > 1e6; })
+            || v[2] <= 0 || v[3] <= 0)
+            throw std::invalid_argument("Invalid component housing");
+        component.housing = QRectF(v[0], v[1], v[2], v[3]);
+    }
     if(count==15 && component.name.contains("D30-120",Qt::CaseInsensitive)) {
         const QVector<int> oldX{2,1,1,0,0,0,0,0,0,0,0,0,1,1,2};
         bool legacy=true;
@@ -118,6 +126,7 @@ QJsonObject ComponentDefinition::toJson() const
         QJsonArray reserved; for (int wire : nonPhysicalSlots) reserved.append(wire);
         result.insert("nonPhysicalSlots", reserved);
     }
+    if (housing.isValid()) result.insert("housing", QJsonArray{housing.x(), housing.y(), housing.width(), housing.height()});
     return result;
 }
 

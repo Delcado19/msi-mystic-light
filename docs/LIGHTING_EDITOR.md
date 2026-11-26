@@ -522,6 +522,14 @@ workspaces or closing the window.
   into colored runs (cyan, amber, magenta, green), and a dashed arrow marks each jump
   between runs (a layer change or an edge longer than 2.5x the median). Dotted lines
   join LEDs sharing an address.
+- **Housing frame** (Option A, 2026-11-26): each part except strips and cables has a housing frame
+  (dashed), stored as the optional `housing` array `[x, y, width, height]` in component units. Parts
+  saved before get it from their LED-derived frame on first open (written with the next save). LEDs
+  stay inside it when moved or added; hold Alt to place them freely. The top-left handle moves the
+  frame, the bottom-right handle scales it proportionally, so the artwork never stretches. The
+  background is the dimmed front-view photo (40 %, half desaturated, fitted into the frame) where one
+  matches the category; keyboards and strips keep the drawing because a photo would not line up with
+  their LEDs. Layout, Devices and the hardware picker draw parts into the same frame.
 - **Tool rail**: Edit (V), Wire order (W), Duplicate (D), Mirror (M / Shift+M),
   Rotate 90° (R), Delete (Del), grid (G), wire path (P), zoom (+ / - / 0), Help (?).
   Ctrl+Z / Ctrl+Y undo and redo every finished gesture; Ctrl+A selects all.

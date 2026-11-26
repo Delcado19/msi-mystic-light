@@ -62,5 +62,8 @@ private:
     QVector<int> wireOrder_;
     QPoint pressPosition_, lastPan_;
     bool pressOnLed_ = false, panning_ = false, spaceHeld_ = false;
+    QGraphicsItem* pressHandle_ = nullptr; QPointF pressHandlePosition_; // housing move/scale handle
+    bool housingEditable() const;
+    QPointF insideHousing(QPointF point, Qt::KeyboardModifiers modifiers) const; // component units
     QHash<int, QPointF> pressItemPositions_;
 };

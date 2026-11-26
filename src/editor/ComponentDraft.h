@@ -12,6 +12,7 @@ struct ComponentDraft {
     // Display-only depth layer per position; empty = all layer 0 (see ComponentDefinition::layers).
     // May contain empty layers while editing; toDefinition() removes them.
     QVector<int> layers;
+    QRectF housing; // see ComponentDefinition::housing
     int layerCount() const;
     static ComponentDraft fromDefinition(const ComponentDefinition& definition);
     ComponentDefinition toDefinition() const;

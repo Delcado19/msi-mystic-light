@@ -40,13 +40,14 @@ QString hardwareArtworkCategory(const ComponentDefinition& component)
 QPixmap hardwarePreviewPhoto(const ComponentDefinition& component)
 {
     initializeHardwareArtwork();
-    static const QMap<QString,QString> photos{{"Fans","fan_120_rgb"},{"Strips","led_strip_rgb"},
-        {"RAM","ram_rgb"},{"Graphics cards","gpu_rgb"},{"Keyboards","keyboard_rgb"},
-        {"Mice","mouse_rgb"},{"AiO","aio_240_rgb"},{"Motherboards","io_shield_rgb"}};
+    // Straight front views (owner-provided placeholders, 2026-11-26), named <part>_rgb_fv.
+    static const QMap<QString,QString> photos{{"Fans","fan_120_rgb_fv"},{"Strips","led_strip_rgb_fv"},
+        {"RAM","ram_rgb_fv"},{"Graphics cards","gpu_rgb_fv"},{"Keyboards","keyboard_rgb_fv"},
+        {"Mice","mouse_rgb_fv"},{"AiO","aio_240_rgb_fv"},{"Motherboards","io_shield_rgb_fv"}};
     const auto category=hardwareArtworkCategory(component);
     auto name=photos.value(category);
     if (category=="AiO") for (const auto* length:{"120","360"})
-        if (component.name.contains(length)) name=QString("aio_%1_rgb").arg(length);
+        if (component.name.contains(length)) name=QString("aio_%1_rgb_fv").arg(length);
     if (name.isEmpty()) return {};
     // Devices redraws its thumbnail every preview frame; decode the ~2 MB source once and keep a
     // copy small enough (512 px, still 176 px at 200 % DPI) for the shared pixmap cache budget.
@@ -60,8 +61,15 @@ QPixmap hardwarePreviewPhoto(const ComponentDefinition& component)
     return photo;
 }
 
+bool hardwareHousingFixed(const ComponentDefinition& component)
+{
+    const auto category=hardwareArtworkCategory(component);
+    return category!="Strips" && category!="Cables";
+}
+
 QRectF hardwareBodyBounds(const ComponentDefinition& component)
 {
+    if(component.housing.isValid() && hardwareHousingFixed(component))return component.housing;
     QRectF bounds;bool first=true;
     for(int i=0;i<component.positions.size();++i) {
         if(component.nonPhysicalSlots.contains(component.mapping.value(i)))continue;
@@ -176,4 +184,27 @@ void drawHardwareComponentArtwork(QPainter& painter,const ComponentDefinition& c
         drawHardwareArtwork(painter,category,QRectF(-bounds.height()/2,-bounds.width()/2,bounds.height(),bounds.width()));
     } else drawHardwareArtwork(painter,category,bounds);
     painter.restore();
+}
+
+void drawHardwareEditorArtwork(QPainter& painter,const ComponentDefinition& component)
+{
+    // Owner decision 2026-11-26: dimmed straight-view photo where one fits the LED plan. Keyboards and
+    // strips keep the drawing, whose keys/packages line up with the LED positions; a photo would not.
+    const auto category=hardwareArtworkCategory(component);
+    const auto photo=category=="Keyboards" || !hardwareHousingFixed(component) ? QPixmap() : hardwarePreviewPhoto(component);
+    if(photo.isNull()) { drawHardwareComponentArtwork(painter,component); return; }
+    const auto housing=hardwareBodyBounds(component);
+    auto size=QSizeF(photo.size()); size.scale(housing.size(),Qt::KeepAspectRatio); // never stretched
+    const QRectF target(housing.center()-QPointF(size.width()/2,size.height()/2),size);
+    static QPixmap dimmed; static qint64 source=0;
+    if(source!=photo.cacheKey()) {
+        // Slightly desaturated so LED markers and colors stay the focus.
+        auto image=photo.toImage().convertToFormat(QImage::Format_ARGB32);
+        for(int y=0;y<image.height();++y) { auto* line=reinterpret_cast<QRgb*>(image.scanLine(y));
+            for(int x=0;x<image.width();++x) { const auto c=line[x]; const int g=qGray(c);
+                line[x]=qRgba((qRed(c)+g)/2,(qGreen(c)+g)/2,(qBlue(c)+g)/2,qAlpha(c)); } }
+        dimmed=QPixmap::fromImage(image); source=photo.cacheKey();
+    }
+    painter.save(); painter.setOpacity(.4); painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.drawPixmap(target,dimmed,dimmed.rect()); painter.restore();
 }

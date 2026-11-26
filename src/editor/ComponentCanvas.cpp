@@ -12,12 +12,15 @@
 #include <QWheelEvent>
 #include <QGraphicsPolygonItem>
 #include <algorithm>
+#include <utility>
 #include <cmath>
 #include <stdexcept>
 
 namespace {
 constexpr double ledRadius = 12;  // screen pixels; markers ignore zoom so they stay clickable
 constexpr double minZoom = 0.05, maxZoom = 20;
+
+constexpr int housingMoveHandle = -1, housingScaleHandle = -2; // item data(0) of the frame handles
 
 // Selection is shown by the accent ring instead of Qt's dashed bounding box.
 class LedItem : public QGraphicsEllipseItem {
@@ -134,6 +137,14 @@ void ComponentCanvas::fit()
     QRectF bounds;
     for (auto* item : scene()->items()) if (item->type() == QGraphicsEllipseItem::Type)
         bounds = bounds.isNull() ? QRectF(item->pos(), QSizeF()) : bounds.united(QRectF(item->pos(), QSizeF()));
+    // The housing frame and its handles belong in view too (Option A); otherwise the scale handle
+    // could sit off-screen after Fit. Not for keyboards: their 0.25-unit key pitch needs the tighter
+    // LED-only zoom or the markers overlap; their frame is reached by zooming out.
+    const auto definition = draft_.toDefinitionUnchecked();
+    if (!bounds.isNull() && hardwareHousingFixed(definition) && hardwareArtworkCategory(definition) != "Keyboards") {
+        const auto frame = hardwareBodyBounds(definition);
+        bounds = bounds.united(QRectF(frame.topLeft() * unit, frame.size() * unit));
+    }
     resetTransform();
     if (!bounds.isNull()) {
         const auto padded = bounds.adjusted(-3 * ledRadius, -3 * ledRadius, 3 * ledRadius, 3 * ledRadius);
@@ -222,6 +233,19 @@ void ComponentCanvas::rebuild()
             }
         }
     }
+    // Housing frame handles (Option A, 2026-11-26): top-left moves the frame, bottom-right scales it
+    // proportionally. Not offered for strips/cables (they grow with their LEDs) or read-only parts.
+    if (housingEditable()) {
+        const auto frame = hardwareBodyBounds(draft_.toDefinitionUnchecked());
+        for (const int kind : {housingMoveHandle, housingScaleHandle}) {
+            auto* handle = scene()->addRect(QRectF(-6, -6, 12, 12), QPen(studioThemeColor("@accent"), 1.5), studioThemeColor("@panel"));
+            handle->setFlags(QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemIgnoresTransformations);
+            handle->setData(0, kind); handle->setZValue(3);
+            handle->setPos((kind == housingMoveHandle ? frame.topLeft() : frame.bottomRight()) * unit);
+            handle->setToolTip(kind == housingMoveHandle ? "Move the housing" : "Scale the housing (keeps its proportions)");
+            handle->setCursor(kind == housingMoveHandle ? Qt::SizeAllCursor : Qt::SizeFDiagCursor);
+        }
+    }
     // A generous margin keeps panning possible in every direction, like an endless canvas.
     const auto bounds = scene()->itemsBoundingRect();
     scene()->setSceneRect(bounds.adjusted(-2000, -2000, 2000, 2000));
@@ -236,6 +260,19 @@ QGraphicsItem* ComponentCanvas::ledAt(QPoint position, bool includeInactive) con
         if (led->type() == QGraphicsEllipseItem::Type && (includeInactive || led->data(2).toBool())) return led;
     }
     return nullptr;
+}
+
+bool ComponentCanvas::housingEditable() const
+{
+    return !readOnly_ && tool_ == Tool::Select && !draft_.positions.isEmpty() && hardwareHousingFixed(draft_.toDefinitionUnchecked());
+}
+
+QPointF ComponentCanvas::insideHousing(QPointF point, Qt::KeyboardModifiers modifiers) const
+{
+    // Strict by default: LEDs stop at the housing edge; Alt places them freely, as it ignores the grid.
+    if ((modifiers & Qt::AltModifier) || !draft_.housing.isValid() || !hardwareHousingFixed(draft_.toDefinitionUnchecked())) return point;
+    const auto frame = draft_.housing;
+    return {std::clamp(point.x(), frame.left(), frame.right()), std::clamp(point.y(), frame.top(), frame.bottom())};
 }
 
 QPointF ComponentCanvas::snapped(QPointF point, Qt::KeyboardModifiers modifiers) const
@@ -278,7 +315,11 @@ void ComponentCanvas::mousePressEvent(QMouseEvent* event)
         event->accept(); return;
     }
     pressPosition_ = position;
-    pressOnLed_ = ledAt(position) != nullptr;
+    pressHandle_ = nullptr;
+    for (auto* item : items(position)) if (item->data(0).toInt() == housingMoveHandle || item->data(0).toInt() == housingScaleHandle) {
+        pressHandle_ = item; pressHandlePosition_ = item->pos(); break;
+    }
+    pressOnLed_ = !pressHandle_ && ledAt(position) != nullptr;
     setDragMode(pressOnLed_ ? QGraphicsView::NoDrag : QGraphicsView::RubberBandDrag);
     QGraphicsView::mousePressEvent(event);
     pressItemPositions_.clear();
@@ -307,6 +348,21 @@ void ComponentCanvas::mouseReleaseEvent(QMouseEvent* event)
     if (event->button() != Qt::LeftButton || tool_ == Tool::Wire) { QGraphicsView::mouseReleaseEvent(event); return; }
     QGraphicsView::mouseReleaseEvent(event);
     setDragMode(QGraphicsView::NoDrag);
+    if (pressHandle_) {
+        auto* handle = std::exchange(pressHandle_, nullptr);
+        const auto delta = (handle->pos() - pressHandlePosition_) / unit;
+        if (delta.isNull()) return;
+        auto after = draft_; auto frame = hardwareBodyBounds(draft_.toDefinitionUnchecked());
+        if (handle->data(0).toInt() == housingMoveHandle) frame.translate(delta);
+        else {
+            // Proportional: the larger relative change wins, so the artwork never stretches.
+            const double factor = std::max({(frame.width() + delta.x()) / frame.width(), (frame.height() + delta.y()) / frame.height(), .1});
+            frame.setSize(frame.size() * factor);
+        }
+        after.housing = frame;
+        emit draftEdited(after, handle->data(0).toInt() == housingMoveHandle ? "Move housing" : "Scale housing");
+        return;
+    }
     if (pressOnLed_) {
         pressOnLed_ = false;
         QList<QGraphicsItem*> moved;
@@ -317,12 +373,12 @@ void ComponentCanvas::mouseReleaseEvent(QMouseEvent* event)
         auto* anchor = *std::min_element(moved.begin(), moved.end(), [](auto* a, auto* b) { return a->data(0).toInt() < b->data(0).toInt(); });
         const auto delta = snapped(anchor->pos(), event->modifiers()) - anchor->pos();
         auto after = draft_;
-        for (auto* item : moved) after.positions[item->data(0).toInt()] = (item->pos() + delta) / unit;
+        for (auto* item : moved) after.positions[item->data(0).toInt()] = insideHousing((item->pos() + delta) / unit, event->modifiers());
         emit draftEdited(after, "Move LEDs");
         return;
     }
     if (!locked_ && !readOnly_ && (position - pressPosition_).manhattanLength() < QApplication::startDragDistance()) {
-        try { emit draftEdited(withAdded(draft_, snapped(mapToScene(position), event->modifiers()) / unit, activeLayer_), "Add LED"); }
+        try { emit draftEdited(withAdded(draft_, insideHousing(snapped(mapToScene(position), event->modifiers()) / unit, event->modifiers()), activeLayer_), "Add LED"); }
         catch (const std::invalid_argument&) {}
     }
 }
@@ -368,7 +424,14 @@ void ComponentCanvas::drawBackground(QPainter* painter, const QRectF& rect)
     painter->fillRect(rect, studioThemeColor("@surround"));
     if (tool_ == Tool::Select && !draft_.positions.isEmpty()) {
         // Housing artwork as a placement reference; wiring gets a clean workplane.
-        painter->save(); painter->scale(unit, unit); drawHardwareComponentArtwork(*painter, draft_.toDefinitionUnchecked()); painter->restore();
+        const auto definition = draft_.toDefinitionUnchecked();
+        painter->save(); painter->scale(unit, unit); drawHardwareEditorArtwork(*painter, definition); painter->restore();
+        if (hardwareHousingFixed(definition)) {
+            const auto frame = hardwareBodyBounds(definition);
+            QPen pen(studioThemeColor("@accent", 140), 1.5, Qt::DashLine); pen.setCosmetic(true);
+            painter->save(); painter->setPen(pen); painter->setBrush(Qt::NoBrush);
+            painter->drawRect(QRectF(frame.topLeft() * unit, frame.size() * unit)); painter->restore();
+        }
     }
     if (!grid_) return;
     // Dots on the snap spacing; when zoomed out, every 2nd/4th/... dot until they are 16 screen pixels apart.

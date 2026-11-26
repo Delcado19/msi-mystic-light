@@ -3,6 +3,7 @@
 #include "modules/DeviceProfile.h"
 #include <QMap>
 #include <QPointF>
+#include <QRectF>
 
 struct ComponentDefinition {
     QString id, name;
@@ -19,6 +20,10 @@ struct ComponentDefinition {
     // Empty means all layer 0. Never used for sampling or output (owner request 2026-11-25).
     QVector<int> layers;
     int layerOf(int row) const { return layers.value(row, 0); }
+    // Housing frame in component units (owner decision "Option A", 2026-11-26): the artwork is drawn
+    // into it and LEDs are kept inside it in the Component Editor. Null = derived from the LED bounds
+    // (older definitions, and strips/cables, whose housing grows with the LEDs).
+    QRectF housing;
     QJsonObject toJson() const;
     static ComponentDefinition fromJson(const QJsonObject& json);
 };

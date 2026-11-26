@@ -13,6 +13,21 @@ surfaces, big image only at start/empty views); scope = everything incl. P2, ste
 Order: shape (workspace model) -> harden (disabled style, Component Editor items below, conflict
 dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify with real-window screenshots.
 
+## Build GS-06-R45 - 2026-11-26 night (local) - Option A housing frame
+
+- Delivered as `Downloads/LightingStudio-local-r45.zip` (top folder `LightingStudio-r45`). 23/23 CTest.
+- ComponentDefinition/Draft `housing` (JSON `housing: [x,y,w,h]`, validated); hardwareBodyBounds returns
+  it for fixed-housing categories (not strips/cables), so Layout, Devices, picker and layout bounds follow.
+- Component Editor: dashed frame, move handle (top-left) and proportional scale handle (bottom-right);
+  moved/added LEDs are clamped to the frame unless Alt; parts get their frame on first open (not dirty).
+  Fit includes the frame except for keyboards (dense key pitch).
+- Photos: the ten owner-provided `_fv` front views replace the old placeholders
+  (`assets/hardware/photos/*_rgb_fv.png`); editor background draws them dimmed (40 %, half desaturated,
+  aspect kept) except keyboards and strips (SVG).
+- shortcut: Apply on fixed connectors (arrangement-only instances) stores positions/layers only, so a
+  housing edit there is dropped; extend setComponentGeometry if that matters.
+- Not checked in the real window by me.
+
 ## Builds GS-06-R43 / R44 - 2026-11-26 night (local, not pushed) - AJAZZ AK35I V4 keyboard
 
 - Delivered as `Downloads/LightingStudio-local-r43.zip` / `-r44.zip` (top folder `LightingStudio-rNN`,

@@ -241,6 +241,7 @@ private slots:
     void componentEditorPageEditing();
     void componentEditorBuiltInReadOnly();
     void glacierOneProduct();
+    void componentHousingFrame();
     void componentEditorPageLayers();
     void componentEditorInstanceMode();
     void disabledControlsLookDisabled();
@@ -1569,6 +1570,47 @@ void EditorTest::componentEditorPageLibrary()
     QCOMPARE(name->text(),QString("Changed")); QVERIFY(page.isDirty()); QVERIFY(!page.confirmLeave());
     page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
     QVERIFY(page.confirmLeave()); QVERIFY(!page.isDirty());
+}
+
+void EditorTest::componentHousingFrame()
+{
+    // Option A (owner decision 2026-11-26): stored housing, LEDs kept inside it, proportional scaling.
+    auto fan=catalog().first(); fan.category="Fans"; fan.positions={{0,0},{1,0},{1,1}}; fan.mapping={0,1,2};
+    QVERIFY(!fan.toJson().contains("housing"));
+    fan.housing=QRectF(-1,-1,3,3);
+    const auto restored=ComponentDefinition::fromJson(fan.toJson());
+    QCOMPARE(restored.housing,QRectF(-1,-1,3,3));
+    QCOMPARE(hardwareBodyBounds(restored),QRectF(-1,-1,3,3));
+    for(const auto& bad:{QJsonValue(QJsonArray{0,0,0,1}),QJsonValue(QJsonArray{0,0,1}),QJsonValue("x")}) {
+        auto json=fan.toJson(); json["housing"]=bad; QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+    }
+    // Strips keep growing with their LEDs: a stored frame is ignored for them.
+    auto strip=fan; strip.category="Strips"; strip.positions={{0,0},{1,0},{2,0}};
+    QVERIFY(hardwareBodyBounds(strip)!=strip.housing); QVERIFY(!hardwareHousingFixed(strip));
+
+    ComponentCanvas view; view.resize(640,400); auto draft=ComponentDraft::fromDefinition(fan); view.setDraft(draft);
+    connect(&view,&ComponentCanvas::draftEdited,&view,[&](const ComponentDraft& after,const QString&){draft=after;view.setDraft(after);});
+    view.show(); QVERIFY(QTest::qWaitForWindowExposed(&view)); view.fit(); view.zoomBy(1.0/view.zoom());
+    SnapGrid{false,10}.save();
+    const auto drag=[&](QPointF from,QPointF to,Qt::KeyboardModifiers modifiers) {
+        const auto a=view.mapFromScene(from*ComponentCanvas::unit),b=view.mapFromScene(to*ComponentCanvas::unit);
+        QTest::mousePress(view.viewport(),Qt::LeftButton,modifiers,a); QTest::mouseMove(view.viewport(),b);
+        QTest::mouseRelease(view.viewport(),Qt::LeftButton,modifiers,b);
+    };
+    // Strict: dragging LED 2 far right stops at the housing edge (x = 2).
+    drag({1,1},{5,1},Qt::NoModifier);
+    QVERIFY(qAbs(draft.positions[2].x()-2)<1e-6); QVERIFY(qAbs(draft.positions[2].y()-1)<.1);
+    // Alt places it freely.
+    drag({2,1},{4,1},Qt::AltModifier);
+    QVERIFY(draft.positions[2].x()>3.5);
+    // Scale handle at the bottom-right corner: proportional, the larger change wins.
+    drag({2,2},{3,2.5},Qt::NoModifier);
+    QCOMPARE(draft.housing.topLeft(),QPointF(-1,-1));
+    QVERIFY(qAbs(draft.housing.width()-draft.housing.height())<1e-6); QVERIFY(qAbs(draft.housing.width()-4)<.05);
+    // Move handle at the top-left corner shifts the frame without resizing it.
+    const auto size=draft.housing.size();
+    drag(draft.housing.topLeft(),draft.housing.topLeft()+QPointF(1,0),Qt::NoModifier);
+    QCOMPARE(draft.housing.size(),size); QVERIFY(qAbs(draft.housing.left()-0)<.05);
 }
 
 void EditorTest::glacierOneProduct()

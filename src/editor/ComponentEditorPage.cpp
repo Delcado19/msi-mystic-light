@@ -1,4 +1,5 @@
 #include "ComponentEditorPage.h"
+#include "HardwareArtwork.h"
 #include "ComponentCanvas.h"
 #include "StudioWidgets.h"
 #include <QAbstractButton>
@@ -234,6 +235,8 @@ void ComponentEditorPage::openInstance(const QUuid& placement, bool arrangementO
         instance_ = placement; arrangementOnly_ = arrangementOnly;
         entry_ = Entry::Instance; entryId_ = item.componentId;
         draft_ = saved_ = ComponentDraft::fromDefinition(document_.catalog().value(item.componentId));
+        {const auto definition = document_.catalog().value(item.componentId);
+         if (draft_.housing.isNull() && hardwareHousingFixed(definition)) draft_.housing = saved_.housing = hardwareBodyBounds(definition);}
         undo_.clear();
         { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(qMax(1, int(draft_.positions.size()))); }
         listColumn_->hide();
@@ -291,6 +294,9 @@ void ComponentEditorPage::load(const QString& id, Entry kind)
     draft_ = saved_ = ComponentDraft::fromDefinition(definition);
     entry_ = kind; entryId_ = id;
     undo_.clear();
+    // Option A (2026-11-26): an existing part gets its housing from today's LED-derived frame on first
+    // open; it is stored with the next save. Not a draft change, so opening never marks the part dirty.
+    if (draft_.housing.isNull() && hardwareHousingFixed(definition)) draft_.housing = saved_.housing = hardwareBodyBounds(definition);
     // The LEDs field starts at the part's own count; it kept the last part's value (owner review 2026-11-26).
     { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(qMax(1, int(draft_.positions.size()))); }
     showDraft(); canvas_->fit();

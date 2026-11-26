@@ -32,7 +32,7 @@ QVector<int> targetRows(const ComponentDraft& draft, const QSet<int>& rows)
 ComponentDraft ComponentDraft::fromDefinition(const ComponentDefinition& definition)
 {
     return {definition.id, definition.name, definition.manufacturer, definition.category,
-            definition.positions, definition.mapping, definition.nonPhysicalSlots, definition.layers};
+            definition.positions, definition.mapping, definition.nonPhysicalSlots, definition.layers, definition.housing};
 }
 
 ComponentDefinition ComponentDraft::toDefinitionUnchecked() const
@@ -40,6 +40,7 @@ ComponentDefinition ComponentDraft::toDefinitionUnchecked() const
     ComponentDefinition definition;
     definition.id = id; definition.name = name; definition.manufacturer = manufacturer; definition.category = category;
     definition.positions = positions; definition.mapping = mapping; definition.nonPhysicalSlots = nonPhysicalSlots;
+    definition.housing = housing;
     // Saved definitions carry no empty layers: renumber the used ones in their order.
     auto used = QSet<int>(layers.cbegin(), layers.cend()).values();
     std::sort(used.begin(), used.end());
@@ -59,7 +60,7 @@ bool ComponentDraft::operator==(const ComponentDraft& other) const
 {
     return id == other.id && name == other.name && manufacturer == other.manufacturer && category == other.category
         && positions == other.positions && mapping == other.mapping && nonPhysicalSlots == other.nonPhysicalSlots
-        && layers == other.layers;
+        && layers == other.layers && housing == other.housing;
 }
 
 int ComponentDraft::layerCount() const

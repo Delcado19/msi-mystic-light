@@ -12,15 +12,15 @@
     <file>cable.svg</file>
     <file>motherboard.svg</file>
     <file>other.svg</file>
-    <file>photos/aio_120_rgb.png</file>
-    <file>photos/aio_240_rgb.png</file>
-    <file>photos/aio_360_rgb.png</file>
-    <file>photos/fan_120_rgb.png</file>
-    <file>photos/gpu_rgb.png</file>
-    <file>photos/io_shield_rgb.png</file>
-    <file>photos/keyboard_rgb.png</file>
-    <file>photos/led_strip_rgb.png</file>
-    <file>photos/mouse_rgb.png</file>
-    <file>photos/ram_rgb.png</file>
+    <file>photos/aio_120_rgb_fv.png</file>
+    <file>photos/aio_240_rgb_fv.png</file>
+    <file>photos/aio_360_rgb_fv.png</file>
+    <file>photos/fan_120_rgb_fv.png</file>
+    <file>photos/gpu_rgb_fv.png</file>
+    <file>photos/io_shield_rgb_fv.png</file>
+    <file>photos/keyboard_rgb_fv.png</file>
+    <file>photos/led_strip_rgb_fv.png</file>
+    <file>photos/mouse_rgb_fv.png</file>
+    <file>photos/ram_rgb_fv.png</file>
   </qresource>
 </RCC>
