@@ -51,6 +51,21 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
 - Owner finding 2026-11-26 (recorded only): Help > Keyboard shortcuts is a cramped QMessageBox of plain
   lines (keys and actions mixed, no spacing, info icon). Proposed for R43 polish: same two-column
   key/action table as the Component Editor help, grouped (View, Tools, Selection, Panels), with spacing.
+- Owner decisions 2026-11-26 for R43 (recorded, not built):
+  - Splash screen with the large banner (`assets/branding/lighting-studio-banner.png`) and a status
+    line, shown only while startup runs (no artificial delay), no animation beyond a <200 ms fade
+    (none with reduced motion), QSplashScreen. Can be switched off in settings. Header keeps a small logo.
+  - Component artwork "Option A": the component defines a housing frame (position + size, aspect
+    locked to the artwork) stored in the component definition (new field; existing components get it
+    from their current LED bounds on first open). LEDs move inside the frame; the housing never
+    stretches. Strict by default: LEDs stop at the frame edge, Alt drags freely (like Alt ignores the
+    grid). LED strips: the housing grows in length with the strip. The housing can be moved and
+    scaled proportionally as its own object. Cause today: drawHardwareComponentArtwork fits the art to
+    hardwareBodyBounds() of the LED positions.
+  - Real product photos as housing art where a straight (front/top) view exists, otherwise the SVG;
+    shown dimmed in the editor (start ~40% opacity, slightly desaturated; tune in the real window),
+    scaled once and cached. Current photos are generic per category and partly in perspective (RAM),
+    so they only fit where the view is straight.
 - Next: R42 clarify (jargon: endpoint table, profile ID, path, mask text), then R43 quieter + polish.
   Owner tests: R40 wake-up, R41 look and feel.
 
