@@ -43,6 +43,18 @@ Wireless findings 2026-11-26 (owner present; raw captures stay local because the
   STAYED RED. FEE1 does not accept the dongle command format. The vendor PC software has no Bluetooth
   mode at all (`config.xml` lists USB and 2.4G only), so there is no reference to capture. Lighting
   control over Bluetooth is unsupported; no further blind writes.
+- Keyboard firmware analysis (2026-11-26, for interoperability, nothing copied): the vendor updater
+  embeds the SN32F290 image unencrypted (RCDATA 4000, 256 KiB, Cortex-M vector table SP 0x20003188, reset
+  0x144ED; RCDATA 4011 is a ZIP with the same image as Intel HEX). Ghidra 12.1.3, ARM Cortex, vector table
+  seeded. The wireless command dispatcher (frames with header 0x81 and a byte-sum over 0x21 bytes) handles
+  opcodes 02, 03, 05 (mode/colour), 07, 09, 0b (music), 0c (clock, key byte 0x5a), 0d, 0f, 10, 12, 14,
+  1f, 20 (battery), 7f and 0x80-0x8f (TFT image data to external SPI flash at 0x6f0000). Opcode 14 (per-key
+  table) erases the internal flash page on every 1 KiB boundary and writes the table to flash: streaming
+  it would wear the flash. Opcode 0b (music) sets a 22 x 6 cell grid live without flash writes, but only
+  on/off per cell with a firmware colour scheme selected by one byte (no RGB). No other live per-key
+  colour path exists in the wireless dispatcher; per-key real-time RGB is a USB-only feature of this
+  firmware. Conclusion: the Lighting Studio canvas cannot be shown on this keyboard over 2.4 GHz or
+  Bluetooth without flash wear; at most a coarse on/off bar grid through opcode 0b.
 - 2.4 GHz dongle 0C45:FEFE rev 0138: vendor collections FF60:0061 (MI_03), FF59:0061 (MI_04), FFFF:0001.
   USBPcap capture of the vendor software: 32-byte interrupt OUT reports on EP 0x05 (FF60), each answered
   on EP 0x85; byte 31 = sum of bytes 0..30 mod 256 (165/165 packets). Commands seen:
