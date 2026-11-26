@@ -47,6 +47,18 @@ Wireless findings 2026-11-26 (owner present; raw captures stay local because the
   green, rest dark), both confirmed by the owner. The per-key table SURVIVED a keyboard power cycle, so it
   is stored persistently (flash or battery-backed; not distinguished). A per-key update takes 22 packets
   at ~25 ms (~0.5 s). Do not stream effects this way: continuous persistent writes risk flash wear.
+- Built-in effects over the dongle (second capture, owner clicked Lighting Mode top to bottom, toggling
+  "Colorful" in each): `05 10 00 <mode> R G B 00 00 00 00 <colorful 0/1> <brightness> <speed> <dir?> ..
+  aa 55 .. <sum>`. Modes: 01 Static, 02 SingleOn, 03 SingleOff, 04 Glittering, 05 Fluttering, 06 Colourful,
+  07 Breath, 08 Spectrum, 09 Outward, 0a Scrolling, 0b Rolling, 0c Rotating, 0d Explode, 0e Launch,
+  0f Ripples, 10 Flowing, 11 Pulsating, 12 Tilt, 13 Shuttle; LED Off = mode 00 with all fields zero;
+  80 = per-key table. Default brightness byte 06 (UI "6"); speed byte 03-06 per mode (UI "4" = 04); byte 14
+  is 00/01/03 depending on mode (direction or variant, INFERRED). The vendor software sends each change
+  once; the keyboard animates by itself. Whether mode writes are persistent was not tested.
+- The vendor software has no live per-key mode (Lighting Mode, User Lighting = persistent table, Music
+  Rhythm = levels only, owner screenshots 2026-11-26), and no command to upload pre-computed LED
+  animations is known (`04 72` uploads to the TFT screen, not to the key LEDs). Live custom effects are
+  therefore wired-only.
 
 ## 2. Identity, transport, exact matching
 
