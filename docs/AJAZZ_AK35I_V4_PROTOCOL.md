@@ -16,8 +16,15 @@ Implementation status (2026-11-26): Phase A done offline. Encoder and ACK check
 dry-run review gate. Model selection (D1): Edit > Settings "AJAZZ AK35I V4 keyboard (experimental, I own
 this exact model)", default off, takes effect after a restart; the editor loads the experimental profile
 only then. The service always loads it (it runs as LocalSystem and cannot read the editor setting) and
-drives only channels a project assigns (test `experimentalProfileInactiveByDefault`). **No hardware test
-yet** (Phase B: START only, then Esc red / F1 green / F2 blue at low brightness).
+drives only channels a project assigns (test `experimentalProfileInactiveByDefault`).
+
+Phase B hardware test 2026-11-26 (owner present, wired USB, firmware 0109, one step at a time, hidapi
+x64 from a probe script): exactly one FF13:0001 collection (interface 3). START `04 18` -> 65-byte GET
+`04 18 00 01` + zeros (65-byte GET verified on Windows hidapi; the reply carries no model identity, so
+START cannot tell V4 from AK820 / V3 MAX). One Direct RGB frame (header `04 20 .. 08`, eight chunks,
+`04 02`): both ACKs as documented; owner confirmed Esc red, F1 green, F2 blue (~25 %), other keys dark.
+Not yet tested: full key map on 0109, frame rate, output through Lighting Studio, 2.4 GHz dongle
+(0C45:FEFE, needs its own capture) and Bluetooth (no data).
 
 ## 2. Identity, transport, exact matching
 
