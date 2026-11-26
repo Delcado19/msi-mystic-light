@@ -39,6 +39,15 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
   Fix in R42/R43 (owner 2026-11-26: "redundant"): remove the Devices `hardwareStatus` "Output: ..." line
   (the status pill shows it in every area); pill tooltip without the repeated line and without
   "Service connected..."; Devices keeps only what exists nowhere else (per-output list).
+- Owner finding 2026-11-26 (recorded only): Phanteks Glacier One is a 360 AiO with three fans
+  (phanteks.com product "Glacier One 360M25 G2 AIO"). In Add hardware it appears twice and as a 240:
+  (1) both entries are the owner's library copies in custom-components.json, an `instance.728d8fc1...`
+  device copy and a `restored.b7ec5bb2...` legacy-import copy, both "Glacier One M25 Gen2 / pump",
+  12 LEDs; the picker lists device copies as products. (2) HardwareArtwork maps category AiO to
+  `aio_240_rgb` regardless of size. (3) Name lacks "360"; display rewrites "/ pump" to "/ AiO".
+  Unknown: whether 12 LEDs model the whole AiO (pump + 3 fans) or the pump only - owner to confirm.
+  Proposed: picker hides or merges identical device copies; AiO artwork by size from name/LED data;
+  rename to "Glacier One 360M25 G2 AIO".
 - Next: R42 clarify (jargon: endpoint table, profile ID, path, mask text), then R43 quieter + polish.
   Owner tests: R40 wake-up, R41 look and feel.
 
