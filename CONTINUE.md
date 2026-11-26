@@ -22,8 +22,11 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
   hardware: START ACK, Esc/F1/F2 correct; owner confirmed output through Lighting Studio over USB.
 - R44: busy ACKs (status 00/FF, phases up to ~2 s) skip a frame instead of faulting the output; before,
   each one blacked the keys for ~3 s (reconnect). Owner after installing R44: "sieht alles fluide aus".
-- Open for the keyboard: full key map check on firmware 0109; 2.4 GHz dongle (0C45:FEFE) needs a USB
-  capture of the vendor software setting colors over the dongle; Bluetooth has no data at all.
+- Keyboard decision (owner 2026-11-26): Lighting Studio drives the AK35I V4 over the CABLE only.
+  Wireless was investigated and closed: the dongle has only built-in effects, a persistent per-key table
+  (flash wear when streamed) and music levels; Bluetooth FEE1 ignores the dongle format and the vendor
+  software has no Bluetooth mode. Owner rejects built-in effects ("alle Mist"), so no dongle module is
+  built. Details: docs/AJAZZ_AK35I_V4_PROTOCOL.md. Still open: full key map check on firmware 0109.
 
 ## Build GS-06-R42 - 2026-11-26 evening (local, not pushed) - clarify + quieter/polish part 1
 
