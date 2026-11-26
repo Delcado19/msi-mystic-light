@@ -3,6 +3,37 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Component Editor UX defects - owner review of R40, 2026-11-26 (NOTHING BUILT YET)
+
+Owner: "noch nichts machen, festhalten". Owner verdict: serious UX defects. Findings, code-checked:
+
+1. Fixed-connector parts (e.g. RAM): Add Shapes, LEDs field, wiring presets, Address/Assign and Danger
+   zone are disabled on purpose (`countLocked` in `ComponentEditorPage::showDraft`), but the stylesheet
+   has no disabled look, so they look active and do nothing. Whether Name/Manufacturer/Category/Layers
+   also failed for the owner is unverified (code does not disable them).
+   Owner wants: LEDs field shows the fixed count and is locked; shape buttons stay usable and RESHAPE the
+   existing LEDs (LED i -> slot i of the shape, wire order kept).
+2. Address/Assign is unexplained in the UI. Owner understood correctly: normal fan = 1:1. Needed only for
+   shared addresses (mirrored rings) or a data order differing from the drawing. Proposal: move into a
+   collapsed "Advanced" section with one sentence of explanation.
+3. Devices "Edit component" and Layout "Edit LEDs" call the same lambda (`editDeviceLeds`,
+   LightingWindow.cpp) under two names. Owner: "Murks". Proposal (not decided): Devices = component
+   library only (Component Editor button: new/import/export); Layout = the single entry to edit LEDs of a
+   placed part; drop the Devices duplicate.
+4. The editor inherits dock visibility from the tab it was opened from (Devices: docks hidden, Layout:
+   Navigator/Inspector/left tool rail shown and useless there). Owner: "totaler Murks". Agreed: the editor
+   always takes the full window, restore docks on Back.
+5. Help overlay (`componentHelpOverlay`) has no opaque background: unreadable over the canvas. Make it
+   opaque, dim the canvas behind it.
+6. Properties column showed a horizontal scrollbar; the Navigator cannot be narrowed below 220 px
+   (`sidebarDock->setMinimumWidth(220)`). Fixed by item 4 for the editor; Navigator min width in Layout
+   is an open owner question.
+7. App-wide: add a visible disabled style for controls that stay disabled.
+8. Verification must include screenshots of the real window, not only enabled-flag tests (the old tests
+   passed while the UI was unusable).
+
+Open owner decisions: item 3 (where the single entry lives), item 6 (Navigator min width).
+
 ## Build GS-06-R40 - 2026-11-26 (local, not pushed)
 
 - Owner confirmed R39 on hardware: Synapse brightness OFF + Lighting Studio -> mouse shows our colours,
