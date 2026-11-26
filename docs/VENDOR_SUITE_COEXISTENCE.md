@@ -1,6 +1,6 @@
 # Vendor suite coexistence (concept, not built)
 
-Status: proposal from 2026-11-22, awaiting owner decision. Nothing here is implemented.
+Status: proposal from 2026-11-22; the Razer findings below (2026-11-26) are implemented in R39/R40, the rest is not.
 Termination behaviour in `src/startup/` is unchanged.
 
 ## Problem
@@ -69,6 +69,46 @@ Several suites expose a lighting SDK that lets a third party draw while the suit
 devices through the SDK instead of raw HID would remove the conflict entirely and keep macros.
 Licensing, exclusivity behaviour and latency have not been checked; look up current docs before
 committing to any of them.
+
+## Findings 2026-11-26 (Razer Synapse 4, USB captures with Wireshark/USBPcap)
+
+- Synapse lighting "Static": one plain colour frame (0x0F/0x03) every 5.0 s, no reads -> short hiccup.
+- Synapse brightness OFF: no reports at all; the device keeps brightness 0. Lighting Studio now sets
+  brightness 255 itself (R39), so Synapse can keep running for buttons and macros. Owner-confirmed.
+- On resume Synapse sends a few reports; the guard used to block the mouse for a minute. Since R40 a
+  writer blocks only with >= 2 reports/s in the capture (`sustainedWriter`), no vendor names involved.
+- Pattern worth trying for other suites: switch the suite's lighting off (not uninstall it), then
+  check whether it stays silent and whether our driver must restore a device brightness or mode.
+
+## Vendor suites still to check
+
+Lighting suites for PC-internal hardware (controllers, strips, fans, AiOs, cases), list from the owner
+2026-11-26. None of these has been measured. Our conflict capture only sees HID SET_REPORT control
+transfers; a suite that writes through interrupt OUT (`hid_write`), SMBus or its own USB protocol is not
+detected at all, so its column decides whether coexistence can even be noticed.
+
+| Vendor | Suite | Lighting off possible? | Transport seen | Measured |
+|---|---|---|---|---|
+| Aqua Computer | aquasuite | unknown | unknown | no |
+| ARCTIC | ARCTIC RGB Control Master | unknown | unknown | no |
+| ASUS | Aura Sync (older: Halo), Armoury Crate | unknown | unknown | no |
+| be quiet! | IO Center | unknown | unknown | no |
+| Cooler Master | MasterPlus+ | unknown | unknown | no |
+| Corsair | iCUE | unknown | unknown | no |
+| DeepCool | DeepCreative | unknown | unknown | no |
+| EK Water Blocks | EK-Loop Connect | unknown | unknown | no |
+| Fractal Design | Adjust Pro (web based) | unknown | unknown | no |
+| HYTE | Nexus | unknown | unknown | no |
+| InWin | GLOW2 | unknown | unknown | no |
+| Lian Li | L-Connect 3 | unknown | unknown | no |
+| NZXT | CAM | unknown | unknown | no |
+| Phanteks | NexLinq | unknown | unknown | no |
+| Razer | Synapse 4 (Chroma) | brightness OFF | SET_REPORT (control) | yes, 2026-11-26 |
+| Thermaltake | TT RGB PLUS | unknown | unknown | no |
+| MSI | MSI Center / Mystic Light module | module can be uninstalled; "off" silent 90 s | SET_REPORT (control) | partly, 2026-11-16 |
+
+Mainboard vendors with their own suites, also unmeasured: ASRock (Polychrome), Biostar, Colorful, ECS,
+EVGA, Gigabyte (RGB Fusion / Gigabyte Control Center), Maxsun.
 
 ## Open questions for the owner
 
