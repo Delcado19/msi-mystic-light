@@ -50,6 +50,16 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
   2 LEDs, unconfirmed) and no pump-cap LED count. D-RGB runs over one Linq6 cable. Unknown, needs a
   hardware test: are the daisy-chained fans separate addresses (36) or mirrored (12), and what the cap
   adds - set a higher LED count on that output, light single addresses and watch.
+  Hardware test 2026-11-26 (owner watched, one address lit white at a time via the service pipe, all
+  other outputs black; project restored and verified identical afterwards): the whole AiO is on JARGB3
+  and uses 8 addresses. The three radiator fans mirror addresses 1-6 (one spot per address, no split
+  half-ring like the single M25 fans; not individually addressable). The pump-cap fan ring uses 1-8.
+  Both rings start at 3 o'clock and run counterclockwise (seen: fans 1=3h 4=12h 6=10h; pump 1=3h 4=~10h
+  6=~8h 7=6h 8=4h; 9-12 dark). Owner decision: place the points evenly over 360 degrees (fans 60, pump
+  45 degrees per address), address 1 at 3 o'clock. Model: one AiO component with 8 addresses = three
+  6-point fan rings (addresses 0-5) plus one 8-point pump ring (0-7); replaces the 12-LED "pump" ring.
+  Method note: probe LEDs must stay inside the 640x400 layout (positions are x20 world units), or the
+  layout-bounds mapping moves them off the test image and old effect layers show through.
   Proposed: picker hides or merges identical device copies; AiO artwork by size from name/LED data;
   rename to "Glacier One 360M25 G2 AIO".
 - Owner finding 2026-11-26 (recorded only): Help > Keyboard shortcuts is a cramped QMessageBox of plain
