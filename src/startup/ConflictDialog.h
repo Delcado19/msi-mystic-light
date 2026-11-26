@@ -19,6 +19,9 @@ private:
     void verifySignalRgbService(quint32 originalPid,int checksLeft,int stableChecks=0);
     IConflictProcesses& processes_;
     QVector<ConflictProcess> conflicts_;
+    // One table row per program (same image path); each entry holds indices into conflicts_, so a stop
+    // still reaches every process of that program (owner review 2026-11-26: ten identical rows).
+    QVector<QVector<int>> groups_;
     QTableWidget* table_;
     QPushButton *terminate_, *terminateAll_, *ignore_, *adminStop_;
     QLabel* status_;

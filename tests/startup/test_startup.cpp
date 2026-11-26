@@ -380,6 +380,30 @@ private slots:
         QTimer::singleShot(1000, &empty, &QDialog::reject);
         QCOMPARE(empty.exec(), int(QDialog::Accepted));
     }
+    // One row per program, and a stop still reaches all of its processes (owner review 2026-11-26:
+    // Razer Synapse showed ten identical rows). The text recommends switching lighting off first.
+    void groupsProcessesOfOneProgram() {
+        FakeProcesses processes;
+        processes.running={{31,"RazerAppEngine.exe","C:/Razer/RazerAppEngine.exe","Same program as RazerAppEngine.exe; may start it again",300,false},
+            {32,"RazerAppEngine.exe","C:/Razer/RazerAppEngine.exe","Sends lighting commands to VID_1532&PID_0099&MI_03",301,false},
+            {33,"razerappengine.exe","c:/razer/razerappengine.exe","Same program as RazerAppEngine.exe; may start it again",302,false},
+            {22,"OpenRGB.exe","C:/rgb/OpenRGB.exe","Potential writer",200,false}};
+        ConflictDialog dialog(processes);
+        dialog.show();
+        auto* table = dialog.findChild<QTableWidget*>("conflictTable");
+        QCOMPARE(table->rowCount(), 2);
+        QCOMPARE(table->item(0,1)->text(), QString("3 processes"));
+        QVERIFY(table->item(0,3)->text().startsWith("Sends lighting commands"));
+        bool recommends=false;
+        for(auto* label:dialog.findChildren<QLabel*>()) recommends|=label->text().contains("switch off their lighting");
+        QVERIFY(recommends);
+        table->selectRow(0);
+        button(dialog, "terminateSelected")->click();
+        QCOMPARE(processes.graceful, (QVector<quint32>{31,32,33}));
+        QTRY_COMPARE_WITH_TIMEOUT(processes.forced.size(), 3, 2500);
+        QCOMPARE(table->rowCount(), 1);
+        button(dialog, "cancel")->click();
+    }
     void selectionAndAll() {
         FakeProcesses processes;
         ConflictDialog dialog(processes);
