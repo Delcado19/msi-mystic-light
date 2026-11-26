@@ -7,6 +7,7 @@
 #include "protocol/AjazzAk35iV4Protocol.h"
 #include <QObject>
 #include <QJsonArray>
+#include <chrono>
 
 namespace {
 class PeripheralDriver final : public IDriver {
@@ -21,7 +22,17 @@ public:
             if(!initialized_ && !feature(BuildKoneInitReport())) return false;
             initialized_=true; return feature(BuildKoneColorsReport(rgb));
         }
-        if(protocol=="basilisk") return feature(BuildBasiliskColorsReport(rgb)) && feature(BuildBasiliskModeCustomReport());
+        if(protocol=="basilisk") {
+            // Synapse "brightness off" stores 0 on the device and then sends nothing, so it can keep running
+            // (macros, key remaps) without fighting our frames; we restore 255 once a second in case Synapse
+            // sets 0 again on start, profile switch or resume (unmeasured). USB capture 2026-11-26.
+            const auto now=std::chrono::steady_clock::now();
+            if(!initialized_ || now-brightnessSent_>=std::chrono::seconds(1)) {
+                if(!feature(BuildBasiliskBrightnessReport(0xFF))) return false;
+                initialized_=true; brightnessSent_=now;
+            }
+            return feature(BuildBasiliskColorsReport(rgb)) && feature(BuildBasiliskModeCustomReport());
+        }
         if(protocol=="apex3") {
             // Brightness is device state; sending it with every frame doubled the writes (audit 2026-11-14).
             if(!initialized_ && !output(BuildApex3BrightnessPacket(100))) return false;
@@ -57,6 +68,7 @@ private:
         return AjazzAckOk(reply.data(),transport_.getFeatureReport(reply.data(),reply.size()),opcode);
     }
     IHidDevice& transport_; ChannelProfile channel_; bool initialized_=false;
+    std::chrono::steady_clock::time_point brightnessSent_;
 };
 }
 class PeripheralModule final : public QObject, public IDriverModule {

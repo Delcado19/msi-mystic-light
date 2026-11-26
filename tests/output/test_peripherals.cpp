@@ -159,7 +159,7 @@ private slots:
             ChannelOutput channel; channel.channelId=profile.channels[0].id; channel.software=true;
             channel.colors.fill({12,34,56},profile.channels[0].fixedLeds); proof.initial.channels={channel};
             const auto reports=previewOutputReports(modules,proof);
-            QCOMPARE(reports.size(),model.startsWith("vulcan") ? 8 : 2);
+            QCOMPARE(reports.size(),model.startsWith("vulcan") ? 8 : model.startsWith("basilisk") ? 3 : 2);
             if(model.startsWith("vulcan")) { QCOMPARE(reports[0],QByteArray::fromHex("150001")); QCOMPARE(reports[1].size(),65); }
             if(model.startsWith("apex")) {
                 QCOMPARE(reports[0].size(),33); QCOMPARE(quint8(reports[0][3]),100); QCOMPARE(reports[1].mid(3,3),QByteArray::fromHex("0c2238"));
@@ -169,7 +169,20 @@ private slots:
                 QVERIFY(driver->driver().pushColors(channel.channelId,channel.colors)); QVERIFY(driver->driver().pushColors(channel.channelId,channel.colors));
                 QCOMPARE(device.sentReports.size(),std::size_t(3)); QCOMPARE(int(device.sentReports[2][1]),0x0B);
             }
-            if(model.startsWith("basilisk")) { QCOMPARE(reports[0].size(),91); QCOMPARE(reports[0].mid(14,3),QByteArray::fromHex("0c2238")); }
+            if(model.startsWith("basilisk")) {
+                // Brightness 255 first (Synapse "brightness off" leaves the device at 0), then colors + custom mode.
+                QCOMPARE(reports[0].size(),91); QCOMPARE(reports[0].mid(6,6),QByteArray::fromHex("030f040000ff"));
+                QCOMPARE(quint8(reports[0][89]),quint8(0x03^0x0f^0x04^0xff));
+                QCOMPARE(reports[1].mid(14,3),QByteArray::fromHex("0c2238"));
+                // Later frames repeat brightness only after the refresh interval.
+                FakeHidDevice device; QVERIFY(device.open(0,0));
+                auto driver=modules.create(proof.identity,proof.profile,device,&error); QVERIFY2(driver,qPrintable(error));
+                QVERIFY(driver->driver().pushColors(channel.channelId,channel.colors)); QVERIFY(driver->driver().pushColors(channel.channelId,channel.colors));
+                QCOMPARE(device.sentReports.size(),std::size_t(5));
+                QTest::qSleep(1100);
+                QVERIFY(driver->driver().pushColors(channel.channelId,channel.colors));
+                QCOMPARE(device.sentReports.size(),std::size_t(8)); QCOMPARE(int(device.sentReports[5][8]),0x04);
+            }
             if(model.startsWith("kone")) { QCOMPARE(reports[0].size(),6); QCOMPARE(reports[1].size(),46); }
             profile.channels[0].fixedLeds=1; QVERIFY(!modules.acceptsProfile(profile,&error));
             proof.initial.channels[0].colors.clear(); QVERIFY_EXCEPTION_THROWN(previewOutputReports(modules,proof),std::runtime_error);

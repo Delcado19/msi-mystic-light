@@ -3,6 +3,25 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R39 - 2026-11-26 morning (local, not pushed)
+
+- USB captures (Wireshark/USBPcap on `\\.\USBPcap3`, Basilisk = device 3, 40 s each; files in the
+  session scratchpad, not kept): with Synapse 4 lighting "Static", Synapse sends one plain 0x0F/0x03
+  colour frame every 5.0 s and never reads the device -> the 5 s hiccup. With Synapse brightness OFF,
+  Synapse sent nothing in 40 s; the mouse stayed dark because the device brightness is 0.
+- Fix: Basilisk driver sends brightness 255 (0x0F/0x04, NO_SAVE, LED_ID_ZERO, as OpenRGB) on the
+  first frame and once a second after that. Intended setup: Synapse keeps running with brightness OFF
+  (macros/remaps stay), Lighting Studio drives the colours. Test in `test_peripherals` (reports).
+- Delivered as `Downloads/LightingStudio-local-r39.zip` + `.zip.sha256`
+  (SHA-256 `33edf5dad2ba1a3c039f32e173794c3a5c7a8a5c3f5a45e3b505fc7753c7421c`), 58 files, includes the
+  status-row fix 0131fd0. 23/23 CTest. Not run: installer, real mouse with the new command.
+- Unmeasured: whether Synapse sets brightness 0 again on its start, profile switch or resume (the
+  1 s refresh would mask it). Our driver still sends the custom-mode report with every frame (26/s);
+  unnecessary but harmless, left as is.
+- Next: owner installs R39, Synapse brightness OFF + Ignore in the conflict dialog; check the mouse
+  shows our effect without hiccup and buttons/macros work; then rethink the conflict dialog for
+  suites (suggest "brightness off" instead of terminate).
+
 ## After R38 - 2026-11-25 night (local, not built into a ZIP, not pushed)
 
 - Owner ran R38. Component Editor status row jumped on mouse move: the "grid x, y" label grew,

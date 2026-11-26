@@ -78,3 +78,17 @@ std::array<uint8_t, RAZER_BASILISK_REPORT_SIZE> BuildBasiliskModeCustomReport()
     report[89] = CalculateCrc(report);
     return report;
 }
+
+std::array<uint8_t, RAZER_BASILISK_REPORT_SIZE> BuildBasiliskBrightnessReport(uint8_t brightness)
+{
+    std::array<uint8_t, RAZER_BASILISK_REPORT_SIZE> report{};
+    report[2] = 0x1F;        // transaction_id
+    report[6] = 0x03;        // data_size
+    report[7] = 0x0F;        // command_class
+    report[8] = 0x04;        // command_id
+    // arguments[0] = storage NO_SAVE, arguments[1] = LED_ID_ZERO: both 0x00, left implicit
+    report[11] = brightness; // arguments[2]
+
+    report[89] = CalculateCrc(report);
+    return report;
+}
