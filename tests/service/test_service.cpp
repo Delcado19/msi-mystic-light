@@ -2,6 +2,7 @@
 #include "service/ServiceProtocol.h"
 #include "service/ServiceRuntime.h"
 #include "service/ServicePanel.h"
+#include <QStatusBar>
 #include <QPushButton>
 #include <QLabel>
 #include <QAction>
@@ -81,6 +82,7 @@ private slots:
  void scopeChangeReopensAfterOneScan();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
+ void serviceErrorAnnouncedInStatusBar();
  void continuousEditsStreamToService();
  void canvasDragStreamsBeforeRelease();
 };
@@ -585,6 +587,18 @@ void ServiceTest::identifyKeepsQueuedEditorState() {
     for(int i=0;i<16;++i)panel.stopOutput();
     emit window.identifyRequested(QUuid::createUuid());
     QTRY_VERIFY_WITH_TIMEOUT(ops("project").size()>before,5000);
+    window.closing();
+}
+// A device blocked by the service guard used to stay dark with no visible reason (owner report 2026-11-26).
+void ServiceTest::serviceErrorAnnouncedInStatusBar() {
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});
+    const QString blocked="Another program sends lighting commands (VID_1532&PID_0099&MI_03: RazerAppEngine.exe). Switch off the lighting in that program, or choose Resolve conflicts.";
+    ServicePanel panel(window,[blocked](const QJsonObject&){
+        return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}},{"error",blocked}};
+    });window.installOutputPanel(&panel);panel.activate();
+    QTRY_VERIFY(window.statusBar()->findChild<QLabel*>("serviceNotice"));
+    auto* notice=window.statusBar()->findChild<QLabel*>("serviceNotice");
+    QTRY_COMPARE(notice->text(),blocked);QVERIFY(!notice->isHidden());
     window.closing();
 }
 QTEST_MAIN(ServiceTest)

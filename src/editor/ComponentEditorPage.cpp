@@ -98,7 +98,9 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
     body->addWidget(canvas_, 1);
 
     auto* properties = new QScrollArea; properties->setObjectName("componentProperties");
-    properties->setWidgetResizable(true); properties->setFixedWidth(320);
+    // Wide enough for three shape buttons per row; never scroll sideways (owner review 2026-11-26).
+    properties->setWidgetResizable(true); properties->setFixedWidth(400);
+    properties->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto* panel = new QWidget; auto* column = new QVBoxLayout(panel);
     column->setContentsMargins(0, 0, 8, 0); column->setSpacing(6);
     auto* device = section(column, "DEVICE", true);
@@ -110,8 +112,8 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
     category_->addItem("Automatic", QString());
     for (const auto& category : categories) category_->addItem(category, category);
     form->addRow("Category", category_);
-    identity_ = new QLabel; identity_->setObjectName("componentIdentity");
-    identity_->setTextInteractionFlags(Qt::TextSelectableByMouse); identity_->setWordWrap(true);
+    // Read-only field: the long unbreakable ID stays copyable without forcing the column wider (2026-11-26).
+    identity_ = new QLineEdit; identity_->setObjectName("componentIdentity"); identity_->setReadOnly(true);
     form->addRow("ID", identity_);
     buildShapesAndWiring(column);
     column->addStretch();

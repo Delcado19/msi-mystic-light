@@ -1703,6 +1703,12 @@ void EditorTest::componentEditorInstanceMode()
     // The editor takes the full window whatever area opened it (owner review 2026-11-26).
     QVERIFY(!navigatorDock->isVisible()); QVERIFY(!inspectorDock->isVisible()); QVERIFY(!drawingTools->isVisible());
     QVERIFY(!window.findChild<QToolBar*>("drawingOptions")->isVisible());
+    {   // Full window and a properties column that fits its content: no sideways scrolling.
+        QCoreApplication::processEvents(); QCOMPARE(page->width(),window.width());
+        auto* properties=page->findChild<QScrollArea*>("componentProperties");
+        QVERIFY(!properties->horizontalScrollBar()->isVisible());
+        QVERIFY2(properties->widget()->width()<=properties->viewport()->width(),"properties content is clipped");
+    }
     page->findChild<QPushButton*>("componentBack")->click();
     QVERIFY(navigatorDock->isVisible() && inspectorDock->isVisible() && drawingTools->isVisible()); // choices kept
     window.findChild<QPushButton*>("editLayoutLeds")->click(); QCOMPARE(pages->currentWidget(),page);
@@ -1785,6 +1791,7 @@ void EditorTest::componentEditorInstanceMode()
     QVERIFY(page->findChild<QToolButton*>("componentRotate")->isEnabled());
     QVERIFY(!window.findChild<QWidget*>("customComponentLibrary"));
     QVERIFY(!window.findChild<QWidget*>("componentLab"));
+    QCoreApplication::processEvents(); // grab after the main window relayout, or hidden docks still leave gaps
     QVERIFY(window.grab().save(artifactDirectory()+"/component-editor-instance.png"));
     page->askUnsaved=[](const QString&){return QMessageBox::Discard;};
     window.document().history()->setClean();

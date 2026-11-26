@@ -570,7 +570,7 @@ QStringList DeviceConflictMonitor::blocked(const QStringList& endpoints, QString
         reasons.append(endpointLabel(endpoint) + ": " + names.join(", "));
     }
     QStringList parts;
-    if (!result.isEmpty()) parts.append("Another program sends lighting commands (" + reasons.join("; ") + "). Choose Resolve conflicts to stop it.");
+    if (!result.isEmpty()) parts.append("Another program sends lighting commands (" + reasons.join("; ") + "). Switch off the lighting in that program, or choose Resolve conflicts.");
     if (!errors.isEmpty()) parts.append("Conflict detection unavailable: " + errors.join("; "));
     message = parts.join("\n");
     return result;

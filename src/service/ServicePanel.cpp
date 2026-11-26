@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QPushButton>
+#include <QStatusBar>
 #include <QMessageBox>
 #include <QHeaderView>
 #include <QSaveFile>
@@ -183,6 +184,12 @@ void ServicePanel::display(const QJsonObject& reply) {
     }
     messages.removeDuplicates();
     status_->setText(messages.isEmpty()?"Service connected. Playback continues when the editor closes.":messages.join("\n"));
+    // A blocked device used to stay dark with the reason only in Devices and a tooltip (owner report
+    // 2026-11-26: mouse dark after standby). A permanent status-bar notice shows a service-wide error for
+    // as long as it lasts; transient status messages would overwrite it.
+    auto* notice=window_.statusBar()->findChild<QLabel*>("serviceNotice");
+    if(!notice){notice=new QLabel;notice->setObjectName("serviceNotice");notice->setTextFormat(Qt::PlainText);window_.statusBar()->addWidget(notice,1);}
+    notice->setText(error);notice->setToolTip(error);notice->setVisible(!error.isEmpty());
     // A service-wide error counts as an error but is no faulted channel: idle channels stay idle (CodeRabbit review 2026-11-18).
     window_.setOutputState(QString("%1 active / %2 configured / %3 errors / %4 faulted").arg(running).arg(outputs_->topLevelItemCount()).arg(errors+(!error.isEmpty()?1:0)).arg(errors));
 }

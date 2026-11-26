@@ -74,7 +74,8 @@ private:
     QWidget* listColumn_ = nullptr;
     QLineEdit *search_ = nullptr, *name_ = nullptr, *manufacturer_ = nullptr;
     QComboBox* category_ = nullptr;
-    QLabel *title_ = nullptr, *message_ = nullptr, *counts_ = nullptr, *identity_ = nullptr;
+    QLabel *title_ = nullptr, *message_ = nullptr, *counts_ = nullptr;
+    QLineEdit* identity_ = nullptr;
     QPushButton *new_ = nullptr, *import_ = nullptr, *export_ = nullptr, *delete_ = nullptr, *save_ = nullptr;
     QButtonGroup* tools_ = nullptr;
     QToolButton *wireTool_ = nullptr, *grid_ = nullptr, *path_ = nullptr, *help_ = nullptr;
