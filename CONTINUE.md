@@ -31,6 +31,19 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
 - Review fixes before delivery: typing an address keeps the selection (step-to-highlight dropped);
   notice is a permanent status-bar widget; no area highlighted while the editor is open; reshape fits
   the template to the part's centre and extent; split preview disabled (not hidden) outside Effects.
+- Owner real-window review of R41 (2026-11-26 evening, screenshots), recorded, not fixed:
+  1. "Nothing is greyed out": R41 disabled only menu entries; the canvas toolbar (Panels, preview scope,
+     fit, zoom, Align/Snap) still hides in Devices (by code, LightingWindow editorCommands). Identify and
+     Component actions are disabled in Devices but read as empty, not as greyed. Owner expected built-in
+     catalog components to be greyed (read-only); today they load editable with "Save as copy".
+  2. LED count shown nowhere correctly: the Shapes "LEDs" field is the count for a NEW shape and keeps a
+     stale value (1, left over from a 1-LED part) when an unlocked part opens; only locked parts sync it.
+  3. L-Shape "does not work": consequence of 2 - on the unlocked NV5 strip (16 LEDs) it replaced all
+     LEDs with a 1-LED L. Section title "ADD SHAPES" hides that it replaces. Other shapes: same path.
+  4. Component grid too coarse: dots on whole component units (20 Layout px) while snapping uses the
+     Layout grid (10 px = 0.5 unit) and the strip's LEDs sit closer still; dots match neither.
+  Also seen: Layout hint line truncated ("...Shift adds to selection;..."); "LEDs 1-6 same as ..." badge
+  overlaps the fans; Glacier still 1-12 on JARGB3 (new AiO component pending, see Glacier finding).
 - Owner finding on R41 (2026-11-26, recorded only, not fixed): output status is shown three times.
   The status pill tooltip repeats "Output: N active / ..." twice (setOutputState builds it from
   "Output: "+state plus the action tooltip, which already starts with the same line for any state
