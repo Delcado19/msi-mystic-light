@@ -13,6 +13,24 @@ surfaces, big image only at start/empty views); scope = everything incl. P2, ste
 Order: shape (workspace model) -> harden (disabled style, Component Editor items below, conflict
 dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify with real-window screenshots.
 
+## Build GS-06-R41 - 2026-11-26 afternoon (local, not pushed) - workspace model + harden
+
+- Delivered as `Downloads/LightingStudio-local-r41.zip` + `.zip.sha256`
+  (SHA-256 `30b68b51ab96b7af036ea029f43e35c083e7d6a6a89eae80c2212453d07fb10e`), 58 files. 23/23 CTest.
+  Checked by offscreen screenshots only; real window, installer and hardware not run.
+- Workspace model: Component Editor always full window (workspaceIndex(), docks/tools/canvas menus
+  restored on any exit); Edit LEDs only in Layout; "Connector settings..." for every connector
+  (DEVIATION from the brief: fixed devices keep it enabled because the dialog holds their playback
+  clock); Component Editor button beside the Devices title; Custom effects at the top of Effects;
+  canvas menus disabled, not hidden, in Devices and the editor.
+- Harden: @disabled style for buttons/inputs/labels with a pixel test; opaque help overlay;
+  reshape of count-locked parts (withReshaped); address field follows selection ("mixed");
+  properties column 400 px without sideways scrolling, ID as read-only field; conflict dialog with
+  one row per program, coexistence-first text and Check again as primary; permanent status-bar
+  notice for service-wide errors (no protocol change).
+- Next: R42 clarify (jargon: endpoint table, profile ID, path, mask text), then R43 quieter + polish.
+  Owner tests: R40 wake-up, R41 look and feel.
+
 ## Workspace model brief - confirmed by owner 2026-11-26 (impeccable shape)
 
 - Devices = which hardware on which connector. Component library button at the top of Devices. Per connector
