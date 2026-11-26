@@ -6,7 +6,7 @@ is unverified. See [HP Omen migration](HP_OMEN_MIGRATION.md) for sources and sco
 
 The app loads local Qt driver plugins and validates independent JSON device
 profiles. Bundled plugins are `msi.gen1`, `lighting.peripherals` (Roccat
-Vulcan/Kone, Razer Basilisk V3, SteelSeries Apex 3), and
+Vulcan/Kone, Razer Basilisk V3, SteelSeries Apex 3, AJAZZ AK35I V4 experimental and opt-in, API 3), and
 `asrock.polychrome-usb` (ASRock Polychrome USB motherboards, VID `0x26CE`
 PID `0x01A2` — whole-zone native modes only; no RGSwap, no per-LED Direct
 mode; unqualified on real hardware, see
