@@ -36,7 +36,9 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
   "Output: "+state plus the action tooltip, which already starts with the same line for any state
   other than Running/Stopped) and adds "Service connected..." again; the Devices label `hardwareStatus`
   shows the same "Output: ..." line, and "Service connected..." also sits under the output buttons.
-  Fix in R42/R43: one place per fact (pill = summary, Devices = detail), no repeated lines.
+  Fix in R42/R43 (owner 2026-11-26: "redundant"): remove the Devices `hardwareStatus` "Output: ..." line
+  (the status pill shows it in every area); pill tooltip without the repeated line and without
+  "Service connected..."; Devices keeps only what exists nowhere else (per-output list).
 - Next: R42 clarify (jargon: endpoint table, profile ID, path, mask text), then R43 quieter + polish.
   Owner tests: R40 wake-up, R41 look and feel.
 
