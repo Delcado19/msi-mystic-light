@@ -18,7 +18,8 @@ Owner: "noch nichts machen, festhalten". Owner verdict: serious UX defects. Find
    `address_` never follows the selection, it keeps the last typed value (initially 1).
    Owner decision: NO "Advanced" section, the field stays visible. Agreed behaviour: one LED selected ->
    field shows its address; several with the same address -> that address; different addresses -> empty
-   "mixed", Assign gives all the typed address; nothing selected -> empty and disabled. Add a short
+   field with grey placeholder text "mixed" (owner-confirmed wording),
+   Assign gives all the typed address; nothing selected -> empty and disabled. Add a short
    explanation (tooltip or one line).
 3. Devices "Edit component" and Layout "Edit LEDs" call the same lambda (`editDeviceLeds`,
    LightingWindow.cpp) under two names. Owner: "Murks". Proposal (not decided): Devices = component
