@@ -1,5 +1,6 @@
 #include "../OffscreenTestPlatform.h"
 #include "editor/ParameterSpinBox.h"
+#include <QPolygonF>
 #include <QDialogButtonBox>
 #include <QMenuBar>
 #include <QMenu>
@@ -1268,9 +1269,18 @@ void EditorTest::componentDraftOperations()
             QCOMPARE(reshaped.positions.size(),n);QCOMPARE(reshaped.mapping,fixed.mapping);
             QCOMPARE(reshaped.layers,fixed.layers);QCOMPARE(reshaped.nonPhysicalSlots,fixed.nonPhysicalSlots);
             QCOMPARE(reshaped.category,fixed.category);
-            // Address order walks the template: address 0 sits on the template's first slot.
+            // Address order walks the template (address 0 on its first slot), scaled to the part's former
+            // extent (n-1 wide here) and centred where the LEDs were.
             const auto templatePoints=withShape(empty,shape,n).positions;
-            for(int row=0;row<n;++row)QCOMPARE(reshaped.positions[row],templatePoints[fixed.mapping[row]]);
+            const auto box=[](const QVector<QPointF>& points){
+                QPolygonF polygon(points); return polygon.boundingRect();
+            };
+            const auto before=box(fixed.positions),after=box(reshaped.positions),plain=box(templatePoints);
+            QVERIFY(QLineF(after.center(),before.center()).length()<1e-9);
+            QVERIFY(qAbs(std::max(after.width(),after.height())-(n-1))<1e-9);
+            const double scale=(n-1)/std::max(plain.width(),plain.height());
+            for(int row=0;row<n;++row)
+                QVERIFY(QLineF(reshaped.positions[row],before.center()+(templatePoints[fixed.mapping[row]]-plain.center())*scale).length()<1e-9);
         }
     }
     QCOMPARE(shared.toDefinition().addresses(),11);
@@ -1585,7 +1595,9 @@ void EditorTest::componentEditorPageEditing()
     canvas->selectRows({4}); QCOMPARE(addressField->value(),page.draft().mapping[4]+1); QVERIFY(assignAddress->isEnabled());
     canvas->selectRows({0,1});
     QCOMPARE(addressField->value(),0); QCOMPARE(addressField->text(),QString("mixed")); QVERIFY(!assignAddress->isEnabled());
-    addressField->setValue(1); QVERIFY(assignAddress->isEnabled());
+    // Typed like a user: the selection must survive typing, or Assign hits the wrong LEDs (double ring).
+    addressField->setFocus(); QTest::keyClick(addressField,Qt::Key_A,Qt::ControlModifier); QTest::keyClicks(addressField,"1");
+    QCOMPARE(addressField->value(),1); QVERIFY(assignAddress->isEnabled()); QCOMPARE(canvas->selectedRows(),(QSet<int>{0,1}));
     assignAddress->click();
     QCOMPARE(page.draft().mapping[0],0); QCOMPARE(page.draft().mapping[1],0);
     QCOMPARE(page.findChild<QLabel*>("componentStatusLeds")->text(),QString("12 LEDs · 11 addresses"));
@@ -1700,7 +1712,10 @@ void EditorTest::componentEditorInstanceMode()
     window.findChild<QPushButton*>("editLayoutLeds")->click();
     QCOMPARE(pages->currentWidget(),page);
     QVERIFY(!page->findChild<QTreeWidget*>("componentList")->isVisible());
-    // The editor takes the full window whatever area opened it (owner review 2026-11-26).
+    // The editor takes the full window whatever area opened it (owner review 2026-11-26), and no area
+    // reads as current while it is open (it showed Devices when opened from Layout).
+    QVERIFY(!window.findChild<QAction*>("workspaceHardware")->isChecked());
+    QVERIFY(!window.findChild<QAction*>("workspaceLayout")->isChecked());
     QVERIFY(!navigatorDock->isVisible()); QVERIFY(!inspectorDock->isVisible()); QVERIFY(!drawingTools->isVisible());
     QVERIFY(!window.findChild<QToolBar*>("drawingOptions")->isVisible());
     {   // Full window and a properties column that fits its content: no sideways scrolling.

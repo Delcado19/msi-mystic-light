@@ -595,10 +595,13 @@ void ServiceTest::serviceErrorAnnouncedInStatusBar() {
     const QString blocked="Another program sends lighting commands (VID_1532&PID_0099&MI_03: RazerAppEngine.exe). Switch off the lighting in that program, or choose Resolve conflicts.";
     ServicePanel panel(window,[blocked](const QJsonObject&){
         return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}},{"error",blocked}};
-    });window.installOutputPanel(&panel);panel.activate();
+    });window.installOutputPanel(&panel);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));panel.activate();
     QTRY_VERIFY(window.statusBar()->findChild<QLabel*>("serviceNotice"));
     auto* notice=window.statusBar()->findChild<QLabel*>("serviceNotice");
-    QTRY_COMPARE(notice->text(),blocked);QVERIFY(!notice->isHidden());
+    QTRY_COMPARE(notice->text(),blocked);
+    // Normal status-bar widgets hide behind temporary messages; the notice must not.
+    window.statusBar()->showMessage("No supported controller detected.");QCoreApplication::processEvents();
+    QVERIFY(notice->isVisible());
     window.closing();
 }
 QTEST_MAIN(ServiceTest)

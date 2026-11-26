@@ -1586,7 +1586,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         action->setObjectName(index==0 ? "workspaceLayout" : "workspaceEffects");
         action->setCheckable(true);
         workspaceMenu->addAction(action);
-        connect(tabs_,&QTabWidget::currentChanged,action,[action,index](int current) { action->setChecked(current==index); });
+        connect(tabs_,&QTabWidget::currentChanged,action,[this,action,index](int) { action->setChecked(workspaceIndex()==index && applicationPages_->currentWidget()==tabs_); });
         connect(action,&QAction::triggered,this,[this,openEditorWorkspace,index,action]{openEditorWorkspace(index);action->setChecked(tabs_->currentIndex()==index && applicationPages_->currentWidget()==tabs_);});
     }
     connect(hardwareAction,&QAction::triggered,this,[this,hardwareAction]{if(leaveComponentPage())tabs_->setCurrentIndex(2);hardwareAction->setChecked(tabs_->currentIndex()==2 && applicationPages_->currentWidget()==tabs_);});
@@ -1660,11 +1660,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         livePanel->setVisible(on && !document_.state().placements.isEmpty());
         if(on)effectWorkspace->setSizes({480,260});
     });
-    connect(tabs_,&QTabWidget::currentChanged,this,[hardwareAction,previewToolbar,tools,layoutEffect,effectComponents,split](int index){
-        hardwareAction->setChecked(index==2);previewToolbar->setVisible(true);tools->setVisible(index<2);
+    connect(tabs_,&QTabWidget::currentChanged,this,[this,hardwareAction,previewToolbar,tools,layoutEffect,effectComponents,split](int index){
+        hardwareAction->setChecked(index==2 && applicationPages_->currentWidget()==tabs_);previewToolbar->setVisible(true);tools->setVisible(index<2);
         layoutEffect->setVisible(index==0);
         effectComponents->setVisible(index==1);
-        split->setVisible(index==1);
+        split->setEnabled(index==1); // menu bar stays the same in every area (workspace brief 2026-11-26)
     });
     // Direct workspace navigation shares the logo row to leave room for preview controls below.
     for(auto* action:workspaceActions) navigation->insertAction(brandAction,action);

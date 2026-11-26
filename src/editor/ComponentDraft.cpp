@@ -123,7 +123,22 @@ ComponentDraft withReshaped(ComponentDraft draft, DraftShape shape)
     QVector<int> rows(count);
     for (int i = 0; i < count; ++i) rows[i] = i;
     std::stable_sort(rows.begin(), rows.end(), [&](int a, int b) { return draft.mapping.value(a) < draft.mapping.value(b); });
-    for (int i = 0; i < count; ++i) draft.positions[rows[i]] = templatePoints[i];
+    // Keep the part where it was: the template is scaled uniformly to the current LEDs' larger extent and
+    // centred on them, so a reshaped RAM stick or fan stays on its artwork instead of the template origin.
+    // Min/max by hand: QRectF::united ignores zero-size rects, so point rects cannot build the box.
+    const auto bounds = [](const QVector<QPointF>& points) {
+        double left = points.first().x(), right = left, top = points.first().y(), bottom = top;
+        for (const auto& point : points) {
+            left = std::min(left, point.x()); right = std::max(right, point.x());
+            top = std::min(top, point.y()); bottom = std::max(bottom, point.y());
+        }
+        return QRectF(QPointF(left, top), QPointF(right, bottom));
+    };
+    const auto current = bounds(draft.positions), shapeBox = bounds(templatePoints);
+    const double currentExtent = std::max(current.width(), current.height());
+    const double shapeExtent = std::max(shapeBox.width(), shapeBox.height());
+    const double scale = currentExtent > 1e-9 && shapeExtent > 1e-9 ? currentExtent / shapeExtent : 1.0;
+    for (int i = 0; i < count; ++i) draft.positions[rows[i]] = current.center() + (templatePoints[i] - shapeBox.center()) * scale;
     return draft;
 }
 

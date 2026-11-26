@@ -582,14 +582,9 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
             return rows.isEmpty() ? d : withSharedAddress(d, rows, address_->value() - 1);
         }, "Share address");
     });
-    connect(address_, &QSpinBox::valueChanged, this, [this](int value) {
-        assign_->setEnabled(address_->isEnabled() && value > 0);
-        // Stepping through addresses highlights every LED of that address for checking.
-        if (!address_->hasFocus() || value == 0) return;
-        QSet<int> rows;
-        for (int row = 0; row < draft_.mapping.size(); ++row) if (draft_.mapping[row] == value - 1) rows.insert(row);
-        canvas_->selectRows(rows);
-    });
+    // Typing an address only arms Assign. It used to reselect the LEDs that already had that address,
+    // which threw away the user's selection before Assign (owner flow 2026-11-26: double-ring fan).
+    connect(address_, &QSpinBox::valueChanged, this, [this](int value) { assign_->setEnabled(address_->isEnabled() && value > 0); });
 
     auto* layers = section(column, "LAYERS", true);
     auto* layersLayout = new QVBoxLayout(layers); layersLayout->setContentsMargins(0, 0, 0, 0);
