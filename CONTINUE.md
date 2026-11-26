@@ -13,6 +13,19 @@ surfaces, big image only at start/empty views); scope = everything incl. P2, ste
 Order: shape (workspace model) -> harden (disabled style, Component Editor items below, conflict
 dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify with real-window screenshots.
 
+## Workspace model brief - confirmed by owner 2026-11-26 (impeccable shape)
+
+- Devices = which hardware on which connector. Component library button at the top of Devices. Per connector
+  "Connector order..." (was "Wiring"/"Device settings"); disabled with a hint for fixed wiring. No
+  "Edit component" button in Devices any more.
+- Layout = where parts sit. The single LED-editing entry is "Edit LEDs" in the Layout inspector.
+- Effects = what lights. "Custom effects" library moves from the navigator foot to the top next to Add effect.
+- Menu bar identical in all areas; inapplicable entries DISABLED, not hidden (replaces owner decision of
+  2026-11-18 to hide them).
+- Component Editor always full window (Navigator, Inspector, left tool rail hidden; restored on Back).
+- Untouched: effect engine, service, drivers, project format. No new look here (that is quieter/R43).
+- Builds: R41 = workspace model + harden; R42 = clarify; R43 = quieter + polish. Stop after each build.
+
 ## Component Editor UX defects - owner review of R40, 2026-11-26 (NOTHING BUILT YET)
 
 Owner: "noch nichts machen, festhalten". Owner verdict: serious UX defects. Findings, code-checked:
