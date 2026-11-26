@@ -3,6 +3,22 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R40 - 2026-11-26 (local, not pushed)
+
+- Owner confirmed R39 on hardware: Synapse brightness OFF + Lighting Studio -> mouse shows our colours,
+  no hiccup, buttons work, no conflict dialog.
+- Resume capture: mouse ready 09:24:04, Synapse sent a few reports at 09:24:05/09:24:30, we wrote
+  nothing until 09:25:14. Cause: the service guard (`DeviceConflictMonitor::blocked`) caught Synapse's
+  resume burst in its 5 s capture, blocked the endpoint and rechecks only once a minute.
+- Fix (owner choice, no extra load): `sustainedWriter()` - a writer blocks only with >= 2 reports/s in
+  the capture; applies to the service guard and the editor dialog (both use `findWriters`). Unit test in
+  `deviceConflictPolicy`; `findWriters` itself is ETW-bound and not tested offline.
+- Delivered as `Downloads/LightingStudio-local-r40.zip` + `.zip.sha256`
+  (SHA-256 `3cd33baf4283d598222379ca12995706b038121fa48787f442fccd66c9f2ccbd`), 58 files. 23/23 CTest.
+  Not run: installer, resume test on hardware.
+- Known gap unchanged: the capture sees only HID SET_REPORT control transfers; suites writing via
+  interrupt OUT (hid_write), SMBus or bulk are not detected at all.
+
 ## Build GS-06-R39 - 2026-11-26 morning (local, not pushed)
 
 - USB captures (Wireshark/USBPcap on `\\.\USBPcap3`, Basilisk = device 3, 40 s each; files in the

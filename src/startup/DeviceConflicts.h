@@ -39,6 +39,11 @@ bool hidSetReport(const unsigned char* setup, int* interfaceNumber);
 QString usbDeviceId(const QString& path);
 // Whether a write to device/interface reaches this HID endpoint.
 bool writeTargets(const QString& endpoint, const QString& device, int interfaceNumber);
+// Whether `writes` lighting reports in one capture of `milliseconds` amount to a competing effect stream
+// (>= 2 per second). Sporadic writers (a suite refreshing a static colour, a burst on resume) are
+// overwritten by our next frame and must not block output (USB captures 2026-11-26).
+// shortcut: threshold derived from Synapse 4 only; re-measure if another suite slips through or is blocked.
+bool sustainedWriter(int writes, int milliseconds);
 // Endpoints with a scheme (pawnio://, nvapi://) are not device files and cannot be probed.
 QStringList probeableEndpoints(const QStringList& endpoints);
 

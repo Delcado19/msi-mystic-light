@@ -128,6 +128,11 @@ private slots:
         QVERIFY(!isExcludedImage("C:/Program Files (x86)/MSI/MSI Center/Engine/CC_Engine_x64.exe","C:\\Windows",own));
         QVERIFY(!isExcludedImage("C:/WindowsApps/x.exe","C:\\Windows",own));   // Prefix only on a folder boundary.
         QVERIFY(!isExcludedImage({},"C:\\Windows",own));                        // Unknown image is shown, not trusted.
+        // Only a sustained writer competes with our ~26 frames/s. USB captures 2026-11-26: Synapse sent
+        // 1 frame per 5 s ("Static") or a handful of reports on resume, which blocked the mouse for a minute.
+        QVERIFY(!sustainedWriter(5,5000)); QVERIFY(!sustainedWriter(9,5000));
+        QVERIFY(sustainedWriter(10,5000)); QVERIFY(sustainedWriter(130,5000));   // SignalRGB-like effect stream.
+        QVERIFY(!sustainedWriter(10,0));
         QCOMPARE(endpointLabel("\\\\?\\HID#VID_1038&PID_161A&MI_03#9&174f911&0&0000#{4d1e55b2}"),QString("VID_1038&PID_161A&MI_03"));
         // Setup packets seen in the USB trace 2026-11-16: SignalRGB's 90-byte SET_REPORT to interface 3, a GET_REPORT.
         const unsigned char setReport[]{0x21,0x09,0x00,0x03,0x03,0x00,0x5A,0x00}, getReport[]{0xA1,0x01,0x00,0x03,0x00,0x00,0x40,0x00};
