@@ -228,6 +228,7 @@ private slots:
     void recoveryTimerFailureAndCleanState();
     void channelAssignments();
     void channelControls();
+    void devicesTreeGroupsByBoard();
     void componentSampling();
     void componentAuthoring();
     void deviceLedArrangement();
@@ -1118,6 +1119,39 @@ void EditorTest::channelAssignments()
     QVERIFY_EXCEPTION_THROWN(parseChannelAssignment(bad),std::invalid_argument);
 }
 
+void EditorTest::devicesTreeGroupsByBoard()
+{
+    // Plan 2026-11-27 Task 2: connectors sit under their board and show the printed label and kind.
+    const auto profile=DeviceProfile::load(QString(TEST_COMPONENT_DIR)+"/../profiles/msi-mpg-b850-edge-ti-wifi.json");
+    LightingWindow window(loadComponentCatalog(TEST_COMPONENT_DIR),[profile] {
+        ProfileCandidate candidate; candidate.profileId=profile.id; candidate.device.path="fake://board";
+        return QVector<ProfileCandidate>{candidate};
+    },nullptr,{profile});
+    window.findChild<QPushButton*>("refreshHeaders")->click();
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents");
+    QCOMPARE(tree->topLevelItemCount(),1);
+    auto* board=tree->topLevelItem(0);
+    QCOMPARE(board->text(0),QString("MSI MPG B850 EDGE TI WIFI (MS-7E62)"));
+    QVERIFY(board->data(0,Qt::UserRole+1).toMap().isEmpty());
+    QTreeWidgetItem* first=nullptr; QTreeWidgetItem* jrgb=nullptr;
+    for(int i=0;i<board->childCount();++i) {
+        auto* child=board->child(i); const auto channel=child->data(0,Qt::UserRole+1).toMap().value("channelId").toString();
+        if(channel=="JARGB1") first=child;
+        if(channel=="JRGB1") jrgb=child;
+    }
+    QVERIFY(first && jrgb);
+    QVERIFY(first->text(0).startsWith("JARGB_V2_1"));
+    QVERIFY(first->text(1).contains("5 V ARGB"));
+    QVERIFY(!(jrgb->flags() & Qt::ItemIsEnabled));
+    QCOMPARE(jrgb->toolTip(0),QString("12 V RGB · not supported yet"));
+    tree->setCurrentItem(first);
+    auto* attach=window.findChild<QPushButton*>("addHeaderComponents");
+    QCOMPARE(attach->text(),QString("Attach component…"));
+    QVERIFY(attach->isEnabled());
+    tree->setCurrentItem(board);
+    QVERIFY(attach->isEnabled()); // the board row keeps the connector selection
+}
+
 void EditorTest::channelControls()
 {
     const auto profile=channelProfile();
@@ -1161,11 +1195,11 @@ void EditorTest::channelControls()
     buttons->button(QDialogButtonBox::Ok)->click(); QCOMPARE(editor.result(),int(QDialog::Accepted));
     window.document().assignChannel(editor.assignment());
     auto* tree=window.findChild<QTreeWidget*>("layoutComponents");
-    QCoreApplication::processEvents(); QCOMPARE(tree->topLevelItemCount(),3);
-    QCOMPARE(tree->topLevelItem(0)->childCount(),2);
-    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->childCount(),0);
-    window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->childCount(),2);
-    tree->setCurrentItem(tree->topLevelItem(0));
+    QCoreApplication::processEvents(); QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),2);
+    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),0);
+    window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),2);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0));
     bool modalSeen=false, keptSoftware=false;
     QTimer::singleShot(0,[&] {
         auto* dialog=dynamic_cast<ChannelEditor*>(QApplication::activeModalWidget());
@@ -2285,8 +2319,8 @@ void EditorTest::explicitDiscovery()
         return QVector<ProfileCandidate>{candidate,candidate};
     },nullptr,{profile});
     window.show(); QCoreApplication::processEvents(); QCOMPARE(scans,1);
-    auto* tree=window.findChild<QTreeWidget*>("layoutComponents"); QCOMPARE(tree->topLevelItemCount(),3);
-    tree->setCurrentItem(tree->topLevelItem(0));
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents"); QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0));
     auto attach=[&](const QString& query,int quantity) {
         bool attached=false;
         QTimer::singleShot(0,[&] {
@@ -2308,14 +2342,14 @@ void EditorTest::explicitDiscovery()
     QCOMPARE(window.document().state().assignments[0].endpoint,QString("exact-test-path"));
     for(const auto& placement:window.document().state().placements)
         for(const auto& point:window.document().componentPoints(placement)) QVERIFY(QRectF(0,0,640,400).contains(point));
-    QCOMPARE(tree->topLevelItem(0)->childCount(),3);
-    tree->setCurrentItem(tree->topLevelItem(0)->child(2));
+    QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0)->child(2));
     window.findChild<QPushButton*>("removeComponent")->click();
     QCOMPARE(window.document().state().placements.size(),2);
     QCOMPARE(window.document().state().assignments[0].placements.size(),2);
-    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0)->child(0));
     tree->setCurrentItem(tree->topLevelItem(0)->child(0));
-    tree->setCurrentItem(tree->topLevelItem(0));
     auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");
     const auto old=window.document().state().placements; QTest::keyClick(canvas,Qt::Key_Right);
     for(int i=0;i<3;++i) QCOMPARE(window.document().state().placements[i].origin,old[i].origin+QPointF(1,0));
@@ -2330,7 +2364,7 @@ void EditorTest::explicitDiscovery()
     for(int i=1;i<3;++i) QCOMPARE(moved[i].origin,old[i].origin);
     window.document().history()->undo(); window.document().history()->undo(); window.document().history()->undo();
     QVERIFY(window.document().state().placements.isEmpty()); QVERIFY(window.document().state().assignments.isEmpty());
-    window.document().history()->redo(); window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    window.document().history()->redo(); window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),3);
     QCoreApplication::processEvents();
     QVERIFY(window.grab().save(artifactDirectory()+"/header-layout.png"));
     window.resize(1440,900);
@@ -2358,8 +2392,8 @@ void EditorTest::explicitDiscovery()
     play->setChecked(false);
     connected=false;
     window.findChild<QPushButton*>("refreshHeaders")->click(); QCOMPARE(scans,2);
-    QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
-    QCOMPARE(tree->topLevelItem(0)->text(1),QString("Offline"));
+    QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),3);
+    QCOMPARE(tree->topLevelItem(0)->child(0)->text(1),QString("Offline"));
     window.document().history()->setClean();
 }
 
@@ -4046,7 +4080,7 @@ void EditorTest::deleteSelections()
     layout->select(assignment.id);const int index=window.document().history()->index();QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().history()->index(),index+1);QVERIFY(window.document().state().placements.isEmpty());QVERIFY(window.document().state().assignments.isEmpty());QVERIFY(window.document().state().layers[0].channelTargets.isEmpty());
     window.document().history()->undo();QCOMPARE(window.document().state().placements.size(),2);QCOMPARE(window.document().state().layers[0].channelTargets,QVector<QUuid>({assignment.id}));
     window.findChild<QAction*>("workspaceHardware")->trigger();auto* hardware=window.findChild<QTreeView*>("hardwareComponents");
-    const auto componentIndex=hardware->model()->index(0,0,hardware->model()->index(0,0));QVERIFY(componentIndex.isValid());hardware->setCurrentIndex(componentIndex);hardware->setFocus();QTest::keyClick(hardware,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);window.document().history()->undo();
+    const auto componentIndex=hardware->model()->index(0,0,hardware->model()->index(0,0,hardware->model()->index(0,0)));QVERIFY(componentIndex.isValid());hardware->setCurrentIndex(componentIndex);hardware->setFocus();QTest::keyClick(hardware,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);window.document().history()->undo();
     window.findChild<QAction*>("workspaceLayout")->trigger();layout->setFocus();
     layout->select({});const auto noSelection=window.document().history()->index();QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().history()->index(),noSelection);
     layout->select(second);QTest::mouseClick(layout->findChild<QPushButton*>("canvasFullscreenButton"),Qt::LeftButton);QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);QTest::keyClick(layout,Qt::Key_Escape);

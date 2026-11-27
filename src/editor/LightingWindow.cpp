@@ -250,11 +250,21 @@ protected:
     }
 private:
     QVariantMap connectorAt(const QPoint& point) const {
-        auto item=indexAt(point).siblingAtColumn(0);
-        if (item.parent().isValid()) item=item.parent();
-        return item.data(Qt::UserRole+1).toMap();
+        // Walk up from a component to its connector; board rows (plan 2026-11-27 Task 2) carry no connector.
+        for (auto item=indexAt(point).siblingAtColumn(0); item.isValid(); item=item.parent())
+            if (!item.data(Qt::UserRole+1).toMap().isEmpty()) return item.data(Qt::UserRole+1).toMap();
+        return {};
     }
 };
+
+// Device tree rows: a board row groups connectors (true at this role); connector rows carry their
+// header data at Qt::UserRole+1. connectorData() walks up from a component to its connector.
+constexpr int boardRole=Qt::UserRole+2;
+QVariantMap connectorData(const QTreeWidgetItem* item)
+{
+    for(;item;item=item->parent()) if(!item->data(0,Qt::UserRole+1).toMap().isEmpty()) return item->data(0,Qt::UserRole+1).toMap();
+    return {};
+}
 
 // Trim transparent margins so the logo fills the header row (owner report 2026-11-14).
 QPixmap studioLogo()
@@ -605,8 +615,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(components_,&QTreeWidget::currentItemChanged,this,[this](QTreeWidgetItem* item) {
         if(item) {
             layoutCanvas_->select(item->data(0,Qt::UserRole).toUuid());
-            auto* header=item->parent() ? item->parent() : item;
-            selectedHeader_=header->data(0,Qt::UserRole+1).toMap();
+            // A board row only groups connectors: it keeps the current connector selection.
+            if(!item->data(0,boardRole).toBool()) selectedHeader_=connectorData(item);
             refreshHeader();
         }
     });
@@ -656,8 +666,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         refreshPlacement(); const QSignalBlocker block(components_);
         for(QTreeWidgetItemIterator it(components_); *it; ++it)
             if(!layoutCanvas_->selection().isNull() && (*it)->data(0,Qt::UserRole).toUuid()==layoutCanvas_->selection()) {
-                components_->setCurrentItem(*it); auto* header=(*it)->parent() ? (*it)->parent() : *it;
-                if(header) selectedHeader_=header->data(0,Qt::UserRole+1).toMap();
+                components_->setCurrentItem(*it); selectedHeader_=connectorData(*it);
             }
         refreshHeader();
         syncSelectionTrees();
@@ -675,7 +684,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     headerControls->setContentsMargins(0,0,0,0);
     headerTitle_=new QLabel("Select a header"); headerTitle_->setProperty("heading",true); headerControls->addWidget(headerTitle_);
     headerSummary_=new QLabel; headerSummary_->setWordWrap(true); headerSummary_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); headerControls->addWidget(headerSummary_);
-    auto* addHardware=new QPushButton("Attach fans or strips..."); addHardware->setObjectName("addHeaderComponents");
+    auto* addHardware=new QPushButton("Attach component…"); addHardware->setObjectName("addHeaderComponents");
     addHardware->setToolTip("Choose products and quantities to attach to a detected header"); hardwareControls->insertWidget(2,addHardware);
     connect(addHardware,&QPushButton::clicked,this,[this] { addHeaderComponents(); });
     // One name for every connector; fixed devices still get their playback clock there (2026-11-26).
@@ -716,8 +725,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         const auto id = layoutCanvas_->selection();
         QStringList captions;
         QVector<ChannelAssignment> targets;
-        for (int index=0; index<components_->topLevelItemCount(); ++index) {
-            const auto data=components_->topLevelItem(index)->data(0,Qt::UserRole+1).toMap();
+        for (QTreeWidgetItemIterator it(components_); *it; ++it) {
+            const auto data=(*it)->data(0,Qt::UserRole+1).toMap();
             if (data.isEmpty()) continue;
             const auto& profile=assignmentProfile(document_.profiles(),data.value("profileId").toString());
             const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
@@ -738,7 +747,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* refreshHardware=button(hardwareControls,"Scan hardware",[this] { scanHeaders(); }); refreshHardware->setObjectName("refreshHeaders");
     auto* hardwareActions=new QHBoxLayout;
     for(auto* control:{addHardware,refreshHardware}) { hardwareControls->removeWidget(control); hardwareActions->addWidget(control); }
-    addHardware->setText("Add component");
+    addHardware->setText("Attach component…"); // plan 2026-11-27 Task 2: the dialog attaches, it does not create
     refreshHardware->setToolTip("Refresh connected hardware and verify supported RAM identity through PawnIO. Discovery does not change colors; configured canvas output resumes automatically.");
     hardwareControls->insertLayout(3,hardwareActions);
     scan_=std::move(scan);
@@ -2032,8 +2041,8 @@ void LightingWindow::refreshHeader()
 void LightingWindow::addHeaderComponents()
 {
     QVector<HeaderChoice> choices;
-    for(int i=0;i<components_->topLevelItemCount();++i) {
-        const auto data=components_->topLevelItem(i)->data(0,Qt::UserRole+1).toMap(); if(data.isEmpty()) continue;
+    for(QTreeWidgetItemIterator it(components_);*it;++it) {
+        const auto data=(*it)->data(0,Qt::UserRole+1).toMap(); if(data.isEmpty()) continue;
         const auto& profile=assignmentProfile(document_.profiles(),data.value("profileId").toString());
         if(profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary") continue; // Dedicated devices are detected, never attached to ARGB headers.
         const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
@@ -2162,15 +2171,35 @@ void LightingWindow::refresh()
         QSet<QUuid> assigned;
         // LEDs column: header usage "used / max" (shared outputs count once) and each component's output range.
         const auto ledOffsets=document_.componentLedOffsets();
+        // Board -> connector -> component (plan 2026-11-27 Task 2, owner: the long board name before
+        // every connector was noise). Standalone devices (peripherals, auxiliary) stay one row each.
+        QHash<QString,QTreeWidgetItem*> boards; QTreeWidgetItem* firstConnector=nullptr;
         for(const auto& data:headers) {
             bool online=false;
             for(const auto& candidate:discovered_) if(candidate.profileId==data["profileId"] && candidate.device.path==data["path"]) online=true;
             const auto& profile=assignmentProfile(document_.profiles(),data["profileId"].toString());
-            auto* group=new QTreeWidgetItem(components_,{profile.name+" / "+data["channelId"].toString()});
+            const auto& spec = assignmentChannel(profile, data["channelId"].toString());
+            const bool device=profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary";
+            QTreeWidgetItem* group=nullptr;
+            if(device) group=new QTreeWidgetItem(components_,{profile.name+" / "+data["channelId"].toString()});
+            else {
+                auto*& board=boards[profile.id+"\n"+data["path"].toString()];
+                if(!board) {
+                    board=new QTreeWidgetItem(components_,{profile.name}); board->setData(0,boardRole,true); board->setExpanded(true);
+                    board->setToolTip(0,profile.name+"\n"+data["path"].toString()); board->setText(1,online ? "Connected" : "Offline");
+                }
+                group=new QTreeWidgetItem(board,{channelDisplayName(spec)});
+            }
+            if(!firstConnector) firstConnector=group;
             group->setData(0,Qt::UserRole+1,data); group->setExpanded(true);
             group->setToolTip(0,profile.name+"\n"+data["path"].toString());
-            const auto& spec = assignmentChannel(profile, data["channelId"].toString());
-            group->setText(1, online ? "Connected" : "Offline");
+            const auto kind=channelKindText(spec), status=QString(online ? "Connected" : "Offline");
+            group->setText(1, device || kind.isEmpty() ? status : kind+" · "+status);
+            // Native-only headers without a fixed device cannot take components yet (JRGB1: no 12 V hardware to test).
+            if(!spec.direct && !channelHasFixedComponent(spec)) {
+                group->setFlags(group->flags() & ~Qt::ItemIsEnabled);
+                group->setToolTip(0,(kind.isEmpty() ? QString("This header") : kind)+" · not supported yet");
+            }
             group->setText(2, QString("0 / %1").arg(spec.fixedLeds ? spec.fixedLeds : spec.maxLeds));
             if(data==selectedHeader_) components_->setCurrentItem(group);
             for(const auto& assignment:document_.state().assignments)
@@ -2202,7 +2231,7 @@ void LightingWindow::refresh()
             if(placement.id==layoutCanvas_->selection()) components_->setCurrentItem(child);
         }
         if(!headers.contains(selectedHeader_)) selectedHeader_.clear();
-        if(selectedHeader_.isEmpty() && !headers.isEmpty()) { selectedHeader_=headers.first(); components_->setCurrentItem(components_->topLevelItem(0)); }
+        if(selectedHeader_.isEmpty() && firstConnector) { selectedHeader_=firstConnector->data(0,Qt::UserRole+1).toMap(); components_->setCurrentItem(firstConnector); }
     }
     findChild<QTreeView*>("hardwareComponents")->expandAll();
     refreshHeader();
