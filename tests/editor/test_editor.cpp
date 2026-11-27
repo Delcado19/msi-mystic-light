@@ -4208,8 +4208,18 @@ void EditorTest::detailedHardwareArtwork()
     QCOMPARE(body.width(),body.height());QVERIFY(body.contains({0,0}));QVERIFY(body.contains({3,0}));QVERIFY(body.right()<10);QCOMPARE(fan.toJson(),original);
     // Devices redraws the photo every preview frame: one bounded decode, then cache hits.
     const auto photo=hardwarePreviewPhoto(fan);
-    QVERIFY(!photo.isNull());QVERIFY(qMax(photo.width(),photo.height())<=512);
+    QVERIFY(!photo.isNull());QVERIFY(photo.width()*photo.height()<=512*512);
     QCOMPARE(hardwarePreviewPhoto(fan).cacheKey(),photo.cacheKey());
+    // The square transparent canvas of the _fv sources is cropped, so a wide keyboard stays wide.
+    auto keyboard=fan;keyboard.category="Keyboards";const auto keys=hardwarePreviewPhoto(keyboard);
+    QVERIFY(!keys.isNull());QVERIFY2(keys.width()>2*keys.height(),"keyboard photo must be cropped to its visible part");
+    // Strips are stitched from the photo per LED: a 30-LED strip spans its LEDs, not the photo's 11.
+    auto strip=fan;strip.category="Strips";strip.positions.clear();strip.mapping.clear();strip.nonPhysicalSlots.clear();
+    for(int i=0;i<30;++i){strip.positions.append({double(i),0});strip.mapping.append(i);}
+    {QImage image(1000,100,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);
+     {QPainter painter(&image);painter.translate(20,50);painter.scale(30,30);drawHardwareEditorArtwork(painter,strip);}
+     QVERIFY(image.pixelColor(20+29*30,50).alpha()>0);QVERIFY(image.pixelColor(20+15*30,50).alpha()>0);
+     QCOMPARE(image.pixelColor(20+29*30+60,50).alpha(),0);}
     QSet<QByteArray> images;
     for(const auto& category:QStringList{"Fans","Strips","RAM","Graphics cards","Keyboards","Mice","Pumps","AiO","Motherboards","Other"}) {
         QImage image(240,180,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);

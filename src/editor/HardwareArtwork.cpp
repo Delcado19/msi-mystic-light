@@ -7,6 +7,7 @@
 #include <QPixmapCache>
 #include <QPixmap>
 #include <QLineF>
+#include <QtMath>
 #include <cmath>
 #include <algorithm>
 #include <set>
@@ -50,12 +51,23 @@ QPixmap hardwarePreviewPhoto(const ComponentDefinition& component)
         if (component.name.contains(length)) name=QString("aio_%1_rgb_fv").arg(length);
     if (name.isEmpty()) return {};
     // Devices redraws its thumbnail every preview frame; decode the ~2 MB source once and keep a
-    // copy small enough (512 px, still 176 px at 200 % DPI) for the shared pixmap cache budget.
+    // copy small enough (512x512 px budget, still 176 px at 200 % DPI) for the shared pixmap cache budget.
     const auto key="hardware-photo:"+name;
     QPixmap photo;
     if (!QPixmapCache::find(key,&photo)) {
-        photo=QPixmap(":/hardware/photos/"+name+".png");
-        if (photo.width()>512 || photo.height()>512) photo=photo.scaled(512,512,Qt::KeepAspectRatio,Qt::SmoothTransformation);
+        auto image=QImage(":/hardware/photos/"+name+".png").convertToFormat(QImage::Format_ARGB32);
+        // The _fv sources sit on a square transparent canvas; crop to the visible part so wide parts
+        // (keyboard, strip) fill their housing instead of shrinking to its height.
+        int left=image.width(),top=image.height(),right=-1,bottom=-1;
+        for (int y=0;y<image.height();++y) { const auto* line=reinterpret_cast<const QRgb*>(image.constScanLine(y));
+            for (int x=0;x<image.width();++x) if (qAlpha(line[x])>8) {
+                left=std::min(left,x);right=std::max(right,x);top=std::min(top,y);bottom=std::max(bottom,y); } }
+        if (right>=left) image=image.copy(QRect(QPoint(left,top),QPoint(right,bottom)));
+        photo=QPixmap::fromImage(image);
+        // Budget by pixel count, not side length: the cropped strip (1246x91) stays sharp when zoomed.
+        const double area=double(photo.width())*photo.height();
+        if (area>512.*512.) photo=photo.scaled((photo.size()*std::sqrt(512.*512./area)).expandedTo({1,1}),
+                                               Qt::KeepAspectRatio,Qt::SmoothTransformation);
         QPixmapCache::insert(key,photo);
     }
     return photo;
@@ -188,14 +200,16 @@ void drawHardwareComponentArtwork(QPainter& painter,const ComponentDefinition& c
 
 void drawHardwareEditorArtwork(QPainter& painter,const ComponentDefinition& component)
 {
-    // Owner decision 2026-11-26: dimmed straight-view photo where one fits the LED plan. Keyboards and
-    // strips keep the drawing, whose keys/packages line up with the LED positions; a photo would not.
+    // Owner decision 2026-11-26/27: dimmed straight-view photo for every fixed housing, keyboards included
+    // (its keys need not line up exactly with the LED positions). Strips are stitched from the photo per
+    // LED (below); cables have no photo and keep the drawing.
     const auto category=hardwareArtworkCategory(component);
-    const auto photo=category=="Keyboards" || !hardwareHousingFixed(component) ? QPixmap() : hardwarePreviewPhoto(component);
+    QVector<QPointF> leds;
+    for(int i=0;i<component.positions.size();++i)
+        if(!component.nonPhysicalSlots.contains(component.mapping.value(i)))leds.append(component.positions[i]);
+    const bool strip=category=="Strips" && leds.size()>=2;
+    const auto photo=hardwareHousingFixed(component) || strip ? hardwarePreviewPhoto(component) : QPixmap();
     if(photo.isNull()) { drawHardwareComponentArtwork(painter,component); return; }
-    const auto housing=hardwareBodyBounds(component);
-    auto size=QSizeF(photo.size()); size.scale(housing.size(),Qt::KeepAspectRatio); // never stretched
-    const QRectF target(housing.center()-QPointF(size.width()/2,size.height()/2),size);
     static QPixmap dimmed; static qint64 source=0;
     if(source!=photo.cacheKey()) {
         // Slightly desaturated so LED markers and colors stay the focus.
@@ -206,5 +220,27 @@ void drawHardwareEditorArtwork(QPainter& painter,const ComponentDefinition& comp
         dimmed=QPixmap::fromImage(image); source=photo.cacheKey();
     }
     painter.save(); painter.setOpacity(.4); painter.setRenderHint(QPainter::SmoothPixmapTransform);
-    painter.drawPixmap(target,dimmed,dimmed.rect()); painter.restore();
+    if(strip) {
+        // Owner decision 2026-11-27: the photo shows 11 LEDs, real strips any count. Stitch connector head,
+        // one photo LED cell per real LED (scaled to the neighbour distance, so never distorted) and the end
+        // cap. Fractions measured on the cropped led_strip_rgb_fv (1246 px wide, LED pitch ~97 px).
+        const double w=dimmed.width(),h=dimmed.height(),pitch=.0780*w,first=.1814*w,middle=.5714*w,last=.9615*w;
+        for(int i=0;i<leds.size();++i) {
+            const bool end=i+1==leds.size();
+            const auto dir=end ? leds[i]-leds[i-1] : leds[i+1]-leds[i];
+            const double length=std::hypot(dir.x(),dir.y());
+            if(length<1e-6)continue;
+            painter.save(); painter.translate(leds[i]); painter.rotate(qRadiansToDegrees(std::atan2(dir.y(),dir.x())));
+            painter.scale(length/pitch,length/pitch);
+            const QRectF cell(end ? last-pitch/2 : middle-pitch/2,0,end ? w-(last-pitch/2) : pitch,h);
+            painter.drawPixmap(QRectF(-pitch/2,-h/2,cell.width(),h),dimmed,cell);
+            if(i==0) painter.drawPixmap(QRectF(-first,-h/2,first-pitch/2,h),dimmed,QRectF(0,0,first-pitch/2,h));
+            painter.restore();
+        }
+    } else {
+        const auto housing=hardwareBodyBounds(component);
+        auto size=QSizeF(photo.size()); size.scale(housing.size(),Qt::KeepAspectRatio); // never stretched
+        painter.drawPixmap(QRectF(housing.center()-QPointF(size.width()/2,size.height()/2),size),dimmed,dimmed.rect());
+    }
+    painter.restore();
 }

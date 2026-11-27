@@ -528,8 +528,9 @@ workspaces or closing the window.
   stay inside it when moved or added; hold Alt to place them freely. The top-left handle moves the
   frame, the bottom-right handle scales it proportionally, so the artwork never stretches. The
   background is the dimmed front-view photo (40 %, half desaturated, fitted into the frame) where one
-  matches the category; keyboards and strips keep the drawing because a photo would not line up with
-  their LEDs. Layout, Devices and the hardware picker draw parts into the same frame.
+  matches the category, keyboards included (photos are cropped to their visible part). LED strips are
+  stitched from the photo: connector, one photo LED cell per real LED, end cap, so any LED count and
+  shape fits without distortion. Cables keep the drawing. Layout, Devices and the hardware picker draw parts into the same frame.
 - **Tool rail**: Edit (V), Wire order (W), Duplicate (D), Mirror (M / Shift+M),
   Rotate 90° (R), Delete (Del), grid (G), wire path (P), zoom (+ / - / 0), Help (?).
   Ctrl+Z / Ctrl+Y undo and redo every finished gesture; Ctrl+A selects all.
