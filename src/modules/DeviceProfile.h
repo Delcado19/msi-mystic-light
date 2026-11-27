@@ -22,6 +22,10 @@ struct ChannelProfile {
     bool direct = false;
     QStringList nativeModes;
     QJsonObject address; // Validated by the owning protocol module.
+    // Optional: the connector name printed on the board (e.g. JARGB_V2_1) and its electrical kind
+    // ("argb-5v" or "rgb-12v"), shown in Devices and the Attach dialog (plan 2026-11-27, Task 1).
+    // Last, so existing aggregate initializers keep their member order.
+    QString label, kind;
 };
 
 struct DeviceProfile {
@@ -34,6 +38,11 @@ struct DeviceProfile {
     static DeviceProfile fromJson(const QJsonObject& json);
     static DeviceProfile load(const QString& fileName);
 };
+
+// Printed label when the profile has one, otherwise the channel ID.
+QString channelDisplayName(const ChannelProfile& channel);
+// "5 V ARGB", "12 V RGB" or empty when the profile does not state the kind.
+QString channelKindText(const ChannelProfile& channel);
 
 // Profile files of a profiles folder, sorted by name. Files in its "experimental" subfolder are added
 // only with includeExperimental: the AJAZZ AK35I V4 shares VID:PID 0C45:8009 with other keyboards, so the
