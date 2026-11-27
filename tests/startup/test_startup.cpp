@@ -115,6 +115,14 @@ private slots:
         ConflictDialog dialog(processes);dialog.show();
         QVERIFY(!button(dialog,"stopSignalRgbServiceAdmin")->isVisible());
         QVERIFY(!dialog.findChild<QLabel*>("conflictStatus")->text().contains("Administrator"));
+        QVERIFY(!dialog.findChild<QLabel*>("conflictStatus")->text().contains("choose Ignore"));
+    }
+    // CodeRabbit PR #10 #28: the portable scan lists programs by name, so it points to Ignore, not Check again.
+    void portableScanPointsToIgnore() {
+        FakeProcesses processes; processes.services=false;
+        processes.running={{42,"iCUE.exe","C:/corsair/iCUE.exe","iCUE",1,false}};
+        ConflictDialog dialog(processes); dialog.show();
+        QVERIFY(dialog.findChild<QLabel*>("conflictStatus")->text().contains("choose Ignore"));
     }
     // Device-based detection policy (2026-11-16): Windows' own holders and Lighting Studio never count.
     void deviceConflictPolicy() {

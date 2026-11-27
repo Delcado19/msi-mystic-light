@@ -31,7 +31,9 @@ $editor = Join-Path $destination 'msi_mystic_light.exe'
 # An open editor blocks the file copy. Ask before
 # UAC and before anything is stopped (2026-11-17: the check used to follow the service stop).
 function Test-EditorRunning { [bool](Get-Process msi_mystic_light -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $editor }) }
-if (Test-EditorRunning) { throw 'Lighting Studio is running. Close its window, then start the installer again.' }
+# A pre-R38 editor can run hidden in the tray, so the message says how to reach it (CodeRabbit PR #10).
+$editorRunning = 'Lighting Studio is running. Close its window (if it is hidden, open it from its icon in the notification area first), then start the installer again.'
+if (Test-EditorRunning) { throw $editorRunning }
 $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 # A path ending in a backslash (e.g. D:\) would escape the closing quote of a command-line argument;
 # "D:\." names the same folder without that trailing backslash (audit 2026-11-14).
@@ -109,7 +111,7 @@ function Protect-Directory([string]$Path, [bool]$Readable) {
     Set-Acl -LiteralPath $Path -AclObject $acl
 }
 Show-Step 'Checking the PawnIO driver'
-if (Test-EditorRunning) { throw 'Lighting Studio is running. Close its window, then start the installer again.' }
+if (Test-EditorRunning) { throw $editorRunning }
 # Keep official signed binaries unchanged. An elevated parent supplies the only UAC prompt.
 # PawnIO 2.2.0 embeds this CLI contract: -install -silent (it is not an NSIS /S installer).
 # PawnIO's own uninstaller removed its Apps entry but left the driver service registered

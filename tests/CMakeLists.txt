@@ -128,7 +128,7 @@ set_tests_properties(output_ui PROPERTIES TIMEOUT 30
 
 if(WIN32)
     # Test executables must run without inheriting a Qt SDK PATH from the shell.
-    foreach(test_target IN ITEMS test_msi_protocol test_hid_backend test_modules test_asrock_polychrome test_lenovo_motherboard test_components test_startup test_editor test_output test_scheduler test_output_ui)
+    foreach(test_target IN ITEMS test_ajazz_ak35i_v4 test_msi_protocol test_hid_backend test_modules test_asrock_polychrome test_lenovo_motherboard test_components test_startup test_editor test_output test_scheduler test_output_ui)
         add_custom_command(TARGET ${test_target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_RUNTIME_DLLS:${test_target}> $<TARGET_FILE_DIR:${test_target}>

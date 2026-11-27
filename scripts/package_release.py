@@ -42,8 +42,12 @@ def package(root: Path, runtime: Path, archive: Path, top: str = "LightingStudio
             raise ValueError("Release archive failed CRC verification")
     temporary.replace(archive)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    sidecar = archive.with_suffix(archive.suffix + ".sha256")
     if checksum:
-        archive.with_suffix(archive.suffix + ".sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii")
+        sidecar.write_text(f"{digest}  {archive.name}\n", encoding="ascii")
+    else:
+        # A digest of the previous archive would make verification fail (CodeRabbit PR #10).
+        sidecar.unlink(missing_ok=True)
     return digest
 
 

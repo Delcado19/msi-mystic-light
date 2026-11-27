@@ -22,6 +22,8 @@ public:
     Tool tool() const { return tool_; }
     void setLocked(bool countAndWiringLocked); // instance mode: no add/delete, no Wire tool
     void setReadOnly(bool readOnly); // built-in components: view only, LEDs cannot be added, moved or deleted
+    // Arrangement-only placements apply LED positions and layers only, so the housing has no handles there.
+    void setHousingLocked(bool locked);
     // Snap and dot spacing in component units, shared by snapping and the dot grid (owner review 2026-11-26).
     static constexpr double gridStep = 0.25;
     QSet<int> selectedRows() const;
@@ -61,7 +63,7 @@ private:
     QPointF snapped(QPointF scenePoint, Qt::KeyboardModifiers modifiers) const;
     ComponentDraft draft_;
     Tool tool_ = Tool::Select;
-    bool locked_ = false, readOnly_ = false, grid_ = true, path_ = true, allLayers_ = false;
+    bool locked_ = false, readOnly_ = false, housingLocked_ = false, grid_ = true, path_ = true, allLayers_ = false;
     int activeLayer_ = 0;
     QVector<int> wireOrder_;
     QPoint pressPosition_, lastPan_;

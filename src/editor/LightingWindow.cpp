@@ -324,10 +324,21 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
                 const auto definitions = QFileDialog::getOpenFileNames(this, "Import missing components",
                     QDir::homePath(), "Component definitions (*.json)");
                 if (definitions.isEmpty()) break;
+                QStringList imported;
                 try {
-                    for (const auto& definition : definitions) document_.importComponent(definition);
+                    for (const auto& definition : definitions)
+                        imported.append(document_.registerComponent(loadComponentDefinition(definition)));
                 } catch (const std::exception& error) {
                     QMessageBox::warning(this, "Import failed", QString::fromUtf8(error.what()));
+                    break;
+                }
+                // Files that define other IDs cannot satisfy the project: name what is still missing instead
+                // of asking the same question again (CodeRabbit PR #10).
+                QStringList still;
+                for (const auto& id : missing.ids) if (!imported.contains(id)) still.append(id);
+                if (!still.isEmpty()) {
+                    QMessageBox::warning(this, "Components still missing",
+                        "The selected files do not define these components:\n\n" + still.join("\n"));
                     break;
                 }
             } catch (const std::exception& error) {
@@ -760,7 +771,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(moveComponentAction,&QAction::triggered,this,[this] {
         const auto id = layoutCanvas_->selection();
         QStringList captions;
-        QVector<ChannelAssignment> targets;
+        QVector<QVariantMap> targets; // connector keys: the live assignment is resolved after the dialog
         for (QTreeWidgetItemIterator it(components_); *it; ++it) {
             const auto data=(*it)->data(0,Qt::UserRole+1).toMap();
             if (data.isEmpty()) continue;
@@ -769,7 +780,7 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             if (!channel.direct || channelHasFixedComponent(channel)) continue;
             const auto target=connectorAssignment(data);
             if (target.placements.contains(id)) continue;
-            targets.append(target);
+            targets.append(data);
             captions.append(QString("%1 / %2 (%3 addresses available) ? %4")
                 .arg(profile.name,channel.id).arg(document_.availableAddresses(target)).arg(target.endpoint));
         }
@@ -777,7 +788,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         bool accepted=false;
         const auto caption=QInputDialog::getItem(this,"Move component","Destination",captions,0,false,&accepted);
         if (!accepted) return;
-        try { moveComponentToConnector(id,targets.at(captions.indexOf(caption))); }
+        // The dialog runs a nested event loop in which a service snapshot can change the connector's
+        // members; resolve it now so the move never writes back a stale copy (CodeRabbit PR #10).
+        try { moveComponentToConnector(id,connectorAssignment(targets.at(captions.indexOf(caption)))); }
         catch (const std::exception& error) { headerSummary_->setText(QString::fromUtf8(error.what())); }
     });
     auto* refreshHardware=button(hardwareControls,"Scan hardware",[this] { scanHeaders(); }); refreshHardware->setObjectName("refreshHeaders");
@@ -2549,7 +2562,8 @@ void LightingWindow::flashComponent(const QUuid& placement)
         }
     if (!shared.isEmpty()) statusBar()->showMessage("These LED addresses are also displayed by "+shared.join(", "),2000);
     updatePreview();
-    emit identifyRequested(placement);
+    // The service rejects Identify for components without software output; the preview flash is enough (CodeRabbit PR #10).
+    if (document_.hasSoftwareChannel(placement)) emit identifyRequested(placement);
     const auto generation = ++identifyGeneration_;
     QTimer::singleShot(2000, this, [this, generation] {
         if (generation != identifyGeneration_) return;
@@ -2717,14 +2731,18 @@ void LightingWindow::refreshProperties()
         }
         {const QSignalBlocker block(findChild<QComboBox*>("intensityMode"));findChild<QComboBox*>("intensityMode")->setCurrentIndex(selected->pulse>0 ? (selected->breathe>0 ? 3 : 1) : selected->breathe>0 ? 2 : 0);}
         animation_[0]->setEnabled(selected->effect != EffectKind::StaticColor);
-        animation_[2]->setEnabled(selected->effect!=EffectKind::Image && selected->effect!=EffectKind::Paint);
+        // Chase output writes the layer color straight to the lit addresses: pulse, breathe, hue rotation and the
+        // color cycle have no effect there, so their controls are off (CodeRabbit PR #10).
+        const bool chase=selected->effect==EffectKind::Chase;
+        animation_[2]->setEnabled(selected->effect!=EffectKind::Image && selected->effect!=EffectKind::Paint && !chase);
+        findChild<QComboBox*>("intensityMode")->setEnabled(!chase);
         const QSignalBlocker blockLink(maskLinked_), blockCycle(colorCycle_);
         maskLinked_->setChecked(selected->maskLinked);
         {auto* clip=findChild<QCheckBox*>("clipToFrame");const QSignalBlocker block(clip);clip->setChecked(selected->clipToFrame);clip->setVisible(isGradient(selected->effect));}
         colorCycle_->setStops(selected->colorCycle,selected->colorCyclePositions);
         const auto stops=selected->gradientColors.isEmpty() ? QVector<QColor>{selected->color,selected->secondaryColor} : selected->gradientColors;
         gradientColors_->setStops(stops,selected->gradientPositions); effectsCanvas_->setGradientStops(stops,selected->gradientPositions);
-        colorCycle_->setEnabled(selected->effect != EffectKind::Image);
+        colorCycle_->setEnabled(selected->effect != EffectKind::Image && !chase);
         const auto& parameters = advancedParameters();
         for (int i=0;i<advanced_.size();++i) {
             const QSignalBlocker block(advanced_[i]);
@@ -2794,7 +2812,7 @@ void LightingWindow::refreshProperties()
         geometry_[3]->setEnabled(selected->effect != EffectKind::LinearGradient &&
             selected->effect != EffectKind::Stripes && selected->effect != EffectKind::Waves);
     }
-    if(selected){animation_[1]->setEnabled(selected->pulse>0);for(auto* field:advanced_)if(field->objectName()=="breathe")field->setEnabled(selected->breathe>0);}
+    if(selected){animation_[1]->setEnabled(selected->pulse>0 && selected->effect!=EffectKind::Chase);for(auto* field:advanced_)if(field->objectName()=="breathe")field->setEnabled(selected->breathe>0);}
     // Effect controls show plain numbers; scale conversion remains in the existing numeric contract.
     for(auto* field:inspectorTabs_->findChildren<QDoubleSpinBox*>()) field->setSuffix({});
     for(auto* field:inspectorTabs_->findChildren<QSpinBox*>()) field->setSuffix({});

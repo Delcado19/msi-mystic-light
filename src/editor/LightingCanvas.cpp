@@ -459,9 +459,12 @@ QRectF LightingCanvas::navigationBounds() const
 {
     const auto placements=previewPlacements();
     if(context_==Context::Layout) {
-        auto bounds=document_.layoutBounds(&placements);
-        for(const auto& placement:placements) {
-            if(hiddenPlacement(placement.id))continue; // Fit must not frame the empty spot of an unplugged device.
+        // Fit must not frame the empty spot of an unplugged device: its extent stays out of the base bounds
+        // too (CodeRabbit PR #10). Rendering and output sampling still use every placement.
+        QVector<ComponentPlacement> visible;
+        for(const auto& placement:placements) if(!hiddenPlacement(placement.id)) visible.append(placement);
+        auto bounds=document_.layoutBounds(&visible);
+        for(const auto& placement:visible) {
             bounds=bounds.united(componentBounds(placement));
             // Reserve caption space even while hidden so holding the reveal key never shifts the camera.
             bounds=bounds.united(componentLabel(placement));
@@ -1109,7 +1112,12 @@ void LightingCanvas::updateEffectGesture(QPointF point)
         const auto local=transform.inverted().map(point)-anchor;
         // Local units are fractions of the press-time box, so these are scale factors per axis.
         double sx=std::abs(local.x())*(fromCenter ? 2 : 1), sy=std::abs(local.y())*(fromCenter ? 2 : 1);
-        if(proportional) sx=sy=std::max(sx,sy);
+        if(proportional) {
+            // Clamp the shared factor once so the 1..10000 extent bounds cannot change the aspect ratio
+            // (CodeRabbit PR #10); if no factor fits both axes, the floor wins.
+            const double w=original.extent.width(), h=original.extent.height();
+            sx=sy=std::max(std::min(std::max(sx,sy),std::min(10000/w,10000/h)),std::max(1/w,1/h));
+        }
         changed.extent={std::clamp(sx*original.extent.width(),1.0,10000.0),std::clamp(sy*original.extent.height(),1.0,10000.0)};
         if(!fromCenter) {
             // Dragging past the anchor flips the box to that side; the anchor itself never moves.

@@ -111,7 +111,10 @@ void installedProducts(ComponentCatalog& products)
                 // LEDs on an identical coordinate sit behind each other (SWAFAN and Freezer 36 rings, CoreLiquid
                 // LED 4/5, Vertagear SL5000): keep positions for sampling, separate them by layer. Computed after
                 // the D30/strip templates, which make every position distinct.
-                c.layers=overlapLayers(c.positions);
+                // More than 16 LEDs on one point exceed the 0..15 layer range: keep the product without layers
+                // instead of dropping it in the catch below (CodeRabbit PR #10).
+                const auto layers=overlapLayers(c.positions);
+                if(std::all_of(layers.cbegin(),layers.cend(),[](int layer){return layer<=15;})) c.layers=layers;
                 products.insert(c.id,ComponentDefinition::fromJson(c.toJson()));
             } catch(const std::exception&) { /* Malformed local metadata is not a usable hardware definition. */ }
         }
@@ -319,7 +322,8 @@ void HardwarePicker::quickCreate()
         productsList_->insertItem(row,item); productsList_->item(0)->setHidden(false);
         quickForm_->hide(); quantity_->setValue(1); productsList_->setCurrentItem(item);
         if(attach_->isEnabled()) accept();
-        else quickError_->setText("Saved to your components, but it does not fit this header.");
+        // quickForm_ (and quickError_ in it) is hidden now: report on the visible selection line (CodeRabbit PR #10).
+        else selectionAddresses_->setText(selectionAddresses_->text()+" · Saved to your components, but it does not fit this header.");
     } catch(const std::exception& error) { quickError_->setText(QString::fromUtf8(error.what())); quickForm_->show(); }
 }
 QString HardwarePicker::editorName() const { return quickName_->text().trimmed(); }

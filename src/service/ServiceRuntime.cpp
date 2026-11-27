@@ -67,7 +67,11 @@ bool ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
         }
     }
     auto saved=bundle;QJsonArray pausedJson;for(const auto& entry:paused)pausedJson.append(entry);saved["paused"]=pausedJson;
-    if(save)writeFile(directory_+"/playback.json",StudioService::encode(saved).mid(4));
+    // Every accepted project must stay restorable: the saved file and the snapshot reply (project,
+    // definitions and status) both fit maximumMessage; 1 MiB stays free for the status (CodeRabbit PR #10).
+    const auto encoded=StudioService::encode(saved);
+    if(encoded.size()-4>qsizetype(StudioService::maximumMessage)-1024*1024)throw std::invalid_argument("Project is too large for the service");
+    if(save)writeFile(directory_+"/playback.json",encoded.mid(4));
     // Running outputs whose scope is unchanged stay open: tick() matches frames to connections by
     // output scope. Closing all of them froze the lights for a whole scan on every drag (owner report
     // 2026-11-17). Changed scopes, and everything when output is disabled, are released right here.

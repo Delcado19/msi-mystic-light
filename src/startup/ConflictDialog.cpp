@@ -119,7 +119,11 @@ bool ConflictDialog::refresh(bool acceptEmpty)
             updateButtons();
             return true;
         }
-        status_->setText("Switched the lighting off? Choose Check again. Programs that still send commands stay listed."+
+        // The portable scan finds programs by executable name, not by what they send, so switching their
+        // lighting off cannot clear the list there (CodeRabbit PR #10).
+        status_->setText((processes_.stopsServices()
+            ? QString("Switched the lighting off? Choose Check again. Programs that still send commands stay listed.")
+            : QString("Switched the lighting off? Then choose Ignore: this check finds programs by name, so they stay listed while they run."))+
             (serviceError.isEmpty()?QString{}:"\nAdministrator service stop unavailable: "+serviceError));
     } catch (const std::exception& error) {
         conflicts_.clear();

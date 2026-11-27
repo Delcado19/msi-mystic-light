@@ -88,6 +88,13 @@ void ComponentCanvas::setLocked(bool locked)
     if (locked_ && tool_ == Tool::Wire) setTool(Tool::Select);
 }
 
+void ComponentCanvas::setHousingLocked(bool locked)
+{
+    if (housingLocked_ == locked) return;
+    housingLocked_ = locked;
+    rebuild();
+}
+
 void ComponentCanvas::setReadOnly(bool readOnly)
 {
     if (readOnly_ == readOnly) return;
@@ -134,19 +141,26 @@ void ComponentCanvas::zoomBy(double factor)
 
 void ComponentCanvas::fit()
 {
-    QRectF bounds;
-    for (auto* item : scene()->items()) if (item->type() == QGraphicsEllipseItem::Type)
-        bounds = bounds.isNull() ? QRectF(item->pos(), QSizeF()) : bounds.united(QRectF(item->pos(), QSizeF()));
+    // Minima and maxima, not QRectF::united(): a zero-size rect is null, so uniting them never grew the
+    // bounds and Fit only centered on (0,0) at 100% (CodeRabbit PR #10).
+    QRectF bounds; bool any = false;
+    for (auto* item : scene()->items()) if (item->type() == QGraphicsEllipseItem::Type) {
+        const auto point = item->pos();
+        if (!any) bounds = QRectF(point, point);
+        else bounds = QRectF(QPointF(std::min(bounds.left(), point.x()), std::min(bounds.top(), point.y())),
+                             QPointF(std::max(bounds.right(), point.x()), std::max(bounds.bottom(), point.y())));
+        any = true;
+    }
     // The housing frame and its handles belong in view too (Option A); otherwise the scale handle
     // could sit off-screen after Fit. Not for keyboards: their 0.25-unit key pitch needs the tighter
     // LED-only zoom or the markers overlap; their frame is reached by zooming out.
     const auto definition = draft_.toDefinitionUnchecked();
-    if (!bounds.isNull() && hardwareHousingFixed(definition) && hardwareArtworkCategory(definition) != "Keyboards") {
+    if (any && hardwareHousingFixed(definition) && hardwareArtworkCategory(definition) != "Keyboards") {
         const auto frame = hardwareBodyBounds(definition);
         bounds = bounds.united(QRectF(frame.topLeft() * unit, frame.size() * unit));
     }
     resetTransform();
-    if (!bounds.isNull()) {
+    if (any) {
         const auto padded = bounds.adjusted(-3 * ledRadius, -3 * ledRadius, 3 * ledRadius, 3 * ledRadius);
         fitInView(padded, Qt::KeepAspectRatio);
         // Do not magnify a single LED until it fills the canvas. Dense layouts (keyboards: 0.25 units
@@ -267,7 +281,7 @@ QGraphicsItem* ComponentCanvas::ledAt(QPoint position, bool includeInactive) con
 
 bool ComponentCanvas::housingEditable() const
 {
-    return !readOnly_ && tool_ == Tool::Select && !draft_.positions.isEmpty() && hardwareHousingFixed(draft_.toDefinitionUnchecked());
+    return !readOnly_ && !housingLocked_ && tool_ == Tool::Select && !draft_.positions.isEmpty() && hardwareHousingFixed(draft_.toDefinitionUnchecked());
 }
 
 QPointF ComponentCanvas::insideHousing(QPointF point, Qt::KeyboardModifiers modifiers) const

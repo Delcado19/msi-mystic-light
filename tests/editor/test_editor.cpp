@@ -118,6 +118,12 @@ DeviceProfile channelProfile()
     auto fixed=direct; fixed.id="Fixed"; fixed.fixedLeds=6; profile.channels.append(fixed);
     return profile;
 }
+// A dialog the callback did not expect is rejected, so the click returns and the assertions name the
+// failed step instead of the test hanging in the modal loop (CodeRabbit PR #10).
+void rejectModal()
+{
+    if (auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget())) dialog->reject();
+}
 void addEffect(LightingWindow& window,EffectKind kind=EffectKind::StaticColor)
 {
     window.findChild<QAction*>("workspaceEffects")->trigger();
@@ -261,6 +267,13 @@ private slots:
     void failedLibraryWriteLeavesHistory();
     void offlinePlanStaysVisible();
     void componentFileLimitAndHandleUndo();
+    void componentFitFramesFarLeds();
+    void proportionalResizeKeepsAspectAtLimit();
+    void hiddenPlacementLeavesFit();
+    void quickCreateShowsSavedButNotFitting();
+    void chaseDisablesUnusedMotion();
+    void identifyWithoutSoftwareStaysLocal();
+    void stackedVendorLedsStayAvailable();
     void importAndMoveKeepData();
     void componentCanvasInteractions();
     void componentCanvasLayers();
@@ -2044,6 +2057,126 @@ void EditorTest::importAndMoveKeepData()
     QVERIFY(window.statusBar()->currentMessage().contains("custom.b.json"));
 }
 
+void EditorTest::componentFitFramesFarLeds()
+{
+    // CodeRabbit PR #10 #16: Fit frames LEDs away from the origin instead of only centering on (0,0).
+    ComponentCanvas canvas; canvas.resize(640,420);
+    // Wider than the view: QGraphicsView clamps centerOn() to the scene, so only a large part shows the bug.
+    auto far=ComponentDraft::fromDefinition(catalog().first());
+    far.positions={{200,150},{250,150},{300,180}};
+    canvas.setDraft(far); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas)); canvas.fit();
+    int leds=0;
+    for(auto* item:canvas.scene()->items()) if(item->type()==QGraphicsEllipseItem::Type) {
+        ++leds; QVERIFY(canvas.viewport()->rect().contains(canvas.mapFromScene(item->pos())));
+    }
+    QVERIFY(leds>0);
+}
+
+void EditorTest::proportionalResizeKeepsAspectAtLimit()
+{
+    // CodeRabbit PR #10 #5: the shared factor is clamped once, so the 1 px floor cannot change the aspect ratio.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{});
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    addEffect(window,EffectKind::Triangle);
+    window.document().edit("Wide",[](LightingState& state){auto& shape=state.layers.last();shape.center={320,200};shape.extent={400,40};shape.rotation=0;});
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");
+    const auto layer=window.document().state().layers.last();
+    const auto corner=effectTransform(layer).map(QPointF(.5,.5)), pinned=effectTransform(layer).map(QPointF(-.5,-.5));
+    const auto to=pinned+QPointF(2,.2);
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint(corner).toPoint());
+    QTest::mouseMove(canvas,canvas->viewportPoint(to).toPoint());
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint(to).toPoint());
+    const auto after=window.document().state().layers.last().extent;
+    QVERIFY2(std::abs(after.width()/after.height()-10)<.5,qPrintable(QString("%1 x %2").arg(after.width()).arg(after.height())));
+    window.document().history()->setClean();
+}
+
+void EditorTest::hiddenPlacementLeavesFit()
+{
+    // CodeRabbit PR #10 #22: Fit frames visible components only; an unplugged far device adds no empty area.
+    const auto pixelsPerUnit=[](bool withFar) {
+        LightingDocument document(catalog(),nullptr,{});
+        document.addComponent("test.strip");
+        if(withFar) {
+            const auto far=document.addComponent("test.strip");
+            document.edit("Far",[&](LightingState& state){for(auto& item:state.placements) if(item.id==far) item.origin={4000,3000};});
+        }
+        double result=0;
+        {
+            LightingCanvas canvas(document,LightingCanvas::Context::Layout); canvas.resize(640,420);
+            if(withFar) canvas.setDisconnectedPlacements({document.state().placements.last().id},false);
+            canvas.show(); if(QTest::qWaitForWindowExposed(&canvas)) { canvas.fitToView(); result=canvas.viewportPoint({100,0}).x()-canvas.viewportPoint({0,0}).x(); }
+        }
+        document.history()->setClean(); return result;
+    };
+    const double alone=pixelsPerUnit(false), hidden=pixelsPerUnit(true);
+    QVERIFY(alone>0);
+    QVERIFY2(std::abs(hidden-alone)<alone*.01,qPrintable(QString("%1 vs %2").arg(hidden).arg(alone)));
+}
+
+void EditorTest::quickCreateShowsSavedButNotFitting()
+{
+    // CodeRabbit PR #10 #37: a saved part that does not fit the header says so where the user can see it.
+    const QVariantMap header{{"channelId","JARGB1"}};
+    HardwarePicker picker(catalog(),{HeaderChoice{"JARGB_V2_1",header,8,0}},header);
+    picker.saveComponent=[](const ComponentDefinition&){return QString("custom.big");};
+    auto* list=picker.findChild<QListWidget*>("hardwareProducts");
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("Big bar");
+    for(int i=0;i<list->count();++i) if(list->item(i)->text()=="+ Create \"Big bar\"") list->setCurrentRow(i);
+    picker.findChild<QSpinBox*>("quickAddresses")->setValue(12);
+    picker.findChild<QPushButton*>("quickCreateAttach")->click();
+    QVERIFY(picker.result()!=QDialog::Accepted);
+    bool shown=false;
+    for(auto* label:picker.findChildren<QLabel*>()) shown=shown || (label->isVisibleTo(&picker) && label->text().contains("Saved to your components"));
+    QVERIFY(shown);
+}
+
+void EditorTest::chaseDisablesUnusedMotion()
+{
+    // CodeRabbit PR #10 #4: Chase output ignores pulse, hue rotation and the color cycle, so their controls are off.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{});
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    addEffect(window,EffectKind::Chase);
+    for(const auto* name:{"intensityMode","animationRate1","animationRate2","colorCycle"})
+        QVERIFY2(!window.findChild<QWidget*>(name)->isEnabled(),name);
+    addEffect(window,EffectKind::StaticColor);
+    QVERIFY(window.findChild<QWidget*>("intensityMode")->isEnabled());
+    QVERIFY(window.findChild<QWidget*>("colorCycle")->isEnabled());
+    window.document().history()->setClean();
+}
+
+void EditorTest::identifyWithoutSoftwareStaysLocal()
+{
+    // CodeRabbit PR #10 #9: Identify on a component without software output flashes the preview only.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{});
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    const auto id=window.document().addComponent("test.strip");
+    window.findChild<QAction*>("workspaceHardware")->trigger();
+    window.findChild<LightingCanvas*>("layoutCanvas")->select(id);
+    QSignalSpy requests(&window,&LightingWindow::identifyRequested);
+    auto* identify=window.findChild<QPushButton*>("identifyDeviceComponent"); QVERIFY(identify->isEnabled());
+    identify->click();
+    QCOMPARE(window.document().identifyPlacement(),id);
+    QCOMPARE(requests.size(),0);
+    window.document().history()->setClean();
+}
+
+void EditorTest::stackedVendorLedsStayAvailable()
+{
+    // CodeRabbit PR #10 #21: 17+ LEDs on one coordinate exceed the 0..15 layer range; keep the product without layers.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("VortxEngine/app-1.0.0/Signal-x64/Components"); QVERIFY(QDir().mkpath(folder));
+    QJsonArray coordinates,mapping; for(int i=0;i<20;++i){coordinates.append(QJsonArray{0,0});mapping.append(i);}
+    { QFile out(folder+"/stack.json"); QVERIFY(out.open(QIODevice::WriteOnly));
+      out.write(QJsonDocument(QJsonObject{{"ProductName","Stack Ring"},{"Brand","Test"},{"Type","Fan"},{"LedCount",20},
+          {"LedCoordinates",coordinates},{"LedMapping",mapping}}).toJson()); }
+    const auto previous=qgetenv("LOCALAPPDATA");
+    const auto restore=qScopeGuard([previous]{qputenv("LOCALAPPDATA",previous);});
+    qputenv("LOCALAPPDATA",QDir::toNativeSeparators(temporary.path()).toLocal8Bit());
+    bool found=false; for(const auto& product:hardwareProducts(catalog())) found=found || product.name=="Test Stack Ring";
+    QVERIFY(found);
+}
+
 void EditorTest::componentCanvasInteractions()
 {
     const auto savedGrid=SnapGrid::load(); auto noSnap=savedGrid; noSnap.enabled=false; noSnap.save();
@@ -2430,6 +2563,7 @@ void EditorTest::componentEditorPageLayers()
     // Review Focus 5: arrangement-only placements keep layer moves on Apply (library-backed document).
     const auto placement=document.addComponent("custom.fan");
     page.openInstance(placement,true); canvas->setFocus();
+    for(auto* item:canvas->scene()->items()) QVERIFY(item->toolTip()!="Scale the housing (keeps its proportions)"); // CodeRabbit PR #10 #34
     canvas->setActiveLayer(0); canvas->selectRows({1});
     key(Qt::Key_PageUp,Qt::ControlModifier); QCOMPARE(page.draft().layers[1],1);
     page.findChild<QPushButton*>("componentSave")->click();
@@ -4732,8 +4866,9 @@ void EditorTest::disabledControlsLookDisabled()
     for(auto* control:std::initializer_list<QWidget*>{&off,&primaryOff,&fieldOff})control->setEnabled(false);
     window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTest::mouseMove(&window,{410,190});QCoreApplication::processEvents();
     const auto brightest=[](QWidget& widget){
-        const auto image=widget.grab().toImage();int best=0;
-        for(int y=0;y<image.height();++y)for(int x=0;x<image.width();++x)best=std::max(best,qGray(image.pixel(x,y)));
+        // Inside the frame only: the enabled primary border alone could otherwise pass (CodeRabbit PR #10).
+        const auto image=widget.grab().toImage();int best=0;const auto inner=image.rect().adjusted(4,4,-4,-4);
+        for(int y=inner.top();y<=inner.bottom();++y)for(int x=inner.left();x<=inner.right();++x)best=std::max(best,qGray(image.pixel(x,y)));
         return best;
     };
     for(auto pair:{std::pair<QWidget*,QWidget*>{&on,&off},{&primaryOn,&primaryOff},{&fieldOn,&fieldOff}})
@@ -5639,7 +5774,7 @@ void EditorTest::offlineDevicesWorkflow()
     bool picked=false;
     QTimer::singleShot(0,&window,[&] {
         auto* picker=dynamic_cast<HardwarePicker*>(QApplication::activeModalWidget());
-        if (!picker) return;
+        if (!picker) { rejectModal(); return; }
         auto* search=picker->findChild<QLineEdit*>("hardwareSearch");
         search->setFocus();
         QTest::keyClicks(search,"test strip");
@@ -5696,7 +5831,7 @@ void EditorTest::offlineDevicesWorkflow()
     int chainRows=-1, selectedRow=-1;
     QTimer::singleShot(0,&window,[&] {
         auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());
-        if (!dialog) return;
+        if (!dialog) { rejectModal(); return; }
         auto* chain=dialog->findChild<QListWidget*>("channelChain");
         auto* up=dialog->findChild<QPushButton*>("instanceUp");
         if (!chain || !up) { dialog->reject(); return; }
@@ -5744,11 +5879,13 @@ void EditorTest::offlineDevicesWorkflow()
     const auto restore=qScopeGuard([useNative] { QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs,!useNative); });
     QTimer::singleShot(0,&window,[&] {
         auto* dialog=qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
-        if (!dialog) return;
+        if (!dialog) { rejectModal(); return; }
         dialog->selectFile(path);
         auto* buttons=dialog->findChild<QDialogButtonBox*>();
         for (auto* button:buttons->buttons()) if (buttons->buttonRole(button)==QDialogButtonBox::AcceptRole) {
             QTest::mouseClick(button,Qt::LeftButton);
+            // Bounded fallback if Accept leaves the dialog open; the timer dies with the dialog.
+            QTimer::singleShot(2000,dialog,[dialog] { if (dialog->isVisible()) dialog->reject(); });
             return;
         }
         dialog->reject();

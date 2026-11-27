@@ -391,6 +391,8 @@ void ComponentEditorPage::showDraft()
     for (auto* widget : wiringEditing_) widget->setEnabled(!countLocked && !draft_.positions.isEmpty());
     canvas_->setLocked(countLocked);
     canvas_->setReadOnly(readOnly);
+    // Apply sends only positions and layers for these, so a housing edit would be dropped (CodeRabbit PR #10).
+    canvas_->setHousingLocked(entry_ == Entry::Instance && arrangementOnly_);
     if (countLocked && tools_->checkedId() == 1) tools_->button(0)->setChecked(true);
     address_->setMaximum(qMax(1, addresses));
     syncAddressField();
