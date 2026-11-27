@@ -114,58 +114,9 @@ void installedProducts(ComponentCatalog& products)
 }
 ComponentCatalog hardwareProducts(const ComponentCatalog& catalog)
 {
+    // Built-in definitions are shipped files in components/ only (plan 2026-11-27 Task 4); the code adds
+    // just the validated imports of locally installed vendor metadata ("hardware.*").
     auto products=catalog;
-    for(int count:{6,8,12,16}) { auto c=generic(QString("generic.fan.%1").arg(count),QString("Generic fan / %1 addresses").arg(count),count,true); if(!products.contains(c.id)) products.insert(c.id,c); }
-    for(int count:{8,30,60}) { auto c=generic(QString("generic.strip.%1").arg(count),QString("Generic strip / %1 LEDs").arg(count),count,false); if(!products.contains(c.id)) products.insert(c.id,c); }
-    // Restore the original user's installed M25 models: six addresses for paired physical LEDs.
-    {
-        ComponentDefinition fan;
-        fan.id = "phanteks.m25.paired";
-        fan.name = "Phanteks M25 Gen2 120 White";
-        fan.manufacturer = "Phanteks";
-        fan.category = "Fans";
-        fan.addressCount = 6;
-        // Cable exits at 6 o'clock. Each observed zone mirrors across the vertical axis.
-        for (int address=0; address<6; ++address) {
-            const double angle=(address+1)*3.141592653589793/7;
-            for (double side : {1.0,-1.0}) {
-                fan.positions.append({1.3+side*1.3*std::sin(angle),1.3+1.3*std::cos(angle)});
-                fan.mapping.append(address);
-            }
-        }
-        if (!products.contains(fan.id)) products.insert(fan.id,fan);
-    }
-    // Phanteks NV5 MKII case: built-in internal strip. Phanteks publishes no count; 16 is the
-    // owner-confirmed last visible position (17 dark), see docs/JARGB2_TOPOLOGY_TEST.md.
-    {
-        auto strip=generic("phanteks.nv5mk2.internal-strip","Phanteks NV5 MKII / internal LED strip",16,false);
-        strip.manufacturer="Phanteks"; strip.category="Strips";
-        for(int i=0;i<16;++i) strip.positions[i]={3.0*i/15,0};
-        if (!products.contains(strip.id)) products.insert(strip.id,strip);
-    }
-    // Phanteks Glacier One 360M25 G2 AIO, from the owner's hardware test 2026-11-26 (one address lit at a
-    // time on JARGB3): 8 addresses. The three radiator fans mirror addresses 1-6 and are not individually
-    // addressable; the pump-cap fan ring uses 1-8. Both rings start at 3 o'clock and run counterclockwise;
-    // the owner chose even spacing (60 / 45 degrees). Name contains "360" so the 360 artwork is used.
-    {
-        ComponentDefinition aio;
-        aio.id = "phanteks.glacier-one-360m25g2";
-        aio.name = "Phanteks Glacier One 360M25 G2 AIO";
-        aio.manufacturer = "Phanteks";
-        aio.category = "AiO";
-        aio.addressCount = 8;
-        const double pi = 3.141592653589793;
-        const auto ring = [&](QPointF centre, double radius, int count) {
-            for (int address = 0; address < count; ++address) {
-                const double angle = address * 2 * pi / count; // screen y points down: minus sine runs counterclockwise
-                aio.positions.append(centre + QPointF(radius * std::cos(angle), -radius * std::sin(angle)));
-                aio.mapping.append(address);
-            }
-        };
-        for (const double x : {1.5, 4.5, 7.5}) ring({x, 1.5}, 1.2, 6);
-        ring({4.5, 4.4}, 0.8, 8);
-        if (!products.contains(aio.id)) products.insert(aio.id, aio);
-    }
     installedProducts(products);
     for(auto it=products.begin();it!=products.end();) {
         if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products.erase(it); else ++it;

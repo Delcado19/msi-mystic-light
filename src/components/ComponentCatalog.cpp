@@ -40,6 +40,11 @@ ComponentDefinition ComponentDefinition::fromJson(const QJsonObject& json)
         throw std::invalid_argument("Invalid component identity");
     component.manufacturer=json.value("manufacturer").toString().trimmed();
     component.category=json.value("category").toString().trimmed();
+    if(json.contains("verification")) {
+        component.verification=json.value("verification").toString();
+        if(!QStringList{"verified","manufacturer","unverified"}.contains(component.verification))
+            throw std::invalid_argument("Invalid component verification");
+    }
     const int count = integer(json.value("ledCount"), 1, 65535);
     if (!json.value("mapping").isArray() || !json.value("positions").isArray())
         throw std::invalid_argument("Missing component LED arrays");
@@ -118,6 +123,7 @@ QJsonObject ComponentDefinition::toJson() const
     if (addressCount) result.insert("addressCount", addressCount);
     if(!manufacturer.isEmpty()) result.insert("manufacturer",manufacturer);
     if(!category.isEmpty()) result.insert("category",category);
+    if(!verification.isEmpty()) result.insert("verification",verification);
     if (std::any_of(layers.cbegin(), layers.cend(), [](int layer) { return layer > 0; })) {
         QJsonArray values; for (int layer : layers) values.append(layer);
         result.insert("layers", values);

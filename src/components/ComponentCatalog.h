@@ -9,6 +9,9 @@ struct ComponentDefinition {
     QString id, name;
     // Optional catalog identity; older documents use presentation fallbacks.
     QString manufacturer, category;
+    // How the LED layout was confirmed (plan 2026-11-27 Task 4): "verified" (tested on real hardware),
+    // "manufacturer" (from vendor data) or "unverified"; empty counts as unverified.
+    QString verification;
     QVector<QPointF> positions;
     // Each physical point has a wire index. Explicit address counts allow several points per address.
     int addressCount = 0;

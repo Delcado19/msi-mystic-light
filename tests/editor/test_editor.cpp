@@ -98,6 +98,13 @@ ComponentCatalog catalog()
     strip.mapping = {2, 1, 0};
     return {{strip.id, strip}};
 }
+// The test strip plus every shipped component file (built-ins are files only, plan 2026-11-27 Task 4).
+ComponentCatalog shippedCatalog()
+{
+    auto parts=catalog();
+    for(const auto& definition:loadComponentCatalog(TEST_COMPONENT_DIR)) parts.insert(definition.id,definition);
+    return parts;
+}
 DeviceProfile channelProfile()
 {
     DeviceProfile profile; profile.id="test.device"; profile.driverId="test.driver"; profile.name="Test device";
@@ -238,6 +245,7 @@ private slots:
     void componentDraftLayers();
     void componentLibraryEditing();
     void componentLibraryFolder();
+    void builtInCatalogFromFiles();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -1480,6 +1488,30 @@ void EditorTest::componentLibraryFolder()
     QVERIFY(document.componentUsers("custom.c").contains(placement));
 }
 
+void EditorTest::builtInCatalogFromFiles()
+{
+    // Plan 2026-11-27 Task 4: every built-in component is a shipped file; the code adds none.
+    const auto files=loadComponentCatalog(TEST_COMPONENT_DIR);
+    QVERIFY(files.contains("phanteks.m25.paired"));
+    const auto m25=files.value("phanteks.m25.paired");
+    QCOMPARE(m25.positions.size(),12); QCOMPARE(m25.addresses(),6);
+    for(int k=0;k<6;++k) { QCOMPARE(m25.mapping[2*k],k); QCOMPARE(m25.mapping[2*k+1],k); QCOMPARE(m25.positions[2*k].y(),m25.positions[2*k+1].y()); }
+    QCOMPARE(m25.verification,QString("verified"));
+    QCOMPARE(files.value("phanteks.nv5mk2.internal-strip").verification,QString("verified"));
+    QCOMPARE(files.value("phanteks.glacier-one-360m25g2").verification,QString("verified"));
+    QCOMPARE(files.value("peripheral.ajazz-ak35i-v4").verification,QString("verified"));
+    for(const auto* id:{"generic.fan.6","generic.fan.8","generic.fan.12","generic.fan.16","generic.strip.8","generic.strip.30","generic.strip.60"})
+        QVERIFY2(files.contains(id),id);
+    QVERIFY(files.value("generic.fan.6").verification.isEmpty());
+    // Only imports of locally installed vendor metadata ("hardware.*") may be added on top.
+    for(const auto& id:hardwareProducts(files).keys()) QVERIFY2(files.contains(id) || id.startsWith("hardware."),qPrintable(id));
+    for(const auto& id:hardwareProducts(catalog()).keys()) QVERIFY2(id=="test.strip" || id.startsWith("hardware."),qPrintable(id));
+    // Round trip keeps the field, and an unknown value is rejected.
+    QCOMPARE(ComponentDefinition::fromJson(m25.toJson()).verification,QString("verified"));
+    auto json=m25.toJson(); json.insert("verification","maybe");
+    QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+}
+
 void EditorTest::componentCanvasInteractions()
 {
     const auto savedGrid=SnapGrid::load(); auto noSnap=savedGrid; noSnap.enabled=false; noSnap.save();
@@ -1703,7 +1735,7 @@ void EditorTest::componentHousingFrame()
 void EditorTest::glacierOneProduct()
 {
     // Owner hardware test 2026-11-26: 8 addresses; three fan rings share 1-6, the pump ring uses 1-8.
-    auto parts=catalog(); auto copy=parts.first(); copy.id="instance.glacier"; parts.insert(copy.id,copy);
+    auto parts=shippedCatalog(); auto copy=parts.first(); copy.id="instance.glacier"; parts.insert(copy.id,copy);
     const auto products=hardwareProducts(parts);
     QVERIFY(products.contains("phanteks.glacier-one-360m25g2"));
     const auto aio=products.value("phanteks.glacier-one-360m25g2");
@@ -2366,7 +2398,7 @@ void EditorTest::separateEditingContexts()
 void EditorTest::explicitDiscovery()
 {
     int scans=0; bool connected=true; auto profile=channelProfile(); profile.channels[0].maxLeds=64;
-    LightingWindow window(catalog(),[&] {
+    LightingWindow window(shippedCatalog(),[&] {
         ++scans; if(!connected) return QVector<ProfileCandidate>{};
         ProfileCandidate candidate; candidate.profileId=profile.id; candidate.device.path="exact-test-path";
         return QVector<ProfileCandidate>{candidate,candidate};
@@ -3931,7 +3963,7 @@ void EditorTest::hardwareIdentityAndSave()
     const auto ring=ComponentDefinition::fromJson(d30.toJson());QCOMPARE(ring.mapping,d30.mapping);
     for(const auto& point:ring.positions) QVERIFY(qAbs(QLineF(point,QPointF(1.3,1.3)).length()-1.3)<.0001);
     d30.positions[0]+={.01,0};QCOMPARE(ComponentDefinition::fromJson(d30.toJson()).positions,d30.positions);
-    HardwarePicker picker(catalog(),{},{});
+    HardwarePicker picker(shippedCatalog(),{},{});
     auto* category=picker.findChild<QComboBox*>("hardwareCategory");
     for(const auto* text:{"Fans","Strips","Mice","Keyboards","AiO","Pumps","RAM","Graphics cards"}) QVERIFY(category->findText(text)>=0);
     QVERIFY(picker.findChild<QComboBox*>("hardwareManufacturer")->findText("Phanteks")>=0);
@@ -5001,7 +5033,7 @@ void EditorTest::phanteksSharedAddresses()
     auto profile=channelProfile();
     profile.channels[0].maxLeds=30;
     const QVariantMap identity{{"profileId",profile.id},{"channelId",profile.channels[0].id},{"path","fake"}};
-    HardwarePicker picker(catalog(),{{"Direct",identity,30,0}},identity);
+    HardwarePicker picker(shippedCatalog(),{{"Direct",identity,30,0}},identity);
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Phanteks M25");
     const auto fan=picker.component();
     QCOMPARE(fan.positions.size(),12);

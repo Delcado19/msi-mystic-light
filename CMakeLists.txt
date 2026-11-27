@@ -73,9 +73,11 @@ set_target_properties(hp_omen_module PROPERTIES
 add_library(lighting_backends src/backends/AuxiliaryHardware.cpp src/backends/PawnIoRam.cpp)
 target_include_directories(lighting_backends PUBLIC src)
 target_link_libraries(lighting_backends PUBLIC lighting_modules Qt6::Core)
-foreach(component IN ITEMS gpu.aero5080 msi.ioshield ram.xpg)
-    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/${component}.json"
-        INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/${component}.json")
+# Every shipped component file is the built-in catalog (plan 2026-11-27 Task 4).
+file(GLOB shipped_components CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/components/*.json")
+foreach(component IN LISTS shipped_components)
+    get_filename_component(component_name "${component}" NAME)
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/${component_name}" INPUT "${component}")
 endforeach()
 
 file(GLOB peripheral_profiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiles/*-*.json")
@@ -90,13 +92,7 @@ endforeach()
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/profiles/msi-mpg-b850-edge-ti-wifi.json"
     INPUT "${CMAKE_CURRENT_SOURCE_DIR}/profiles/msi-mpg-b850-edge-ti-wifi.json")
 
-file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/generic-strip-8.json"
-    INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/generic-strip-8.json")
 
-foreach(component IN ITEMS vulcan apex3 kone basilisk)
-    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/peripheral-${component}.json"
-        INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/peripheral-${component}.json")
-endforeach()
 
 add_library(lighting_startup src/startup/ConflictProcesses.cpp src/startup/ConflictDialog.cpp src/startup/DeviceConflicts.cpp)
 target_include_directories(lighting_startup PUBLIC src)
