@@ -254,6 +254,7 @@ private slots:
     void attachQuickCreate();
     void stripFixedTiles();
     void componentEditorCleanup();
+    void libraryReviewFixes();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -1801,6 +1802,66 @@ void EditorTest::componentEditorCleanup()
     QCOMPARE(sorted(ajazz.positions),sorted(grid));
     QVector<int> wires(105); std::iota(wires.begin(),wires.end(),0); QCOMPARE(ajazz.mapping,wires);
     window.document().history()->setClean();
+}
+
+void EditorTest::libraryReviewFixes()
+{
+    // Final review 2026-11-27: library writes never delete files they did not mean to (C1); projects that
+    // still carry former code-only components as playback definitions keep playing (C2); old library
+    // entries with now built-in IDs are not shadowed silently (C2); missing folders are reported with the
+    // way out (I1); a failed migration does not store the folder (I2).
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Lib"); QVERIFY(QDir().mkpath(folder));
+    auto shadow=catalog().first(); shadow.name="Old copy of a built-in";
+    { QFile file(folder+"/shadow.json"); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(shadow.toJson()).toJson()); }
+    {
+        LightingDocument document(catalog(),nullptr,{},folder);
+        auto mine=catalog().first(); mine.id="custom.mine"; mine.name="Mine";
+        document.registerComponent(mine);
+        QVERIFY2(QFileInfo::exists(folder+"/shadow.json"),"C1: a library write deleted a file it skipped");
+        document.removeCustomComponent("custom.mine");
+        QVERIFY(!QFileInfo::exists(folder+"/custom.mine.json"));
+        QVERIFY(QFileInfo::exists(folder+"/shadow.json"));
+    }
+    // C2: the playing project carries "custom.fan", which is now a built-in.
+    auto fan=catalog().first(); fan.id="custom.fan"; fan.name="Former code fan";
+    QJsonArray playing; QString project=temporary.filePath("service.lighting.json");
+    {
+        LightingDocument editor(catalog(),nullptr,{},temporary.filePath("Other"));
+        editor.registerComponent(fan); editor.addComponent("custom.fan");
+        editor.save(project,false,nullptr,&playing);
+    }
+    auto builtIn=catalog(); builtIn.insert(fan.id,fan);
+    { LightingDocument service(builtIn); service.load(project,playing); QCOMPARE(service.state().placements.first().componentId,QString("custom.fan")); }
+    auto changed=fan; changed.positions[0]={0,7}; auto shipped=catalog(); shipped.insert(changed.id,changed);
+    {
+        LightingDocument service(shipped); service.load(project,playing);
+        const auto id=service.state().placements.first().componentId;
+        QCOMPARE(service.catalog().value(id).positions,fan.positions); // keeps what was playing
+    }
+    // C2 migration: an equal entry needs no file; a different one is kept under its own ID and reported.
+    const auto legacy=temporary.filePath("custom-components.json"), target=temporary.filePath("Migrated");
+    auto edited=changed; edited.positions[0]={0,9}; edited.name="My edited fan";
+    { QFile file(legacy); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(QJsonArray{changed.toJson(),edited.toJson()}).toJson()); }
+    QStringList kept;
+    QCOMPARE(migrateLibraryFile(legacy,target,shipped,&kept),1);
+    const auto read=readComponentFolder(target,shipped);
+    QVERIFY(read.issues.isEmpty()); QCOMPARE(read.components.size(),1);
+    QCOMPARE(read.components.first().positions[0],QPointF(0,9)); QVERIFY(read.components.first().id!="custom.fan");
+    QCOMPARE(kept,QStringList({"My edited fan"}));
+    // I1: a folder that is gone is named at startup with the way out.
+    QSettings().remove("components/userFolder");
+    const auto cleanup=qScopeGuard([]{QSettings().remove("components/userFolder");});
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,temporary.filePath("Unplugged"));
+    QTRY_VERIFY(window.statusBar()->currentMessage().contains("Edit > Settings"));
+    // I2: a migration that fails keeps the setting empty, so the next start tries again.
+    LightingWindow fresh(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,QString());
+    const auto broken=temporary.filePath("broken-legacy.json"); { QFile file(broken); QVERIFY(file.open(QIODevice::WriteOnly)); file.write("{nope"); }
+    fresh.setLegacyComponentLibrary(broken);
+    fresh.chooseComponentFolder=[&](const QString&){return temporary.filePath("Second");};
+    QVERIFY(!fresh.ensureComponentFolder());
+    QVERIFY(fresh.componentFolder().isEmpty()); QVERIFY(QSettings().value("components/userFolder").toString().isEmpty());
+    QVERIFY(fresh.statusBar()->currentMessage().contains("old component library"));
 }
 
 void EditorTest::componentCanvasInteractions()

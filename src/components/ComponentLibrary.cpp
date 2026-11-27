@@ -72,7 +72,7 @@ bool removeComponentFile(const QString& folder, const QString& id)
     return !path.isEmpty() && QFile::remove(path);
 }
 
-int migrateLibraryFile(const QString& legacyJson, const QString& folder)
+int migrateLibraryFile(const QString& legacyJson, const QString& folder, const ComponentCatalog& builtIn, QStringList* kept)
 {
     QFile file(legacyJson);
     if (!file.exists()) return 0;
@@ -82,8 +82,21 @@ int migrateLibraryFile(const QString& legacyJson, const QString& folder)
     const auto json = QJsonDocument::fromJson(bytes);
     if (bytes.size() > fileLimit || !json.isArray()) throw std::invalid_argument("Invalid custom component library");
     if (!QDir().mkpath(folder)) throw std::runtime_error(("Cannot create " + folder).toStdString());
+    const auto withoutVerification = [](const ComponentDefinition& definition) { auto json = definition.toJson(); json.remove("verification"); return json; };
     int count = 0;
-    for (const auto& item : json.array()) { writeComponentFile(folder, ComponentDefinition::fromJson(item.toObject())); ++count; }
+    for (const auto& item : json.array()) {
+        auto definition = ComponentDefinition::fromJson(item.toObject());
+        if (!componentFilePath(folder, definition.id).isEmpty()) continue; // the folder's copy may be newer
+        if (builtIn.contains(definition.id)) {
+            // Former code-only parts (generic fans/strips, M25, NV5, Glacier) are built-in files now.
+            if (withoutVerification(builtIn.value(definition.id)) == withoutVerification(definition)) continue;
+            auto id = definition.id + ".own";
+            for (int n = 2; builtIn.contains(id) || !componentFilePath(folder, id).isEmpty(); ++n) id = definition.id + ".own" + QString::number(n);
+            definition.id = id;
+            if (kept) kept->append(definition.name);
+        }
+        writeComponentFile(folder, definition); ++count;
+    }
     // Keep the old file as a backup under a name nothing reads any more.
     const auto backup = QFileInfo(legacyJson).absoluteDir().filePath("custom-components.migrated.json");
     QFile::remove(backup);

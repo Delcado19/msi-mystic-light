@@ -301,8 +301,10 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     };
     componentWatcher_=new QFileSystemWatcher(this);
     // Files copied into the folder show up without a restart; reading happens on demand anyway.
-    connect(componentWatcher_,&QFileSystemWatcher::directoryChanged,this,[this] { if(componentPage_) componentPage_->reloadLibrary(); });
+    connect(componentWatcher_,&QFileSystemWatcher::directoryChanged,this,[this] { reportComponentIssues(); if(componentPage_) componentPage_->reloadLibrary(); });
     if(!libraryPath.isEmpty() && QFileInfo(libraryPath).isDir()) componentWatcher_->addPath(libraryPath);
+    // A folder on a removed drive, or unreadable files in it, are named right at startup (final review 2026-11-27).
+    if(!libraryPath.isEmpty()) QTimer::singleShot(0,this,[this] { reportComponentIssues(); });
     resize(1440, 900);
     setMinimumSize(1060, 680);
     applyStudioStyle(this);
@@ -2179,14 +2181,21 @@ bool LightingWindow::ensureComponentFolder()
     const auto folder=chooseComponentFolder ? chooseComponentFolder(defaultComponentFolder()) : QString();
     if(folder.isEmpty()) return false;
     QDir().mkpath(folder);
-    // Owners of earlier builds: split the old single-file library into the chosen folder once.
+    // Owners of earlier builds: split the old single-file library into the chosen folder once. A failure
+    // keeps the setting empty, so the next start asks and migrates again (final review 2026-11-27).
+    QStringList kept;
     try {
-        if(const int migrated=migrateLibraryFile(legacyLibrary_,folder); migrated>0)
+        const int migrated=migrateLibraryFile(legacyLibrary_,folder,document_.installedCatalog(),&kept);
+        if(!setComponentFolder(folder)) return false;
+        if(!kept.isEmpty())
+            statusBar()->showMessage("Kept your changed copies of built-in parts as own components: "+kept.join(", ")+". Layouts use the built-in version.",20000);
+        else if(migrated>0)
             statusBar()->showMessage(QString("Moved %1 component(s) from the old library to %2").arg(migrated).arg(QDir::toNativeSeparators(folder)),10000);
+        return true;
     } catch(const std::exception& error) {
-        statusBar()->showMessage("Could not migrate the old component library: "+QString::fromUtf8(error.what()),15000);
+        statusBar()->showMessage("Could not migrate the old component library: "+QString::fromUtf8(error.what()),20000);
+        return false;
     }
-    return setComponentFolder(folder);
 }
 
 void LightingWindow::reportComponentIssues()

@@ -20,5 +20,8 @@ QString componentFilePath(const QString& folder, const QString& id);
 // Removes the file holding this ID; returns false when none does.
 bool removeComponentFile(const QString& folder, const QString& id);
 // Splits the old array file into one file per component and renames it to
-// custom-components.migrated.json. Returns the number migrated; 0 when the old file does not exist.
-int migrateLibraryFile(const QString& legacyJson, const QString& folder);
+// custom-components.migrated.json. Returns the number of files written; 0 when the old file does not exist.
+// Entries whose ID is now built in (former code-only parts, final review 2026-11-27): equal to the
+// built-in apart from `verification` -> no file; different -> kept under "<id>.own" and named in `kept`.
+// An ID that already has a file in the folder is left alone (the folder's copy may be newer).
+int migrateLibraryFile(const QString& legacyJson, const QString& folder, const ComponentCatalog& builtIn = {}, QStringList* kept = nullptr);
