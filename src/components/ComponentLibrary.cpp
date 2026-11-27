@@ -10,7 +10,10 @@
 #include <stdexcept>
 
 namespace {
-constexpr qint64 fileLimit = 32 * 1024 * 1024; // same cap as the former single library file
+constexpr qint64 fileLimit = 32 * 1024 * 1024; // the old single-file library (migration only)
+// One component file: the same 1 MiB loadComponentDefinition() reads, so a saved part never vanishes
+// (CodeRabbit PR #10).
+constexpr qint64 componentLimit = 1024 * 1024;
 
 // id -> file path of every readable component file, in name order.
 QMap<QString, QString> filesById(const QString& folder)
@@ -32,7 +35,7 @@ LibraryRead readComponentFolder(const QString& folder, const ComponentCatalog& b
     if (folder.isEmpty() || !QFileInfo(folder).isDir()) { read.issues.append({folder, "folder not found"}); return read; }
     for (const auto& entry : QDir(folder).entryInfoList({"*.json"}, QDir::Files, QDir::Name)) {
         try {
-            if (entry.size() > fileLimit) throw std::invalid_argument("file exceeds 32 MiB");
+            if (entry.size() > componentLimit) throw std::invalid_argument("file exceeds 1 MiB");
             const auto definition = loadComponentDefinition(entry.absoluteFilePath());
             if (builtIn.contains(definition.id)) throw std::invalid_argument("ID \"" + definition.id.toStdString() + "\" belongs to a built-in component");
             if (read.components.contains(definition.id)) throw std::invalid_argument("ID \"" + definition.id.toStdString() + "\" is already used by another file");
@@ -54,7 +57,7 @@ QString writeComponentFile(const QString& folder, const ComponentDefinition& def
         path = QDir(folder).filePath(base + ".json");
         for (int n = 2; QFileInfo::exists(path); ++n) path = QDir(folder).filePath(base + "-" + QString::number(n) + ".json");
     }
-    if (bytes.size() > fileLimit) throw std::runtime_error(("Cannot write " + path + ": component exceeds 32 MiB").toStdString());
+    if (bytes.size() > componentLimit) throw std::runtime_error(("Cannot write " + QDir::toNativeSeparators(path) + ": the component is larger than 1 MiB").toStdString());
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
         throw std::runtime_error(("Cannot write " + QDir::toNativeSeparators(path) + ": " + file.errorString()).toStdString());

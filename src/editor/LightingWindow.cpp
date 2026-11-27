@@ -311,6 +311,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     auto* fileMenu = menuBar()->addMenu("File");
     auto* open = fileMenu->addAction("Open…"); open->setShortcut(QKeySequence::Open);
     connect(open, &QAction::triggered, this, [this] {
+        // An unsaved Component Editor draft belongs to this project: settle it first (CodeRabbit PR #10).
+        if (!leaveComponentPage()) return;
         const auto file = QFileDialog::getOpenFileName(this, "Open lighting document", QDir::homePath(), "Lighting documents (*.lighting.json)");
         if (file.isEmpty() || !confirmDiscard()) return;
         for (;;) {
@@ -1091,7 +1093,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             if (!QDir().mkpath(effectDirectory)) throw std::runtime_error("Cannot create the custom effects library");
             const auto path=QFileDialog::getSaveFileName(this,"Save custom effect",effectDirectory+"/Untitled.effect.json","Custom effects (*.effect.json)");
             if (path.isEmpty()) return;
-            document_.saveCustomEffect(selectedLayer_,path.endsWith(".effect.json",Qt::CaseInsensitive) ? path : path+".effect.json");
+            const auto target=path.endsWith(".effect.json",Qt::CaseInsensitive) ? path : path+".effect.json";
+            // The dialog confirmed overwriting only the name as typed, not the suffixed one (CodeRabbit PR #10).
+            if(target!=path && QFileInfo::exists(target) && QMessageBox::question(this,"Replace file",
+                    QFileInfo(target).fileName()+" already exists. Replace it?")!=QMessageBox::Yes) return;
+            document_.saveCustomEffect(selectedLayer_,target);
         } catch (const std::exception& error) { QMessageBox::warning(this,"Effect save failed",QString::fromUtf8(error.what())); }
     });
     savePreset->setObjectName("saveCustomEffect");
@@ -2158,13 +2164,25 @@ bool LightingWindow::setComponentFolder(const QString& folder)
     if(!files.isEmpty() && confirmMoveComponents && confirmMoveComponents(
             QString("Move %1 component file(s) from\n%2\nto\n%3?").arg(files.size()).arg(QDir::toNativeSeparators(old),QDir::toNativeSeparators(folder)))) {
         if(!QDir().mkpath(folder)) { statusBar()->showMessage("Could not create "+QDir::toNativeSeparators(folder),10000); return false; }
-        QStringList failed;
+        // Copy everything first; only a complete copy removes the sources and switches the folder, so the
+        // active library is never missing a definition (CodeRabbit PR #10). An identical file already
+        // there counts as copied.
+        QStringList copied, failed;
+        const auto sameBytes=[](const QString& a,const QString& b) {
+            QFile x(a),y(b); return x.open(QIODevice::ReadOnly) && y.open(QIODevice::ReadOnly) && x.readAll()==y.readAll();
+        };
         for(const auto& file:files) {
             const auto target=QDir(folder).filePath(file.fileName());
-            if(QFileInfo::exists(target) || !QFile::copy(file.absoluteFilePath(),target) || !QFile::remove(file.absoluteFilePath())) failed.append(file.fileName());
+            if(QFileInfo::exists(target)) { if(!sameBytes(file.absoluteFilePath(),target)) failed.append(file.fileName()); }
+            else if(QFile::copy(file.absoluteFilePath(),target)) copied.append(target);
+            else failed.append(file.fileName());
         }
-        // Nothing is skipped silently: name every file that stayed behind.
-        if(!failed.isEmpty()) statusBar()->showMessage("Not moved (already there or not writable): "+failed.join(", "),15000);
+        if(!failed.isEmpty()) {
+            for(const auto& target:copied) QFile::remove(target);
+            statusBar()->showMessage("Folder not changed. A different file with the same name is already there, or it is not writable: "+failed.join(", "),20000);
+            return false;
+        }
+        for(const auto& file:files) QFile::remove(file.absoluteFilePath());
     } else QDir().mkpath(folder);
     if(!old.isEmpty()) componentWatcher_->removePath(old);
     document_.setComponentLibrary(folder);
@@ -2274,7 +2292,9 @@ void LightingWindow::refresh()
     // another USB port has another path and counts as disconnected at its old one.
     QSet<QUuid> disconnected;
     if(!discovered_.isEmpty()) for(const auto& assignment:document_.state().assignments)
-        if(std::none_of(discovered_.cbegin(),discovered_.cend(),[&](const auto& candidate){return candidate.profileId==assignment.profileId && candidate.device.path==assignment.endpoint;}))
+        // Offline planning endpoints are never "disconnected" hardware (CodeRabbit PR #10).
+        if(!assignment.endpoint.startsWith("offline:") &&
+           std::none_of(discovered_.cbegin(),discovered_.cend(),[&](const auto& candidate){return candidate.profileId==assignment.profileId && candidate.device.path==assignment.endpoint;}))
             for(const auto& id:assignment.placements) disconnected.insert(id);
     const bool dim=QSettings().value("editor/disconnectedDevices","hide").toString()=="dim";
     layoutCanvas_->setDisconnectedPlacements(disconnected,dim);effectsCanvas_->setDisconnectedPlacements(disconnected,dim);

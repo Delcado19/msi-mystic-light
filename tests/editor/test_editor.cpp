@@ -255,6 +255,13 @@ private slots:
     void stripFixedTiles();
     void componentEditorCleanup();
     void libraryReviewFixes();
+    void chaseProjectWithoutLibrary();
+    void switchComponentAfterSave();
+    void undoKeepsIdAndShapeCountFollows();
+    void failedLibraryWriteLeavesHistory();
+    void offlinePlanStaysVisible();
+    void componentFileLimitAndHandleUndo();
+    void importAndMoveKeepData();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -1862,6 +1869,179 @@ void EditorTest::libraryReviewFixes()
     QVERIFY(!fresh.ensureComponentFolder());
     QVERIFY(fresh.componentFolder().isEmpty()); QVERIFY(QSettings().value("components/userFolder").toString().isEmpty());
     QVERIFY(fresh.statusBar()->currentMessage().contains("old component library"));
+}
+
+void EditorTest::chaseProjectWithoutLibrary()
+{
+    // CodeRabbit PR #10: a Chase project saved without a component folder must still carry the
+    // definitions of its own components, or it cannot be opened again.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    LightingDocument document(catalog());
+    auto own=catalog().first(); own.id="hardware.0123456789abcdef"; own.name="Imported fan";
+    document.registerComponent(own);
+    document.addComponent(own.id);
+    document.addLayer(EffectKind::Chase);
+    const auto file=temporary.filePath("chase.lighting.json"); document.save(file);
+    LightingDocument reopened(catalog());
+    reopened.load(file);
+    QCOMPARE(reopened.state().placements.first().componentId,own.id);
+    QCOMPARE(reopened.catalog().value(own.id).name,QString("Imported fan"));
+}
+
+void EditorTest::switchComponentAfterSave()
+{
+    // CodeRabbit PR #10: saving A while switching to B rebuilt the list and then read the deleted B item.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    LightingDocument document(catalog(),nullptr,{},temporary.filePath("Lib"));
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
+    auto b=catalog().first(); b.id="custom.b"; b.name="Bravo"; document.registerComponent(b);
+    ComponentEditorPage page(document,catalog()); page.openLibrary("custom.a");
+    page.askUnsaved=[](const QString&){return QMessageBox::Save;};
+    auto* name=page.findChild<QLineEdit*>("componentName"); name->setText("Alpha 2"); emit name->editingFinished();
+    QVERIFY(page.isDirty());
+    auto* list=page.findChild<QTreeWidget*>("componentList"); QTreeWidgetItem* target=nullptr;
+    for(QTreeWidgetItemIterator it(list);*it;++it) if((*it)->data(0,Qt::UserRole).toString()=="custom.b") target=*it;
+    QVERIFY(target); list->setCurrentItem(target);
+    QCOMPARE(page.draft().name,QString("Bravo"));
+    QCOMPARE(list->currentItem()->data(0,Qt::UserRole).toString(),QString("custom.b"));
+    QCOMPARE(document.customComponents().value("custom.a").name,QString("Alpha 2"));
+}
+
+void EditorTest::undoKeepsIdAndShapeCountFollows()
+{
+    // CodeRabbit PR #10 #19: undo after the first save keeps the assigned ID, so the next save updates it.
+    LightingDocument document(catalog());
+    ComponentEditorPage page(document,catalog()); page.openLibrary();
+    auto* message=page.findChild<QLabel*>("componentMessage");
+    page.findChild<QPushButton*>("componentNew")->click();
+    page.findChild<QPushButton*>("componentShapeFan")->click();
+    auto* name=page.findChild<QLineEdit*>("componentName"); name->setText("Renamed"); emit name->editingFinished();
+    page.findChild<QPushButton*>("componentSave")->click();
+    const auto saved=document.customComponents(); QCOMPARE(saved.size(),1);
+    page.undoStack()->undo(); QCOMPARE(page.draft().name,QString("New component"));
+    QCOMPARE(page.draft().id,saved.firstKey());
+    page.findChild<QPushButton*>("componentSave")->click();
+    QVERIFY2(!message->text().contains("Unknown"),qPrintable(message->text()));
+    QCOMPARE(document.customComponents().size(),1);
+    QCOMPARE(document.customComponents().first().name,QString("New component"));
+    // #20: after adding an LED the LEDs field follows the part, so a shape click rearranges instead of replacing.
+    auto* count=page.findChild<QSpinBox*>("componentShapeCount");
+    const int before=int(page.draft().positions.size());
+    auto* canvas=page.findChild<ComponentCanvas*>();
+    emit canvas->draftEdited(withAdded(page.draft(),{9,9},0),"Add LED");
+    QCOMPARE(count->value(),before+1);
+    const auto wiring=page.draft().mapping;
+    page.findChild<QPushButton*>("componentShapeLShape")->click();
+    QCOMPARE(int(page.draft().positions.size()),before+1);
+    QCOMPARE(page.draft().mapping,wiring);
+    // A count the user typed still replaces the LEDs.
+    count->setValue(5); page.findChild<QPushButton*>("componentShapeStrip")->click();
+    QCOMPARE(int(page.draft().positions.size()),5);
+}
+
+void EditorTest::failedLibraryWriteLeavesHistory()
+{
+    // CodeRabbit PR #10 #25: a library write that fails must leave the project and its undo history as they were.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Lib");
+    LightingDocument document(catalog(),nullptr,{},folder);
+    auto own=catalog().first(); own.id="custom.own"; own.name="Own"; document.registerComponent(own);
+    document.addComponent("custom.own");
+    const auto file=componentFilePath(folder,"custom.own"); QVERIFY(!file.isEmpty());
+    QVERIFY(QFile::setPermissions(file,QFileDevice::ReadOwner|QFileDevice::ReadUser));
+    const auto restore=qScopeGuard([&]{QFile::setPermissions(file,QFileDevice::ReadOwner|QFileDevice::WriteOwner|QFileDevice::ReadUser|QFileDevice::WriteUser);});
+    const int count=document.history()->count(), index=document.history()->index();
+    auto moved=own; moved.positions[0]={0,4};
+    QVERIFY_EXCEPTION_THROWN(document.updateCustomComponent(moved),std::runtime_error);
+    QCOMPARE(document.history()->count(),count); QCOMPARE(document.history()->index(),index);
+    QVERIFY(!document.history()->canRedo());
+    QCOMPARE(document.catalog().value("custom.own").positions[0],own.positions[0]);
+}
+
+void EditorTest::offlinePlanStaysVisible()
+{
+    // CodeRabbit PR #10 #27: components planned on an offline connector stay visible once a real
+    // controller is found; only real endpoints that the scan did not find count as disconnected.
+    QSettings().remove("editor/disconnectedDevices");
+    const auto profile=channelProfile();
+    LightingWindow window(catalog(),[profile] {
+        ProfileCandidate candidate;candidate.profileId=profile.id;candidate.device.path="fake://one";return QVector<ProfileCandidate>{candidate};
+    },nullptr,{profile});
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTRY_COMPARE(window.discoveredHardware().size(),1);
+    const auto planned=window.document().addComponent("test.strip");
+    window.document().edit("Plan",[&](LightingState& state) {
+        ChannelAssignment plan;plan.endpoint="offline:"+profile.id;plan.profileId=profile.id;plan.channelId="Direct";plan.placements={planned};
+        state.assignments={plan};
+    });
+    window.findChild<QPushButton*>("refreshHeaders")->click();
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->selectMany({planned},planned);
+    QCOMPARE(canvas->selections(),QSet<QUuid>({planned}));
+    window.document().history()->setClean();
+}
+
+void EditorTest::componentFileLimitAndHandleUndo()
+{
+    // CodeRabbit PR #10 #32: what can be written can be read back; a too large part is refused up front.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Lib"); QVERIFY(QDir().mkpath(folder));
+    ComponentDefinition huge; huge.id="custom.huge"; huge.name="Huge";
+    for(int i=0;i<60000;++i){huge.positions.append({i*0.123456789,i*0.987654321});huge.mapping.append(i);}
+    QVERIFY_EXCEPTION_THROWN(writeComponentFile(folder,huge),std::runtime_error);
+    QVERIFY(QDir(folder).entryList({"*.json"},QDir::Files).isEmpty());
+    ComponentDefinition keyboard=huge; keyboard.id="custom.keys"; keyboard.positions.resize(144); keyboard.mapping.resize(144);
+    writeComponentFile(folder,keyboard);
+    QCOMPARE(readComponentFolder(folder,{}).components.value("custom.keys").positions.size(),144);
+    // #33: undo (a new draft) while a housing handle is held; the release must neither crash nor edit.
+    // Not a proof: reading the deleted handle is undefined behaviour and passed here before the fix too.
+    ComponentCanvas canvas; canvas.resize(640,420);
+    ComponentDraft fan=ComponentDraft::fromDefinition(catalog().first()); fan.category="Fans"; fan.positions={{0,0},{1,1.5},{2,0}}; fan.housing=QRectF(-1,-1,4,4); // not collinear: a line counts as a strip
+    int edits=0; connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&]{++edits;});
+    canvas.setDraft(fan); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas)); canvas.fit();
+    QGraphicsItem* handle=nullptr; for(auto* item:canvas.scene()->items()) if(item->toolTip()=="Scale the housing (keeps its proportions)") handle=item;
+    QVERIFY(handle);
+    const auto at=canvas.mapFromScene(handle->pos());
+    QTest::mousePress(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,at);
+    QTest::mouseMove(canvas.viewport(),at+QPoint(30,30));
+    auto undone=fan; undone.name="Undone"; canvas.setDraft(undone);
+    QTest::mouseRelease(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,at+QPoint(30,30));
+    QCOMPARE(edits,0);
+}
+
+void EditorTest::importAndMoveKeepData()
+{
+    // CodeRabbit PR #10 #35/#36: "Add from file…" settles the open draft first and shows what it imported.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Lib");
+    LightingDocument document(catalog(),nullptr,{},folder);
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
+    ComponentEditorPage page(document,catalog()); page.openLibrary("custom.a");
+    auto* name=page.findChild<QLineEdit*>("componentName"); name->setText("Alpha draft"); emit name->editingFinished();
+    auto replacement=a; replacement.name="Alpha imported"; replacement.positions[0]={0,6};
+    const auto file=temporary.filePath("alpha.json"); { QFile out(file); QVERIFY(out.open(QIODevice::WriteOnly)); out.write(QJsonDocument(replacement.toJson()).toJson()); }
+    page.pickImportFile=[&]{return file;};
+    page.askDuplicate=[](const QString&){return ComponentEditorPage::DuplicateChoice::Replace;};
+    page.askUnsaved=[](const QString&){return QMessageBox::Cancel;};
+    page.findChild<QPushButton*>("componentAddFromFile")->click();
+    QCOMPARE(page.draft().name,QString("Alpha draft")); QCOMPARE(document.customComponents().value("custom.a").name,QString("Alpha"));
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    page.findChild<QPushButton*>("componentAddFromFile")->click();
+    QCOMPARE(document.customComponents().value("custom.a").name,QString("Alpha imported"));
+    QCOMPARE(page.draft().name,QString("Alpha imported")); QCOMPARE(page.draft().positions[0],QPointF(0,6)); QVERIFY(!page.isDirty());
+    // #38: a move that cannot complete keeps the old folder complete and active.
+    QSettings().remove("components/userFolder");
+    const auto cleanup=qScopeGuard([]{QSettings().remove("components/userFolder");});
+    const auto source=temporary.filePath("Source"), target=temporary.filePath("Target");
+    QVERIFY(QDir().mkpath(source)); QVERIFY(QDir().mkpath(target));
+    auto b=a; b.id="custom.b"; b.name="Bravo";
+    writeComponentFile(source,a); writeComponentFile(source,b);
+    auto other=b; other.name="Someone else's b"; { QFile clash(target+"/custom.b.json"); QVERIFY(clash.open(QIODevice::WriteOnly)); clash.write(QJsonDocument(other.toJson()).toJson()); }
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,source);
+    window.confirmMoveComponents=[](const QString&){return true;};
+    QVERIFY(!window.setComponentFolder(target));
+    QCOMPARE(window.componentFolder(),source);
+    QCOMPARE(QDir(source).entryList({"*.json"},QDir::Files).size(),2);
+    QVERIFY(!QFileInfo::exists(target+"/custom.a.json"));
+    QVERIFY(window.statusBar()->currentMessage().contains("custom.b.json"));
 }
 
 void EditorTest::componentCanvasInteractions()
@@ -3999,6 +4179,9 @@ void EditorTest::triangleAfterCrop()
     QVERIFY(after.extent.width()>before.extent.width()+30);QVERIFY(std::abs(after.extent.height()-before.extent.height())<1.5);
     after=resize(corner+QPointF(20,20),Qt::AltModifier);
     QVERIFY(QLineF(after.center,before.center).length()<1.5);QVERIFY(after.extent.width()>before.extent.width()+30);
+    // CodeRabbit PR #10: crossing only the pinned corner's x while the height drives the scale must not flip the box.
+    after=resize(QPointF(pinned.x()-2,corner.y()),Qt::NoModifier);
+    QVERIFY2(after.center.x()>pinned.x(),qPrintable(QString("center %1 left of the pinned corner %2").arg(after.center.x()).arg(pinned.x())));
     window.document().edit("Animated triangle",[](auto& state){auto& shape=state.layers.last();shape.driftX=180;shape.spin=20;shape.zoom=10;});
     window.findChild<QDoubleSpinBox*>("previewTime")->setValue(1.0);
     const auto animated=window.document().state().layers.last();

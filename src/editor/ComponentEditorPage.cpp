@@ -202,8 +202,12 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
     connect(list_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* current, QTreeWidgetItem* previous) {
         if (switching_ || !current || current->data(0, Qt::UserRole).toString().isEmpty()) return;
         const auto revert = [&] { switching_ = true; list_->setCurrentItem(previous); switching_ = false; };
+        // Saving in confirmLeave() rebuilds the list and deletes `current` (CodeRabbit PR #10): keep its ID,
+        // then let refreshList select and load it in the new list.
+        const auto id = current->data(0, Qt::UserRole).toString();
         if (!confirmLeave()) { revert(); return; }
-        load(current->data(0, Qt::UserRole).toString(), Entry(current->data(0, Qt::UserRole + 1).toInt()));
+        entry_ = Entry::None;
+        refreshList(id);
     });
     connect(name_, &QLineEdit::editingFinished, this, [this] {
         if (name_->text() == draft_.name) return;
@@ -337,13 +341,19 @@ void ComponentEditorPage::load(const QString& id, Entry kind)
 void ComponentEditorPage::applyEdit(const ComponentDraft& after, const QString& label)
 {
     if (after == draft_ || entry_ == Entry::None || readOnly()) { showDraft(); return; }
-    undo_.push(new DraftCommand(label, draft_, after, [this](const ComponentDraft& draft) { draft_ = draft; showDraft(); }));
+    undo_.push(new DraftCommand(label, draft_, after, [this](const ComponentDraft& draft) {
+        draft_ = draft;
+        // Undo/redo restore name and LEDs, not which library entry Save updates (CodeRabbit PR #10).
+        if (entry_ == Entry::Library || entry_ == Entry::Copy) draft_.id = entryId_;
+        showDraft();
+    }));
 }
 
 void ComponentEditorPage::showDraft()
 {
     canvas_->setDraft(draft_);
     const bool open = entry_ != Entry::None;
+    if (!countRequested_ && !draft_.positions.isEmpty()) { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(int(draft_.positions.size())); }
     {
         const QSignalBlocker a(name_), b(manufacturer_), c(category_);
         name_->setText(draft_.name);
@@ -457,7 +467,8 @@ void ComponentEditorPage::alignSelection(const QString& alignment)
 void ComponentEditorPage::addFromFile()
 {
     const auto file = pickImportFile();
-    if (file.isEmpty() || !ensureLibrary()) return;
+    // The open draft is settled first; Cancel keeps it and imports nothing (CodeRabbit PR #10).
+    if (file.isEmpty() || !confirmLeave() || !ensureLibrary()) return;
     const auto fileName = QFileInfo(file).fileName();
     try {
         ComponentDefinition definition;
@@ -472,6 +483,8 @@ void ComponentEditorPage::addFromFile()
             if (choice == DuplicateChoice::Replace && !builtIn) { document_.updateCustomComponent(definition); id = definition.id; }
             else id = document_.saveComponentCopy(definition);
         } else id = document_.registerComponent(definition);
+        // Load it even when it is the open entry: after Replace the editor must show the imported version.
+        entry_ = Entry::None;
         refreshList(id);
         setMessage(QString("\"%1\" added to %2").arg(definition.name, QDir::toNativeSeparators(document_.componentLibrary())));
     } catch (const std::exception& error) {
@@ -631,9 +644,12 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
                 // A fixed LED count, or an unchanged one, reshapes the existing LEDs and keeps their wiring;
                 // only a different count replaces them (owner review 2026-11-26: L-Shape turned a 16-LED
                 // strip into one LED because the field still held another part's count).
+                // The field follows the part until the user types a count (CodeRabbit PR #10: it went stale
+                // after LEDs were added on the canvas, and a shape click then replaced all of them).
                 const int existing = int(draft_.positions.size());
-                if (countLocked() || (existing > 0 && shapeCount_->value() == existing)) applyEdit(withReshaped(draft_, shape), "Arrange as " + label);
+                if (countLocked() || (existing > 0 && (!countRequested_ || shapeCount_->value() == existing))) applyEdit(withReshaped(draft_, shape), "Arrange as " + label);
                 else applyEdit(withShape(draft_, shape, shapeCount_->value()), "Replace with " + label);
+                countRequested_ = false;
                 canvas_->fit(); // owner report 2026-11-27: a new 16-LED strip appeared as a tiny clump
             } catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
         });
@@ -643,6 +659,7 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
     auto* countRow = new QHBoxLayout; countRow->addWidget(new QLabel("LEDs")); countRow->addWidget(shapeCount_, 1);
     shapeLayout->addLayout(countRow, 2, 0, 1, 3);
     countEditing_ << shapeCount_;
+    connect(shapeCount_, &QSpinBox::valueChanged, this, [this] { countRequested_ = true; });
 
     auto* wiring = section(column, "WIRING", true);
     auto* wiringLayout = new QVBoxLayout(wiring); wiringLayout->setContentsMargins(0, 0, 0, 0);

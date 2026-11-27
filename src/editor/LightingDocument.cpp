@@ -461,12 +461,14 @@ void LightingDocument::updateCustomComponent(const ComponentDefinition& definiti
         if (!custom.contains(validated.id)) throw std::invalid_argument("Unknown custom component");
     } else if (!state_.components.contains(validated.id)) throw std::invalid_argument("Unknown custom component");
     const bool used = state_.components.contains(validated.id);
-    // edit() validates channel capacity before anything is written to the library.
+    // Check, then write the library, then publish the undo step: a failed write leaves the project and its
+    // history untouched (CodeRabbit PR #10; before, the rolled-back edit stayed on the redo stack).
+    if (used) {
+        auto candidate = state_; candidate.components.insert(validated.id, validated);
+        validate(candidate); validateChannelAssignments(candidate, profiles_);
+    }
+    if (lock) { custom.insert(validated.id, validated); writeLibrary(libraryPath_, custom); }
     if (used) edit("Edit component", [&](LightingState& state) { state.components.insert(validated.id, validated); });
-    if (!lock) return;
-    custom.insert(validated.id, validated);
-    try { writeLibrary(libraryPath_, custom); }
-    catch (...) { if (used) history_.undo(); throw; }
 }
 
 QString LightingDocument::saveComponentCopy(const ComponentDefinition& definition)
@@ -885,6 +887,10 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
             *playbackDefinitions = {};
             for (const auto& definition : used) playbackDefinitions->append(definition.toJson());
         }
+        // Without a library and without the service hand-over (e.g. a Chase project before a component
+        // folder is chosen), the definitions travel inside the file (CodeRabbit PR #10).
+        if (!playbackDefinitions && libraryPath_.isEmpty())
+            for (const auto& definition : used) components.append(definition.toJson());
         if (!playbackDefinitions && !libraryPath_.isEmpty() && !used.isEmpty()) {
             QLockFile lock(libraryLock(libraryPath_));
             if (!lock.tryLock()) throw std::runtime_error(lockFailure(lock));
@@ -954,7 +960,7 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
     // Schema 25 resolves component IDs from built-ins and the user's separate library.
     QJsonObject project{{"schemaVersion", chase ? 26 : references ? 25 : clipped ? 24 : sharedPositions ? 23 : 22}, {"width", 640}, {"height", 400},
         {"layers", layers}, {"placements", placements}, {"assignments", assignments}};
-    if (!references) project.insert("components", components);
+    if (!references || !components.isEmpty()) project.insert("components", components);
     const auto bytes = QJsonDocument(project).toJson();
     if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Document exceeds 32 MiB; reduce images before saving");
     QSaveFile file(fileName);
@@ -989,10 +995,15 @@ void LightingDocument::load(const QString& fileName, const QJsonArray& playbackD
     auto custom = readLibrary(libraryPath_, initialCatalog_);
     bool migrated = false;
     if (schema >= 25) {
-        if (root.contains("components")) throw std::invalid_argument("Referenced projects cannot embed component definitions");
-        if (playbackDefinitions.size() > 256) throw std::invalid_argument("Too many playback component definitions");
+        // Embedded definitions (saved without a library) are handled like the service's playback ones.
+        auto bundledDefinitions = playbackDefinitions;
+        if (root.contains("components")) {
+            if (!root.value("components").isArray()) throw std::invalid_argument("Invalid embedded component catalog");
+            for (const auto& entry : root.value("components").toArray()) bundledDefinitions.append(entry);
+        }
+        if (bundledDefinitions.size() > 256) throw std::invalid_argument("Too many playback component definitions");
         QSet<QString> bundled;
-        for (const auto& entry : playbackDefinitions) {
+        for (const auto& entry : bundledDefinitions) {
             const auto definition = ComponentDefinition::fromJson(entry.toObject());
             if (bundled.contains(definition.id)) throw std::invalid_argument("Conflicting playback component ID");
             bundled.insert(definition.id);

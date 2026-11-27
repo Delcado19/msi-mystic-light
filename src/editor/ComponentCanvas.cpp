@@ -161,6 +161,9 @@ void ComponentCanvas::fit()
 void ComponentCanvas::rebuild()
 {
     const auto selection = selectedRows();
+    // clear() deletes a handle that may still be held (Ctrl+Z while dragging): forget it, and let the
+    // release end that gesture without an edit (CodeRabbit PR #10, use after free).
+    if (pressHandle_) { pressHandle_ = nullptr; handleCancelled_ = true; }
     scene()->clear();
     const bool wiring = tool_ == Tool::Wire;
     // The wire path is computed over every layer, so a hidden layer never joins two visible LEDs with a
@@ -340,7 +343,7 @@ void ComponentCanvas::mousePressEvent(QMouseEvent* event)
         event->accept(); return;
     }
     pressPosition_ = position;
-    pressHandle_ = nullptr;
+    pressHandle_ = nullptr; handleCancelled_ = false;
     for (auto* item : items(position)) if (item->data(0).toInt() == housingMoveHandle || item->data(0).toInt() == housingScaleHandle) {
         pressHandle_ = item; pressHandlePosition_ = item->pos(); break;
     }
@@ -373,6 +376,7 @@ void ComponentCanvas::mouseReleaseEvent(QMouseEvent* event)
     if (event->button() != Qt::LeftButton || tool_ == Tool::Wire) { QGraphicsView::mouseReleaseEvent(event); return; }
     QGraphicsView::mouseReleaseEvent(event);
     setDragMode(QGraphicsView::NoDrag);
+    if (std::exchange(handleCancelled_, false)) return;
     if (pressHandle_) {
         auto* handle = std::exchange(pressHandle_, nullptr);
         const auto delta = (handle->pos() - pressHandlePosition_) / unit;

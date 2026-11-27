@@ -81,6 +81,7 @@ private:
     QString entryId_;
     QUuid instance_;
     bool arrangementOnly_ = false, switching_ = false;
+    bool countRequested_ = false; // the user typed an LED count for the next shape
     QUndoStack undo_;
     ComponentCanvas* canvas_ = nullptr;
     QTreeWidget* list_ = nullptr;

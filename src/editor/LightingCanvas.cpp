@@ -1113,8 +1113,14 @@ void LightingCanvas::updateEffectGesture(QPointF point)
         changed.extent={std::clamp(sx*original.extent.width(),1.0,10000.0),std::clamp(sy*original.extent.height(),1.0,10000.0)};
         if(!fromCenter) {
             // Dragging past the anchor flips the box to that side; the anchor itself never moves.
-            const QPointF side(local.x()!=0 ? std::copysign(1.0,local.x()) : std::copysign(1.0,corner.x()),
-                               local.y()!=0 ? std::copysign(1.0,local.y()) : std::copysign(1.0,corner.y()));
+            QPointF side(local.x()!=0 ? std::copysign(1.0,local.x()) : std::copysign(1.0,corner.x()),
+                         local.y()!=0 ? std::copysign(1.0,local.y()) : std::copysign(1.0,corner.y()));
+            // Proportional: one shared scale, so flip only when the drag crosses the anchor along the handle's
+            // diagonal, not when one axis does (CodeRabbit PR #10: a 2 px move jumped the box a full width).
+            if(proportional) {
+                const QPointF diagonal(std::copysign(1.0,corner.x()),std::copysign(1.0,corner.y()));
+                side=diagonal*(local.x()*diagonal.x()+local.y()*diagonal.y()>=0 ? 1.0 : -1.0);
+            }
             const QPointF middle=anchor+QPointF(side.x()*changed.extent.width()/original.extent.width(),
                                                 side.y()*changed.extent.height()/original.extent.height())/2;
             changed.center=original.center+transform.map(middle)-transform.map(QPointF());
