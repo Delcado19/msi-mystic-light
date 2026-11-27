@@ -1671,7 +1671,11 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     alignMenu->addSection("Align selection");
     for(const auto& key:QStringList{"left","center","right","top","middle","bottom","distribute-horizontal","distribute-vertical"}) {
         auto* action=alignMenu->addAction(key.startsWith("distribute") ? QString(key).replace('-', ' ').replace("distribute","Distribute") : "Align "+key);action->setObjectName("align_"+key);
-        connect(action,&QAction::triggered,this,[this,key]{(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->alignSelection(key);});
+        connect(action,&QAction::triggered,this,[this,key]{
+            // The Component Editor aligns its LEDs with the same menu (owner request 2026-11-27).
+            if(componentPage_ && applicationPages_->currentWidget()==componentPage_) componentPage_->alignSelection(key);
+            else (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->alignSelection(key);
+        });
     }
     alignMenu->addSection("Snapping");alignMenu->addAction(snap);
     auto* snapSettings=new QWidget;auto* snapForm=new QFormLayout(snapSettings);snapForm->setContentsMargins(12,4,12,8);snapForm->addRow("Canvas grid",gridSize);
@@ -1737,6 +1741,8 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     });
     connect(tabs_,&QTabWidget::currentChanged,this,[this,hardwareAction,previewToolbar,tools,layoutEffect,effectComponents,split](int index){
         hardwareAction->setChecked(index==2 && applicationPages_->currentWidget()==tabs_);previewToolbar->setVisible(true);tools->setVisible(index<2);
+        // Play/Stop drives the effect preview; the Component Editor has none (owner review 2026-11-27).
+        for(auto* action:previewToolbar->actions()) if(previewToolbar->widgetForAction(action)==playing_) action->setVisible(applicationPages_->currentWidget()==tabs_);
         layoutEffect->setVisible(index==0);
         effectComponents->setVisible(index==1);
         split->setEnabled(index==1); // menu bar stays the same in every area (workspace brief 2026-11-26)
@@ -1771,7 +1777,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
             if(action->objectName()=="projectNameAction"){action->setVisible(false);continue;}
             auto* widget=previewToolbar->widgetForAction(action);
             if(historyCommands.contains(action) || widget==playing_)continue;
-            action->setEnabled(index<2);if(widget)widget->setEnabled(index<2);
+            // Align / Snap also serves the Component Editor's LEDs (owner request 2026-11-27).
+            const bool enabled=index<2 || (widget && widget->objectName()=="alignSelection" && componentPage_ && applicationPages_->currentWidget()==componentPage_);
+            action->setEnabled(enabled);if(widget)widget->setEnabled(enabled);
         }
     });
     tabs_->tabBar()->hide();
@@ -2535,8 +2543,10 @@ void LightingWindow::refreshToolOptions()
     if(auto* unlock=findChild<QAction*>("unlockSelection"))unlock->setEnabled(tabs_->currentIndex()<2 &&
         (hasSelection || (tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->selectionHasLocked()));
     const int selectionCount=(tabs_->currentIndex()==0 ? layoutCanvas_ : effectsCanvas_)->selections().size();
+    // In the Component Editor the page checks its own LED selection and says what is missing.
+    const bool componentEditor=componentPage_ && applicationPages_->currentWidget()==componentPage_;
     for(auto* action:findChildren<QAction*>())if(action->objectName().startsWith("align_"))
-        action->setEnabled(selectionCount>=(action->objectName().contains("distribute") ? 3 : 2));
+        action->setEnabled(componentEditor || selectionCount>=(action->objectName().contains("distribute") ? 3 : 2));
     const bool editing=tabs_->currentIndex()==1;
     const bool drawing=editing && !panning && tool!=LightingCanvas::Tool::Move && tool!=LightingCanvas::Tool::Eraser && (tool!=LightingCanvas::Tool::Gradient || !selected || !isGradient(selected->effect));
     const bool color=!editingMask_ && drawing;

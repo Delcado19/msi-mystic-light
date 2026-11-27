@@ -46,6 +46,8 @@ public:
     std::function<DuplicateChoice(const QString& name)> askDuplicate;
     std::function<QString()> pickImportFile;
     void reloadLibrary() { refreshList(entryId_); }
+    // Align / Snap menu of the window, while this page is open.
+    void alignSelection(const QString& alignment);
 signals:
     void closeRequested();
     void savedForAttach(const QString& id);

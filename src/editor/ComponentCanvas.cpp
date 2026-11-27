@@ -187,8 +187,8 @@ void ComponentCanvas::rebuild()
         led->setPos(point);
         led->setFlags(active ? QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIgnoresTransformations : QGraphicsItem::ItemIgnoresTransformations);
         led->setFlag(QGraphicsItem::ItemIsMovable, active && !wiring && !readOnly_);
-        led->setToolTip(QString("LED %1 · %2, %3").arg(address + 1).arg(draft_.positions[row].x()).arg(draft_.positions[row].y())
-            + (layered ? QString(" · layer %1").arg(layer + 1) : QString()));
+        // No coordinates (owner review 2026-11-27: they told nothing); the status bar shows the cursor grid.
+        led->setToolTip(QString("LED %1").arg(address + 1) + (layered ? QString(" · layer %1").arg(layer + 1) : QString()));
         led->setZValue(active ? 2 : 1);
         if (!active) led->setOpacity(0.35);
         scene()->addItem(led);
@@ -273,6 +273,31 @@ QPointF ComponentCanvas::insideHousing(QPointF point, Qt::KeyboardModifiers modi
     if ((modifiers & Qt::AltModifier) || !draft_.housing.isValid() || !hardwareHousingFixed(draft_.toDefinitionUnchecked())) return point;
     const auto frame = draft_.housing;
     return {std::clamp(point.x(), frame.left(), frame.right()), std::clamp(point.y(), frame.top(), frame.bottom())};
+}
+
+QString ComponentCanvas::alignSelection(const QString& alignment)
+{
+    const auto rows = selectedRows().values();
+    const bool distribute = alignment.startsWith("distribute");
+    // Same messages as the Layout canvas.
+    if (rows.size() < (distribute ? 3 : 2)) return distribute ? "Select at least three objects to distribute." : "Select at least two objects to align.";
+    if (readOnly_) return "Built-in components cannot be changed; make a copy first.";
+    const bool horizontal = alignment == "left" || alignment == "center" || alignment == "right" || alignment == "distribute-horizontal";
+    auto after = draft_;
+    const auto coordinate = [&](int row) { return horizontal ? after.positions[row].x() : after.positions[row].y(); };
+    const auto set = [&](int row, double value) { if (horizontal) after.positions[row].setX(value); else after.positions[row].setY(value); };
+    double low = coordinate(rows.first()), high = low;
+    for (const int row : rows) { low = std::min(low, coordinate(row)); high = std::max(high, coordinate(row)); }
+    if (distribute) {
+        auto ordered = rows;
+        std::stable_sort(ordered.begin(), ordered.end(), [&](int a, int b) { return coordinate(a) < coordinate(b); });
+        for (int i = 0; i < ordered.size(); ++i) set(ordered[i], low + (high - low) * i / (ordered.size() - 1));
+    } else {
+        const double target = alignment == "left" || alignment == "top" ? low : alignment == "right" || alignment == "bottom" ? high : (low + high) / 2;
+        for (const int row : rows) set(row, target);
+    }
+    emit draftEdited(after, "Align LEDs");
+    return {};
 }
 
 QPointF ComponentCanvas::snapped(QPointF point, Qt::KeyboardModifiers modifiers) const

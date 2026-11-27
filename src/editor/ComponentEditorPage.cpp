@@ -449,6 +449,11 @@ void ComponentEditorPage::removeCurrent()
     } catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
 }
 
+void ComponentEditorPage::alignSelection(const QString& alignment)
+{
+    if (const auto reason = canvas_->alignSelection(alignment); !reason.isEmpty()) setMessage(reason);
+}
+
 void ComponentEditorPage::addFromFile()
 {
     const auto file = pickImportFile();

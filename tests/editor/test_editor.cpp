@@ -22,6 +22,7 @@
 #include "editor/LegacyHardware.h"
 #include "components/ComponentLibrary.h"
 #include <QStackedWidget>
+#include <numeric>
 #include <QStandardItemModel>
 #include <QStandardPaths>
 #include <QToolButton>
@@ -252,6 +253,7 @@ private slots:
     void attachComponentDialog();
     void attachQuickCreate();
     void stripFixedTiles();
+    void componentEditorCleanup();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -1748,6 +1750,59 @@ void EditorTest::stripFixedTiles()
     QVERIFY(QLineF(draft.positions.last(),QPointF(16*kStripTile,0)).length()<1e-9);
 }
 
+void EditorTest::componentEditorCleanup()
+{
+    // Plan 2026-11-27 Task 9 (owner review): no coordinates in LED tooltips, no preview transport in the
+    // Component Editor, Align for LEDs, AK35i laid out on the Roccat Vulcan grid.
+    ComponentCanvas canvas; canvas.resize(640,420);
+    auto draft=ComponentDraft::fromDefinition(catalog().first()); draft.category="Other";
+    draft.positions={{0,0},{1,.5},{3,.2}}; draft.mapping={0,1,2};
+    canvas.setDraft(draft);
+    QStringList tips; for(auto* item:canvas.scene()->items()) if(item->toolTip().startsWith("LED")) tips.append(item->toolTip());
+    QVERIFY(tips.contains("LED 3"));
+    for(const auto& tip:tips) QVERIFY2(!tip.contains(','),qPrintable(tip));
+    // Align and distribute selected LEDs, one undoable edit each, same rules as the Layout.
+    QVector<ComponentDraft> edits;
+    connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString& label){QCOMPARE(label,QString("Align LEDs"));edits.append(after);draft=after;canvas.setDraft(after);});
+    canvas.selectRows({0,1});
+    QCOMPARE(canvas.alignSelection("distribute-horizontal"),QString("Select at least three objects to distribute."));
+    canvas.selectRows({0});
+    QCOMPARE(canvas.alignSelection("top"),QString("Select at least two objects to align."));
+    canvas.selectRows({0,1,2});
+    QVERIFY(canvas.alignSelection("top").isEmpty());
+    QCOMPARE(edits.size(),1);
+    for(const auto& point:draft.positions) QCOMPARE(point.y(),0.0);
+    QVERIFY(canvas.alignSelection("distribute-horizontal").isEmpty());
+    QCOMPARE(draft.positions[1].x(),1.5);
+    // The toolbar's Align menu acts on the Component Editor while it is open; Play/Stop is hidden there.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* play=window.findChild<QPushButton*>("playPreview"); QVERIFY(play->isVisible());
+    window.findChild<QPushButton*>("openComponentEditor")->click();
+    auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page->isVisible());
+    QTRY_VERIFY(!play->isVisible());
+    QVERIFY(window.findChild<QToolButton*>("alignSelection")->isEnabled());
+    page->findChild<QPushButton*>("componentNew")->click();
+    page->findChild<QPushButton*>("componentShapeFan")->click();
+    auto* editorCanvas=page->findChild<ComponentCanvas*>(); editorCanvas->selectRows({0,1,2});
+    const auto before=page->draft().positions;
+    const int undo=page->undoStack()->count();
+    window.findChild<QAction*>("align_left")->trigger();
+    QVERIFY2(page->undoStack()->count()==undo+1,qPrintable(page->findChild<QLabel*>("componentMessage")->text()+QString(" enabled=%1").arg(window.findChild<QAction*>("align_left")->isEnabled())));
+    QCOMPARE(page->draft().positions[1].x(),std::min({before[0].x(),before[1].x(),before[2].x()}));
+    page->askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    page->findChild<QPushButton*>("componentBack")->click();
+    QTRY_VERIFY(play->isVisible());
+    // AK35i: the Vulcan's even grid, row by row; wiring untouched.
+    const auto ajazz=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-ajazz-ak35i-v4.json");
+    const auto vulcan=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-vulcan.json");
+    QVector<QPointF> grid; for(int i=0;i<vulcan.positions.size();++i) if(!vulcan.nonPhysicalSlots.contains(vulcan.mapping[i])) grid.append(vulcan.positions[i]);
+    auto sorted=[](QVector<QPointF> points){ std::sort(points.begin(),points.end(),[](QPointF a,QPointF b){return a.y()!=b.y() ? a.y()<b.y() : a.x()<b.x();}); return points; };
+    QCOMPARE(sorted(ajazz.positions),sorted(grid));
+    QVector<int> wires(105); std::iota(wires.begin(),wires.end(),0); QCOMPARE(ajazz.mapping,wires);
+    window.document().history()->setClean();
+}
+
 void EditorTest::componentCanvasInteractions()
 {
     const auto savedGrid=SnapGrid::load(); auto noSnap=savedGrid; noSnap.enabled=false; noSnap.save();
@@ -1795,7 +1850,7 @@ void EditorTest::componentCanvasInteractions()
     // Hover text names the LED number and position.
     canvas.setTool(ComponentCanvas::Tool::Select);
     QString tip; for(auto* item:canvas.scene()->items()) if(item->data(0).toInt()==2 && item->type()==QGraphicsEllipseItem::Type) tip=item->toolTip();
-    QCOMPARE(tip,QString("LED %1 · %2, %3").arg(draft.mapping[2]+1).arg(draft.positions[2].x()).arg(draft.positions[2].y()));
+    QCOMPARE(tip,QString("LED %1").arg(draft.mapping[2]+1)); // no coordinates (owner review 2026-11-27)
     // Locked instances cannot add, delete or rewire.
     canvas.setLocked(true); canvas.setTool(ComponentCanvas::Tool::Wire); QCOMPARE(canvas.tool(),ComponentCanvas::Tool::Select);
     const int count=edits.size();

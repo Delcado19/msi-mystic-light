@@ -26,6 +26,10 @@ public:
     static constexpr double gridStep = 0.25;
     QSet<int> selectedRows() const;
     void selectRows(const QSet<int>& rows);
+    // Align / distribute the selected LEDs (keys as LightingCanvas::alignSelection: left, center, right,
+    // top, middle, bottom, distribute-horizontal, distribute-vertical); one "Align LEDs" edit. Returns the
+    // reason when nothing happened, empty on success (owner request 2026-11-27).
+    QString alignSelection(const QString& alignment);
     void setGridVisible(bool visible);
     void setPathVisible(bool visible);
     // Display-only depth layers: other layers are hidden, or dimmed and locked when all are visible.
