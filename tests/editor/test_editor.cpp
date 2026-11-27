@@ -267,6 +267,7 @@ private slots:
     void failedLibraryWriteLeavesHistory();
     void offlinePlanStaysVisible();
     void componentFileLimitAndHandleUndo();
+    void typedCountStaysWithItsPart();
     void componentFitFramesFarLeds();
     void proportionalResizeKeepsAspectAtLimit();
     void hiddenPlacementLeavesFit();
@@ -2448,6 +2449,29 @@ void EditorTest::componentEditorBuiltInReadOnly()
     page.findChild<QPushButton*>("componentShapeLShape")->click();
     QCOMPARE(page.draft().positions.size(),before.positions.size()); QCOMPARE(page.draft().mapping,before.mapping);
     QVERIFY(page.draft().positions!=before.positions);
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+}
+
+void EditorTest::typedCountStaysWithItsPart()
+{
+    // CodeRabbit PR #10: a count typed for part A kept the field from following part B, so a shape click
+    // after a canvas edit replaced B's LEDs and wiring with A's leftover count.
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
+    auto b=catalog().first(); b.id="custom.b"; b.name="Beta"; document.registerComponent(b);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1400,800); page.openLibrary("custom.a"); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
+    auto* list=page.findChild<QTreeWidget*>("componentList"); auto* count=page.findChild<QSpinBox*>("componentShapeCount");
+    count->setValue(7);
+    for(QTreeWidgetItemIterator it(list);*it;++it) if((*it)->data(0,Qt::UserRole).toString()=="custom.b") list->setCurrentItem(*it);
+    QCOMPARE(page.draft().id,QString("custom.b"));
+    auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas"); canvas->setFocus();
+    canvas->selectRows({0}); QTest::keyClick(canvas,Qt::Key_Delete);
+    const auto edited=page.draft(); QCOMPARE(edited.positions.size(),b.positions.size()-1);
+    QCOMPARE(count->value(),int(edited.positions.size()));
+    page.findChild<QPushButton*>("componentShapeLShape")->click();
+    QCOMPARE(page.draft().positions.size(),edited.positions.size()); QCOMPARE(page.draft().mapping,edited.mapping);
     page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
 }
 

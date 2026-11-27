@@ -242,6 +242,7 @@ QWidget* ComponentEditorPage::section(QVBoxLayout* column, const QString& title,
 void ComponentEditorPage::openLibrary(const QString& selectId)
 {
     entry_ = Entry::None; entryId_.clear(); instance_ = {}; arrangementOnly_ = false;
+    countRequested_ = false; // a typed count belongs to the part it was typed for (CodeRabbit PR #10)
     listColumn_->show(); canvas_->setLocked(false);
     draft_ = saved_ = {}; undo_.clear();
     refreshList(selectId);
@@ -272,7 +273,7 @@ void ComponentEditorPage::openInstance(const QUuid& placement, bool arrangementO
         draft_ = saved_ = ComponentDraft::fromDefinition(document_.catalog().value(item.componentId));
         {const auto definition = document_.catalog().value(item.componentId);
          if (draft_.housing.isNull() && hardwareHousingFixed(definition)) draft_.housing = saved_.housing = hardwareBodyBounds(definition);}
-        undo_.clear();
+        undo_.clear(); countRequested_ = false;
         { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(qMax(1, int(draft_.positions.size()))); }
         listColumn_->hide();
         showDraft(); canvas_->fit();
@@ -333,6 +334,8 @@ void ComponentEditorPage::load(const QString& id, Entry kind)
     // open; it is stored with the next save. Not a draft change, so opening never marks the part dirty.
     if (draft_.housing.isNull() && hardwareHousingFixed(definition)) draft_.housing = saved_.housing = hardwareBodyBounds(definition);
     // The LEDs field starts at the part's own count; it kept the last part's value (owner review 2026-11-26).
+    // A count typed for the previous part no longer holds it there (CodeRabbit PR #10).
+    countRequested_ = false;
     { const QSignalBlocker block(shapeCount_); shapeCount_->setValue(qMax(1, int(draft_.positions.size()))); }
     showDraft(); canvas_->fit();
     setMessage(kind == Entry::BuiltIn ? "Built-in components are read-only. Make a copy to change it." : QString());
