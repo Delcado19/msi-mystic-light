@@ -174,7 +174,28 @@
 - [ ] **Step 4:** Run, expect PASS; full CTest green.
 - [ ] **Step 5:** Commit `feat(attach): quick-create a component and attach it in one step`.
 
-### Task 8: Docs, build, delivery
+### Task 8: LED strip from fixed square tiles
+
+Owner idea 2026-11-27: a strip is drawn from two graphic elements, a connector and a square LED tile;
+every LED is one tile of fixed size. Moving a single LED away (option b) fills the gap with plain strip
+band without an LED; tiles never scale. Replaces the per-neighbour scaling in `drawHardwareEditorArtwork`
+(the cause of the oversized segment in the owner's screenshot).
+
+**Files:**
+- Create: `assets/hardware/photos/led_strip_tile_fv.png` (256x256), `led_strip_band_fv.png` (256x256), `led_strip_connector_fv.png` (272x256), owner-supplied 2026-11-27; register in `assets/hardware/hardware.qrc`
+- Modify: `src/editor/HardwareArtwork.cpp` (strip branch of `drawHardwareEditorArtwork`), `src/editor/ComponentEditorPage.cpp` (add-LED on a strip)
+- Test: `tests/editor/test_editor.cpp` slot `stripFixedTiles`
+
+**Interfaces:**
+- Produces: constant `kStripTile` = the Strip shape's LED spacing from `withShape` (component units). Sources are the three tile images, loaded without the alpha-bbox auto-crop. Each tile's outer 2 px are semi-transparent (rounded corners) and show as light seam lines when tiles touch (checked in a stitched preview), so draw from the inner source rect `[2, 254)` on both axes; the connector's right edge joins the tile's left edge. The LED colour stays the image's neutral warm-white; live colour is out of scope.
+
+- [ ] **Step 1:** Test: 16-LED strip at the Strip-shape spacing renders 16 tiles of identical pixel width (± 1 px) with no light seam column between neighbours; moving LED 9 by 3 tiles keeps every tile width unchanged and the gap pixels are non-transparent (band); adding an LED on a strip puts it at `last + kStripTile` along the last segment's direction, not at the click point.
+- [ ] **Step 2:** Run, expect FAIL.
+- [ ] **Step 3:** Draw connector before LED 0, one fixed tile centred on each LED, band slices along each gap longer than `kStripTile`, rotated per segment direction.
+- [ ] **Step 4:** Run, expect PASS; full CTest green.
+- [ ] **Step 5:** Commit `feat(editor): LED strip drawn from fixed square tiles`.
+
+### Task 9: Docs, build, delivery
 
 **Files:** `docs/LIGHTING_EDITOR.md`, `docs/HARDWARE_MODULES.md` (catalog schema: `verification`, folder layout), `CONTINUE.md`, `src/editor/LightingWindow.cpp:81` (`studioBuildId`).
 
@@ -185,7 +206,7 @@
 
 ## Not in this plan (noted for later)
 
-- Component Editor: M25 copies with only one strand (find and remove after Task 4), AK35i layout from the Roccat Vulcan, remove hover coordinates, switchable Align, hide Stop/Play until LEDs animate, the owner's idea for adding LEDs to strips.
+- Component Editor: AK35i layout from the Roccat Vulcan, remove hover coordinates, switchable Align, hide Stop/Play until LEDs animate.
 - `maxLeds` 120 vs manual 240 for JARGB_V2 (check protocol source first).
 - Live JRGB control (needs 12 V test hardware).
 - Motherboard front-view photo (owner provides `motherboard_rgb_fv.png`), photos on the main canvas.
