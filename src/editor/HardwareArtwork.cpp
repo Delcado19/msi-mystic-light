@@ -1,4 +1,6 @@
 #include "HardwareArtwork.h"
+#include "ComponentDraft.h"
+#include <QHash>
 #include "HardwareIdentity.h"
 #include <QPainter>
 #include <QSvgRenderer>
@@ -198,46 +200,74 @@ void drawHardwareComponentArtwork(QPainter& painter,const ComponentDefinition& c
     painter.restore();
 }
 
+namespace {
+// Editor artwork is slightly desaturated so LED markers and colors stay the focus.
+QPixmap desaturated(const QPixmap& photo)
+{
+    static QHash<qint64,QPixmap> cache;
+    if(auto it=cache.constFind(photo.cacheKey()); it!=cache.cend()) return *it;
+    auto image=photo.toImage().convertToFormat(QImage::Format_ARGB32);
+    for(int y=0;y<image.height();++y) { auto* line=reinterpret_cast<QRgb*>(image.scanLine(y));
+        for(int x=0;x<image.width();++x) { const auto c=line[x]; const int g=qGray(c);
+            line[x]=qRgba((qRed(c)+g)/2,(qGreen(c)+g)/2,(qBlue(c)+g)/2,qAlpha(c)); } }
+    const auto result=QPixmap::fromImage(image);
+    if(cache.size()>16) cache.clear(); // a handful of editor photos; never grows with use
+    cache.insert(photo.cacheKey(),result);
+    return result;
+}
+// The strip tiles are drawn edge to edge, so they are loaded as they are (no alpha crop).
+QPixmap stripPart(const QString& name)
+{
+    initializeHardwareArtwork();
+    QPixmap pixmap;
+    const auto key="hardware-strip:"+name;
+    if(!QPixmapCache::find(key,&pixmap)) { pixmap=QPixmap(":/hardware/photos/"+name+".png"); QPixmapCache::insert(key,pixmap); }
+    return desaturated(pixmap);
+}
+// Owner idea 2026-11-27 (plan Task 8): connector + one fixed square tile per LED; a gap wider than a tile
+// is filled with plain band. Tiles never scale with the LED distance. The images' outer 2 px are a soft
+// edge, so only [2, 254) is drawn and neighbouring tiles meet without a seam.
+void drawStripTiles(QPainter& painter,const QVector<QPointF>& leds)
+{
+    const auto tile=stripPart("led_strip_tile_fv"), band=stripPart("led_strip_band_fv"), plug=stripPart("led_strip_connector_fv");
+    const double t=kStripTile, inner=252;
+    const QRectF source(2,2,inner,inner);
+    for(int i=0;i<leds.size();++i) {
+        const bool last=i+1==leds.size();
+        const auto direction=last ? leds[i]-leds[i-1] : leds[i+1]-leds[i];
+        const double length=std::hypot(direction.x(),direction.y());
+        painter.save(); painter.translate(leds[i]);
+        if(length>1e-9) painter.rotate(qRadiansToDegrees(std::atan2(direction.y(),direction.x())));
+        painter.drawPixmap(QRectF(-t/2,-t/2,t,t),tile,source);
+        if(i==0) { const double width=t*(plug.width()-2)/inner; painter.drawPixmap(QRectF(-t/2-width,-t/2,width,t),plug,QRectF(0,2,plug.width()-2,inner)); }
+        if(!last) for(double at=t/2;at<length-t/2-1e-9;at+=t) {
+            const double piece=std::min(t,length-t/2-at);
+            painter.drawPixmap(QRectF(at,-t/2,piece,t),band,QRectF(2,2,inner*piece/t,inner));
+        }
+        painter.restore();
+    }
+}
+}
+
 void drawHardwareEditorArtwork(QPainter& painter,const ComponentDefinition& component)
 {
     // Owner decision 2026-11-26/27: dimmed straight-view photo for every fixed housing, keyboards included
-    // (its keys need not line up exactly with the LED positions). Strips are stitched from the photo per
-    // LED, cables stretch only their sleeve between the connectors (below).
+    // (its keys need not line up exactly with the LED positions). Strips are built from fixed tiles,
+    // cables stretch only their sleeve between the connectors (below).
     const auto category=hardwareArtworkCategory(component);
     QVector<QPointF> leds;
     for(int i=0;i<component.positions.size();++i)
         if(!component.nonPhysicalSlots.contains(component.mapping.value(i)))leds.append(component.positions[i]);
     const bool strip=category=="Strips" && leds.size()>=2;
-    const auto photo=hardwareHousingFixed(component) || strip || category=="Cables" ? hardwarePreviewPhoto(component) : QPixmap();
-    if(photo.isNull()) { drawHardwareComponentArtwork(painter,component); return; }
-    static QPixmap dimmed; static qint64 source=0;
-    if(source!=photo.cacheKey()) {
-        // Slightly desaturated so LED markers and colors stay the focus.
-        auto image=photo.toImage().convertToFormat(QImage::Format_ARGB32);
-        for(int y=0;y<image.height();++y) { auto* line=reinterpret_cast<QRgb*>(image.scanLine(y));
-            for(int x=0;x<image.width();++x) { const auto c=line[x]; const int g=qGray(c);
-                line[x]=qRgba((qRed(c)+g)/2,(qGreen(c)+g)/2,(qBlue(c)+g)/2,qAlpha(c)); } }
-        dimmed=QPixmap::fromImage(image); source=photo.cacheKey();
-    }
-    painter.save(); painter.setOpacity(.4); painter.setRenderHint(QPainter::SmoothPixmapTransform);
     if(strip) {
-        // Owner decision 2026-11-27: the photo shows 11 LEDs, real strips any count. Stitch connector head,
-        // one photo LED cell per real LED (scaled to the neighbour distance, so never distorted) and the end
-        // cap. Fractions measured on the cropped led_strip_rgb_fv (1246 px wide, LED pitch ~97 px).
-        const double w=dimmed.width(),h=dimmed.height(),pitch=.0780*w,first=.1814*w,middle=.5714*w,last=.9615*w;
-        for(int i=0;i<leds.size();++i) {
-            const bool end=i+1==leds.size();
-            const auto dir=end ? leds[i]-leds[i-1] : leds[i+1]-leds[i];
-            const double length=std::hypot(dir.x(),dir.y());
-            if(length<1e-6)continue;
-            painter.save(); painter.translate(leds[i]); painter.rotate(qRadiansToDegrees(std::atan2(dir.y(),dir.x())));
-            painter.scale(length/pitch,length/pitch);
-            const QRectF cell(end ? last-pitch/2 : middle-pitch/2,0,end ? w-(last-pitch/2) : pitch,h);
-            painter.drawPixmap(QRectF(-pitch/2,-h/2,cell.width(),h),dimmed,cell);
-            if(i==0) painter.drawPixmap(QRectF(-first,-h/2,first-pitch/2,h),dimmed,QRectF(0,0,first-pitch/2,h));
-            painter.restore();
-        }
-    } else if(category=="Cables") {
+        painter.save(); painter.setOpacity(.4); painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        drawStripTiles(painter,leds); painter.restore(); return;
+    }
+    const auto photo=hardwareHousingFixed(component) || category=="Cables" ? hardwarePreviewPhoto(component) : QPixmap();
+    if(photo.isNull()) { drawHardwareComponentArtwork(painter,component); return; }
+    const auto dimmed=desaturated(photo);
+    painter.save(); painter.setOpacity(.4); painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    if(category=="Cables") {
         // Owner photo 2026-11-27: connectors keep their proportions, only the uniform sleeve between them
         // stretches to the cable length. Fractions measured on the cropped pc_light_cable_fv (1219 px wide).
         auto body=hardwareBodyBounds(component);

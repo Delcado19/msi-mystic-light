@@ -378,7 +378,10 @@ void ComponentCanvas::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
     if (!locked_ && !readOnly_ && (position - pressPosition_).manhattanLength() < QApplication::startDragDistance()) {
-        try { emit draftEdited(withAdded(draft_, insideHousing(snapped(mapToScene(position), event->modifiers()) / unit, event->modifiers()), activeLayer_), "Add LED"); }
+        // A strip continues by one tile, wherever the click was (owner report 2026-11-27: a new LED made an
+        // oversized segment).
+        const auto next = stripNextPosition(draft_);
+        try { emit draftEdited(withAdded(draft_, next ? *next : insideHousing(snapped(mapToScene(position), event->modifiers()) / unit, event->modifiers()), activeLayer_), "Add LED"); }
         catch (const std::invalid_argument&) {}
     }
 }

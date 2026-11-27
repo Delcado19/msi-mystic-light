@@ -1,6 +1,7 @@
 #pragma once
 #include "components/ComponentCatalog.h"
 #include <QSet>
+#include <optional>
 
 // Editable value form of a ComponentDefinition for the Component Editor. Plain value semantics make
 // whole-draft snapshots a complete undo record; ComponentDefinition::fromJson stays the validator.
@@ -22,6 +23,12 @@ struct ComponentDraft {
 };
 
 enum class DraftShape { Matrix, Strip, Ring, Fan, LShape, UShape };
+// One LED tile of a strip in component units (owner idea 2026-11-27: a strip is a connector plus one fixed
+// square tile per LED). 0.4 units is about 18 mm next to a 120 mm fan (2.6 units), a 60 LEDs/m strip.
+constexpr double kStripTile = 0.4;
+// Where "add LED" puts the next LED of a strip: one tile beyond the last LED (highest address) along the
+// last segment's direction; nullopt for anything that is not a strip.
+std::optional<QPointF> stripNextPosition(const ComponentDraft& draft);
 enum class WiringPreset { RowsLeftToRight, RowsSerpentine, ColumnsTopToBottom, Clockwise };
 
 // Replaces every LED; addresses become 0..count-1. Fan and Strip also set the category.

@@ -1,4 +1,5 @@
 #include "ComponentDraft.h"
+#include "HardwareIdentity.h"
 #include <QMap>
 #include <QRectF>
 #include <algorithm>
@@ -84,8 +85,8 @@ ComponentDraft withShape(ComponentDraft draft, DraftShape shape, int count)
     requireUnlocked(draft);
     count = std::max(1, count);
     draft.positions.clear(); draft.mapping.clear(); draft.layers.clear();
-    // Matrix, L and U use one component unit between neighbours; ring/fan/strip keep the
-    // geometry of the hardware picker templates (radius 1.3, strip width 3).
+    // Matrix, L and U use one component unit between neighbours; ring/fan keep the hardware picker
+    // template (radius 1.3); a strip grows by one fixed tile per LED (plan 2026-11-27 Task 8).
     const int columns = int(std::ceil(std::sqrt(double(count))));
     const int length = count - 1;
     const int legL = length / 2, legU = length / 3;
@@ -97,7 +98,7 @@ ComponentDraft withShape(ComponentDraft draft, DraftShape shape, int count)
             point = {1.3 + 1.3 * std::cos(angle), 1.3 + 1.3 * std::sin(angle)};
             break;
         }
-        case DraftShape::Strip: point = {count > 1 ? 3.0 * i / length : 0.0, 0}; break;
+        case DraftShape::Strip: point = {i * kStripTile, 0}; break;
         case DraftShape::Matrix: point = {double(i % columns), double(i / columns)}; break;
         case DraftShape::LShape:
             point = i <= legL ? QPointF(0, i) : QPointF(i - legL, legL);
@@ -223,6 +224,21 @@ ComponentDraft withRotation90(ComponentDraft draft, const QSet<int>& rows)
         draft.positions[row] = {center.x() - delta.y(), center.y() + delta.x()};
     }
     return draft;
+}
+
+std::optional<QPointF> stripNextPosition(const ComponentDraft& draft)
+{
+    if (draft.positions.isEmpty() || hardwareCategory(draft.toDefinitionUnchecked()) != "Strips") return std::nullopt;
+    // Rows by address: the strip continues after its highest address.
+    QVector<int> rows(draft.positions.size());
+    for (int i = 0; i < rows.size(); ++i) rows[i] = i;
+    std::stable_sort(rows.begin(), rows.end(), [&](int a, int b) { return draft.mapping.value(a) < draft.mapping.value(b); });
+    const auto last = draft.positions[rows.last()];
+    if (rows.size() < 2) return last + QPointF(kStripTile, 0);
+    const auto direction = last - draft.positions[rows[rows.size() - 2]];
+    const double length = std::hypot(direction.x(), direction.y());
+    if (length < 1e-9) return last + QPointF(kStripTile, 0);
+    return last + direction * (kStripTile / length);
 }
 
 ComponentDraft withAdded(ComponentDraft draft, QPointF point, int layer)

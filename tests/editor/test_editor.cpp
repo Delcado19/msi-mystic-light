@@ -251,6 +251,7 @@ private slots:
     void componentFolderSetup();
     void attachComponentDialog();
     void attachQuickCreate();
+    void stripFixedTiles();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -1701,12 +1702,59 @@ void EditorTest::attachQuickCreate()
     window.document().history()->setClean();
 }
 
+void EditorTest::stripFixedTiles()
+{
+    // Plan 2026-11-27 Task 8 (owner idea): a strip is a connector plus one fixed square tile per LED;
+    // moving an LED away fills the gap with plain band, tiles never scale.
+    QCOMPARE(withShape({},DraftShape::Strip,16).positions[1].x()-withShape({},DraftShape::Strip,16).positions[0].x(),kStripTile);
+    QCOMPARE(withShape({},DraftShape::Strip,4).positions[3].x(),3*kStripTile);
+    ComponentDefinition strip; strip.id="test.tiles"; strip.name="Tiles"; strip.category="Strips";
+    for(int i=0;i<16;++i){strip.positions.append({i*kStripTile,0});strip.mapping.append(i);}
+    const double scale=100; // px per component unit: one tile = 40 px
+    const auto render=[&](const ComponentDefinition& c) {
+        QImage image(1200,120,QImage::Format_ARGB32_Premultiplied); image.fill(Qt::transparent);
+        QPainter painter(&image); painter.translate(80,60); painter.scale(scale,scale); drawHardwareEditorArtwork(painter,c);
+        return image;
+    };
+    const auto tile=[&](const QImage& image,int led){ return image.copy(QRect(80+qRound(led*kStripTile*scale)-20,40,40,40)); };
+    const auto even=render(strip);
+    QVERIFY(even.save(artifactDirectory()+"/editor-strip-tiles.png"));
+    // Identical tiles: every interior LED looks the same, so all tiles have the same width.
+    for(int led:{2,5,9,13}) QCOMPARE(tile(even,led),tile(even,3));
+    // No light seam: alpha on the strip's centre line stays the same across tile boundaries.
+    for(int led=1;led<15;++led) {
+        const int boundary=80+qRound((led+.5)*kStripTile*scale);
+        QVERIFY2(qAbs(qAlpha(even.pixel(boundary,60))-qAlpha(even.pixel(boundary-5,60)))<=8,qPrintable(QString("seam at LED %1").arg(led)));
+    }
+    // Move LED 9 (and the rest) three tiles further: tiles keep their size, the gap shows band.
+    auto moved=strip; for(int i=9;i<16;++i) moved.positions[i].rx()+=3*kStripTile;
+    const auto gapped=render(moved);
+    QVERIFY(gapped.save(artifactDirectory()+"/editor-strip-gap.png"));
+    QCOMPARE(tile(gapped,3),tile(even,3));
+    QCOMPARE(gapped.copy(QRect(80+qRound(12*kStripTile*scale)-20,40,40,40)),tile(even,9)); // LED 9 now at tile 12
+    for(double x=9.5;x<=11.5;x+=.5) QVERIFY2(qAlpha(gapped.pixel(80+qRound(x*kStripTile*scale),60))>0,qPrintable(QString::number(x)));
+    QCOMPARE(qAlpha(gapped.pixel(80+qRound(20*kStripTile*scale),60)),0); // nothing beyond the end
+    // Adding an LED to a strip continues it by one tile along its last direction, wherever you click.
+    ComponentDraft draft=ComponentDraft::fromDefinition(strip);
+    QCOMPARE(stripNextPosition(draft),std::optional<QPointF>(QPointF(16*kStripTile,0)));
+    auto bent=draft; bent.positions[15]=bent.positions[14]+QPointF(0,kStripTile);
+    QCOMPARE(stripNextPosition(bent),std::optional<QPointF>(bent.positions[15]+QPointF(0,kStripTile)));
+    auto fan=draft; fan.category="Fans"; QVERIFY(!stripNextPosition(fan));
+    ComponentCanvas canvas; canvas.resize(640,420);
+    connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString&){draft=after;canvas.setDraft(after);});
+    canvas.setDraft(draft); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas)); canvas.fit();
+    QTest::mouseClick(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(QPointF(2*kStripTile,1.5)*ComponentCanvas::unit));
+    QCOMPARE(draft.positions.size(),17);
+    QVERIFY(QLineF(draft.positions.last(),QPointF(16*kStripTile,0)).length()<1e-9);
+}
+
 void EditorTest::componentCanvasInteractions()
 {
     const auto savedGrid=SnapGrid::load(); auto noSnap=savedGrid; noSnap.enabled=false; noSnap.save();
     const auto restoreGrid=qScopeGuard([savedGrid]{savedGrid.save();});
     ComponentCanvas canvas; canvas.resize(640,420);
     auto draft=ComponentDraft::fromDefinition(catalog().first()); // (0,0) (1,0) (2,0), addresses 2 1 0
+    draft.category="Other"; // free placement; strips continue by one tile instead (stripFixedTiles)
     QVector<ComponentDraft> edits; QVector<QVector<int>> orders;
     connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString&){edits.append(after);draft=after;canvas.setDraft(after);});
     connect(&canvas,&ComponentCanvas::wireOrderFinished,&canvas,[&](const QVector<int>& order){orders.append(order);});
