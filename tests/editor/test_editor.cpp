@@ -22,6 +22,7 @@
 #include "editor/LegacyHardware.h"
 #include "components/ComponentLibrary.h"
 #include <QStackedWidget>
+#include <QStandardItemModel>
 #include <QStandardPaths>
 #include <QToolButton>
 #include <QToolBar>
@@ -248,6 +249,7 @@ private slots:
     void componentLibraryFolder();
     void builtInCatalogFromFiles();
     void componentFolderSetup();
+    void attachComponentDialog();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -368,7 +370,6 @@ void EditorTest::hardwareLibrary()
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Fixture fan"); QVERIFY(list->currentItem());
     const auto component=picker.component(); QCOMPARE(component.mapping,QVector<int>({2,0,1})); QCOMPARE(component.positions.size(),3);
     for(const auto& point:component.positions) QVERIFY(point.x()>=0 && point.x()<=3 && point.y()>=0 && point.y()<=3);
-    QVERIFY(!picker.findChild<QSpinBox*>("hardwareLedCount")->isEnabled());
     picker.findChild<QSpinBox*>("hardwareQuantity")->setValue(5); QVERIFY(!picker.findChild<QPushButton*>("confirmAddHardware")->isEnabled());
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Malformed mapping"); QVERIFY(!list->currentItem());
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Dedicated RAM"); QVERIFY(!list->currentItem());
@@ -1585,6 +1586,55 @@ void EditorTest::componentFolderSetup()
     QCOMPARE(window.document().customComponents().size(),3);
     QCOMPARE(window.document().customComponents().value("custom.dropped").name,QString("Dropped twin"));
     window.document().history()->setClean();
+}
+
+void EditorTest::attachComponentDialog()
+{
+    // Plan 2026-11-27 Task 6: header row with remaining addresses, two catalogs, segmented search.
+    auto builtIn=catalog();
+    auto ek=catalog().first(); ek.id="ek.nucleus"; ek.name="EK-Nucleus AIO CR360"; ek.manufacturer="EK"; ek.category="AiO"; builtIn.insert(ek.id,ek);
+    auto alpha=catalog().first(); alpha.id="zz.alpha"; alpha.name="Alpha strip"; alpha.manufacturer="Zeta"; builtIn.insert(alpha.id,alpha);
+    ComponentCatalog user;
+    auto mine=catalog().first(); mine.id="custom.mine"; mine.name="Six pack"; mine.manufacturer="Acme";
+    mine.positions={{0,0},{1,0},{2,0},{3,0},{4,0},{5,0}}; mine.mapping={0,1,2,3,4,5}; user.insert(mine.id,mine);
+    const QVariantMap jargb{{"channelId","JARGB1"}}, jrgb{{"channelId","JRGB1"}};
+    HeaderChoice first{"JARGB_V2_1",jargb,114,0}; first.kind="5 V ARGB";
+    HeaderChoice twelve{"JRGB1",jrgb,1,1}; twelve.kind="12 V RGB"; twelve.supported=false; twelve.reason="12 V RGB · not supported yet";
+    HardwarePicker picker(builtIn,user,{first,twelve},jargb);
+    QCOMPARE(picker.windowTitle(),QString("Attach component"));
+    auto* header=picker.findChild<QComboBox*>("hardwareHeader");
+    auto* model=qobject_cast<QStandardItemModel*>(header->model()); QVERIFY(model);
+    QVERIFY(!(model->item(1)->flags() & Qt::ItemIsEnabled));
+    QCOMPARE(model->item(1)->toolTip(),QString("12 V RGB · not supported yet"));
+    auto* remaining=picker.findChild<QLabel*>("attachRemaining");
+    QCOMPARE(remaining->text(),QString("114 addresses remaining"));
+    auto* list=picker.findChild<QListWidget*>("hardwareProducts");
+    QVERIFY(!list->currentItem());
+    QStringList order; for(int i=0;i<list->count();++i) order.append(list->item(i)->text());
+    QCOMPARE(order.first(),QString("My components"));
+    const int builtInRow=int(order.indexOf("Built-in")); QVERIFY(builtInRow>1);
+    QVERIFY(order.indexOf(hardwareName(ek))>builtInRow);
+    QVERIFY(order.indexOf(hardwareName(ek))<order.indexOf(hardwareName(alpha))); // EK before Zeta
+    QVERIFY(!(list->item(0)->flags() & Qt::ItemIsSelectable));
+    list->setCurrentItem(list->item(1));
+    QCOMPARE(picker.findChild<QLabel*>("attachSelectionAddresses")->text(),QString("6 addresses"));
+    QCOMPARE(picker.findChild<QLabel*>("attachSelectionName")->text(),hardwareName(mine));
+    auto* quantity=picker.findChild<QSpinBox*>("hardwareQuantity"); quantity->setValue(2);
+    QCOMPARE(remaining->text(),QString("114 → 102 addresses remaining"));
+    auto* attach=picker.findChild<QPushButton*>("confirmAddHardware"); QCOMPARE(attach->text(),QString("Attach")); QVERIFY(attach->isEnabled());
+    quantity->setValue(22); // 132 on 114
+    QVERIFY2(remaining->text().contains("exceeds by 18"),qPrintable(remaining->text())); QVERIFY(!attach->isEnabled());
+    quantity->setValue(1);
+    // Type and manufacturer are separate criteria combined with the search text, in both catalogs.
+    picker.findChild<QComboBox*>("hardwareCategory")->setCurrentText("AiO");
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("nucleus");
+    QVERIFY(list->currentItem()); QCOMPARE(list->currentItem()->data(Qt::UserRole).toString(),QString("ek.nucleus"));
+    picker.findChild<QComboBox*>("hardwareCategory")->setCurrentIndex(0);
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("zzz");
+    QStringList visible; for(int i=0;i<list->count();++i) if(!list->item(i)->isHidden()) visible.append(list->item(i)->text());
+    QCOMPARE(visible,QStringList({"+ Create \"zzz\""}));
+    QVERIFY(!attach->isEnabled());
+    QVERIFY(!picker.findChild<QSpinBox*>("hardwareLedCount"));
 }
 
 void EditorTest::componentCanvasInteractions()

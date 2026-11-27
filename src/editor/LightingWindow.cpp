@@ -2078,18 +2078,21 @@ void LightingWindow::addHeaderComponents()
         const auto& profile=assignmentProfile(document_.profiles(),data.value("profileId").toString());
         if(profile.driverId=="lighting.peripherals" || profile.driverId=="lighting.auxiliary") continue; // Dedicated devices are detected, never attached to ARGB headers.
         const auto& channel=assignmentChannel(profile,data.value("channelId").toString());
-        if(!channel.direct || channelHasFixedComponent(channel)) continue; // Integrated output, not an attachable fan header.
+        if(channelHasFixedComponent(channel)) continue; // Integrated output, not an attachable fan header.
         // Shared outputs count once, matching the header summary (CodeRabbit review 2026-11-15).
         int used=0;
         for(const auto& assignment:document_.state().assignments) if(assignment.profileId==profile.id && assignment.endpoint==data.value("path") && assignment.channelId==channel.id)
             used=document_.outputLedsUsed(assignment);
-        choices.append({profile.name+" / "+channel.id,data,channel.maxLeds-used,channel.fixedLeds ? channel.fixedLeds-used : 0});
+        HeaderChoice choice{channelDisplayName(channel),data,channel.maxLeds-used,channel.fixedLeds ? channel.fixedLeds-used : 0};
+        choice.kind=channelKindText(channel);
+        // Native-only headers are listed, not offered (JRGB1: no 12 V hardware to test, owner 2026-11-27).
+        if(!channel.direct) { choice.supported=false; choice.reason=(choice.kind.isEmpty() ? QString("This header") : choice.kind)+" · not supported yet"; }
+        choices.append(choice);
     }
-    auto products = document_.catalog();
-    try {
-        for (const auto& definition : document_.customComponents()) products.insert(definition.id, definition);
-    } catch (const std::exception& error) { headerSummary_->setText(QString::fromUtf8(error.what())); return; }
-    HardwarePicker picker(products,choices,selectedHeader_,this);
+    ComponentCatalog user;
+    try { user=document_.customComponents(); }
+    catch (const std::exception& error) { headerSummary_->setText(QString::fromUtf8(error.what())); return; }
+    HardwarePicker picker(document_.catalog(),user,choices,selectedHeader_,this);
     if(picker.exec()!=QDialog::Accepted) return;
     selectedHeader_=picker.header(); const auto assignment=selectedHeaderAssignment();
     try {

@@ -305,6 +305,7 @@ QIcon studioToolIcon(const QString& name)
     } else if(name=="preview-stop") {
         painter.setPen(Qt::NoPen);painter.setBrush(QColor("#ff5c68"));painter.drawRect(QRectF(4,4,16,16));
     }
+    else if(name=="search") { painter.drawEllipse(QRectF(4,4,11,11)); painter.drawLine(QPointF(13.5,13.5),QPointF(20,20)); }
     else if(name=="pan") {
         QPainterPath hand;hand.moveTo(7,21);hand.lineTo(3,13);hand.quadTo(2,10,5,11);hand.lineTo(8,14);hand.lineTo(8,5);hand.quadTo(8,2,10,4);hand.lineTo(10,11);hand.lineTo(10,3);hand.quadTo(11,1,12,3);hand.lineTo(12,11);hand.lineTo(12,4);hand.quadTo(14,2,14,5);hand.lineTo(14,12);hand.lineTo(14,7);hand.quadTo(16,5,16,8);hand.lineTo(17,14);hand.quadTo(18,18,15,21);hand.closeSubpath();painter.drawPath(hand);
     }
