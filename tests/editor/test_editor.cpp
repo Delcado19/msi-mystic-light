@@ -4219,7 +4219,15 @@ void EditorTest::detailedHardwareArtwork()
     {QImage image(1000,100,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);
      {QPainter painter(&image);painter.translate(20,50);painter.scale(30,30);drawHardwareEditorArtwork(painter,strip);}
      QVERIFY(image.pixelColor(20+29*30,50).alpha()>0);QVERIFY(image.pixelColor(20+15*30,50).alpha()>0);
-     QCOMPARE(image.pixelColor(20+29*30+60,50).alpha(),0);}
+     QCOMPARE(image.pixelColor(20+29*30+60,50).alpha(),0);QVERIFY(image.save(artifactDirectory()+"/editor-photo-strip.png"));}
+    // Cables: photo spans the whole body, connectors included.
+    auto cable=strip;cable.category="Cables";QVERIFY(!hardwarePreviewPhoto(cable).isNull());
+    {const auto body=hardwareBodyBounds(cable);QImage image(1000,100,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);
+     {QPainter painter(&image);painter.translate(20,50);painter.scale(30,30);drawHardwareEditorArtwork(painter,cable);}
+     for(const double x:{body.left()+.05,body.center().x(),body.right()-.05})
+     {int alpha=0;for(int y=0;y<100;++y)alpha=qMax(alpha,image.pixelColor(int(20+x*30),y).alpha());
+         QVERIFY2(alpha>0,"cable photo must cover connectors and sleeve");}
+     QVERIFY(image.save(artifactDirectory()+"/editor-photo-cable.png"));}
     QSet<QByteArray> images;
     for(const auto& category:QStringList{"Fans","Strips","RAM","Graphics cards","Keyboards","Mice","Pumps","AiO","Motherboards","Other"}) {
         QImage image(240,180,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);

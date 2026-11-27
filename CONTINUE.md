@@ -23,10 +23,11 @@ dialog) -> clarify (jargon) -> quieter (header/background) -> polish; verify wit
   Fit includes the frame except for keyboards (dense key pitch).
 - Photos: the ten owner-provided `_fv` front views replace the old placeholders
   (`assets/hardware/photos/*_rgb_fv.png`); editor background draws them dimmed (40 %, half desaturated,
-  aspect kept), cables keep the SVG. 2026-11-27 (R46): keyboards use the photo too; strips are stitched
+  aspect kept); cables use `pc_light_cable_fv` (connectors fixed, sleeve stretched; added R47). 2026-11-27 (R46): keyboards use the photo too; strips are stitched
   from the strip photo per LED (head, one LED cell per LED, end cap); photos are cropped to their
   non-transparent part on load and cached under a 512x512 pixel budget instead of a 512 px side cap.
   R46 delivered as `Downloads/LightingStudio-local-r46.zip` (top folder `LightingStudio-r46`), 23/23 CTest.
+  R47 delivered as `Downloads/LightingStudio-local-r47.zip` (cable photo), 23/23 CTest.
 - shortcut: Apply on fixed connectors (arrangement-only instances) stores positions/layers only, so a
   housing edit there is dropped; extend setComponentGeometry if that matters.
 - Not checked in the real window by me.

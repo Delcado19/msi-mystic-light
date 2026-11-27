@@ -42,7 +42,7 @@ QPixmap hardwarePreviewPhoto(const ComponentDefinition& component)
 {
     initializeHardwareArtwork();
     // Straight front views (owner-provided placeholders, 2026-11-26), named <part>_rgb_fv.
-    static const QMap<QString,QString> photos{{"Fans","fan_120_rgb_fv"},{"Strips","led_strip_rgb_fv"},
+    static const QMap<QString,QString> photos{{"Fans","fan_120_rgb_fv"},{"Strips","led_strip_rgb_fv"},{"Cables","pc_light_cable_fv"},
         {"RAM","ram_rgb_fv"},{"Graphics cards","gpu_rgb_fv"},{"Keyboards","keyboard_rgb_fv"},
         {"Mice","mouse_rgb_fv"},{"AiO","aio_240_rgb_fv"},{"Motherboards","io_shield_rgb_fv"}};
     const auto category=hardwareArtworkCategory(component);
@@ -202,13 +202,13 @@ void drawHardwareEditorArtwork(QPainter& painter,const ComponentDefinition& comp
 {
     // Owner decision 2026-11-26/27: dimmed straight-view photo for every fixed housing, keyboards included
     // (its keys need not line up exactly with the LED positions). Strips are stitched from the photo per
-    // LED (below); cables have no photo and keep the drawing.
+    // LED, cables stretch only their sleeve between the connectors (below).
     const auto category=hardwareArtworkCategory(component);
     QVector<QPointF> leds;
     for(int i=0;i<component.positions.size();++i)
         if(!component.nonPhysicalSlots.contains(component.mapping.value(i)))leds.append(component.positions[i]);
     const bool strip=category=="Strips" && leds.size()>=2;
-    const auto photo=hardwareHousingFixed(component) || strip ? hardwarePreviewPhoto(component) : QPixmap();
+    const auto photo=hardwareHousingFixed(component) || strip || category=="Cables" ? hardwarePreviewPhoto(component) : QPixmap();
     if(photo.isNull()) { drawHardwareComponentArtwork(painter,component); return; }
     static QPixmap dimmed; static qint64 source=0;
     if(source!=photo.cacheKey()) {
@@ -237,6 +237,19 @@ void drawHardwareEditorArtwork(QPainter& painter,const ComponentDefinition& comp
             if(i==0) painter.drawPixmap(QRectF(-first,-h/2,first-pitch/2,h),dimmed,QRectF(0,0,first-pitch/2,h));
             painter.restore();
         }
+    } else if(category=="Cables") {
+        // Owner photo 2026-11-27: connectors keep their proportions, only the uniform sleeve between them
+        // stretches to the cable length. Fractions measured on the cropped pc_light_cable_fv (1219 px wide).
+        auto body=hardwareBodyBounds(component);
+        if(body.height()>body.width()) {
+            painter.translate(body.center()); painter.rotate(90);
+            body=QRectF(-body.height()/2,-body.width()/2,body.height(),body.width());
+        }
+        const double w=dimmed.width(),h=dimmed.height(),head=.195*w,tail=.87*w,scale=body.height()/h;
+        const double headWidth=head*scale,tailWidth=(w-tail)*scale,sleeve=std::max(0.,body.width()-headWidth-tailWidth);
+        painter.drawPixmap(QRectF(body.left(),body.top(),headWidth,body.height()),dimmed,QRectF(0,0,head,h));
+        painter.drawPixmap(QRectF(body.left()+headWidth,body.top(),sleeve,body.height()),dimmed,QRectF(head,0,tail-head,h));
+        painter.drawPixmap(QRectF(body.left()+headWidth+sleeve,body.top(),tailWidth,body.height()),dimmed,QRectF(tail,0,w-tail,h));
     } else {
         const auto housing=hardwareBodyBounds(component);
         auto size=QSizeF(photo.size()); size.scale(housing.size(),Qt::KeepAspectRatio); // never stretched
