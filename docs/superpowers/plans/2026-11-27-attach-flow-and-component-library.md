@@ -195,7 +195,27 @@ band without an LED; tiles never scale. Replaces the per-neighbour scaling in `d
 - [ ] **Step 4:** Run, expect PASS; full CTest green.
 - [ ] **Step 5:** Commit `feat(editor): LED strip drawn from fixed square tiles`.
 
-### Task 9: Docs, build, delivery
+### Task 9: Component editor cleanup
+
+Owner requests 2026-11-27: hover coordinates are useless, Stop/Play has no function in the Component Editor,
+a switchable Align is essential (as in the Layout editor), the AK35i LED arrangement should follow the Roccat Vulcan.
+
+**Files:**
+- Modify: `src/editor/ComponentCanvas.cpp:190` (LED tooltip), `src/editor/ComponentCanvas.h/.cpp` (new `alignSelection`), `src/editor/LightingWindow.cpp:1627-1633` (route the `Align / Snap` menu to the component canvas while the Component Editor page is open), `:1697` (hide `playPreview` there), `src/editor/ComponentEditorPage.h` (accessor for the canvas if none exists)
+- Modify: `components/peripheral-ajazz-ak35i-v4.json` (positions only; `mapping` and wire IDs unchanged)
+- Test: `tests/editor/test_editor.cpp` slot `componentEditorCleanup`
+
+**Interfaces:**
+- Produces: `void ComponentCanvas::alignSelection(const QString& alignment)` with the same keys as `LightingCanvas::alignSelection` (`left`, `center`, `right`, `top`, `middle`, `bottom`, `distribute-horizontal`, `distribute-vertical`), acting on selected LEDs of the active layer, one undo step `Align LEDs`; fewer than 2 (align) / 3 (distribute) selected -> the same error texts as the Layout canvas. Snapping keeps using the shared `SnapGrid` switch in the same menu.
+- AK35i positions: group LEDs into 6 rows (the two LEDs at y .7164 belong to the row above for Num+ (x 5.3731) and the row below for Enter (x 3.459); y 1.209 Num Enter joins y 1.0821), sort each row by x, assign the Vulcan's physical positions of the same row sorted by x (row sizes 16/21/20/17/18/13 match).
+
+- [ ] **Step 1:** Test: LED tooltip is `LED 3` (no coordinates; layer suffix kept); with the Component Editor page open `playPreview` is hidden and visible again after leaving; selecting 3 LEDs and triggering `align_top` sets their y to the smallest y in one undo step, `distribute-horizontal` spaces x evenly; AK35i positions as a set equal the Vulcan's physical positions and the `mapping` array is unchanged.
+- [ ] **Step 2:** Run, expect FAIL.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** Run, expect PASS; full CTest green.
+- [ ] **Step 5:** Commit `feat(editor): component editor align, no coordinate tooltips, no preview transport; AK35i layout from Vulcan grid`.
+
+### Task 10: Docs, build, delivery
 
 **Files:** `docs/LIGHTING_EDITOR.md`, `docs/HARDWARE_MODULES.md` (catalog schema: `verification`, folder layout), `CONTINUE.md`, `src/editor/LightingWindow.cpp:81` (`studioBuildId`).
 
@@ -206,7 +226,6 @@ band without an LED; tiles never scale. Replaces the per-neighbour scaling in `d
 
 ## Not in this plan (noted for later)
 
-- Component Editor: AK35i layout from the Roccat Vulcan, remove hover coordinates, switchable Align, hide Stop/Play until LEDs animate.
 - `maxLeds` 120 vs manual 240 for JARGB_V2 (check protocol source first).
 - Live JRGB control (needs 12 V test hardware).
 - Motherboard front-view photo (owner provides `motherboard_rgb_fv.png`), photos on the main canvas.
