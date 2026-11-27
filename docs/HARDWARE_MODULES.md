@@ -161,7 +161,17 @@ These tests do not qualify real devices or automatic hardware detection.
 ## Component catalog schema 1
 
 Startup reads `components/*.json` beside the executable, or the directory
-specified by `--component-dir`. This boundary accepts JSON data only and does
+specified by `--component-dir`. Every built-in component is such a file (plan 2026-11-27: the
+definitions that used to be hard-coded in the hardware picker, generic fans/strips, Phanteks M25
+paired, NV5 MKII strip and Glacier One 360M25 G2, were exported unchanged); CMake copies all
+`components/*.json`. The picker adds only validated imports of locally installed SignalRGB metadata
+(`hardware.*`). Own components live as one file each in the user's component folder
+(LIGHTING_EDITOR.md); a user file with a built-in ID is skipped, the built-in wins.
+
+The optional `verification` field says how a layout was confirmed: `verified` (tested on real
+hardware: M25 paired, NV5 MKII strip, Glacier One, AK35I V4), `manufacturer` (vendor data) or
+`unverified`; missing means unverified. Other values are rejected. Optional `label` and `kind`
+(`argb-5v`, `rgb-12v`) on profile channels give the printed connector name and its voltage. This boundary accepts JSON data only and does
 not fetch repositories, execute scripts, or import SignalRGB files. The bundled
 `generic.strip-8` is an original generic example, not a detected vendor product.
 

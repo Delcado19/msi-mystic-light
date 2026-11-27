@@ -3,6 +3,20 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R48 - 2026-11-27 (local, not pushed) - attach flow and component library
+
+Plan `docs/superpowers/plans/2026-11-27-attach-flow-and-component-library.md`, Tasks 1-10, all
+23/23 CTest after each task. Devices grouped by board with printed labels (JARGB_V2_1, 5 V ARGB);
+JRGB1 disabled. Own components: one JSON per component in a user folder (asked at first save, or at
+startup when custom-components.json exists; Settings > My components; watched). Built-ins are files
+only (`verification` field). New Attach component dialog (addresses only, remaining count, segmented
+search, My components / Built-in, quick-create, Open in editor > Save & attach). LED strips from the
+owner's fixed tiles. Component Editor: Align via Align / Snap, no coordinate tooltips, Play/Stop
+hidden, AK35I keys on the Vulcan grid. Found and fixed: saving a part made with "New" failed
+("Missing component string: id"). Not checked in the real window by me; the owner checks R48.
+Open: maxLeds 120 vs manual 240 (needs GO for a hardware test), motherboard photo (owner supplies
+`motherboard_rgb_fv.png`), cable clip stretching (owner verdict), live JRGB, power warning, push.
+
 ## Whole-app critique - 2026-11-26 (impeccable critique, 19/40 "Poor"; NOTHING BUILT YET)
 
 Report: `.impeccable/critique/2026-11-26T11-50-28Z__src-editor-lightingwindow-cpp.md`. P1: no unified

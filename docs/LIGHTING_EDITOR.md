@@ -529,9 +529,17 @@ workspaces or closing the window.
   frame, the bottom-right handle scales it proportionally, so the artwork never stretches. The
   background is the dimmed front-view photo (40 %, half desaturated, fitted into the frame) where one
   matches the category, keyboards included (photos are cropped to their visible part). LED strips are
-  stitched from the photo: connector, one photo LED cell per real LED, end cap, so any LED count and
-  shape fits without distortion. Cables use the cable photo: connectors keep their proportions, only
+  built from fixed square tiles (owner idea 2026-11-27): a connector, one tile of `kStripTile` (0.4
+  component units) per LED, rotated along the strip, and plain band where two LEDs are more than a tile
+  apart; tiles never scale. The tiles are the owner's `led_strip_tile_fv`, `led_strip_band_fv` and
+  `led_strip_connector_fv` (256 px, loaded uncropped, outer 2 px skipped so tiles meet without a seam).
+  The Strip shape places LEDs one tile apart, and adding an LED to a strip continues it by one tile
+  after its highest address along the last segment, wherever the click was. Cables use the cable photo: connectors keep their proportions, only
   the sleeve between them stretches to the cable length. Layout, Devices and the hardware picker draw parts into the same frame.
+- **Align**: the toolbar's **Align / Snap** menu aligns or distributes the selected LEDs while the
+  Component Editor is open (one undo step "Align LEDs"; at least two LEDs to align, three to
+  distribute). Snapping is the same switch as in the Layout. Play/Stop is hidden here: the editor has
+  no effect preview. LED tooltips show the LED number only; the status line shows the cursor grid.
 - **Tool rail**: Edit (V), Wire order (W), Duplicate (D), Mirror (M / Shift+M),
   Rotate 90° (R), Delete (Del), grid (G), wire path (P), zoom (+ / - / 0), Help (?).
   Ctrl+Z / Ctrl+Y undo and redo every finished gesture; Ctrl+A selects all.
@@ -566,8 +574,35 @@ order are locked: only moving, mirroring and rotating remain.
 
 Schema 2 component definitions store the number of addresses separately from the
 number of light points. Schema 1 definitions retain their one-to-one mappings.
-The library is stored in `%LOCALAPPDATA%/Lighting Studio/Editor/custom-components.json`;
-**Import** and **Export** exchange individual definitions.
+Own components are files: one JSON file per component in a folder the user chooses (plan
+2026-11-27). The folder is asked for at the first save of an own component (suggested:
+`Documents/Lighting Studio/Components`, an existing folder can be picked) and stored in QSettings
+`components/userFolder`; **Edit > Settings > My components** changes it and offers to move the files.
+The folder is read on demand and watched, so files copied into it appear without a restart; unreadable
+files, files with a built-in ID and duplicate IDs are skipped and named in the status bar. Saving shows
+`"<name>" saved to <folder>`, a failure `Could not save "<name>": <reason>` and keeps the draft.
+**Add from file…** checks a file and copies it into the folder (an existing ID asks Replace / Save as
+copy; built-ins always become a copy); **Show in folder** opens Explorer on the component's file.
+Earlier builds kept own components in `%LOCALAPPDATA%/Lighting Studio/Editor/custom-components.json`;
+when that file exists and no folder is set, startup asks for the folder, splits the file into it and
+keeps it as `custom-components.migrated.json`. Projects that use own components reference them by ID;
+the service gets the definitions with the project (playback definitions).
+
+## Attach component
+
+**Devices** lists each board with its connectors under it, named as printed on the board
+(`JARGB_V2_1`) with their kind (`5 V ARGB`, `12 V RGB`). JRGB1 is listed but disabled
+(`12 V RGB · not supported yet`: no 12 V hardware to test). **Attach component…** opens one dialog:
+
+- Header row: the header (dropdown) left, `NNN addresses remaining` right; with a selection it shows
+  `114 → 102 addresses remaining`, or `… · exceeds by N` (Attach disabled). Counts are addresses only.
+- Search: type and manufacturer are separate criteria next to the search field; both catalogs are
+  searched. The list shows **My components** first, then **Built-in**, each sorted by manufacturer and
+  name. The selection row shows the component name left and its addresses right.
+- **+ New component** (always at the end) or **+ Create "<text>"** (when nothing matches) opens a quick
+  form: type (Fans, Strips, Ring, RAM, Other), manufacturer, name, addresses. **Create & attach** saves
+  it to the component folder and attaches it; **Open in editor…** opens the Component Editor with a
+  banner, where **Save & attach** saves it and brings the dialog back with the new component selected.
 
 ## Staged channel configuration
 
