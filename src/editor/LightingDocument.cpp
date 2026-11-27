@@ -1,4 +1,5 @@
 #include "LightingDocument.h"
+#include "components/ComponentLibrary.h"
 #include "HardwareIdentity.h"
 #include "HardwareArtwork.h"
 #include <QPainter>
@@ -53,33 +54,32 @@ QVector<QPointF> placedPoints(const ComponentPlacement& placement,const Componen
     return points;
 }
 
-ComponentCatalog readLibrary(const QString& path)
+// The user library is a folder with one JSON file per component (plan 2026-11-27 Task 3). Unreadable
+// files are skipped here; readComponentFolder() reports them so the UI can name them (Task 5).
+ComponentCatalog readLibrary(const QString& folder, const ComponentCatalog& builtIn)
 {
-    ComponentCatalog result;
-    if (path.isEmpty() || !QFileInfo::exists(path)) return result;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) throw std::runtime_error("Cannot read custom components");
-    constexpr qint64 limit = 32 * 1024 * 1024;
-    const auto bytes = file.read(limit + 1);
-    const auto json = QJsonDocument::fromJson(bytes);
-    if (bytes.size() > limit || !json.isArray()) throw std::invalid_argument("Invalid custom component library");
-    for (const auto& item : json.array()) {
-        auto definition = ComponentDefinition::fromJson(item.toObject());
-        if (result.contains(definition.id)) throw std::invalid_argument("Duplicate component library ID");
-        result.insert(definition.id, definition);
-    }
-    return result;
+    if (folder.isEmpty() || !QFileInfo(folder).isDir()) return {};
+    return readComponentFolder(folder, builtIn).components;
 }
 
-void writeLibrary(const QString& path, const ComponentCatalog& components)
+// Brings the folder in line with the catalog: changed or new entries are written, entries no longer in
+// the catalog lose their file. Files that could not be read are never touched.
+void writeLibrary(const QString& folder, const ComponentCatalog& components)
 {
-    QJsonArray entries;
-    for (const auto& definition : components) entries.append(definition.toJson());
-    const auto bytes = QJsonDocument(entries).toJson(QJsonDocument::Compact);
-    if (bytes.size() > 32 * 1024 * 1024) throw std::invalid_argument("Custom component library exceeds 32 MiB");
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
-        throw std::runtime_error("Cannot save custom component library");
+    const auto current = readComponentFolder(folder, {}).components;
+    for (const auto& definition : components)
+        if (!current.contains(definition.id) || current.value(definition.id).toJson() != definition.toJson())
+            writeComponentFile(folder, definition);
+    for (const auto& id : current.keys())
+        if (!components.contains(id) && !removeComponentFile(folder, id))
+            throw std::runtime_error(("Cannot delete the file of " + id).toStdString());
+}
+
+// QLockFile inside the library folder; creates the folder first.
+QString libraryLock(const QString& folder)
+{
+    if (!QDir().mkpath(folder)) throw std::runtime_error("Cannot create custom component directory");
+    return QDir(folder).filePath(".library.lock");
 }
 
 QString reconcileDefinition(ComponentDefinition definition, const ComponentCatalog& installed, ComponentCatalog& custom)
@@ -353,7 +353,7 @@ void LightingDocument::setComponentGeometry(const QUuid& id, const QVector<QPoin
 
 ComponentCatalog LightingDocument::customComponents() const
 {
-    if (!libraryPath_.isEmpty()) return readLibrary(libraryPath_);
+    if (!libraryPath_.isEmpty()) return readLibrary(libraryPath_, initialCatalog_);
     auto custom = state_.components;
     for (const auto& definition : initialCatalog_) custom.remove(definition.id);
     return custom;
@@ -366,11 +366,9 @@ QString LightingDocument::registerComponent(const ComponentDefinition& definitio
         defineComponent(validated);
         return validated.id;
     }
-    if (!QDir().mkpath(QFileInfo(libraryPath_).absolutePath()))
-        throw std::runtime_error("Cannot create custom component directory");
-    QLockFile lock(libraryPath_ + ".lock");
+    QLockFile lock(libraryLock(libraryPath_));
     if (!lock.tryLock()) throw std::runtime_error("Custom component library is busy");
-    auto custom = readLibrary(libraryPath_);
+    auto custom = readLibrary(libraryPath_, initialCatalog_);
     const auto id = reconcileDefinition(validated, initialCatalog_, custom);
     writeLibrary(libraryPath_, custom);
     return id;
@@ -387,11 +385,9 @@ void LightingDocument::applyComponentVariant(const QUuid& id, const ComponentDef
     std::unique_ptr<QLockFile> lock;
     ComponentCatalog custom;
     if (!libraryPath_.isEmpty()) {
-        if (!QDir().mkpath(QFileInfo(libraryPath_).absolutePath()))
-            throw std::runtime_error("Cannot create custom component directory");
-        lock=std::make_unique<QLockFile>(libraryPath_ + ".lock");
+        lock=std::make_unique<QLockFile>(libraryLock(libraryPath_));
         if (!lock->tryLock()) throw std::runtime_error("Custom component library is busy");
-        custom=readLibrary(libraryPath_);
+        custom=readLibrary(libraryPath_, initialCatalog_);
     }
     edit("Apply component variant", [&](LightingState& state) {
         for (auto& placement : state.placements) if (placement.id == id) {
@@ -436,9 +432,9 @@ void LightingDocument::removeCustomComponent(const QString& id)
         edit("Delete component", [&](LightingState& state) { state.components.remove(id); });
         return;
     }
-    QLockFile lock(libraryPath_ + ".lock");
+    QLockFile lock(libraryLock(libraryPath_));
     if (!lock.tryLock()) throw std::runtime_error("Custom component library is busy");
-    auto custom = readLibrary(libraryPath_);
+    auto custom = readLibrary(libraryPath_, initialCatalog_);
     if (!custom.remove(id)) throw std::invalid_argument("Unknown custom component");
     writeLibrary(libraryPath_, custom);
     state_.components.remove(id);
@@ -453,9 +449,9 @@ void LightingDocument::updateCustomComponent(const ComponentDefinition& definiti
     std::unique_ptr<QLockFile> lock;
     ComponentCatalog custom;
     if (!libraryPath_.isEmpty()) {
-        lock = std::make_unique<QLockFile>(libraryPath_ + ".lock");
+        lock = std::make_unique<QLockFile>(libraryLock(libraryPath_));
         if (!lock->tryLock()) throw std::runtime_error("Custom component library is busy");
-        custom = readLibrary(libraryPath_);
+        custom = readLibrary(libraryPath_, initialCatalog_);
         if (!custom.contains(validated.id)) throw std::invalid_argument("Unknown custom component");
     } else if (!state_.components.contains(validated.id)) throw std::invalid_argument("Unknown custom component");
     const bool used = state_.components.contains(validated.id);
@@ -884,10 +880,9 @@ void LightingDocument::save(const QString& fileName, bool markClean, const Light
             for (const auto& definition : used) playbackDefinitions->append(definition.toJson());
         }
         if (!playbackDefinitions && !libraryPath_.isEmpty() && !used.isEmpty()) {
-            if (!QDir().mkpath(QFileInfo(libraryPath_).absolutePath())) throw std::runtime_error("Cannot create custom component directory");
-            QLockFile lock(libraryPath_ + ".lock");
+            QLockFile lock(libraryLock(libraryPath_));
             if (!lock.tryLock()) throw std::runtime_error("Custom component library is busy");
-            auto custom = readLibrary(libraryPath_);
+            auto custom = readLibrary(libraryPath_, initialCatalog_);
             bool changed = false;
             for (const auto& definition : used) {
                 if (custom.contains(definition.id) && custom.value(definition.id).toJson() != definition.toJson())
@@ -985,7 +980,7 @@ void LightingDocument::load(const QString& fileName, const QJsonArray& playbackD
     candidate.components = initialCatalog_;
     QMap<QString, QString> migratedIds;
     std::unique_ptr<QLockFile> migrationLock;
-    auto custom = readLibrary(libraryPath_);
+    auto custom = readLibrary(libraryPath_, initialCatalog_);
     bool migrated = false;
     if (schema >= 25) {
         if (root.contains("components")) throw std::invalid_argument("Referenced projects cannot embed component definitions");
@@ -1029,10 +1024,9 @@ void LightingDocument::load(const QString& fileName, const QJsonArray& playbackD
         throw std::invalid_argument("Embedded components require schema 7");
     }
     if (schema >= 7 && schema < 25 && !libraryPath_.isEmpty()) {
-        if (!QDir().mkpath(QFileInfo(libraryPath_).absolutePath())) throw std::runtime_error("Cannot create custom component directory");
-        migrationLock = std::make_unique<QLockFile>(libraryPath_ + ".lock");
+        migrationLock = std::make_unique<QLockFile>(libraryLock(libraryPath_));
         if (!migrationLock->tryLock()) throw std::runtime_error("Custom component library is busy");
-        custom = readLibrary(libraryPath_);
+        custom = readLibrary(libraryPath_, initialCatalog_);
         for (const auto& definition : candidate.components)
             migratedIds.insert(definition.id, reconcileDefinition(definition, initialCatalog_, custom));
         candidate.components = initialCatalog_;

@@ -8,6 +8,7 @@
 #include <QDir>
 #include "modules/ModuleRegistry.h"
 #include "components/ComponentCatalog.h"
+#include "components/ComponentLibrary.h"
 #include "discovery/HardwareDiscovery.h"
 #include "startup/ConflictDialog.h"
 #include "editor/LightingWindow.h"
@@ -181,11 +182,16 @@ int main(int argc, char** argv)
             QCoreApplication::processEvents();
         }
     }
+    // One JSON file per user component (plan 2026-11-27 Task 3). Interim location until the user picks a
+    // folder (Task 5); the old single-file library is split into it once and kept as a .migrated backup.
+    const auto componentFolder=sessionDirectory+"/components";
+    try { migrateLibraryFile(sessionDirectory+"/custom-components.json",componentFolder); }
+    catch(const std::exception& error) { qWarning("Component library migration failed: %s",error.what()); }
     LightingWindow window(catalog, [availableProfiles,serviceInstalled,serviceHost] {
         if(serviceInstalled)return serviceInventory(serviceHost.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":serviceHost);
         auto candidates=findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
         candidates+=scanAuxiliaryHardware(availableProfiles,true); return candidates;
-    }, nullptr, availableProfiles,!serviceInstalled,sessionDirectory+"/custom-components.json");
+    }, nullptr, availableProfiles,!serviceInstalled,componentFolder);
     OutputPanel* outputPanel=nullptr;ServicePanel* servicePanel=nullptr;
     if(serviceInstalled) {
         // Fail closed if the installed service is unavailable; never race it with direct GUI writes.

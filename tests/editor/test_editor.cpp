@@ -20,6 +20,7 @@
 #include "editor/StudioTheme.h"
 #include "editor/HardwarePicker.h"
 #include "editor/LegacyHardware.h"
+#include "components/ComponentLibrary.h"
 #include <QStackedWidget>
 #include <QToolButton>
 #include <QToolBar>
@@ -236,6 +237,7 @@ private slots:
     void componentDraftOperations();
     void componentDraftLayers();
     void componentLibraryEditing();
+    void componentLibraryFolder();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -1379,7 +1381,7 @@ void EditorTest::componentDraftLayers()
 void EditorTest::componentLibraryEditing()
 {
     QTemporaryDir folder; QVERIFY(folder.isValid());
-    const auto library=folder.filePath("custom-components.json");
+    const auto library=folder.filePath("components");
     LightingDocument document(catalog(),nullptr,{},library);
     auto a=catalog().first(); a.id="custom.a"; a.name="Alpha";
     auto b=catalog().first(); b.id="custom.b"; b.name="Bravo";
@@ -1425,6 +1427,57 @@ void EditorTest::componentLibraryEditing()
     document.removeCustomComponent(copy);
     LightingDocument reopened(catalog(),nullptr,{},library);
     QVERIFY_EXCEPTION_THROWN(reopened.load(file),MissingComponents);
+}
+
+void EditorTest::componentLibraryFolder()
+{
+    // Plan 2026-11-27 Task 3: one JSON file per user component; bad files are reported, never fatal.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Components"); QVERIFY(QDir().mkpath(folder));
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha";
+    auto b=catalog().first(); b.id="custom.b/odd:name"; b.name="Bravo";
+    const auto pathA=writeComponentFile(folder,a), pathB=writeComponentFile(folder,b);
+    QCOMPARE(QFileInfo(pathA).fileName(),QString("custom.a.json"));
+    QVERIFY(QFileInfo::exists(pathB)); QCOMPARE(QFileInfo(pathB).dir().absolutePath(),QDir(folder).absolutePath());
+    auto read=readComponentFolder(folder,catalog());
+    QVERIFY(read.issues.isEmpty());
+    QCOMPARE(read.components.value("custom.a").toJson(),a.toJson());
+    QCOMPARE(read.components.value("custom.b/odd:name").toJson(),b.toJson());
+    // Invalid JSON, a built-in ID and a second file with an existing ID: reported by file name, skipped.
+    const auto put=[&](const QString& name,const QByteArray& bytes){QFile file(folder+"/"+name);QVERIFY(file.open(QIODevice::WriteOnly));file.write(bytes);};
+    put("broken.json","{nope");
+    auto builtIn=catalog().first(); put("shadow.json",QJsonDocument(builtIn.toJson()).toJson());
+    auto twin=a; twin.name="Alpha twin"; put("zz-twin.json",QJsonDocument(twin.toJson()).toJson());
+    read=readComponentFolder(folder,catalog());
+    QCOMPARE(read.components.size(),2);
+    QCOMPARE(read.components.value("custom.a").name,QString("Alpha"));
+    QStringList files; for(const auto& issue:read.issues) { files.append(issue.file); QVERIFY(!issue.reason.isEmpty()); }
+    files.sort(); QCOMPARE(files,QStringList({"broken.json","shadow.json","zz-twin.json"}));
+    // A missing folder (USB stick removed) is one issue, not an exception.
+    read=readComponentFolder(temporary.filePath("gone"),catalog());
+    QVERIFY(read.components.isEmpty()); QCOMPARE(read.issues.size(),1); QCOMPARE(read.issues.first().reason,QString("folder not found"));
+    // Unwritable target: a clear runtime_error.
+    QVERIFY_EXCEPTION_THROWN(writeComponentFile(temporary.filePath("gone/deeper"),a),std::runtime_error);
+    // Migration of the old single-file library.
+    const auto legacy=temporary.filePath("custom-components.json"), migrated=temporary.filePath("Migrated");
+    auto c=a; c.id="custom.c";
+    { QFile file(legacy); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(QJsonArray{a.toJson(),b.toJson(),c.toJson()}).toJson()); }
+    QCOMPARE(migrateLibraryFile(legacy,migrated),3);
+    QVERIFY(!QFileInfo::exists(legacy)); QVERIFY(QFileInfo::exists(temporary.filePath("custom-components.migrated.json")));
+    QCOMPARE(readComponentFolder(migrated,catalog()).components.size(),3);
+    QCOMPARE(migrateLibraryFile(legacy,migrated),0); // already migrated
+    // The document reads and writes the folder; the service (built-ins only) still resolves the project.
+    LightingDocument document(catalog(),nullptr,{},migrated);
+    QCOMPARE(document.customComponents().size(),3);
+    const auto placement=document.addComponent("custom.c");
+    // Library projects reference definitions; the service gets them as playback definitions.
+    const auto project=temporary.filePath("service.lighting.json"); QJsonArray playing; document.save(project,false,nullptr,&playing);
+    LightingDocument service(catalog());
+    service.load(project,playing);
+    QVERIFY(service.componentName(service.state().placements.first()).endsWith("Alpha")); // "Generic Alpha": no manufacturer
+    document.removeCustomComponent("custom.a");
+    QVERIFY(!QFileInfo::exists(migrated+"/custom.a.json"));
+    QVERIFY(document.componentUsers("custom.c").contains(placement));
 }
 
 void EditorTest::componentCanvasInteractions()
@@ -1557,7 +1610,7 @@ void EditorTest::componentCanvasLayers()
 void EditorTest::componentEditorPageLibrary()
 {
     QTemporaryDir folder; QVERIFY(folder.isValid());
-    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
     for(const auto& [id,label]:{qMakePair(QString("custom.a"),QString("Alpha")),qMakePair(QString("instance.x"),QString("Copy")),qMakePair(QString("custom.used"),QString("Used"))}) {
         auto definition=catalog().first(); definition.id=id; definition.name=label; document.registerComponent(definition);
     }
@@ -1669,7 +1722,7 @@ void EditorTest::componentEditorBuiltInReadOnly()
     // Owner review 2026-11-26: built-ins looked editable, the LEDs field kept another part's count, and
     // L-Shape then replaced a 16-LED strip with one LED.
     QTemporaryDir folder; QVERIFY(folder.isValid());
-    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
     auto single=catalog().first(); single.id="custom.single"; single.name="Single";
     single.positions={QPointF(0,0)}; single.mapping={0}; document.registerComponent(single);
     ComponentEditorPage page(document,document.installedCatalog());
@@ -1703,7 +1756,7 @@ void EditorTest::componentEditorBuiltInReadOnly()
 void EditorTest::componentEditorPageEditing()
 {
     QTemporaryDir folder; QVERIFY(folder.isValid());
-    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
     auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
     ComponentEditorPage page(document,document.installedCatalog());
     page.resize(1400,800); page.openLibrary("custom.a"); page.show();
@@ -1759,7 +1812,7 @@ void EditorTest::componentEditorPageEditing()
 void EditorTest::componentEditorPageLayers()
 {
     QTemporaryDir folder; QVERIFY(folder.isValid());
-    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
     auto fan=layeredFan().toDefinition(); fan.id="custom.fan"; document.registerComponent(fan);
     auto single=catalog().first(); single.id="custom.single"; single.name="Single"; document.registerComponent(single);
     ComponentEditorPage page(document,document.installedCatalog());
@@ -2044,7 +2097,7 @@ void EditorTest::componentEditor()
 {
     // Documentation screenshots; behavior is covered by componentDraft/Canvas/EditorPage tests.
     QTemporaryDir folder; QVERIFY(folder.isValid());
-    LightingDocument document(catalog(),nullptr,{},folder.filePath("custom-components.json"));
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
     auto fan=catalog().first(); fan.id="custom.fan"; fan.name="My fan"; document.registerComponent(fan);
     ComponentEditorPage page(document,document.installedCatalog());
     page.resize(1500,860); page.openLibrary("custom.fan"); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
@@ -4810,7 +4863,7 @@ void EditorTest::componentLibraryMigration()
 {
     QTemporaryDir folder;
     QVERIFY(folder.isValid());
-    const auto library=folder.filePath("custom-components.json");
+    const auto library=folder.filePath("components");
     auto builtins=catalog();
     auto custom=builtins.first();
     custom.id="custom.strip";
@@ -5004,7 +5057,7 @@ void EditorTest::offlineDevicesWorkflow()
     QTemporaryDir folder;
     auto profile=channelProfile();
     LightingWindow window(catalog(),[]{ return QVector<ProfileCandidate>{}; },nullptr,{profile},false,
-        folder.filePath("custom-components.json"));
+        folder.filePath("components"));
     window.show();
     QVERIFY(QTest::qWaitForWindowExposed(&window));
     auto* devices=window.findChild<QTreeView*>("hardwareComponents");

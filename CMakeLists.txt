@@ -23,7 +23,7 @@ target_include_directories(msi_hid PUBLIC src)
 target_link_libraries(msi_hid PRIVATE hidapi::hidapi)
 
 add_library(lighting_modules src/modules/DeviceProfile.cpp src/modules/ModuleRegistry.cpp
-    src/components/ComponentCatalog.cpp src/discovery/HardwareDiscovery.cpp)
+    src/components/ComponentCatalog.cpp src/components/ComponentLibrary.cpp src/discovery/HardwareDiscovery.cpp)
 target_include_directories(lighting_modules PUBLIC src)
 target_link_libraries(lighting_modules PUBLIC Qt6::Core)
 
