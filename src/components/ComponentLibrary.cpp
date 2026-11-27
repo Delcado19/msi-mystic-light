@@ -61,6 +61,11 @@ QString writeComponentFile(const QString& folder, const ComponentDefinition& def
     return path;
 }
 
+QString componentFilePath(const QString& folder, const QString& id)
+{
+    return filesById(folder).value(id);
+}
+
 bool removeComponentFile(const QString& folder, const QString& id)
 {
     const auto path = filesById(folder).value(id);

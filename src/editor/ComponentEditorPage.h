@@ -37,6 +37,12 @@ public:
     // Dialog hooks; tests replace them to answer without modal message boxes.
     std::function<bool(const QString&)> confirm;
     std::function<QMessageBox::StandardButton(const QString&)> askUnsaved;
+    // User component folder (plan 2026-11-27 Task 5): the window asks for it before the first save.
+    std::function<bool()> ensureLibrary;
+    enum class DuplicateChoice { Cancel, Replace, Copy };
+    std::function<DuplicateChoice(const QString& name)> askDuplicate;
+    std::function<QString()> pickImportFile;
+    void reloadLibrary() { refreshList(entryId_); }
 signals:
     void closeRequested();
 protected:
@@ -77,6 +83,7 @@ private:
     QComboBox* category_ = nullptr;
     QLabel *title_ = nullptr, *message_ = nullptr, *counts_ = nullptr;
     QLineEdit* identity_ = nullptr;
+    void addFromFile();
     QPushButton *new_ = nullptr, *import_ = nullptr, *export_ = nullptr, *delete_ = nullptr, *save_ = nullptr, *dangerDelete_ = nullptr;
     QButtonGroup* tools_ = nullptr;
     QToolButton *wireTool_ = nullptr, *grid_ = nullptr, *path_ = nullptr, *help_ = nullptr;

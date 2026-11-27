@@ -2,6 +2,9 @@
 #include "LightingWindow.h"
 #include "HardwareArtwork.h"
 #include "SnapGrid.h"
+#include "components/ComponentLibrary.h"
+#include <QFileSystemWatcher>
+#include <QStandardPaths>
 #include "HardwareIdentity.h"
 #include <QFileInfo>
 #include <QDateTime>
@@ -282,6 +285,24 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
 {
     setWindowTitle("Lighting Studio");
     setProperty("studioBackground",true);
+    chooseComponentFolder=[this](const QString& suggested) {
+        QMessageBox box(QMessageBox::Question,"Folder for your components",
+            "Lighting Studio keeps the components you create as files in a folder of your choice.\n\n"+QDir::toNativeSeparators(suggested),
+            QMessageBox::Cancel,this);
+        auto* use=box.addButton("Use this folder",QMessageBox::AcceptRole);
+        auto* other=box.addButton("Choose another folder…",QMessageBox::ActionRole);
+        box.setDefaultButton(use); box.exec();
+        if(box.clickedButton()==use) return suggested;
+        if(box.clickedButton()==other) return QFileDialog::getExistingDirectory(this,"Folder for your components",QFileInfo(suggested).absolutePath());
+        return QString();
+    };
+    confirmMoveComponents=[this](const QString& text) {
+        return QMessageBox::question(this,"Move components",text,QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes)==QMessageBox::Yes;
+    };
+    componentWatcher_=new QFileSystemWatcher(this);
+    // Files copied into the folder show up without a restart; reading happens on demand anyway.
+    connect(componentWatcher_,&QFileSystemWatcher::directoryChanged,this,[this] { if(componentPage_) componentPage_->reloadLibrary(); });
+    if(!libraryPath.isEmpty() && QFileInfo(libraryPath).isDir()) componentWatcher_->addPath(libraryPath);
     resize(1440, 900);
     setMinimumSize(1060, 680);
     applyStudioStyle(this);
@@ -378,6 +399,17 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
         ajazz->setChecked(QSettings().value("devices/ajazzAk35iV4",false).toBool());
         ajazz->setToolTip("Other AJAZZ keyboards use the same USB identity, so this profile is never chosen automatically.\nTakes effect after restarting Lighting Studio.");
         form->addRow("Keyboards",ajazz);
+        auto* folderRow=new QWidget;auto* folderLayout=new QHBoxLayout(folderRow);folderLayout->setContentsMargins(0,0,0,0);
+        auto* folderPath=new QLabel(componentFolder().isEmpty() ? QString("Not set yet (asked at the first save)") : QDir::toNativeSeparators(componentFolder()));
+        folderPath->setObjectName("componentFolderSetting");folderPath->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        auto* changeFolder=new QPushButton("Change…");changeFolder->setObjectName("changeComponentFolder");
+        folderLayout->addWidget(folderPath,1);folderLayout->addWidget(changeFolder);
+        connect(changeFolder,&QPushButton::clicked,&dialog,[this,&dialog,folderPath] {
+            const auto start=componentFolder().isEmpty() ? defaultComponentFolder() : componentFolder();
+            const auto folder=QFileDialog::getExistingDirectory(&dialog,"Folder for your components",start);
+            if(!folder.isEmpty() && setComponentFolder(folder)) folderPath->setText(QDir::toNativeSeparators(componentFolder()));
+        });
+        form->addRow("My components",folderRow);
         auto* buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);form->addRow(buttons);
         connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
         if(dialog.exec()!=QDialog::Accepted)return;
@@ -2082,11 +2114,72 @@ void LightingWindow::addHeaderComponents()
     } catch(const std::exception& error) { statusBar()->showMessage(QString::fromUtf8(error.what()),8000); }
 }
 
+QString LightingWindow::componentFolder() const { return document_.componentLibrary(); }
+
+QString LightingWindow::defaultComponentFolder()
+{
+    return QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).filePath("Lighting Studio/Components");
+}
+
+bool LightingWindow::setComponentFolder(const QString& folder)
+{
+    const auto old=componentFolder();
+    if(folder.isEmpty() || QDir(folder)==QDir(old)) return !folder.isEmpty();
+    const auto files=old.isEmpty() ? QFileInfoList{} : QDir(old).entryInfoList({"*.json"},QDir::Files);
+    if(!files.isEmpty() && confirmMoveComponents && confirmMoveComponents(
+            QString("Move %1 component file(s) from\n%2\nto\n%3?").arg(files.size()).arg(QDir::toNativeSeparators(old),QDir::toNativeSeparators(folder)))) {
+        if(!QDir().mkpath(folder)) { statusBar()->showMessage("Could not create "+QDir::toNativeSeparators(folder),10000); return false; }
+        QStringList failed;
+        for(const auto& file:files) {
+            const auto target=QDir(folder).filePath(file.fileName());
+            if(QFileInfo::exists(target) || !QFile::copy(file.absoluteFilePath(),target) || !QFile::remove(file.absoluteFilePath())) failed.append(file.fileName());
+        }
+        // Nothing is skipped silently: name every file that stayed behind.
+        if(!failed.isEmpty()) statusBar()->showMessage("Not moved (already there or not writable): "+failed.join(", "),15000);
+    } else QDir().mkpath(folder);
+    if(!old.isEmpty()) componentWatcher_->removePath(old);
+    document_.setComponentLibrary(folder);
+    QSettings().setValue("components/userFolder",folder);
+    if(QFileInfo(folder).isDir()) componentWatcher_->addPath(folder);
+    reportComponentIssues();
+    if(componentPage_) componentPage_->reloadLibrary();
+    return true;
+}
+
+bool LightingWindow::ensureComponentFolder()
+{
+    if(!componentFolder().isEmpty()) return true;
+    const auto folder=chooseComponentFolder ? chooseComponentFolder(defaultComponentFolder()) : QString();
+    if(folder.isEmpty()) return false;
+    QDir().mkpath(folder);
+    // Owners of earlier builds: split the old single-file library into the chosen folder once.
+    try {
+        if(const int migrated=migrateLibraryFile(legacyLibrary_,folder); migrated>0)
+            statusBar()->showMessage(QString("Moved %1 component(s) from the old library to %2").arg(migrated).arg(QDir::toNativeSeparators(folder)),10000);
+    } catch(const std::exception& error) {
+        statusBar()->showMessage("Could not migrate the old component library: "+QString::fromUtf8(error.what()),15000);
+    }
+    return setComponentFolder(folder);
+}
+
+void LightingWindow::reportComponentIssues()
+{
+    const auto read=readComponentFolder(componentFolder(),document_.installedCatalog());
+    if(read.issues.isEmpty()) return;
+    if(read.issues.size()==1 && read.issues.first().reason=="folder not found") {
+        statusBar()->showMessage("Component folder not found: "+QDir::toNativeSeparators(componentFolder())+". Choose another one in Edit > Settings.",15000);
+        return;
+    }
+    QStringList parts; for(const auto& issue:read.issues) parts.append(issue.file+" ("+issue.reason+")");
+    statusBar()->showMessage(QString("Skipped %1 component file(s): %2").arg(read.issues.size()).arg(parts.join("; ")),15000);
+}
+
 ComponentEditorPage* LightingWindow::componentPage()
 {
     // Built lazily: the built-in product list reads installed component metadata from disk.
     if (!componentPage_) {
         componentPage_=new ComponentEditorPage(document_,hardwareProducts(document_.installedCatalog()),applicationPages_);
+        componentPage_->ensureLibrary=[this] { return ensureComponentFolder(); };
         undoGroup_->addStack(componentPage_->undoStack());
         applicationPages_->addWidget(componentPage_);
         connect(componentPage_,&ComponentEditorPage::closeRequested,this,[this] { applicationPages_->setCurrentWidget(tabs_); });

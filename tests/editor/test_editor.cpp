@@ -22,6 +22,7 @@
 #include "editor/LegacyHardware.h"
 #include "components/ComponentLibrary.h"
 #include <QStackedWidget>
+#include <QStandardPaths>
 #include <QToolButton>
 #include <QToolBar>
 #include <QListWidget>
@@ -246,6 +247,7 @@ private slots:
     void componentLibraryEditing();
     void componentLibraryFolder();
     void builtInCatalogFromFiles();
+    void componentFolderSetup();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -1510,6 +1512,79 @@ void EditorTest::builtInCatalogFromFiles()
     QCOMPARE(ComponentDefinition::fromJson(m25.toJson()).verification,QString("verified"));
     auto json=m25.toJson(); json.insert("verification","maybe");
     QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+}
+
+void EditorTest::componentFolderSetup()
+{
+    // Plan 2026-11-27 Task 5: the user folder is asked for at the first save, then read automatically.
+    QSettings().remove("components/userFolder");
+    const auto cleanup=qScopeGuard([]{QSettings().remove("components/userFolder");});
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto chosen=temporary.filePath("Mine");
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,QString());
+    QVERIFY(window.componentFolder().isEmpty());
+    int prompts=0; QString suggested;
+    window.chooseComponentFolder=[&](const QString& proposal){++prompts;suggested=proposal;return chosen;};
+    window.findChild<QPushButton*>("openComponentEditor")->click();
+    auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page);
+    auto* message=page->findChild<QLabel*>("componentMessage");
+    page->findChild<QPushButton*>("componentNew")->click();
+    page->findChild<QPushButton*>("componentShapeFan")->click();
+    page->findChild<QPushButton*>("componentSave")->click();
+    QCOMPARE(prompts,1);
+    QCOMPARE(suggested,QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).filePath("Lighting Studio/Components"));
+    QCOMPARE(window.componentFolder(),chosen);
+    QCOMPARE(QSettings().value("components/userFolder").toString(),chosen);
+    QVERIFY2(QDir(chosen).entryList({"*.json"},QDir::Files).size()==1,qPrintable(message->text()+" | "+QDir(chosen).entryList().join(",")));
+    QCOMPARE(message->text(),QString("\"New component\" saved to %1").arg(QDir::toNativeSeparators(chosen)));
+    QVERIFY(!page->isDirty());
+    // A second save does not ask again.
+    page->findChild<QPushButton*>("componentSave")->click(); QCOMPARE(prompts,1);
+    // A file copied into the folder appears without restart (watcher + reread).
+    auto extra=catalog().first(); extra.id="custom.dropped"; extra.name="Dropped in";
+    { QFile file(chosen+"/dropped.json"); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(extra.toJson()).toJson()); }
+    QTRY_VERIFY(window.document().customComponents().contains("custom.dropped"));
+    // Changing the folder in Settings with existing components offers to move them.
+    const auto moved=temporary.filePath("Moved"); int moveQuestions=0;
+    window.confirmMoveComponents=[&](const QString&){++moveQuestions;return true;};
+    QVERIFY(window.setComponentFolder(moved));
+    QCOMPARE(moveQuestions,1);
+    QCOMPARE(QDir(moved).entryList({"*.json"},QDir::Files).size(),2);
+    QCOMPARE(QDir(chosen).entryList({"*.json"},QDir::Files).size(),0);
+    QCOMPARE(window.document().customComponents().size(),2);
+    // Unwritable folder: the save fails visibly and the draft stays dirty.
+    { QFile blocker(temporary.filePath("blocked")); QVERIFY(blocker.open(QIODevice::WriteOnly)); }
+    window.confirmMoveComponents=[](const QString&){return false;};
+    QVERIFY(window.setComponentFolder(temporary.filePath("blocked"))); // a file, not a folder
+    page->findChild<QPushButton*>("componentNew")->click();
+    page->findChild<QPushButton*>("componentShapeStrip")->click();
+    page->findChild<QPushButton*>("componentSave")->click();
+    QVERIFY2(message->text().startsWith("Could not save \"New component\":"),qPrintable(message->text()));
+    QVERIFY(page->isDirty());
+    page->askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    // Add from file: an invalid file names file and reason; a duplicate ID asks Replace / Save as copy.
+    QVERIFY(window.setComponentFolder(moved));
+    page->findChild<QPushButton*>("componentNew")->click();
+    QVERIFY(page->findChild<QPushButton*>("componentShowInFolder"));
+    auto* add=page->findChild<QPushButton*>("componentAddFromFile"); QVERIFY(add);
+    const auto broken=temporary.filePath("broken.json"); { QFile file(broken); QVERIFY(file.open(QIODevice::WriteOnly)); file.write("{nope"); }
+    page->pickImportFile=[&]{return broken;};
+    add->click();
+    QVERIFY2(message->text().startsWith("Could not add broken.json:"),qPrintable(message->text()));
+    const auto twin=temporary.filePath("twin.json"); extra.name="Dropped twin";
+    { QFile file(twin); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(extra.toJson()).toJson()); }
+    int duplicateQuestions=0;
+    page->askDuplicate=[&](const QString&){++duplicateQuestions;return ComponentEditorPage::DuplicateChoice::Copy;};
+    page->pickImportFile=[&]{return twin;};
+    add->click();
+    QCOMPARE(duplicateQuestions,1);
+    QCOMPARE(window.document().customComponents().size(),3);
+    QCOMPARE(window.document().customComponents().value("custom.dropped").name,QString("Dropped in"));
+    page->askDuplicate=[&](const QString&){++duplicateQuestions;return ComponentEditorPage::DuplicateChoice::Replace;};
+    add->click();
+    QCOMPARE(window.document().customComponents().size(),3);
+    QCOMPARE(window.document().customComponents().value("custom.dropped").name,QString("Dropped twin"));
+    window.document().history()->setClean();
 }
 
 void EditorTest::componentCanvasInteractions()

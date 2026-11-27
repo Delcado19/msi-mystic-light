@@ -114,6 +114,9 @@ public:
     void importComponent(const QString& fileName);
     ComponentCatalog customComponents() const;
     bool hasComponentLibrary() const { return !libraryPath_.isEmpty(); }
+    // The user component folder (plan 2026-11-27 Task 5); chosen at the first save, changed in Settings.
+    QString componentLibrary() const { return libraryPath_; }
+    void setComponentLibrary(const QString& folder) { libraryPath_ = folder; }
     QString registerComponent(const ComponentDefinition& definition);
     void applyComponentVariant(const QUuid& placement, const ComponentDefinition& definition);
     // Placements of the open document that reference the definition, in placement order.
@@ -179,7 +182,7 @@ private:
     QVector<QColor> sampleComponent(const ComponentPlacement& placement, const QImage& premultiplied, const QRectF& bounds) const;
     const QVector<DeviceProfile> profiles_;
     const ComponentCatalog initialCatalog_;
-    const QString libraryPath_;
+    QString libraryPath_;
     LightingState state_;
     std::optional<LightingState> colorPreviewBefore_;
     QUuid identify_;

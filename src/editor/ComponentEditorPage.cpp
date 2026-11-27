@@ -12,6 +12,10 @@
 #include <QSpinBox>
 #include "HardwareIdentity.h"
 #include "LightingDocument.h"
+#include "components/ComponentLibrary.h"
+#include <QDesktopServices>
+#include <QProcess>
+#include <QUrl>
 #include <QComboBox>
 #include <QFileDialog>
 #include <QFormLayout>
@@ -68,6 +72,15 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
         return QMessageBox::question(this, "Component Editor", text,
             QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
     };
+    ensureLibrary = [] { return true; };
+    pickImportFile = [this] { return QFileDialog::getOpenFileName(this, "Add component from file", QDir::homePath(), "Component definitions (*.json)"); };
+    askDuplicate = [this](const QString& name) {
+        QMessageBox box(QMessageBox::Question, "Component Editor", QString("\"%1\" is already in your components.").arg(name), QMessageBox::Cancel, this);
+        auto* replace = box.addButton("Replace", QMessageBox::AcceptRole);
+        auto* copy = box.addButton("Save as copy", QMessageBox::ActionRole);
+        box.exec();
+        return box.clickedButton() == replace ? DuplicateChoice::Replace : box.clickedButton() == copy ? DuplicateChoice::Copy : DuplicateChoice::Cancel;
+    };
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(12, 10, 12, 8); root->setSpacing(8);
 
@@ -77,8 +90,11 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
     title_ = new QLabel; title_->setObjectName("componentTitle"); title_->setProperty("heading", true);
     bar->addSpacing(12); bar->addWidget(title_, 1);
     new_ = barButton(bar, "New", "componentNew");
-    import_ = barButton(bar, "Import", "componentImport");
-    export_ = barButton(bar, "Export", "componentExport");
+    // Components are files in the user's folder (plan 2026-11-27 Task 5): no Import/Export round trip.
+    import_ = barButton(bar, "Add from file…", "componentAddFromFile");
+    import_->setToolTip("Check a component file and copy it into your component folder");
+    export_ = barButton(bar, "Show in folder", "componentShowInFolder");
+    export_->setToolTip("Open the folder that holds this component's file");
     delete_ = barButton(bar, "Delete", "componentDelete");
     save_ = barButton(bar, "Save", "componentSave");
     save_->setProperty("primary", true);
@@ -157,23 +173,16 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
         showDraft(); canvas_->fit();
         setMessage("Add LEDs with a shape or by clicking the canvas, then Save.");
     });
-    connect(import_, &QPushButton::clicked, this, [this] {
-        const auto file = QFileDialog::getOpenFileName(this, "Import component definition", QDir::homePath(), "Component definitions (*.json)");
-        if (file.isEmpty()) return;
-        try { document_.importComponent(file); refreshList(entryId_); setMessage("Imported " + QFileInfo(file).fileName() + "."); }
-        catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
-    });
+    connect(import_, &QPushButton::clicked, this, [this] { addFromFile(); });
     connect(export_, &QPushButton::clicked, this, [this] {
-        try {
-            const auto definition = draft_.toDefinition();
-            const auto path = QFileDialog::getSaveFileName(this, "Export component definition", QDir::homePath(), "Component definitions (*.json)");
-            if (path.isEmpty()) return;
-            const auto bytes = QJsonDocument(definition.toJson()).toJson();
-            QSaveFile file(path);
-            if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
-                throw std::runtime_error("Could not export component definition");
-            setMessage("Exported " + QFileInfo(path).fileName() + ".");
-        } catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
+        const auto folder = document_.componentLibrary();
+        const auto path = componentFilePath(folder, entryId_);
+        if (path.isEmpty()) { setMessage("This component has no file in your component folder yet."); return; }
+#ifdef Q_OS_WIN
+        QProcess::startDetached("explorer.exe", {"/select,", QDir::toNativeSeparators(path)});
+#else
+        QDesktopServices::openUrl(QUrl::fromLocalFile(folder));
+#endif
     });
     connect(delete_, &QPushButton::clicked, this, [this] { removeCurrent(); });
     connect(save_, &QPushButton::clicked, this, [this] { save(); });
@@ -356,13 +365,19 @@ void ComponentEditorPage::showDraft()
     updateLayerBox();
     zoom_->setText(QString("zoom %1%").arg(qRound(canvas_->zoom() * 100)));
     updateHint();
-    export_->setEnabled(open && !draft_.positions.isEmpty());
+    export_->setEnabled((entry_ == Entry::Library || entry_ == Entry::Copy) && document_.hasComponentLibrary());
 }
 
 bool ComponentEditorPage::save()
 {
+    const bool toLibrary = entry_ != Entry::Instance;
+    if (toLibrary && !ensureLibrary()) { setMessage("Choose a folder for your components to save them."); return false; }
     try {
-        auto definition = draft_.toDefinition();
+        // A new draft has no ID until saveComponentCopy() assigns one; validation needs a placeholder
+        // (found 2026-11-27: saving a part made with "New" failed with "Missing component string: id").
+        auto source = draft_;
+        if (source.id.isEmpty()) source.id = "custom.new";
+        auto definition = source.toDefinition();
         if (entry_ == Entry::BuiltIn || entry_ == Entry::New) {
             entryId_ = document_.saveComponentCopy(definition);
             draft_.id = entryId_; entry_ = Entry::Library;
@@ -380,10 +395,14 @@ bool ComponentEditorPage::save()
         saved_ = draft_;
         if (entry_ != Entry::Instance) refreshList(entryId_);
         showDraft();
-        setMessage((entry_ == Entry::Instance ? "Applied " : "Saved ") + hardwareName(definition) + ".");
+        if (entry_ == Entry::Instance) setMessage("Applied " + hardwareName(definition) + ".");
+        else if (document_.hasComponentLibrary())
+            setMessage(QString("\"%1\" saved to %2").arg(definition.name, QDir::toNativeSeparators(document_.componentLibrary())));
+        else setMessage("Saved " + hardwareName(definition) + ".");
         return true;
     } catch (const std::exception& error) {
-        setMessage(QString::fromUtf8(error.what()));
+        // The draft stays as it is (still unsaved), so nothing is lost when the folder is unavailable.
+        setMessage(toLibrary ? QString("Could not save \"%1\": %2").arg(draft_.name, QString::fromUtf8(error.what())) : QString::fromUtf8(error.what()));
         return false;
     }
 }
@@ -402,6 +421,32 @@ void ComponentEditorPage::removeCurrent()
         showDraft();
         setMessage("Deleted " + name + ".");
     } catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
+}
+
+void ComponentEditorPage::addFromFile()
+{
+    const auto file = pickImportFile();
+    if (file.isEmpty() || !ensureLibrary()) return;
+    const auto fileName = QFileInfo(file).fileName();
+    try {
+        ComponentDefinition definition;
+        try { definition = loadComponentDefinition(file); }
+        catch (const std::exception& error) { throw std::invalid_argument(QString("Could not add %1: %2").arg(fileName, QString::fromUtf8(error.what())).toStdString()); }
+        QString id;
+        const bool builtIn = document_.installedCatalog().contains(definition.id);
+        if (builtIn || document_.customComponents().contains(definition.id)) {
+            const auto choice = askDuplicate(definition.name);
+            if (choice == DuplicateChoice::Cancel) return;
+            // A built-in cannot be replaced; it always becomes a copy.
+            if (choice == DuplicateChoice::Replace && !builtIn) { document_.updateCustomComponent(definition); id = definition.id; }
+            else id = document_.saveComponentCopy(definition);
+        } else id = document_.registerComponent(definition);
+        refreshList(id);
+        setMessage(QString("\"%1\" added to %2").arg(definition.name, QDir::toNativeSeparators(document_.componentLibrary())));
+    } catch (const std::exception& error) {
+        const auto text = QString::fromUtf8(error.what());
+        setMessage(text.startsWith("Could not add") ? text : QString("Could not add %1: %2").arg(fileName, text));
+    }
 }
 
 bool ComponentEditorPage::confirmLeave()

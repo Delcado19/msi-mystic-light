@@ -8,6 +8,7 @@
 #include <QVariantMap>
 
 class QTreeWidget;
+class QFileSystemWatcher;
 class QTreeWidgetItem;
 class QComboBox;
 class QSlider;
@@ -47,6 +48,19 @@ public:
     // False beside the installed service: it renders the lights itself, so a minimized editor only keeps
     // its clock and repaints once on restore. Portable output needs the frames, so the default is true.
     void setRenderWhenMinimized(bool render) { renderWhenMinimized_ = render; }
+    // User component folder (plan 2026-11-27 Task 5). Empty until the first save of an own component asks
+    // for it (or at startup when an old custom-components.json has to be migrated).
+    QString componentFolder() const;
+    static QString defaultComponentFolder();
+    // Moves existing component files when confirmMoveComponents agrees, stores the path in QSettings
+    // (components/userFolder), watches the folder and reports unreadable files in the status bar.
+    bool setComponentFolder(const QString& folder);
+    // Asks for the folder when none is set; false when the user cancels.
+    bool ensureComponentFolder();
+    void setLegacyComponentLibrary(const QString& file) { legacyLibrary_ = file; }
+    // Dialog hooks; tests replace them to answer without modal dialogs.
+    std::function<QString(const QString& suggested)> chooseComponentFolder;
+    std::function<bool(const QString& text)> confirmMoveComponents;
 signals:
     void previewFrameChanged(const QImage& frame);
     void identifyRequested(const QUuid& placement); // ServicePanel forwards it to the installed service.
@@ -73,6 +87,9 @@ private:
     ChannelAssignment connectorAssignment(const QVariantMap& connector) const;
     void moveComponentToConnector(const QUuid& id, ChannelAssignment connector);
     std::function<QVector<ProfileCandidate>()> scan_;
+    QFileSystemWatcher* componentWatcher_ = nullptr;
+    QString legacyLibrary_;
+    void reportComponentIssues();
     QVector<ProfileCandidate> discovered_;
     QVariantMap selectedHeader_;
     QLabel *headerTitle_, *headerSummary_;

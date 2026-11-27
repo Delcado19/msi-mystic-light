@@ -8,7 +8,6 @@
 #include <QDir>
 #include "modules/ModuleRegistry.h"
 #include "components/ComponentCatalog.h"
-#include "components/ComponentLibrary.h"
 #include "discovery/HardwareDiscovery.h"
 #include "startup/ConflictDialog.h"
 #include "editor/LightingWindow.h"
@@ -182,16 +181,19 @@ int main(int argc, char** argv)
             QCoreApplication::processEvents();
         }
     }
-    // One JSON file per user component (plan 2026-11-27 Task 3). Interim location until the user picks a
-    // folder (Task 5); the old single-file library is split into it once and kept as a .migrated backup.
-    const auto componentFolder=sessionDirectory+"/components";
-    try { migrateLibraryFile(sessionDirectory+"/custom-components.json",componentFolder); }
-    catch(const std::exception& error) { qWarning("Component library migration failed: %s",error.what()); }
+    // One JSON file per user component in a folder the user chooses (plan 2026-11-27 Tasks 3/5). Empty until
+    // the first save of an own component asks for it.
+    const auto componentFolder=settings.value("components/userFolder").toString();
+    const auto legacyLibrary=sessionDirectory+"/custom-components.json";
     LightingWindow window(catalog, [availableProfiles,serviceInstalled,serviceHost] {
         if(serviceInstalled)return serviceInventory(serviceHost.isEmpty()?QCoreApplication::applicationDirPath()+"/lighting_service_host.exe":serviceHost);
         auto candidates=findProfileCandidates(HidApiDevice::enumerate(), readBoardIdentity(), availableProfiles);
         candidates+=scanAuxiliaryHardware(availableProfiles,true); return candidates;
     }, nullptr, availableProfiles,!serviceInstalled,componentFolder);
+    window.setLegacyComponentLibrary(legacyLibrary);
+    // Earlier builds kept own components in custom-components.json; projects reference them, so ask for the
+    // folder now (before the session restore) instead of at the first save.
+    if(componentFolder.isEmpty() && QFileInfo::exists(legacyLibrary)) { if(splash)splash->hide(); window.ensureComponentFolder(); if(splash)splash->show(); }
     OutputPanel* outputPanel=nullptr;ServicePanel* servicePanel=nullptr;
     if(serviceInstalled) {
         // Fail closed if the installed service is unavailable; never race it with direct GUI writes.

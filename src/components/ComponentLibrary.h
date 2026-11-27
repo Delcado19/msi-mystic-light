@@ -15,6 +15,8 @@ LibraryRead readComponentFolder(const QString& folder, const ComponentCatalog& b
 // Writes <id>.json (characters unsafe in file names become '_'); an existing file holding the same ID
 // is overwritten in place. Returns the path. Throws std::runtime_error("Cannot write <path>: <reason>").
 QString writeComponentFile(const QString& folder, const ComponentDefinition& definition);
+// The file holding this ID, or empty.
+QString componentFilePath(const QString& folder, const QString& id);
 // Removes the file holding this ID; returns false when none does.
 bool removeComponentFile(const QString& folder, const QString& id);
 // Splits the old array file into one file per component and renames it to
