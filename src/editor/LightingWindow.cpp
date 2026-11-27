@@ -2812,7 +2812,7 @@ void LightingWindow::refreshProperties()
         geometry_[3]->setEnabled(selected->effect != EffectKind::LinearGradient &&
             selected->effect != EffectKind::Stripes && selected->effect != EffectKind::Waves);
     }
-    if(selected){animation_[1]->setEnabled(selected->pulse>0 && selected->effect!=EffectKind::Chase);for(auto* field:advanced_)if(field->objectName()=="breathe")field->setEnabled(selected->breathe>0);}
+    if(selected){animation_[1]->setEnabled(selected->pulse>0 && selected->effect!=EffectKind::Chase);for(auto* field:advanced_)if(field->objectName()=="breathe")field->setEnabled(selected->breathe>0 && selected->effect!=EffectKind::Chase);}
     // Effect controls show plain numbers; scale conversion remains in the existing numeric contract.
     for(auto* field:inspectorTabs_->findChildren<QDoubleSpinBox*>()) field->setSuffix({});
     for(auto* field:inspectorTabs_->findChildren<QSpinBox*>()) field->setSuffix({});
