@@ -187,7 +187,7 @@ band without an LED; tiles never scale. Replaces the per-neighbour scaling in `d
 - Test: `tests/editor/test_editor.cpp` slot `stripFixedTiles`
 
 **Interfaces:**
-- Produces: constant `kStripTile` = the Strip shape's LED spacing from `withShape` (component units). Sources are the three tile images, loaded without the alpha-bbox auto-crop. Each tile's outer 2 px are semi-transparent (rounded corners) and show as light seam lines when tiles touch (checked in a stitched preview), so draw from the inner source rect `[2, 254)` on both axes; the connector's right edge joins the tile's left edge. The LED colour stays the image's neutral warm-white; live colour is out of scope.
+- Produces: constant `kStripTile` = the Strip shape's LED spacing from `withShape` (component units). Sources are the three tile images, loaded without the alpha-bbox auto-crop. The owner's second export (2026-11-27 15:49) is near-opaque (alpha >= 230, edge columns ~246); draw from the inner source rect `[2, 254)` on both axes anyway so no residual edge shows as a seam; the connector's right edge joins the tile's left edge. The LED colour stays the image's neutral warm-white; live colour is out of scope.
 
 - [ ] **Step 1:** Test: 16-LED strip at the Strip-shape spacing renders 16 tiles of identical pixel width (± 1 px) with no light seam column between neighbours; moving LED 9 by 3 tiles keeps every tile width unchanged and the gap pixels are non-transparent (band); adding an LED on a strip puts it at `last + kStripTile` along the last segment's direction, not at the click point.
 - [ ] **Step 2:** Run, expect FAIL.
