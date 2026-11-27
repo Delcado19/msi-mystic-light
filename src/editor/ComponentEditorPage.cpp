@@ -329,6 +329,7 @@ void ComponentEditorPage::showDraft()
     save_->setText(entry_ == Entry::BuiltIn ? "Make a copy" : entry_ == Entry::Instance ? "Apply" : "Save");
     save_->setEnabled(entry_ == Entry::BuiltIn || entry_ == Entry::New || (open && isDirty()));
     delete_->setEnabled(entry_ == Entry::Library || entry_ == Entry::Copy);
+    if (dangerDelete_) dangerDelete_->setEnabled(delete_->isEnabled());
     // Protocol slots (e.g. keyboards) and fixed connectors keep LED count and wire order.
     const bool readOnly = this->readOnly();
     const bool countLocked = !open || this->countLocked() || readOnly;
@@ -557,6 +558,7 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
                 const int existing = int(draft_.positions.size());
                 if (countLocked() || (existing > 0 && shapeCount_->value() == existing)) applyEdit(withReshaped(draft_, shape), "Arrange as " + label);
                 else applyEdit(withShape(draft_, shape, shapeCount_->value()), "Replace with " + label);
+                canvas_->fit(); // owner report 2026-11-27: a new 16-LED strip appeared as a tiny clump
             } catch (const std::exception& error) { setMessage(QString::fromUtf8(error.what())); }
         });
     }
@@ -630,7 +632,8 @@ void ComponentEditorPage::buildShapesAndWiring(QVBoxLayout* column)
             return withRemoved(d, all);
         }, "Clear all LEDs");
     });
-    auto* removeDefinition = new QPushButton("Delete component"); removeDefinition->setObjectName("componentDangerDelete");
+    // Same enablement as the top-bar Delete (owner report 2026-11-27: it did nothing on an unsaved new part).
+    auto* removeDefinition = dangerDelete_ = new QPushButton("Delete component"); removeDefinition->setObjectName("componentDangerDelete");
     removeDefinition->setProperty("danger", true); dangerLayout->addWidget(removeDefinition);
     connect(removeDefinition, &QPushButton::clicked, this, [this] { removeCurrent(); });
 }

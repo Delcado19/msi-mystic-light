@@ -77,7 +77,7 @@ private:
     QComboBox* category_ = nullptr;
     QLabel *title_ = nullptr, *message_ = nullptr, *counts_ = nullptr;
     QLineEdit* identity_ = nullptr;
-    QPushButton *new_ = nullptr, *import_ = nullptr, *export_ = nullptr, *delete_ = nullptr, *save_ = nullptr;
+    QPushButton *new_ = nullptr, *import_ = nullptr, *export_ = nullptr, *delete_ = nullptr, *save_ = nullptr, *dangerDelete_ = nullptr;
     QButtonGroup* tools_ = nullptr;
     QToolButton *wireTool_ = nullptr, *grid_ = nullptr, *path_ = nullptr, *help_ = nullptr;
     QToolButton *layerView_ = nullptr, *layerBack_ = nullptr, *layerFront_ = nullptr;
