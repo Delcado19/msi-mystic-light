@@ -29,6 +29,9 @@ public:
     ComponentEditorPage(LightingDocument& document, const ComponentCatalog& builtIn, QWidget* parent = nullptr);
     void openLibrary(const QString& selectId = {});
     void openInstance(const QUuid& placement, bool arrangementOnly);
+    // From "Attach component" > "Open in editor…" (plan 2026-11-27 Task 7): a new draft named `name`;
+    // Save becomes "Save & attach" and emits savedForAttach. header["label"] names the header.
+    void openNewFor(const QVariantMap& header, const QString& name);
     // Save/Discard/Cancel when there are unsaved edits; true when leaving the current draft is allowed.
     bool confirmLeave();
     bool isDirty() const { return !(draft_ == saved_); }
@@ -45,6 +48,7 @@ public:
     void reloadLibrary() { refreshList(entryId_); }
 signals:
     void closeRequested();
+    void savedForAttach(const QString& id);
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 private:
@@ -81,7 +85,8 @@ private:
     QWidget* listColumn_ = nullptr;
     QLineEdit *search_ = nullptr, *name_ = nullptr, *manufacturer_ = nullptr;
     QComboBox* category_ = nullptr;
-    QLabel *title_ = nullptr, *message_ = nullptr, *counts_ = nullptr;
+    QLabel *title_ = nullptr, *message_ = nullptr, *counts_ = nullptr, *attachBanner_ = nullptr;
+    QVariantMap attachHeader_; // non-empty while a "Save & attach" round trip is open
     QLineEdit* identity_ = nullptr;
     void addFromFile();
     QPushButton *new_ = nullptr, *import_ = nullptr, *export_ = nullptr, *delete_ = nullptr, *save_ = nullptr, *dangerDelete_ = nullptr;

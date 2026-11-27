@@ -250,6 +250,7 @@ private slots:
     void builtInCatalogFromFiles();
     void componentFolderSetup();
     void attachComponentDialog();
+    void attachQuickCreate();
     void componentCanvasInteractions();
     void componentCanvasLayers();
     void componentEditorPageLibrary();
@@ -1635,6 +1636,69 @@ void EditorTest::attachComponentDialog()
     QCOMPARE(visible,QStringList({"+ Create \"zzz\""}));
     QVERIFY(!attach->isEnabled());
     QVERIFY(!picker.findChild<QSpinBox*>("hardwareLedCount"));
+}
+
+void EditorTest::attachQuickCreate()
+{
+    // Plan 2026-11-27 Task 7: create a component inside Attach component and attach it in one step.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Quick"); QVERIFY(QDir().mkpath(folder));
+    const QVariantMap jargb{{"channelId","JARGB1"}};
+    HeaderChoice first{"JARGB_V2_1",jargb,114,0};
+    {
+        HardwarePicker picker(catalog(),{},{first},jargb);
+        picker.saveComponent=[&](const ComponentDefinition& definition){ auto saved=definition; saved.id="custom.quick"; writeComponentFile(folder,saved); return saved.id; };
+        auto* list=picker.findChild<QListWidget*>("hardwareProducts");
+        const auto findRow=[&](const QString& text){ for(int i=0;i<list->count();++i) if(list->item(i)->text()==text) return i; return -1; };
+        QVERIFY(findRow("+ New component")>=0); // always offered
+        picker.findChild<QLineEdit*>("hardwareSearch")->setText("Test bar");
+        list->setCurrentRow(findRow("+ Create \"Test bar\""));
+        auto* quickName=picker.findChild<QLineEdit*>("quickName"); QVERIFY(quickName && quickName->isVisibleTo(&picker));
+        QCOMPARE(quickName->text(),QString("Test bar"));
+        picker.findChild<QToolButton*>("quickType_Strips")->click();
+        picker.findChild<QSpinBox*>("quickAddresses")->setValue(16);
+        picker.findChild<QPushButton*>("quickCreateAttach")->click();
+        QVERIFY(QFileInfo::exists(folder+"/custom.quick.json"));
+        QCOMPARE(picker.result(),int(QDialog::Accepted));
+        const auto created=picker.component();
+        QCOMPARE(created.id,QString("custom.quick")); QCOMPARE(created.addresses(),16); QCOMPARE(created.name,QString("Test bar"));
+        QCOMPARE(created.category,QString("Strips"));
+        QCOMPARE(picker.findChild<QLabel*>("attachRemaining")->text(),QString("114 → 98 addresses remaining"));
+        const int row=list->currentRow(); QVERIFY(row>findRow("My components")); QVERIFY(findRow("Built-in")<0 || row<findRow("Built-in"));
+    }
+    // "Open in editor…": the editor creates it, "Save & attach" brings the dialog back with it selected.
+    QSettings().remove("components/userFolder");
+    const auto cleanup=qScopeGuard([]{QSettings().remove("components/userFolder");});
+    auto profile=channelProfile(); profile.channels[0].maxLeds=40;
+    LightingWindow window(catalog(),[profile] {
+        ProfileCandidate candidate; candidate.profileId=profile.id; candidate.device.path="fake://one";
+        return QVector<ProfileCandidate>{candidate};
+    },nullptr,{profile},true,QString());
+    window.chooseComponentFolder=[&](const QString&){return folder;};
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents"); tree->setCurrentItem(tree->topLevelItem(0)->child(0));
+    QTimer::singleShot(0,[&] {
+        auto* dialog=dynamic_cast<HardwarePicker*>(QApplication::activeModalWidget()); QVERIFY(dialog);
+        auto* list=dialog->findChild<QListWidget*>("hardwareProducts");
+        dialog->findChild<QLineEdit*>("hardwareSearch")->setText("Edited bar");
+        for(int i=0;i<list->count();++i) if(list->item(i)->text()=="+ Create \"Edited bar\"") list->setCurrentRow(i);
+        dialog->findChild<QPushButton*>("quickOpenEditor")->click();
+    });
+    window.findChild<QPushButton*>("addHeaderComponents")->click();
+    auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page && page->isVisible());
+    auto* save=page->findChild<QPushButton*>("componentSave"); QCOMPARE(save->text(),QString("Save & attach"));
+    auto* banner=page->findChild<QLabel*>("componentAttachBanner"); QVERIFY(banner && banner->isVisible()); QVERIFY(banner->text().contains("Direct"));
+    QCOMPARE(page->findChild<QLineEdit*>("componentName")->text(),QString("Edited bar"));
+    page->findChild<QPushButton*>("componentShapeStrip")->click();
+    bool reopened=false; QString selected;
+    QTimer::singleShot(0,[&] {
+        auto* dialog=dynamic_cast<HardwarePicker*>(QApplication::activeModalWidget()); reopened=dialog!=nullptr;
+        if(dialog) { try { selected=dialog->component().name; } catch(...) {} dialog->reject(); }
+    });
+    save->click();
+    QVERIFY(reopened); QCOMPARE(selected,QString("Edited bar"));
+    QVERIFY(!page->isVisible());
+    window.document().history()->setClean();
 }
 
 void EditorTest::componentCanvasInteractions()

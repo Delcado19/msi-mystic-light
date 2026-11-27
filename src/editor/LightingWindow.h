@@ -79,7 +79,7 @@ private:
     void scanHeaders();
     void refreshHeader();
     QString offlineProfile_;
-    void addHeaderComponents();
+    void addHeaderComponents(const QString& preselect = {});
     ComponentEditorPage* componentPage();
     // False when the user cancels leaving a Component Editor page with unsaved edits.
     bool leaveComponentPage();

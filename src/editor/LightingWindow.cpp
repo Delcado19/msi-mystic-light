@@ -2070,7 +2070,7 @@ void LightingWindow::refreshHeader()
         + (rows.isEmpty() ? QString() : "\n" + rows.join("\n")));
 }
 
-void LightingWindow::addHeaderComponents()
+void LightingWindow::addHeaderComponents(const QString& preselect)
 {
     QVector<HeaderChoice> choices;
     for(QTreeWidgetItemIterator it(components_);*it;++it) {
@@ -2093,7 +2093,23 @@ void LightingWindow::addHeaderComponents()
     try { user=document_.customComponents(); }
     catch (const std::exception& error) { headerSummary_->setText(QString::fromUtf8(error.what())); return; }
     HardwarePicker picker(document_.catalog(),user,choices,selectedHeader_,this);
-    if(picker.exec()!=QDialog::Accepted) return;
+    picker.saveComponent=[this](const ComponentDefinition& definition) {
+        if(!ensureComponentFolder()) throw std::runtime_error("Choose a folder for your components first.");
+        return document_.saveComponentCopy(definition);
+    };
+    if(!preselect.isEmpty()) picker.selectComponent(preselect);
+    const int result=picker.exec();
+    if(result==HardwarePicker::OpenEditor) {
+        // Quick-create was not enough: build it in the editor, then come back here (plan 2026-11-27 Task 7).
+        auto header=picker.header();
+        for(const auto& choice:choices) if(choice.identity==header) header.insert("label",choice.name);
+        selectedHeader_=picker.header();
+        if(!leaveComponentPage()) return;
+        componentPage()->openNewFor(header,picker.editorName());
+        applicationPages_->setCurrentWidget(componentPage());
+        return;
+    }
+    if(result!=QDialog::Accepted) return;
     selectedHeader_=picker.header(); const auto assignment=selectedHeaderAssignment();
     try {
         auto component=picker.component(); const int count=picker.quantity();
@@ -2186,6 +2202,10 @@ ComponentEditorPage* LightingWindow::componentPage()
         undoGroup_->addStack(componentPage_->undoStack());
         applicationPages_->addWidget(componentPage_);
         connect(componentPage_,&ComponentEditorPage::closeRequested,this,[this] { applicationPages_->setCurrentWidget(tabs_); });
+        connect(componentPage_,&ComponentEditorPage::savedForAttach,this,[this](const QString& id) {
+            applicationPages_->setCurrentWidget(tabs_);
+            addHeaderComponents(id);
+        });
     }
     return componentPage_;
 }

@@ -10,6 +10,7 @@ class QListWidgetItem;
 class QPushButton;
 class QSpinBox;
 #include <QSet>
+#include <functional>
 // Every built-in product the picker offers: the given catalog plus validated imports of locally installed
 // SignalRGB metadata ("hardware.*"), without reverse fan variants. Built-ins themselves are files only.
 ComponentCatalog hardwareProducts(const ComponentCatalog& catalog);
@@ -27,16 +28,31 @@ public:
     ComponentDefinition component() const;
     int quantity() const;
     QVariantMap header() const;
+    // Quick-create (plan 2026-11-27 Task 7): saves a new user component and returns its ID; throws with a
+    // reason the dialog shows. The window saves into the user component folder.
+    std::function<QString(const ComponentDefinition&)> saveComponent;
+    // exec() result when the user chose "Open in editor…"; editorName() is the name typed so far.
+    static constexpr int OpenEditor = 2;
+    QString editorName() const;
+    void selectComponent(const QString& id);
 private:
     void filter();
     void update();
+    void showQuickForm(const QString& name);
+    void quickCreate();
     ComponentCatalog products_;
     QSet<QString> user_;
     QVector<HeaderChoice> headers_;
     QComboBox *header_, *category_, *manufacturer_;
     QLineEdit* search_;
     QListWidget* productsList_;
-    QListWidgetItem* create_ = nullptr;
+    QListWidgetItem *create_ = nullptr, *newRow_ = nullptr;
+    QWidget* quickForm_ = nullptr;
+    QLineEdit* quickName_ = nullptr;
+    QComboBox* quickManufacturer_ = nullptr;
+    QSpinBox* quickAddresses_ = nullptr;
+    QString quickType_ = "Fans";
+    QLabel* quickError_ = nullptr;
     QLabel *remaining_, *selectionName_, *selectionAddresses_;
     QSpinBox* quantity_;
     QPushButton* attach_;

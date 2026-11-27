@@ -99,6 +99,8 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
     save_ = barButton(bar, "Save", "componentSave");
     save_->setProperty("primary", true);
 
+    attachBanner_ = new QLabel; attachBanner_->setObjectName("componentAttachBanner"); attachBanner_->setWordWrap(true);
+    attachBanner_->setProperty("notice", true); attachBanner_->hide(); root->addWidget(attachBanner_);
     auto* body = new QHBoxLayout; root->addLayout(body, 1); body->setSpacing(8);
     listColumn_ = new QWidget; listColumn_->setFixedWidth(260);
     auto* listLayout = new QVBoxLayout(listColumn_); listLayout->setContentsMargins(0, 0, 0, 0);
@@ -164,7 +166,11 @@ ComponentEditorPage::ComponentEditorPage(LightingDocument& document, const Compo
         setMessage("Wire order applied.");
     });
 
-    connect(back, &QPushButton::clicked, this, [this] { if (confirmLeave()) emit closeRequested(); });
+    connect(back, &QPushButton::clicked, this, [this] {
+        if (!confirmLeave()) return;
+        attachHeader_.clear(); attachBanner_->hide();
+        emit closeRequested();
+    });
     connect(new_, &QPushButton::clicked, this, [this] {
         if (!confirmLeave()) return;
         ComponentDraft fresh; fresh.name = "New component"; fresh.category = "Other";
@@ -238,8 +244,24 @@ void ComponentEditorPage::openLibrary(const QString& selectId)
     if (selectId.isEmpty()) showDraft();
 }
 
+void ComponentEditorPage::openNewFor(const QVariantMap& header, const QString& name)
+{
+    openLibrary();
+    ComponentDraft fresh; fresh.name = name.isEmpty() ? QString("New component") : name; fresh.category = "Other";
+    draft_ = saved_ = fresh; entry_ = Entry::New; entryId_.clear(); undo_.clear();
+    // The name is the only change so far; keep it unsaved so leaving asks before it is lost.
+    saved_.name = "New component";
+    attachHeader_ = header;
+    attachBanner_->setText(QString("New component for %1. \"Save & attach\" saves it to your components and returns to Attach component.")
+        .arg(header.value("label", header.value("channelId")).toString()));
+    attachBanner_->show();
+    showDraft(); canvas_->fit();
+    setMessage("Add LEDs with a shape or by clicking the canvas, then Save & attach.");
+}
+
 void ComponentEditorPage::openInstance(const QUuid& placement, bool arrangementOnly)
 {
+    attachHeader_.clear(); attachBanner_->hide();
     for (const auto& item : document_.state().placements) if (item.id == placement) {
         instance_ = placement; arrangementOnly_ = arrangementOnly;
         entry_ = Entry::Instance; entryId_ = item.componentId;
@@ -335,7 +357,7 @@ void ComponentEditorPage::showDraft()
     identity_->setText(draft_.id.isEmpty() ? "(assigned on save)" : draft_.id);
     const auto name = draft_.name.isEmpty() ? QString("Untitled component") : hardwareName(draft_.toDefinitionUnchecked());
     title_->setText(!open ? "Component Editor" : (entry_ == Entry::Instance ? "Editing " : QString()) + name + (isDirty() ? "  •" : ""));
-    save_->setText(entry_ == Entry::BuiltIn ? "Make a copy" : entry_ == Entry::Instance ? "Apply" : "Save");
+    save_->setText(entry_ == Entry::BuiltIn ? "Make a copy" : entry_ == Entry::Instance ? "Apply" : !attachHeader_.isEmpty() ? "Save & attach" : "Save");
     save_->setEnabled(entry_ == Entry::BuiltIn || entry_ == Entry::New || (open && isDirty()));
     delete_->setEnabled(entry_ == Entry::Library || entry_ == Entry::Copy);
     if (dangerDelete_) dangerDelete_->setEnabled(delete_->isEnabled());
@@ -399,6 +421,10 @@ bool ComponentEditorPage::save()
         else if (document_.hasComponentLibrary())
             setMessage(QString("\"%1\" saved to %2").arg(definition.name, QDir::toNativeSeparators(document_.componentLibrary())));
         else setMessage("Saved " + hardwareName(definition) + ".");
+        if (!attachHeader_.isEmpty() && entry_ == Entry::Library) {
+            attachHeader_.clear(); attachBanner_->hide(); showDraft();
+            emit savedForAttach(entryId_);
+        }
         return true;
     } catch (const std::exception& error) {
         // The draft stays as it is (still unsaved), so nothing is lost when the folder is unavailable.

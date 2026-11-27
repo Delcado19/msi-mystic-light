@@ -2,6 +2,9 @@
 #include "HardwareIdentity.h"
 #include "HardwareArtwork.h"
 #include "StudioWidgets.h"
+#include "ComponentDraft.h"
+#include <QButtonGroup>
+#include <QToolButton>
 #include <QComboBox>
 #include <QCryptographicHash>
 #include <QDialogButtonBox>
@@ -129,7 +132,7 @@ ComponentCatalog hardwareProducts(const ComponentCatalog& catalog)
 }
 namespace {
 constexpr int sectionRole = Qt::UserRole + 1; // "section" header rows, "create" row
-QListWidgetItem* sectionRow(QListWidget* list, const QString& text)
+QListWidgetItem* sectionRow(QListWidget* list, const QString& text) // list may be null: insert it yourself
 {
     auto* item = new QListWidgetItem(text, list);
     item->setFlags(Qt::NoItemFlags); item->setData(sectionRole, "section");
@@ -203,6 +206,32 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& builtIn,const ComponentCa
     addSection("My components",mine); addSection("Built-in",shipped);
     // Empty result: offer to create it, the search text becomes the name (Task 7 opens the form).
     create_=new QListWidgetItem(productsList_); create_->setData(sectionRole,"create"); create_->setHidden(true);
+    newRow_=new QListWidgetItem("+ New component",productsList_); newRow_->setData(sectionRole,"create");
+    // Quick-create form (Option A, owner 2026-11-27): type, manufacturer, name, addresses; the editor is
+    // one click away for anything more complex.
+    quickForm_=new QFrame; quickForm_->setObjectName("quickForm"); static_cast<QFrame*>(quickForm_)->setFrameShape(QFrame::StyledPanel);
+    auto* quickLayout=new QFormLayout(quickForm_);
+    auto* types=new QWidget; types->setObjectName("quickType"); auto* typeRow=new QHBoxLayout(types); typeRow->setContentsMargins(0,0,0,0);
+    auto* typeGroup=new QButtonGroup(types);
+    for(const auto* type:{"Fans","Strips","Ring","RAM","Other"}) {
+        auto* tile=new QToolButton; tile->setText(type); tile->setObjectName(QString("quickType_%1").arg(type)); tile->setCheckable(true);
+        tile->setChecked(quickType_==type); typeGroup->addButton(tile); typeRow->addWidget(tile);
+        connect(tile,&QToolButton::clicked,this,[this,type] { quickType_=type; });
+    }
+    typeRow->addStretch(1); quickLayout->addRow("Type",types);
+    quickManufacturer_=new QComboBox; quickManufacturer_->setObjectName("quickManufacturer"); quickManufacturer_->setEditable(true);
+    quickManufacturer_->addItems(brands); quickManufacturer_->setCurrentText(QString()); quickLayout->addRow("Manufacturer",quickManufacturer_);
+    quickName_=new QLineEdit; quickName_->setObjectName("quickName"); quickLayout->addRow("Name",quickName_);
+    quickAddresses_=new QSpinBox; quickAddresses_->setObjectName("quickAddresses"); quickAddresses_->setRange(1,1024); quickAddresses_->setValue(12);
+    quickLayout->addRow("Addresses",quickAddresses_);
+    quickError_=new QLabel; quickError_->setObjectName("quickError"); quickError_->setWordWrap(true); quickLayout->addRow(quickError_);
+    auto* quickButtons=new QHBoxLayout;
+    auto* editor=new QPushButton("Open in editor…"); editor->setObjectName("quickOpenEditor");
+    auto* createAttach=new QPushButton("Create && attach"); createAttach->setObjectName("quickCreateAttach"); createAttach->setProperty("primary",true);
+    quickButtons->addWidget(editor); quickButtons->addStretch(1); quickButtons->addWidget(createAttach); quickLayout->addRow(quickButtons);
+    root->addWidget(quickForm_); quickForm_->hide();
+    connect(createAttach,&QPushButton::clicked,this,[this] { quickCreate(); });
+    connect(editor,&QPushButton::clicked,this,[this] { done(OpenEditor); });
     // Selected component: name left, its addresses right.
     auto* selectionRow=new QHBoxLayout; root->addLayout(selectionRow);
     selectionName_=new QLabel; selectionName_->setObjectName("attachSelectionName");
@@ -212,7 +241,12 @@ HardwarePicker::HardwarePicker(const ComponentCatalog& builtIn,const ComponentCa
     quantity_=new QSpinBox; quantity_->setObjectName("hardwareQuantity"); quantity_->setRange(1,64); form->addRow("Quantity",quantity_);
     auto* buttons=new QDialogButtonBox(QDialogButtonBox::Cancel);
     attach_=buttons->addButton("Attach",QDialogButtonBox::AcceptRole); attach_->setObjectName("confirmAddHardware"); root->addWidget(buttons);
-    connect(productsList_,&QListWidget::currentItemChanged,this,[this] { update(); });
+    connect(productsList_,&QListWidget::currentItemChanged,this,[this](QListWidgetItem* item) {
+        if(item==create_) showQuickForm(search_->text().trimmed());
+        else if(item==newRow_) showQuickForm(QString());
+        else quickForm_->hide();
+        update();
+    });
     connect(header_,&QComboBox::currentIndexChanged,this,[this] { update(); });
     connect(quantity_,&QSpinBox::valueChanged,this,[this] { update(); });
     connect(search_,&QLineEdit::textChanged,this,[this] { filter(); });
@@ -254,8 +288,44 @@ void HardwarePicker::filter()
     if(section) section->setHidden(!sectionUsed);
     const auto text=search_->text().trimmed();
     create_->setText(QString("+ Create \"%1\"").arg(text)); create_->setHidden(first || text.isEmpty());
+    newRow_->setHidden(!create_->isHidden());
     if(!productsList_->currentItem() || productsList_->currentItem()->isHidden() || productsList_->currentItem()->data(Qt::UserRole).toString().isEmpty()) productsList_->setCurrentItem(first);
     update();
+}
+void HardwarePicker::showQuickForm(const QString& name)
+{
+    quickName_->setText(name); quickError_->clear(); quickForm_->show(); quickName_->setFocus();
+}
+void HardwarePicker::quickCreate()
+{
+    try {
+        if(quickName_->text().trimmed().isEmpty()) throw std::invalid_argument("Enter a name.");
+        if(!saveComponent) throw std::invalid_argument("Saving components is not available here.");
+        // Same shapes the Component Editor's shape buttons use: fans and rings as a circle, the rest as a line.
+        ComponentDraft draft; draft.name=quickName_->text().trimmed(); draft.manufacturer=quickManufacturer_->currentText().trimmed();
+        const auto shape=quickType_=="Fans" ? DraftShape::Fan : quickType_=="Ring" ? DraftShape::Ring : DraftShape::Strip;
+        draft=withShape(draft,shape,quickAddresses_->value());
+        draft.category=quickType_=="Ring" ? QString("Other") : quickType_;
+        draft.id="custom.new"; // saveComponent assigns the real ID
+        auto definition=draft.toDefinition();
+        definition.id=saveComponent(definition);
+        products_.insert(definition.id,definition); user_.insert(definition.id);
+        // Into "My components": after its header, which is created on top when it did not exist yet.
+        int row=0;
+        if(productsList_->count()==0 || productsList_->item(0)->text()!="My components") productsList_->insertItem(0,sectionRow(nullptr,"My components"));
+        row=1;
+        auto* item=new QListWidgetItem(productIcon(definition),hardwareName(definition)); item->setData(Qt::UserRole,definition.id);
+        item->setToolTip(QString("%1 · %2 addresses").arg(definition.name).arg(definition.addresses()));
+        productsList_->insertItem(row,item); productsList_->item(0)->setHidden(false);
+        quickForm_->hide(); quantity_->setValue(1); productsList_->setCurrentItem(item);
+        if(attach_->isEnabled()) accept();
+        else quickError_->setText("Saved to your components, but it does not fit this header.");
+    } catch(const std::exception& error) { quickError_->setText(QString::fromUtf8(error.what())); quickForm_->show(); }
+}
+QString HardwarePicker::editorName() const { return quickName_->text().trimmed(); }
+void HardwarePicker::selectComponent(const QString& id)
+{
+    for(int i=0;i<productsList_->count();++i) if(productsList_->item(i)->data(Qt::UserRole).toString()==id) { productsList_->setCurrentRow(i); return; }
 }
 ComponentDefinition HardwarePicker::component() const
 {
