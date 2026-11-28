@@ -2507,7 +2507,10 @@ void EditorTest::typedCountStaysWithItsPart()
     page.resize(1400,800); page.openLibrary("custom.a"); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
     auto* list=page.findChild<QTreeWidget*>("componentList"); auto* count=page.findChild<QSpinBox*>("componentShapeCount");
     count->setValue(7);
-    for(QTreeWidgetItemIterator it(list);*it;++it) if((*it)->data(0,Qt::UserRole).toString()=="custom.b") list->setCurrentItem(*it);
+    // Selecting rebuilds the list and deletes its items, so find the row first and stop iterating.
+    QTreeWidgetItem* beta=nullptr;
+    for(QTreeWidgetItemIterator it(list);*it && !beta;++it) if((*it)->data(0,Qt::UserRole).toString()=="custom.b") beta=*it;
+    QVERIFY(beta); list->setCurrentItem(beta);
     QCOMPARE(page.draft().id,QString("custom.b"));
     auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas"); canvas->setFocus();
     canvas->selectRows({0}); QTest::keyClick(canvas,Qt::Key_Delete);
