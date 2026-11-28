@@ -3,21 +3,37 @@
 #include "modules/DeviceProfile.h"
 #include <QMap>
 #include <QPointF>
+#include <QRectF>
 
 struct ComponentDefinition {
     QString id, name;
     // Optional catalog identity; older documents use presentation fallbacks.
     QString manufacturer, category;
+    // How the LED layout was confirmed (plan 2026-11-27 Task 4): "verified" (tested on real hardware),
+    // "manufacturer" (from vendor data) or "unverified"; empty counts as unverified.
+    QString verification;
     QVector<QPointF> positions;
-    // Logical LED index -> wire index; a permutation, never extra LEDs.
+    // Each physical point has a wire index. Explicit address counts allow several points per address.
+    int addressCount = 0;
+    int addresses() const { return addressCount ? addressCount : int(mapping.size()); }
     QVector<int> mapping;
     // Reserved wire slots remain in reports but have no physical LED to arrange.
     QVector<int> nonPhysicalSlots;
+    // Display-only depth layer per position (0 = front), for LEDs physically behind each other.
+    // Empty means all layer 0. Never used for sampling or output (owner request 2026-11-25).
+    QVector<int> layers;
+    int layerOf(int row) const { return layers.value(row, 0); }
+    // Housing frame in component units (owner decision "Option A", 2026-11-26): the artwork is drawn
+    // into it and LEDs are kept inside it in the Component Editor. Null = derived from the LED bounds
+    // (older definitions, and strips/cables, whose housing grows with the LEDs).
+    QRectF housing;
     QJsonObject toJson() const;
     static ComponentDefinition fromJson(const QJsonObject& json);
 };
 
 using ComponentCatalog = QMap<QString, ComponentDefinition>;
+// The n-th repeat of an exactly equal point gets layer n; empty when no point repeats.
+QVector<int> overlapLayers(const QVector<QPointF>& positions);
 // All-or-nothing import of data only. Duplicate IDs are errors, not overrides.
 ComponentDefinition loadComponentDefinition(const QString& fileName);
 ComponentCatalog loadComponentCatalog(const QString& directory);

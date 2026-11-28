@@ -103,3 +103,11 @@ std::array<uint8_t, RAZER_BASILISK_REPORT_SIZE> BuildBasiliskColorsReport(const 
 // razer_create_mode_custom_extended_matrix_report). No inputs: every byte
 // is a constant.
 std::array<uint8_t, RAZER_BASILISK_REPORT_SIZE> BuildBasiliskModeCustomReport();
+
+// Device brightness (razer_set_brightness -> razer_create_brightness_extended_
+// matrix_report, RazerController.cpp:812-821/1515-1530): data_size 0x03,
+// class 0x0F, id 0x04, arguments = {RAZER_STORAGE_NO_SAVE 0x00,
+// dev_led_id RAZER_LED_ID_ZERO 0x00 for PID 0x0099 (.cpp:86/139), brightness}.
+// Needed because Synapse "brightness off" sets 0 on the device and then stays
+// silent; without it our frames are dimmed to black (USB capture 2026-11-26).
+std::array<uint8_t, RAZER_BASILISK_REPORT_SIZE> BuildBasiliskBrightnessReport(uint8_t brightness);

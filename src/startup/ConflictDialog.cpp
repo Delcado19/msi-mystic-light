@@ -1,5 +1,6 @@
 #include "ConflictDialog.h"
 #include <QAbstractItemView>
+#include <QHash>
 #include <QHeaderView>
 #include <QLabel>
 #include <QPushButton>
@@ -16,20 +17,24 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
     setWindowTitle("Potential lighting conflicts");
     resize(940, 430);
     auto* layout = new QVBoxLayout(this);
-    auto* explanation = new QLabel(processes_.stopsServices()
-        ? "These programs may control the same lighting devices. Select processes to stop, "
-          "or choose Ignore to continue. Terminate requests a normal close, then the Lighting Studio service stops "
-          "remaining selected processes and their services after a short wait. They are stopped for now only: "
-          "automatic startup and scheduled tasks are unchanged. Unsaved work in those programs may be lost."
-        : "These programs may control the same lighting devices. Select processes to stop, "
-        "or choose Ignore to continue. Terminate requests a normal close, then forces remaining selected processes "
-        "after a short wait. Use the separate administrator action for the SignalRGB service; it never kills the service process. "
-        "Its automatic startup and scheduled tasks are unchanged. Unsaved work in those programs may be lost.", this);
+    // Coexistence first (PRODUCT.md principle, owner review 2026-11-26): stopping a vendor suite also stops
+    // its macros and key mapping, so the dialog recommends switching its lighting off and checking again.
+    const QString stopping = processes_.stopsServices()
+        ? "Stop asks the program to close, then the Lighting Studio service ends what is left after a short wait."
+        : "Stop asks the program to close, then ends what is left after a short wait. Use the separate administrator "
+          "action for the SignalRGB service; it never kills the service process.";
+    auto* explanation = new QLabel(
+        "These programs send lighting commands to devices Lighting Studio drives, which makes the lights flicker.\n\n"
+        "Recommended: keep them running and switch off their lighting in the program itself (for example set its "
+        "brightness to off), then choose Check again.\n\n"
+        "Stop a program only if you do not need it: its other functions, such as mouse buttons, macros or fan "
+        "control, stop until it is started again. " + stopping + " Automatic startup and scheduled tasks stay "
+        "unchanged. Unsaved work in those programs may be lost.", this);
     explanation->setWordWrap(true);
     layout->addWidget(explanation);
     table_ = new QTableWidget(0, 4, this);
     table_->setObjectName("conflictTable");
-    table_->setHorizontalHeaderLabels({"Executable", "PID", "Path", "Reason"});
+    table_->setHorizontalHeaderLabels({"Program", "Processes", "Path", "Reason"});
     table_->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_->setSelectionMode(QAbstractItemView::ExtendedSelection);
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -49,13 +54,17 @@ ConflictDialog::ConflictDialog(IConflictProcesses& processes, QWidget* parent)
         buttons->addWidget(result);
         return result;
     };
-    terminateAll_ = button("Terminate all", "terminateAll");
-    terminate_ = button("Terminate", "terminateSelected");
+    auto* rescan = button("Check again", "rescan");
+    rescan->setProperty("primary", true);
+    rescan->setToolTip("Scan again after switching off the lighting in the listed programs");
+    ignore_ = button("Ignore", "ignore");
+    buttons->addStretch();
+    terminate_ = button("Stop selected", "terminateSelected");
+    terminateAll_ = button("Stop all", "terminateAll");
+    for (auto* stop : {terminate_, terminateAll_})
+        stop->setToolTip("Closes the program for now. Its other functions (mouse buttons, macros, fan control) stop too.");
     adminStop_ = button("Stop SignalRGB service (administrator)", "stopSignalRgbServiceAdmin");
     adminStop_->setVisible(!processes_.stopsServices());
-    buttons->addStretch();
-    auto* rescan = button("Rescan", "rescan");
-    ignore_ = button("Ignore", "ignore");
     auto* cancel = button("Cancel", "cancel");
     cancel->setDefault(true);
     layout->addLayout(buttons);
@@ -73,14 +82,29 @@ bool ConflictDialog::refresh(bool acceptEmpty)
 {
     try {
         conflicts_ = processes_.scan();
+        groups_.clear();
+        QHash<QString, int> groupOf;
+        for (int i = 0; i < conflicts_.size(); ++i) {
+            const auto& process = conflicts_[i];
+            const auto key = (process.path.isEmpty() ? process.executable : process.path).toLower();
+            if (!groupOf.contains(key)) { groupOf.insert(key, int(groups_.size())); groups_.append(QVector<int>{}); }
+            groups_[groupOf.value(key)].append(i);
+        }
         table_->setRowCount(0);
-        for (const auto& process : conflicts_) {
+        for (const auto& group : groups_) {
+            // The writing process names the device; its helper processes only say "same program".
+            int lead = group.first();
+            for (const int i : group) if (!conflicts_[i].reason.startsWith("Same program")) { lead = i; break; }
+            const auto& process = conflicts_[lead];
+            const bool manual = std::any_of(group.cbegin(), group.cend(), [&](int i) { return conflicts_[i].manualStop; });
+            const bool elevated = std::any_of(group.cbegin(), group.cend(), [&](int i) { return conflicts_[i].elevatedStop; });
             const int row = table_->rowCount();
             table_->insertRow(row);
-            const QStringList values{process.executable, QString::number(process.pid),
+            const QStringList values{process.executable,
+                group.size() == 1 ? QString("PID %1").arg(process.pid) : QString("%1 processes").arg(group.size()),
                 process.path.isEmpty() ? "Unavailable" : process.path,
-                process.reason + (process.manualStop ? " (manual service stop required)" : "") +
-                    (process.elevatedStop ? " (administrator approval required to stop)" : "")};
+                process.reason + (manual ? " (manual service stop required)" : "") +
+                    (elevated ? " (administrator approval required to stop)" : "")};
             for (int col = 0; col < values.size(); ++col)
                 table_->setItem(row, col, new QTableWidgetItem(values[col]));
         }
@@ -95,7 +119,11 @@ bool ConflictDialog::refresh(bool acceptEmpty)
             updateButtons();
             return true;
         }
-        status_->setText("Select one or more rows. Remaining or restarted processes stay listed after a rescan."+
+        // The portable scan finds programs by executable name, not by what they send, so switching their
+        // lighting off cannot clear the list there (CodeRabbit PR #10).
+        status_->setText((processes_.stopsServices()
+            ? QString("Switched the lighting off? Choose Check again. Programs that still send commands stay listed.")
+            : QString("Switched the lighting off? Then choose Ignore: this check finds programs by name, so they stay listed while they run."))+
             (serviceError.isEmpty()?QString{}:"\nAdministrator service stop unavailable: "+serviceError));
     } catch (const std::exception& error) {
         conflicts_.clear();
@@ -164,7 +192,8 @@ void ConflictDialog::terminate(bool all)
 {
     QVector<ConflictProcess> targets;
     if (all) targets = conflicts_;
-    else for (const auto& row : table_->selectionModel()->selectedRows()) targets.append(conflicts_[row.row()]);
+    else for (const auto& row : table_->selectionModel()->selectedRows())
+        for (const int i : groups_.value(row.row())) targets.append(conflicts_[i]);
     if (targets.isEmpty() || busy_) return;
     busy_ = true;
     updateButtons();

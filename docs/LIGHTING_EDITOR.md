@@ -1,17 +1,16 @@
 # Lighting editor
 
-Canvas picking and marquee selection in Layers are scoped to the active layer in
+Canvas picking and marquee selection in Effects are scoped to the active layer in
 the Navigator. Covering objects in other layers cannot steal that selection; use
 the Navigator to switch layers. Labels (eye icon) sits in the canvas header, beside
-fullscreen in Components and at the right edge in Layers' component composite.
+fullscreen in Layout and at the right edge in Effects with the component overlay on.
 Both buttons share the saved preference; holding L reveals captions temporarily.
 The single preview transport button shows green Play while stopped and red Stop
 while running. Stop holds the current frame/time; device output remains separate.
 
 
-The **EDIT MODE** control highlights Components (arrange hardware) and Layers
-(edit effects) with labeled icon tabs and a clear selected state. The Components
-fullscreen button remains fixed in the canvas header when scrollbars appear.
+Switch workspaces with **Devices**, **Layout**, and **Effects** at the top.
+The Layout fullscreen button stays in the canvas header when scrollbars appear.
 Fullscreen keeps playback/status in a compact top row and gives the remaining
 height to the canvas; Escape returns to the editor.
 
@@ -23,7 +22,16 @@ security and validation limits](WINDOWS_SERVICE.md).
 
 ## Visual workspace
 
-The app opens in the Design workspace (the Editor) with Components selected. Devices is the hardware workspace. Components and Layers choose the editing target inside one workspace; Hardware remains separate for discovery, attachment, channel configuration and output diagnostics. Composite shows effects with component artwork and sampled LEDs. Effect only and Components only hide the other content and disable its selection target. Camera, selection, preview channel and animation time survive target changes. View can enable the optional split hardware preview. The preview is software rendering, not physical device readback.
+The first launch opens **Devices**. Reopening an existing session restores the
+project or recovery copy through the normal session flow and returns to the workspace tab that
+was open when the editor closed (`window/workspace` in the editor settings). **Layout** arranges
+components, and **Effects** opens layer authoring. **Devices** handles discovery,
+attachment, wiring and output status. **View > Show effect behind components** controls
+the effect background in Layout. **View > Show components over effect** controls
+the device overlay in Effects. These settings leave the current workspace and output
+alone. **View > Show separate hardware preview** is available in Effects and starts
+off. The panel lets you compare the full component layout with a zoomed-in effect
+or a mask preview. It shows software rendering, with no physical device readback.
 
 The navigator and inspector follow the active target. Shift-click and marquee select multiple items. Right-click offers applicable edit actions; overlapping objects are available under Select object. Align uses selection bounds, and distribution spaces centers. Smart guides are separate from grid snapping; Alt bypasses both. View provides Lock/Unlock selection.
 
@@ -73,29 +81,57 @@ step. Subsequent parameter edits affect only the selected layer. No decorative a
 Devices: Stopped/Connecting/Running/Faulted is a read-only status in the bottom status bar, separate from Preview: playing/paused. Use Hardware to configure outputs. Its tooltip
 includes the current output status/reason; the Hardware status follows actual state.
 Changing workspace does not stop output; use Stop output. Output starts automatically for configured, detected hardware; there is no report
-approval checkbox. Tray Stop disables retries until Resume or the next app launch. Starting an animated output resumes
+approval checkbox. Stop output disables retries until Resume or the next app launch. Starting an animated output resumes
 a paused preview so devices receive moving frames. Static output does not force
 playback. See [output](OUTPUT_SESSION.md).
 
 Launch `build/ninja/Release/msi_mystic_light.exe --editor` to skip the startup process-conflict dialog.
-Normal startup runs the existing process-conflict dialog first. The application connects configured hardware automatically after startup. Components and Layers are selection targets in one Editor workspace. They preserve their selections and share camera position and zoom.
+Normal startup runs the existing process-conflict dialog first. Configured
+hardware connects automatically after startup. Layout and Effects preserve their
+selections and share camera position and zoom.
 
-## Layout
+## Devices, Layout and Wiring
 
-Select a header and open Hardware. Search/filter product cards, choose quantity,
-and add them to that header's physical chain. Generic products allow the actual
-addressable LED count to be set; named product mappings retain their count and
-wire permutation. The original M25 pairing uses six addresses for twelve physical
-LEDs. Imported dedicated-controller products (RAM/GPU/motherboard) are excluded
-from the ARGB attachment catalog. Custom document components remain available.
+Select a connector in **Devices** and choose **Add component**. Search the
+product cards, select a quantity, and check the remaining address count before
+confirming. Without detected hardware, choose a supported controller for offline
+planning. Planned connectors use an offline identity. Move components to the
+detected connector when the hardware becomes available.
+
+The connector row shows connection state and address capacity. Select a component
+to preview its light points or use **Identify**. Identify temporarily overlays
+the component's addresses in the preview and on active software output. Other
+addresses continue playing. Shared addresses highlight every light point they
+drive. Use **Component actions** to duplicate, remove, or move a component.
+A duplicate uses its own addresses on the same connector. These project changes
+can be undone.
+
+Select an attached component and choose **Edit LEDs** in Layout (the single entry point
+since 2026-11-26) to open its **Place LEDs** and **Wire LEDs** views.
+Built-in outputs with fixed wiring offer LED positioning. The connector's
+**Connector settings...** button in Devices opens the chain order for all attached
+components; on fixed devices it holds the device playback clock.
+
+**Layout** holds the spatial placement, rotation and grid. Open **Connector settings...** for a
+connector to review its data order, shared colors and address capacity before
+applying changes. Drag to reorder or use **Move up** and **Move down**. Drag a
+component to another connector in Devices or use **Move to connector** from
+Component actions. **Share colors with** assigns the same starting address as
+the selected source. Earlier chain items supply overlapping colors.
+
+The Phanteks M25 model has twelve light points across six addresses. The cable
+exit is at 6 o'clock. The first pair is near 5 and 7 o'clock, the second near
+4 and 8 o'clock, and the sixth near 1 and 11 o'clock. For the observed JARGB2
+layout, assign four M25 instances and the strip to start at address 1. See
+[JARGB2 topology](JARGB2_TOPOLOGY_TEST.md) for the observations.
 
 Installed metadata is read from the newest installed VortxEngine component folder,
 with bounded reads and topology validation. No upstream scripts, effects, drivers,
 artwork or network resources are loaded. Imported geometry is normalized to layout
-units without changing LED order. Only a selected product is embedded in the project.
+units without changing LED order. A selected external product is registered in the per-user library when it is added.
 
 Each accepted quantity is one validated undo transaction. Header capacity and fixed
-counts are checked in the picker and by the document. Header settings reorders a
+counts are checked in the picker and by the document. Wiring reorders a
 mixed physical chain and edits native mode/channel clocks. Cancel changes nothing.
 
 Header groups and their individual components appear in the layout tree. Select a
@@ -132,7 +168,15 @@ zooms; explicit Zoom in/out and Fit controls also exist; middle drag pans. Effec
 
 Discovery reads descriptors and OS board identity without opening HID. Refresh
 headers repeats discovery and deduplicates profile/endpoint/header matches. Saved
-chains stay visible as offline groups when their controller is absent. Merely
+chains stay listed as offline groups in Devices when their controller is absent.
+On the Layout and Effects canvases, components of an absent controller are hidden
+by default; *Edit > Settings... > Disconnected devices* switches to Dim (per-user
+setting `editor/disconnectedDevices`, not stored in the project). Hidden or dimmed
+components cannot be picked on the canvas; they keep layout, effects and output data,
+and the Devices list can still select and remove them. Presence uses the exact
+profile and endpoint path of the last scan; a device on another USB port counts as
+absent at its old path, and discovery adds a new placement for the new one. Without
+any scan result (offline planning, discovery off) every component shows. Merely
 selecting or attaching components never starts output. Hotplug discovery is manual;
 a running output session still monitors endpoint presence independently.
 
@@ -174,21 +218,24 @@ The Mask inspector names the target and distinguishes an effect mask from the
 combined layer mask. **Apply mask to output** controls the result; **Preview
 grayscale (editor only)** changes only the editing view. Bypassed masks remain
 editable and show that their changes are saved without affecting output.
-**Paint visibility %** sets coverage: Hide brush selects Pencil at 0%, Reveal brush
-selects Pencil at 100%. Eraser always hides, regardless of that value. Whole-target
+**Paint visibility %** sets coverage. **Hide** selects Pencil at 0% and
+**Reveal** selects Pencil at 100%. The matching preset is selected while Pencil
+is active. Intermediate values leave both presets clear. Eraser always hides.
+The toolbar shows Size for brush tools, Width for lines and shapes, and
+**Fill shape** for rectangles and ellipses. Whole-target
 Reveal/Hide and Invert actions are separate, undoable operations. White reveals
 existing source coverage, not new source pixels. A parent mask can still hide an
 effect even when its own mask is white.
 
-Masks default to canvas coordinates. **Mask follows target movement** makes geometry edits
+Masks default to canvas coordinates. **Follow effect movement** makes geometry edits
 move/rotate/scale the mask, and animation follows drift/spin/zoom/warp. Geometry
 edits resample the linked mask; undo restores the prior pixels. Spatial motion
 is evaluated from original stored pixels during preview. Mask strokes edit stored mask pixels while the live composition retains linked projection and animation. No mask data is discarded.
 
 Gradient and pattern sources fill the whole canvas by default, so rotation never exposes edges.
-**Limit source to its frame** (Mask tab, off by default, saved as `advanced.clipToFrame`) draws
-the pattern only inside its frame. A project with any clipped layer saves as schema 24 so older
-readers reject it instead of rendering unclipped; files without the key load with the option off.
+**Limit source to its frame** (Source tab, off by default, saved as
+`advanced.clipToFrame`) draws the pattern only inside its frame. Legacy
+projects without the setting load with the option off.
 
 ## Effects and direct tools
 
@@ -255,7 +302,9 @@ repeat. Shapes use antialiased fixed templates (five-point star, fixed ring
 thickness and fixed moon cutout).
 
 Select Move, then drag inside the selected source's yellow frame to
-move it. Four corner grips resize about its center; the external circular grip
+move it. Dragging one of the four corner grips keeps the opposite corner fixed and the aspect
+ratio unchanged; hold Shift to change width and height freely, Alt to resize about the center
+(both together combine). The modifier is read while dragging. The external circular grip
 rotates. Direct gestures pause/reset the preview clock before editing. Numeric
 center, width, height and rotation provide keyboard-accessible alternatives.
 Positive rotation is clockwise. Static Color covers the canvas and has no
@@ -338,17 +387,40 @@ seven trail samples. This is a local performance measurement, not a 30 fps
 promise for 64 simultaneously animated layers. Playback skips stale time steps
 rather than queueing old frames. See CONTINUE.md for the latest measured result.
 
+## Effects library and custom effects
+
+**Add effect** opens effect categories. Typing in the search field shows matching
+entries. Hover over an effect or highlight it with the keyboard to start its
+animated preview beside the menu. Use the Source tab for color and source controls, Motion
+for animation, and Mask for visibility. The mask thumbnail follows the selected
+layer or group. **Hide** and **Reveal** select the visibility brush. While
+painting, the canvas shows the resulting composition unless **Mask only** is on.
+
+**Save as custom effect** stores the selected layer or group in
+`%LOCALAPPDATA%/Lighting Studio/Editor/Custom effects`. The library retains child layers,
+motion, blend modes and PNG masks/images. **Custom effects** inserts a copy with
+new layer IDs. Choose the target connectors in the destination project.
+
+**Chase** moves a color band along the logical addresses of each selected
+software connector. Use Source to set color, speed in addresses per second,
+length in addresses and direction. Points sharing an address always show the
+same color in preview and software output. Chase needs a configured software
+connector to preview its address order.
+
 ## Project files and boundaries
 
-Save/Open uses `.lighting.json` schema 22, including editing locks, layer containers, object ownership, placements, ordered layer
-IDs, source/animation parameters, embedded PNG masks/images, normalized crop,
-linked masks and color cycles. Stable parameter IDs drive UI ranges, validation
-and advanced persistence. Schemas 1..19 remain readable with their original
-semantics; missing newer settings get disabled/default values. Saves use
-schema 22; older versions reject it instead of silently losing effects.
-A project that sets a chain start position (below) is saved as schema 23, which
-editors and service hosts older than that feature reject; projects without one
-stay at schema 22.
+Current `.lighting.json` files use schema 25 for component references and
+schema 26 when a Chase source is present. Project files store placement IDs,
+component references, transforms, wiring and effects including PNG masks and
+images. Opening earlier layouts migrates embedded component definitions into the
+user library. Identical definitions are reused. ID collisions preserve both
+versions and resolve the opened project to its original geometry. Opening a
+project never rewrites its source file. If a component is missing, the Open
+dialog lists its ID and offers to import its definition.
+
+Copy a project and export its custom components when moving it to another user
+profile or computer. The internal playback bundle carries the definitions used
+by the project so the service can resume independently of the editor's library.
 
 ### Shared output positions
 
@@ -432,26 +504,109 @@ silently lost. Layout transforms never modify effect-layer geometry or masks.
 
 ## Component authoring and import
 
-In Layout, **Create component** opens a geometry table with a stable ID, name,
-LED count, X/Y coordinates and wire indices. **Edit component geometry** edits
-the definition selected in the catalog picker, affecting every instance with
-that ID in this document. Existing IDs stay fixed so placements remain valid.
-New rows default to a straight strip with sequential wiring. Each wire index
-from 0 to LED count - 1 must appear exactly once; coordinates must be finite.
-Invalid cells keep the dialog open and show the validation error. Cancel leaves
-the document untouched. Accepted changes are one undo step.
+**Devices > Component Editor** opens a full-window editor (it replaced the former
+"Custom components" dialog and Component Lab on 2026-11-25). **Back** returns to the
+workspace; leaving with unsaved edits asks Save / Discard / Cancel, also when switching
+workspaces or closing the window.
 
-**Import component JSON** uses the same schema-1 parser as startup catalogs,
-with a 1 MiB file limit. Duplicate IDs are rejected rather than replaced.
-Create/import adds a definition to the picker; **Add component** places an
-instance in Layout. Definitions and their edits participate in project undo,
-dirty state and saves, including definitions not currently placed. Limits are
-256 definitions per document and 65535 LEDs per definition, within the existing
-32 MiB project limit. Schema 7 embeds definitions and rejects duplicate or
-malformed embedded IDs before replacing live state/history. Schemas 1..6 remain
-readable using the original startup catalog. Embedded geometry under an older
-schema is rejected rather than silently discarded. This editor changes local
-data only; it does not download a repository or configure attached hardware.
+- **Component list** (left): *My components*, *Device copies* (per-placement copies
+  named `instance.*` / `restored.*`, collapsed, labelled with their user or "unused")
+  and *Built-in* (view only: fields, shapes, wiring and canvas edits are disabled;
+  **Make a copy** stores an editable copy and opens it). A dot marks
+  definitions the open layout uses.
+- **Canvas**: click empty grid = add LED, drag LED = move the selection, drag empty
+  grid = box select, Shift adds to the selection, right-click LED = delete, middle-drag
+  or Space+drag = pan, wheel = zoom at the cursor. Moves snap to a quarter component
+  unit when the Layout's snap switch is on (the dot grid shows that spacing); hold Alt
+  to ignore it. Numbers are LED addresses; the wire path is split
+  into colored runs (cyan, amber, magenta, green), and a dashed arrow marks each jump
+  between runs (a layer change or an edge longer than 2.5x the median). Dotted lines
+  join LEDs sharing an address.
+- **Housing frame** (Option A, 2026-11-26): each part except strips and cables has a housing frame
+  (dashed), stored as the optional `housing` array `[x, y, width, height]` in component units. Parts
+  saved before get it from their LED-derived frame on first open (written with the next save). LEDs
+  stay inside it when moved or added; hold Alt to place them freely. The top-left handle moves the
+  frame, the bottom-right handle scales it proportionally, so the artwork never stretches. The
+  background is the dimmed front-view photo (40 %, half desaturated, fitted into the frame) where one
+  matches the category, keyboards included (photos are cropped to their visible part). LED strips are
+  built from fixed square tiles (owner idea 2026-11-27): a connector, one tile of `kStripTile` (0.4
+  component units) per LED, rotated along the strip, and plain band where two LEDs are more than a tile
+  apart; tiles never scale. The tiles are the owner's `led_strip_tile_fv`, `led_strip_band_fv` and
+  `led_strip_connector_fv` (256 px, loaded uncropped, outer 2 px skipped so tiles meet without a seam).
+  The Strip shape places LEDs one tile apart, and adding an LED to a strip continues it by one tile
+  after its highest address along the last segment, wherever the click was. Cables use the cable photo: connectors keep their proportions, only
+  the sleeve between them stretches to the cable length. Layout, Devices and the hardware picker draw parts into the same frame.
+- **Align**: the toolbar's **Align / Snap** menu aligns or distributes the selected LEDs while the
+  Component Editor is open (one undo step "Align LEDs"; at least two LEDs to align, three to
+  distribute). Snapping is the same switch as in the Layout. Play/Stop is hidden here: the editor has
+  no effect preview. LED tooltips show the LED number only; the status line shows the cursor grid.
+- **Tool rail**: Edit (V), Wire order (W), Duplicate (D), Mirror (M / Shift+M),
+  Rotate 90° (R), Delete (Del), grid (G), wire path (P), zoom (+ / - / 0), Help (?).
+  Ctrl+Z / Ctrl+Y undo and redo every finished gesture; Ctrl+A selects all.
+- **Properties** (right): Device (name, manufacturer, category, ID), Shape
+  (Matrix, Strip, Ring, Fan, L-Shape, U-Shape; the LEDs field opens at the part's own
+  count, which arranges the existing LEDs and keeps their wiring; another count replaces
+  all LEDs),
+  Wiring (presets: rows, serpentine rows, columns, clockwise; **Assign** gives the
+  selected LEDs one shared address), Layers (move the selection to a layer; the highest
+  value creates a new one), Danger zone (Clear all LEDs, Delete component).
+- **Layers** (2026-11-25): LEDs that sit behind each other, such as the front and back
+  ring of a ThermalTake SWAFAN, keep identical positions so effects light them alike,
+  but get separate display layers. The box below the tool rail shows *active/count*
+  (layer 1 is the front); ▲ / PgUp goes one layer back, ▼ / PgDn to the front, the
+  layer icon shows all layers with the inactive ones dimmed and locked (the Wire tool
+  can still click them). Ctrl+PgUp / Ctrl+PgDn move the selection one layer back or
+  front. Layers are stored as the optional `layers` array of a definition and only
+  written when an LED is on a layer above 1; empty layers are dropped on save. The
+  SignalRGB import puts the n-th LED on an already used coordinate on layer n (SWAFAN,
+  ARCTIC Freezer 36, MSI CoreLiquid block, Vertagear SL5000). Layout and Effects ignore
+  layers.
+- **Save** overwrites the selected library entry in place (it no longer forks
+  `<id>.<hash>` variants); the open layout's copy updates in the same undoable edit.
+- **Delete** removes a library entry after confirmation. It is refused while the open
+  layout uses the entry; other saved layouts that still reference it report it as
+  missing when opened. Built-in entries cannot be deleted.
+
+**Layout > Edit LEDs** opens the page, always in the full window, for the
+selected placement; **Apply** stores a variant for that placement only. On fixed
+connectors and for devices with protocol slots (e.g. keyboards) the LED count and wire
+order are locked: only moving, mirroring and rotating remain.
+
+Schema 2 component definitions store the number of addresses separately from the
+number of light points. Schema 1 definitions retain their one-to-one mappings.
+Own components are files: one JSON file per component in a folder the user chooses (plan
+2026-11-27). The folder is asked for at the first save of an own component (suggested:
+`Documents/Lighting Studio/Components`, an existing folder can be picked) and stored in QSettings
+`components/userFolder`; **Edit > Settings > My components** changes it and offers to move the files.
+The folder is read on demand and watched, so files copied into it appear without a restart; unreadable
+files, files with a built-in ID and duplicate IDs are skipped and named in the status bar. Files are
+named `<name> - <tag>.json` (the tag is 8 hex digits of the ID's SHA-256, so equal names do not collide)
+and follow a rename of the part; the library finds them by the ID inside, never by file name. Files of
+earlier builds, named after their ID, get the readable name once at startup (owner request 2026-11-28);
+skipped files keep their names. Saving shows
+`"<name>" saved to <folder>`, a failure `Could not save "<name>": <reason>` and keeps the draft.
+**Add from file…** checks a file and copies it into the folder (an existing ID asks Replace / Save as
+copy; built-ins always become a copy); **Show in folder** opens Explorer on the component's file.
+Earlier builds kept own components in `%LOCALAPPDATA%/Lighting Studio/Editor/custom-components.json`;
+when that file exists and no folder is set, startup asks for the folder, splits the file into it and
+keeps it as `custom-components.migrated.json`. Projects that use own components reference them by ID;
+the service gets the definitions with the project (playback definitions).
+
+## Attach component
+
+**Devices** lists each board with its connectors under it, named as printed on the board
+(`JARGB_V2_1`) with their kind (`5 V ARGB`, `12 V RGB`). JRGB1 is listed but disabled
+(`12 V RGB · not supported yet`: no 12 V hardware to test). **Attach component…** opens one dialog:
+
+- Header row: the header (dropdown) left, `NNN addresses remaining` right; with a selection it shows
+  `114 → 102 addresses remaining`, or `… · exceeds by N` (Attach disabled). Counts are addresses only.
+- Search: type and manufacturer are separate criteria next to the search field; both catalogs are
+  searched. The list shows **My components** first, then **Built-in**, each sorted by manufacturer and
+  name. The selection row shows the component name left and its addresses right.
+- **+ New component** (always at the end) or **+ Create "<text>"** (when nothing matches) opens a quick
+  form: type (Fans, Strips, Ring, RAM, Other), manufacturer, name, addresses. **Create & attach** saves
+  it to the component folder and attaches it; **Open in editor…** opens the Component Editor with a
+  banner, where **Save & attach** saves it and brings the dialog back with the new component selected.
 
 ## Staged channel configuration
 
@@ -503,8 +658,10 @@ channels and rate 1/offset 0. New fields under older schema numbers are rejected
 Dirty projects are atomically autosaved on a two-second window from the first edit without
 marking undo history clean. Startup offers recovery and restores the last project,
 window and docks. Recovered documents remain unsaved. A single-instance lock
-protects the session. The tray offers Show editor, Stop output and Quit; hiding
-is explicit, and normal closing retains the unsaved-project prompt.
+protects the session. Since GS-06-R38 there is no tray icon: closing the window keeps the
+unsaved-project prompt and ends the process. Beside the installed service a minimized window skips
+the 60 fps preview render (the service plays the lights itself) and repaints once on restore;
+the portable editor keeps rendering because its frames drive the hardware.
 
 Continuous changes no longer restart the recovery countdown. Timing still depends
 on the GUI event loop; this is not a hard real-time guarantee. Failed writes show
@@ -611,18 +768,18 @@ confirms changing reports; actual device behavior remains a separate observation
 
 ### Per-device LED arrangement
 
-Select an individual component in Layout or Hardware and choose **Edit LED arrangement**.
-The **Arrange LEDs** menu provides Line, Circle, Ellipse and Rectangle templates;
+Select an individual component and choose **Edit LEDs** in Layout. Under **Place LEDs** the **Shapes and transforms**
+menu offers Line, Circle, Ellipse, Rectangle, Matrix, L-Shape, and U-Shape.
+Mirror commands reflect the selected points, or all visible points when no points
+are selected. These operations preserve LED addresses. You can
 drag individual numbered LEDs to refine their positions, use the wheel to zoom,
 and **Fit LEDs** to frame the result. **Reset arrangement** restores the geometry
 from when the dialog opened. Cancel discards changes.
 
-This action changes only the selected device. LED count and physical wire order
-stay locked; sampling and hardware output use the new positions with the original
-wire mapping. Apply is one undo step and the arrangement is embedded in saved
-projects. Shared definition authoring remains under Hardware's custom component
-definitions. Device geometry uses a private embedded definition and counts toward
-the existing 256-definition project limit.
+Changes apply to the selected instance via a component variant in one undo step.
+The **Wire LEDs** tab edits address order and groups points that share an address.
+For a device with fixed wiring, its LED count and physical address order stay
+locked, and sampling uses the new positions with the original wire mapping.
 
 ### Live layout movement and output selection
 
@@ -804,7 +961,10 @@ whether different fans share or extend address ranges. No wiring remap is made.
 
 The official NV5 MKII product page does not specify a count for the built-in strip:
 https://phanteks.com/product/nv5-mk2-black/
-The suggested 18 LEDs remains unverified; no default count is asserted or changed.
+The hardware picker offers **Phanteks NV5 MKII / internal LED strip** with 16
+addresses: position 16 is the owner-confirmed last visible position and 17 stays
+dark (see [JARGB2_TOPOLOGY_TEST.md](JARGB2_TOPOLOGY_TEST.md)). This is an output
+boundary, not a count of physical LED packages.
 Phanteks lists 30 physical LEDs for D30-120, whereas the installed component
 metadata uses 15 addresses. These quantities must not be treated as interchangeable:
 https://phanteks.com/product/d30-120-black/
@@ -993,11 +1153,9 @@ and local vector icons remain in use; no web fonts, decorative motion or new UI
 dependencies are required. Hover, focus, checked and disabled states remain
 distinct. Output errors retain text as well as a warning color.
 
-The menu bar remains separate. Design/Devices, file/history commands, Edit Mode,
-playback, Preview scope, view controls and Panels share one command row.
-Buttons and dropdowns use a common height; narrower windows use the toolbar
-overflow menu. The complete 360 x 120 DIP logo is aligned at the right of the
-branding row.
+The menu bar remains separate. Devices, Layout, and Effects share the branding
+row with the logo. File and history commands, playback, Preview scope, zoom, and
+Panels share the command row below. Narrower windows use the toolbar overflow menu.
 View > Navigator and Inspector (also under Panels) close/reopen the side panels;
 Ctrl+Shift+L and Ctrl+Shift+P are keyboard alternatives. F6/Shift+F6 cycle focus
 through the visible Navigator, active canvas and Inspector; hidden panels are
@@ -1011,7 +1169,7 @@ restores the intended inspector state. Reset workspace restores both panels.
 Hardware always hides studio docks and shows an actionable offline message when
 no supported controller is detected. Output state remains visible in every tab.
 
-Effects allocates more default height to Live Hardware, which shows the complete layout.
+The optional Live Hardware panel in Effects shows the complete layout.
 The splitter still supports resizing/collapsing either pane. With no components
 the complete preview panel, including its controls, disappears. This preview does not change component coordinates, effect layers, channel clocks or LED sampling.
 
@@ -1029,7 +1187,8 @@ The GUI audit implementation uses graphite/cyan chrome and the owner-selected
 compact LS mark and wordmark in the application toolbar. Since GS-03, a darkened
 panoramic crop also appears behind the navigation/history row; the full uncropped
 banner stays in About, and its screens are conceptual artwork. The previous
-vector branding proposals are superseded. Panels recovery is beside Edit Mode in the shared command row. Labels now lives in both editor canvas headers when components are visible.
+vector branding proposals are superseded. Panels recovery is in the shared command row.
+Labels lives in both editor canvas headers when components are visible.
 
 New layer creates a paint source; New group creates a container. The searchable library adds generators, shapes, particles and images using the selected-group/sibling rule. Source holds particle type/settings and
 primary/secondary colors. Drawing toolbar colors are brush state. Motion groups

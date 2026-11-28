@@ -1,6 +1,8 @@
+#include "../OffscreenTestPlatform.h"
 #include "service/ServiceProtocol.h"
 #include "service/ServiceRuntime.h"
 #include "service/ServicePanel.h"
+#include <QStatusBar>
 #include <QPushButton>
 #include <QLabel>
 #include <QAction>
@@ -63,6 +65,7 @@ class ServiceTest:public QObject {
 private slots:
  void protocolBounds();
  void persistedPlaybackAndAtomicReject();
+ void customComponentsSurviveRestart();
  void identifyCommand();
  void fakeOutputPauseAndResume();
  void backgroundScanKeepsAnswering();
@@ -79,6 +82,7 @@ private slots:
  void scopeChangeReopensAfterOneScan();
  void editorRestoresServiceSnapshot();
  void identifyKeepsQueuedEditorState();
+ void serviceErrorAnnouncedInStatusBar();
  void continuousEditsStreamToService();
  void canvasDragStreamsBeforeRelease();
 };
@@ -101,6 +105,33 @@ void ServiceTest::identifyCommand() try {
     identify["placement"]="not-a-uuid";QVERIFY(!runtime.command(identify).value("ok").toBool());
     identify.remove("placement");QVERIFY(!runtime.command(identify).value("ok").toBool());
 } catch(const std::exception& e){QFAIL(e.what());}
+void ServiceTest::customComponentsSurviveRestart() try {
+    QTemporaryDir folder;
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
+    const auto scan=[] {return QVector<ProfileCandidate>{};};
+    const auto output=[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};};
+    auto request=project(profile);
+    auto referenced=request.value("project").toObject();
+    request["componentDefinitions"]=referenced.take("components");
+    referenced["schemaVersion"]=25;
+    request["project"]=referenced;
+    {
+        ServiceRuntime runtime({}, {profile},folder.path(),scan,output,true);
+        auto incomplete=request;
+        incomplete.remove("componentDefinitions");
+        QVERIFY(!runtime.command(incomplete).value("ok").toBool());
+        QVERIFY(runtime.command(request).value("ok").toBool());
+        auto hold=cmd("playback");hold["playing"]=false;hold["seconds"]=12.;
+        QVERIFY(runtime.command(hold).value("ok").toBool());
+    }
+    ServiceRuntime restarted({}, {profile},folder.path(),scan,output,true);
+    const auto restored=restarted.command(cmd("snapshot"));
+    QCOMPARE(restored.value("project").toObject(),referenced);
+    QCOMPARE(restored.value("componentDefinitions"),request.value("componentDefinitions"));
+    QCOMPARE(restored.value("seconds").toDouble(),12.);
+    QCOMPARE(restored.value("outputs").toArray().size(),1);
+} catch(const std::exception& error){QFAIL(error.what());}
+
 void ServiceTest::persistedPlaybackAndAtomicReject() try {
     QTemporaryDir folder;QVERIFY(folder.isValid());const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);
     const auto scan=[] {return QVector<ProfileCandidate>{};};const auto output=[](const QVector<OutputFrame>&){return QVector<OutputConnection>{};};
@@ -556,6 +587,21 @@ void ServiceTest::identifyKeepsQueuedEditorState() {
     for(int i=0;i<16;++i)panel.stopOutput();
     emit window.identifyRequested(QUuid::createUuid());
     QTRY_VERIFY_WITH_TIMEOUT(ops("project").size()>before,5000);
+    window.closing();
+}
+// A device blocked by the service guard used to stay dark with no visible reason (owner report 2026-11-26).
+void ServiceTest::serviceErrorAnnouncedInStatusBar() {
+    const auto profile=DeviceProfile::load(TEST_PROFILE_PATH);LightingWindow window({},[]{return QVector<ProfileCandidate>{};},nullptr,{profile});
+    const QString blocked="Another program sends lighting commands (VID_1532&PID_0099&MI_03: RazerAppEngine.exe). Switch off the lighting in that program, or choose Resolve conflicts.";
+    ServicePanel panel(window,[blocked](const QJsonObject&){
+        return QJsonObject{{"ok",true},{"enabled",true},{"playing",false},{"seconds",0.},{"devices",QJsonArray{}},{"outputs",QJsonArray{}},{"error",blocked}};
+    });window.installOutputPanel(&panel);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));panel.activate();
+    QTRY_VERIFY(window.statusBar()->findChild<QLabel*>("serviceNotice"));
+    auto* notice=window.statusBar()->findChild<QLabel*>("serviceNotice");
+    QTRY_COMPARE(notice->text(),blocked);
+    // Normal status-bar widgets hide behind temporary messages; the notice must not.
+    window.statusBar()->showMessage("No supported controller detected.");QCoreApplication::processEvents();
+    QVERIFY(notice->isVisible());
     window.closing();
 }
 QTEST_MAIN(ServiceTest)

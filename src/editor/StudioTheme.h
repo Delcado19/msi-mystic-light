@@ -14,6 +14,9 @@ inline constexpr struct { const char* name; const char* value; } studioThemeColo
     {"@border", "#567A91"},
     {"@text", "#EAF7FF"},
     {"@secondary", "#AEC6D6"},
+    // Disabled controls: clearly dimmer than @secondary so dead controls never read as active (owner review 2026-11-26).
+    {"@disabled", "#5F7687"},
+    {"@danger", "#FF7A85"}, // destructive buttons (Remove, Clear all LEDs)
     {"@accent", "#45DDF5"},
     {"@section", "#122A40"},
 };

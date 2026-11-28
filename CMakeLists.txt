@@ -23,7 +23,7 @@ target_include_directories(msi_hid PUBLIC src)
 target_link_libraries(msi_hid PRIVATE hidapi::hidapi)
 
 add_library(lighting_modules src/modules/DeviceProfile.cpp src/modules/ModuleRegistry.cpp
-    src/components/ComponentCatalog.cpp src/discovery/HardwareDiscovery.cpp)
+    src/components/ComponentCatalog.cpp src/components/ComponentLibrary.cpp src/discovery/HardwareDiscovery.cpp)
 target_include_directories(lighting_modules PUBLIC src)
 target_link_libraries(lighting_modules PUBLIC Qt6::Core)
 
@@ -36,7 +36,8 @@ set_target_properties(msi_gen1_module PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/modules")
 add_library(peripherals_module MODULE modules/peripherals/PeripheralModule.cpp
     src/protocol/RoccatKoneProtocol.cpp src/protocol/RazerBasiliskProtocol.cpp
-    src/protocol/SteelSeriesApex3Protocol.cpp src/protocol/RoccatVulcanProtocol.cpp)
+    src/protocol/SteelSeriesApex3Protocol.cpp src/protocol/RoccatVulcanProtocol.cpp
+    src/protocol/AjazzAk35iV4Protocol.cpp)
 target_include_directories(peripherals_module PRIVATE src)
 target_link_libraries(peripherals_module PRIVATE Qt6::Core)
 set_target_properties(peripherals_module PROPERTIES
@@ -72,9 +73,11 @@ set_target_properties(hp_omen_module PROPERTIES
 add_library(lighting_backends src/backends/AuxiliaryHardware.cpp src/backends/PawnIoRam.cpp)
 target_include_directories(lighting_backends PUBLIC src)
 target_link_libraries(lighting_backends PUBLIC lighting_modules Qt6::Core)
-foreach(component IN ITEMS gpu.aero5080 msi.ioshield ram.xpg)
-    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/${component}.json"
-        INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/${component}.json")
+# Every shipped component file is the built-in catalog (plan 2026-11-27 Task 4).
+file(GLOB shipped_components CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/components/*.json")
+foreach(component IN LISTS shipped_components)
+    get_filename_component(component_name "${component}" NAME)
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/${component_name}" INPUT "${component}")
 endforeach()
 
 file(GLOB peripheral_profiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiles/*-*.json")
@@ -89,13 +92,7 @@ endforeach()
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/profiles/msi-mpg-b850-edge-ti-wifi.json"
     INPUT "${CMAKE_CURRENT_SOURCE_DIR}/profiles/msi-mpg-b850-edge-ti-wifi.json")
 
-file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/generic-strip-8.json"
-    INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/generic-strip-8.json")
 
-foreach(component IN ITEMS vulcan apex3 kone basilisk)
-    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/components/peripheral-${component}.json"
-        INPUT "${CMAKE_CURRENT_SOURCE_DIR}/components/peripheral-${component}.json")
-endforeach()
 
 add_library(lighting_startup src/startup/ConflictProcesses.cpp src/startup/ConflictDialog.cpp src/startup/DeviceConflicts.cpp)
 target_include_directories(lighting_startup PUBLIC src)
@@ -104,7 +101,7 @@ if(WIN32)
     target_link_libraries(lighting_startup PRIVATE user32 advapi32 shell32 tdh cfgmgr32)
 endif()
 
-add_library(lighting_editor src/editor/HardwareArtwork.cpp src/editor/LegacyHardware.cpp src/editor/HardwarePicker.cpp src/editor/StudioWidgets.cpp src/editor/ColorPicker.cpp src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentEditor.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
+add_library(lighting_editor src/editor/HardwareArtwork.cpp src/editor/LegacyHardware.cpp src/editor/HardwarePicker.cpp src/editor/StudioWidgets.cpp src/editor/ColorPicker.cpp src/editor/AppSession.cpp src/editor/ChannelAssignment.cpp src/editor/ChannelEditor.cpp src/editor/ComponentDraft.cpp src/editor/ComponentCanvas.cpp src/editor/ComponentEditorPage.cpp src/editor/EffectRenderer.cpp src/editor/LightingDocument.cpp src/editor/LightingCanvas.cpp src/editor/LightingWindow.cpp)
 target_include_directories(lighting_editor PUBLIC src)
 target_link_libraries(lighting_editor PUBLIC lighting_modules Qt6::Widgets Qt6::Svg)
 qt_add_resources(HARDWARE_RESOURCES assets/hardware/hardware.qrc assets/branding/branding.qrc)

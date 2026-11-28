@@ -1,5 +1,6 @@
 #include "DeviceProfile.h"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -63,6 +64,11 @@ DeviceProfile DeviceProfile::fromJson(const QJsonObject& json)
         channel.id = text(object, "id");
         if (ids.contains(channel.id)) throw std::invalid_argument("Duplicate channel ID");
         ids.insert(channel.id);
+        if (object.contains("label")) channel.label = text(object, "label");
+        if (object.contains("kind")) {
+            channel.kind = text(object, "kind");
+            if (channel.kind != "argb-5v" && channel.kind != "rgb-12v") throw std::invalid_argument("Unknown channel kind");
+        }
         channel.maxLeds = integer(object, "maxLeds", 1, 65535);
         if (object.contains("fixedLeds")) channel.fixedLeds = integer(object, "fixedLeds", 1, channel.maxLeds);
         if (!object.value("direct").isBool() || !object.value("nativeModes").isArray() ||
@@ -79,6 +85,23 @@ DeviceProfile DeviceProfile::fromJson(const QJsonObject& json)
         profile.channels.append(channel);
     }
     return profile;
+}
+
+QString channelDisplayName(const ChannelProfile& channel)
+{
+    return channel.label.isEmpty() ? channel.id : channel.label;
+}
+
+QString channelKindText(const ChannelProfile& channel)
+{
+    return channel.kind == "argb-5v" ? QString("5 V ARGB") : channel.kind == "rgb-12v" ? QString("12 V RGB") : QString();
+}
+
+QFileInfoList deviceProfileFiles(const QString& directory, bool includeExperimental)
+{
+    auto files = QDir(directory).entryInfoList({"*.json"}, QDir::Files, QDir::Name);
+    if (includeExperimental) files += QDir(directory + "/experimental").entryInfoList({"*.json"}, QDir::Files, QDir::Name);
+    return files;
 }
 
 DeviceProfile DeviceProfile::load(const QString& fileName)

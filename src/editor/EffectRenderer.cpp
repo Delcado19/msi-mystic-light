@@ -71,6 +71,7 @@ const QVector<EffectDefinition>& effectDefinitions()
         {EffectKind::Checkerboard, "checkerboard", "Checkerboard", .1, 80, "A moving checker pattern. Grid size controls the number of cells per axis."}, {EffectKind::Kaleidoscope, "kaleidoscope", "Kaleidoscope", .1, 80, "Mirrored radial color patterns. Repetitions controls the number of symmetric sectors."},
         {EffectKind::Plasma, "plasma", "Plasma", .1, 80, "Smooth flowing colors formed by overlapping animated sine fields."}, {EffectKind::Ripples, "ripples", "Ripples", .1, 80, "Concentric color rings. Positive speed expands them; negative contracts them."},
         {EffectKind::Lightning, "lightning", "Lightning", .25, 3, "Seeded branching lightning flashes. Flash rate, bolt count and width shape the discharge."},
+        {EffectKind::Chase, "chase", "Chase", .25, 80, "Move a band of color along the configured LED addresses of each output."},
         {EffectKind::Starfield, "starfield", "Starfield", .25, 120, "Stars approach through perspective depth, accelerating and growing towards the viewer."},
         {EffectKind::Radar, "radar", "Radar", .2, 80, "A rotating radar beam. Speed is revolutions per minute: positive clockwise, negative counterclockwise."}, {EffectKind::Fireworks, "fireworks", "Fireworks", .25, 320, "Staggered launches explode into fading ballistic spark trails."}
     };
@@ -121,7 +122,10 @@ const QVector<EffectParameter>& advancedParameters()
         {"patternFrequency", "Spatial frequency", &EffectLayer::patternFrequency, .25, 4, 22},
         {"patternContrast", "Color contrast", &EffectLayer::patternContrast, .25, 3, 22},
         {"patternWarp", "Pattern distortion", &EffectLayer::patternWarp, 0, 1, 22},
-        {"patternWavelength", "Wave width", &EffectLayer::patternWavelength, .25, 4, 22}
+        {"patternWavelength", "Wave width", &EffectLayer::patternWavelength, .25, 4, 22},
+        {"chaseSpeed", "Speed (addresses/s)", &EffectLayer::chaseSpeed, 0, 500, 26},
+        {"chaseLength", "Length (addresses)", &EffectLayer::chaseLength, 1, 65535, 26},
+        {"chaseReverse", "Reverse direction", &EffectLayer::chaseReverse, 0, 1, 26}
     };
     return parameters;
 }
@@ -152,6 +156,8 @@ void validateEffect(const EffectLayer& layer)
         if (!std::isfinite(value) || value < parameter.minimum || value > parameter.maximum)
             throw std::invalid_argument("Invalid advanced effect parameter");
     }
+    if (std::floor(layer.chaseLength)!=layer.chaseLength || std::floor(layer.chaseReverse)!=layer.chaseReverse)
+        throw std::invalid_argument("Chase length and direction must be integers");
     if(std::floor(layer.patternCells)!=layer.patternCells || std::floor(layer.fillOrder)!=layer.fillOrder)
         throw std::invalid_argument("Pattern grid size and fill order must be integers");
     if(std::floor(layer.patternSeed)!=layer.patternSeed || std::floor(layer.patternSites)!=layer.patternSites ||
@@ -719,6 +725,11 @@ QImage renderEffect(const EffectLayer& layer, double seconds)
 {
     validateEffect(layer);
     if (!std::isfinite(seconds) || seconds < 0 || seconds > 86400) throw std::invalid_argument("Invalid effect time");
+    if (layer.effect == EffectKind::Chase) {
+        QImage transparent(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied);
+        transparent.fill(Qt::transparent);
+        return transparent; // Chase is composed over logical output addresses in LightingDocument.
+    }
     if (layer.trails == 0) return renderAtTime(layer, seconds);
     QImage result(LightingDocument::canvasSize(), QImage::Format_ARGB32_Premultiplied); result.fill(Qt::transparent);
     QPainter painter(&result);

@@ -1,12 +1,18 @@
 add_executable(test_msi_protocol protocol/test_msi_protocol.cpp)
 target_link_libraries(test_msi_protocol PRIVATE msi_protocol Qt6::Test)
 add_test(NAME msi_protocol COMMAND test_msi_protocol)
+add_executable(test_ajazz_ak35i_v4 protocol/test_ajazz_ak35i_v4.cpp ../src/protocol/AjazzAk35iV4Protocol.cpp)
+target_include_directories(test_ajazz_ak35i_v4 PRIVATE ../src)
+target_compile_definitions(test_ajazz_ak35i_v4 PRIVATE
+    FIXTURE_FILE="${PROJECT_SOURCE_DIR}/docs/hardware-inventory/ajazz-ak35i-v4-rgb-fixtures.json")
+target_link_libraries(test_ajazz_ak35i_v4 PRIVATE Qt6::Test)
+add_test(NAME ajazz_ak35i_v4_protocol COMMAND test_ajazz_ak35i_v4)
 add_executable(test_hid_backend hid/test_hid_backend.cpp ../src/hid/HidApiDevice.cpp)
 target_include_directories(test_hid_backend PRIVATE ../src
     "$<TARGET_PROPERTY:hidapi::hidapi,INTERFACE_INCLUDE_DIRECTORIES>")
 target_compile_definitions(test_hid_backend PRIVATE HID_API_NO_EXPORT_DEFINE)
 target_link_libraries(test_hid_backend PRIVATE Qt6::Test)
-add_test(NAME hid_backend COMMAND test_hid_backend lifecycle failedOpen writes reads fakeFailures fakeReads enumeration exactPath)
+add_test(NAME hid_backend COMMAND test_hid_backend lifecycle failedOpen writes reads fakeFailures fakeReads fakeQueuedReads enumeration exactPath)
 add_test(NAME hid_init_failure COMMAND test_hid_backend initializationFailure)
 set_tests_properties(hid_init_failure PROPERTIES ENVIRONMENT "HID_TEST_INIT_FAIL=1")
 add_library(incompatible_module MODULE modules/IncompatibleModule.cpp)
@@ -122,7 +128,7 @@ set_tests_properties(output_ui PROPERTIES TIMEOUT 30
 
 if(WIN32)
     # Test executables must run without inheriting a Qt SDK PATH from the shell.
-    foreach(test_target IN ITEMS test_msi_protocol test_hid_backend test_modules test_asrock_polychrome test_lenovo_motherboard test_components test_startup test_editor test_output test_scheduler test_output_ui)
+    foreach(test_target IN ITEMS test_ajazz_ak35i_v4 test_msi_protocol test_hid_backend test_modules test_asrock_polychrome test_lenovo_motherboard test_components test_startup test_editor test_output test_scheduler test_output_ui)
         add_custom_command(TARGET ${test_target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_RUNTIME_DLLS:${test_target}> $<TARGET_FILE_DIR:${test_target}>
@@ -145,11 +151,13 @@ if(WIN32)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_hidapi_runtime.cmake")
 endif()
 
-add_executable(test_peripherals output/test_peripherals.cpp)
+add_executable(test_peripherals output/test_peripherals.cpp ../src/protocol/AjazzAk35iV4Protocol.cpp)
 target_link_libraries(test_peripherals PRIVATE lighting_output_ui Qt6::Test)
 target_compile_definitions(test_peripherals PRIVATE
     PERIPHERAL_MODULE_PATH="$<TARGET_FILE:peripherals_module>"
-    PROFILE_DIRECTORY="${PROJECT_SOURCE_DIR}/profiles")
+    PROFILE_DIRECTORY="${PROJECT_SOURCE_DIR}/profiles"
+    COMPONENT_DIRECTORY="${PROJECT_SOURCE_DIR}/components"
+    AJAZZ_FIXTURE_FILE="${PROJECT_SOURCE_DIR}/docs/hardware-inventory/ajazz-ak35i-v4-rgb-fixtures.json")
 add_dependencies(test_peripherals peripherals_module)
 add_test(NAME peripheral_reports COMMAND test_peripherals)
 if(WIN32)
@@ -199,3 +207,8 @@ if(WIN32)
         -Runtime "$<TARGET_FILE_DIR:msi_mystic_light>")
     set_tests_properties(service_installer_plan PROPERTIES TIMEOUT 30)
 endif()
+
+# Let GUI tests start directly as well as through ctest (see tests/OffscreenTestPlatform.h).
+foreach(gui_test IN ITEMS test_editor test_output_ui test_service test_startup)
+    target_compile_definitions(${gui_test} PRIVATE TEST_QPA_PLUGIN_DIR="$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>")
+endforeach()

@@ -3,10 +3,12 @@
 #include "LightingCanvas.h"
 #include "discovery/HardwareDiscovery.h"
 #include <QMainWindow>
+#include <QUndoGroup>
 #include <QElapsedTimer>
 #include <QVariantMap>
 
 class QTreeWidget;
+class QFileSystemWatcher;
 class QTreeWidgetItem;
 class QComboBox;
 class QSlider;
@@ -23,11 +25,12 @@ class QVBoxLayout;
 class ColorEditor;
 class ColorListEditor;
 
+class ComponentEditorPage;
 class LightingWindow : public QMainWindow {
     Q_OBJECT
 public:
     LightingWindow(ComponentCatalog catalog,
-        std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {}, bool automaticDiscovery = true);
+        std::function<QVector<ProfileCandidate>()> scan, QWidget* parent = nullptr, QVector<DeviceProfile> profiles = {}, bool automaticDiscovery = true, QString libraryPath = {});
     ~LightingWindow() override;
     LightingDocument& document() { return document_; }
     QVariantMap workspacePanelPreferences() const;
@@ -39,9 +42,25 @@ public:
     void installOutputPanel(QWidget* panel);
     void restoreLegacyHardware(const QString& path);
     QString projectFile() const { return fileName_; }
-    void loadProject(const QString& path, bool recovered = false, const QString& original = {});
+    void loadProject(const QString& path, bool recovered = false, const QString& original = {}, const QJsonArray& playbackDefinitions = {});
     void saveProject(const QString& path);
     const QImage& previewFrame() const { return previewFrame_; }
+    // False beside the installed service: it renders the lights itself, so a minimized editor only keeps
+    // its clock and repaints once on restore. Portable output needs the frames, so the default is true.
+    void setRenderWhenMinimized(bool render) { renderWhenMinimized_ = render; }
+    // User component folder (plan 2026-11-27 Task 5). Empty until the first save of an own component asks
+    // for it (or at startup when an old custom-components.json has to be migrated).
+    QString componentFolder() const;
+    static QString defaultComponentFolder();
+    // Moves existing component files when confirmMoveComponents agrees, stores the path in QSettings
+    // (components/userFolder), watches the folder and reports unreadable files in the status bar.
+    bool setComponentFolder(const QString& folder);
+    // Asks for the folder when none is set; false when the user cancels.
+    bool ensureComponentFolder();
+    void setLegacyComponentLibrary(const QString& file) { legacyLibrary_ = file; }
+    // Dialog hooks; tests replace them to answer without modal dialogs.
+    std::function<QString(const QString& suggested)> chooseComponentFolder;
+    std::function<bool(const QString& text)> confirmMoveComponents;
 signals:
     void previewFrameChanged(const QImage& frame);
     void identifyRequested(const QUuid& placement); // ServicePanel forwards it to the installed service.
@@ -53,14 +72,24 @@ protected:
     void closeEvent(QCloseEvent*) override;
     void resizeEvent(QResizeEvent*) override;
     void paintEvent(QPaintEvent*) override;
+    void changeEvent(QEvent*) override;
     bool eventFilter(QObject*,QEvent*) override;
 private:
     void refresh();
     void scanHeaders();
     void refreshHeader();
-    void addHeaderComponents();
+    QString offlineProfile_;
+    void addHeaderComponents(const QString& preselect = {});
+    ComponentEditorPage* componentPage();
+    // False when the user cancels leaving a Component Editor page with unsaved edits.
+    bool leaveComponentPage();
     ChannelAssignment selectedHeaderAssignment() const;
+    ChannelAssignment connectorAssignment(const QVariantMap& connector) const;
+    void moveComponentToConnector(const QUuid& id, ChannelAssignment connector);
     std::function<QVector<ProfileCandidate>()> scan_;
+    QFileSystemWatcher* componentWatcher_ = nullptr;
+    QString legacyLibrary_;
+    void reportComponentIssues();
     QVector<ProfileCandidate> discovered_;
     QVariantMap selectedHeader_;
     QLabel *headerTitle_, *headerSummary_;
@@ -72,6 +101,8 @@ private:
     void refreshPlacement();
     void syncSelectionTrees();
     void updateWorkspacePanels();
+    // Current tab, or 2 (no canvas, like Devices) while a full-window page such as the Component Editor is open.
+    int workspaceIndex() const;
     void cyclePanelFocus(bool backwards);
     void moveSelectedLayer(int direction);
     void setLabelsHeld(bool held);
@@ -85,13 +116,17 @@ private:
     QImage previewFrame_;
     LightingCanvas *layoutCanvas_, *effectsCanvas_, *hardwarePreview_;
     QTabWidget* tabs_;
-    QStackedWidget* applicationPages_;
+    QStackedWidget* applicationPages_=nullptr;
+    // Edit > Undo/Redo and the toolbar act on the visible page: the project, or the Component Editor's
+    // draft (owner review 2026-11-26: Undo after a shape did nothing there and undid the project instead).
+    QUndoGroup* undoGroup_=nullptr;
     QVBoxLayout* deviceOutput_;
     QTreeWidget* layers_=nullptr;
     QTreeWidget* components_=nullptr;
     QTabWidget* inspectorTabs_;
     QLabel* inspectorTitle_;
-    QComboBox *catalog_, *blend_;
+    QComboBox *blend_;
+    ComponentEditorPage* componentPage_ = nullptr;
     QComboBox* previewChannel_;
     QCheckBox* allChannels_;
     QListWidget* channelTargets_;
@@ -117,6 +152,7 @@ private:
     QCheckBox* maskLinked_;
     QElapsedTimer previewClock_;
     double playbackStart_ = 0;
+    bool renderWhenMinimized_ = true, previewStale_ = false;
     QUuid selectedLayer_, activeLayer_;
     bool editingMask_ = false;
     bool labelsHeld_=false;

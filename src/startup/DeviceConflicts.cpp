@@ -74,6 +74,11 @@ QString deviceInstanceFromPath(const QString& interfacePath)
     return id.replace('#', '\\').toUpper();
 }
 
+bool sustainedWriter(int writes, int milliseconds)
+{
+    return milliseconds > 0 && qint64(writes) * 1000 >= qint64(milliseconds) * 2;
+}
+
 QStringList probeableEndpoints(const QStringList& endpoints)
 {
     // Endpoints come from the editor's project, and the LocalSystem service opens them. Only HID device
@@ -298,8 +303,10 @@ QVector<EndpointCheck> findWriters(const QStringList& endpoints)
     const auto now = QDateTime::currentMSecsSinceEpoch();
     for (const auto& endpoint : endpoints) { EndpointCheck check; check.endpoint = endpoint; check.checkedAt = now; checks.append(check); }
     QString error;
-    const auto writes = captureUsbWrites(5000, error);
+    constexpr int captureMs = 5000;
+    const auto writes = captureUsbWrites(captureMs, error);
     if (!error.isEmpty()) { for (auto& check : checks) check.error = error; return checks; }
+    QHash<QString, QHash<quint32, int>> counts; // endpoint -> writer pid -> reports in this capture
     const auto self = GetCurrentProcessId(); const auto root = systemRoot(); const auto ours = ownExecutables();
     QHash<quint32, ConflictProcess> processes;
     QHash<QString, QString> parents; // endpoint -> USB device instance
@@ -322,10 +329,16 @@ QVector<EndpointCheck> findWriters(const QStringList& endpoints)
             // CWE-367); it gets no proof. The real writer has exited and needs no stop.
             if (writer.started && write.lastSeen && writer.started > write.lastSeen) continue;
             if (isExcludedImage(writer.path, root, ours)) continue;
+            counts[check.endpoint][writer.pid] += write.count;
             if (std::any_of(check.holders.cbegin(), check.holders.cend(), [&](const auto& h) { return h.pid == writer.pid; })) continue;
             writer.provenHolder = true; check.holders.append(writer);
         }
     }
+    // Sporadic writers are not conflicts: our next frame overwrites them (see sustainedWriter).
+    for (auto& check : checks)
+        check.holders.erase(std::remove_if(check.holders.begin(), check.holders.end(), [&](const ConflictProcess& holder) {
+            return !sustainedWriter(counts.value(check.endpoint).value(holder.pid), captureMs);
+        }), check.holders.end());
     return checks;
 }
 
@@ -557,7 +570,7 @@ QStringList DeviceConflictMonitor::blocked(const QStringList& endpoints, QString
         reasons.append(endpointLabel(endpoint) + ": " + names.join(", "));
     }
     QStringList parts;
-    if (!result.isEmpty()) parts.append("Another program sends lighting commands (" + reasons.join("; ") + "). Choose Resolve conflicts to stop it.");
+    if (!result.isEmpty()) parts.append("Another program sends lighting commands (" + reasons.join("; ") + "). Switch off the lighting in that program, or choose Resolve conflicts.");
     if (!errors.isEmpty()) parts.append("Conflict detection unavailable: " + errors.join("; "));
     message = parts.join("\n");
     return result;

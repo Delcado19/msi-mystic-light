@@ -3,7 +3,6 @@ param(
     [string]$Source,
     [string]$OwnerSid,
     [string]$PawnIOSetup,
-    [switch]$NoEditorAutostart,
     [switch]$Elevated,
     # Written by the elevated child only after it completed; proves this run, not a previous install.
     [string]$ResultFile
@@ -26,13 +25,15 @@ foreach ($relative in $required) { if (!(Test-Path -LiteralPath (Join-Path $Sour
 foreach ($folder in @('profiles','components','platforms','imageformats','third_party/licenses')) { if (!(Test-Path -LiteralPath (Join-Path $Source $folder) -PathType Container)) { throw "Missing runtime folder: $folder" } }
 $uninstaller = Join-Path $PSScriptRoot 'Uninstall-LightingStudio.ps1'
 if (!(Test-Path -LiteralPath $uninstaller -PathType Leaf)) { throw 'Missing runtime input: installer/Uninstall-LightingStudio.ps1' }
-if (!$PSCmdlet.ShouldProcess($destination, 'Install Lighting Studio service, official PawnIO if missing, and editor logon task')) { return }
+if (!$PSCmdlet.ShouldProcess($destination, 'Install Lighting Studio service, official PawnIO if missing, and the Start menu entry')) { return }
 $pawnIOKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO'
 $editor = Join-Path $destination 'msi_mystic_light.exe'
-# The logon task keeps the editor in the tray, so an update almost always finds it running. Ask before
+# An open editor blocks the file copy. Ask before
 # UAC and before anything is stopped (2026-11-17: the check used to follow the service stop).
 function Test-EditorRunning { [bool](Get-Process msi_mystic_light -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $editor }) }
-if (Test-EditorRunning) { throw 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit), then start the installer again.' }
+# A pre-R38 editor can run hidden in the tray, so the message says how to reach it (CodeRabbit PR #10).
+$editorRunning = 'Lighting Studio is running. Close its window (if it is hidden, open it from its icon in the notification area first), then start the installer again.'
+if (Test-EditorRunning) { throw $editorRunning }
 $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 # A path ending in a backslash (e.g. D:\) would escape the closing quote of a command-line argument;
 # "D:\." names the same folder without that trailing backslash (audit 2026-11-14).
@@ -40,7 +41,6 @@ function Quote-Argument([string]$Path) { if ($Path.EndsWith('\')) { $Path += '.'
 if (!$identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Quote-Argument $PSCommandPath),'-Source',(Quote-Argument $Source),'-OwnerSid',$OwnerSid)
     if ($PawnIOSetup) { $arguments += @('-PawnIOSetup',(Quote-Argument ([IO.Path]::GetFullPath($PawnIOSetup)))) }
-    if ($NoEditorAutostart) { $arguments += '-NoEditorAutostart' }
     $resultFile = Join-Path ([IO.Path]::GetTempPath()) ('LightingStudio-install-' + [guid]::NewGuid().ToString('N') + '.result')
     $arguments += @('-Elevated','-ResultFile',(Quote-Argument $resultFile))
     foreach ($path in @($PSCommandPath,$Source,$PawnIOSetup,$resultFile)) { if ($path -match '["\r\n]') { throw 'Invalid installer path' } }
@@ -111,7 +111,7 @@ function Protect-Directory([string]$Path, [bool]$Readable) {
     Set-Acl -LiteralPath $Path -AclObject $acl
 }
 Show-Step 'Checking the PawnIO driver'
-if (Test-EditorRunning) { throw 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit), then start the installer again.' }
+if (Test-EditorRunning) { throw $editorRunning }
 # Keep official signed binaries unchanged. An elevated parent supplies the only UAC prompt.
 # PawnIO 2.2.0 embeds this CLI contract: -install -silent (it is not an NSIS /S installer).
 # PawnIO's own uninstaller removed its Apps entry but left the driver service registered
@@ -199,14 +199,10 @@ else {
 if ($LASTEXITCODE -ne 0) { throw 'Service description update failed' }
 & sc.exe failure LightingStudio reset= 86400 actions= restart/10000/restart/30000/restart/60000 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Service recovery configuration failed' }
-Show-Step 'Registering editor autostart, Start menu entry and uninstaller'
-# An interactive task uses the installing user's ordinary token, never highest privileges.
-if (!$NoEditorAutostart) {
-    $principal = New-ScheduledTaskPrincipal -UserId $OwnerSid -LogonType Interactive -RunLevel Limited
-    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $OwnerSid
-    $action = New-ScheduledTaskAction -Execute (Join-Path $destination 'msi_mystic_light.exe') -Argument '--background'
-    Register-ScheduledTask -TaskName 'Lighting Studio Editor' -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
-} elseif (Get-ScheduledTask -TaskName 'Lighting Studio Editor' -ErrorAction SilentlyContinue) {
+Show-Step 'Registering Start menu entry and uninstaller'
+# No editor logon task since GS-06-R38 (owner decision 2026-11-25): the service plays the lights alone and
+# the hidden tray editor rendered its preview at 60 fps. Updates remove the task older versions created.
+if (Get-ScheduledTask -TaskName 'Lighting Studio Editor' -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskName 'Lighting Studio Editor' -Confirm:$false
 }
 $shell = New-Object -ComObject WScript.Shell

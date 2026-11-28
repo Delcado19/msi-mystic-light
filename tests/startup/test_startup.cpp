@@ -1,3 +1,4 @@
+#include "../OffscreenTestPlatform.h"
 #include "startup/ConflictDialog.h"
 #include "startup/DeviceConflicts.h"
 #include <QtTest>
@@ -114,6 +115,14 @@ private slots:
         ConflictDialog dialog(processes);dialog.show();
         QVERIFY(!button(dialog,"stopSignalRgbServiceAdmin")->isVisible());
         QVERIFY(!dialog.findChild<QLabel*>("conflictStatus")->text().contains("Administrator"));
+        QVERIFY(!dialog.findChild<QLabel*>("conflictStatus")->text().contains("choose Ignore"));
+    }
+    // CodeRabbit PR #10 #28: the portable scan lists programs by name, so it points to Ignore, not Check again.
+    void portableScanPointsToIgnore() {
+        FakeProcesses processes; processes.services=false;
+        processes.running={{42,"iCUE.exe","C:/corsair/iCUE.exe","iCUE",1,false}};
+        ConflictDialog dialog(processes); dialog.show();
+        QVERIFY(dialog.findChild<QLabel*>("conflictStatus")->text().contains("choose Ignore"));
     }
     // Device-based detection policy (2026-11-16): Windows' own holders and Lighting Studio never count.
     void deviceConflictPolicy() {
@@ -127,6 +136,11 @@ private slots:
         QVERIFY(!isExcludedImage("C:/Program Files (x86)/MSI/MSI Center/Engine/CC_Engine_x64.exe","C:\\Windows",own));
         QVERIFY(!isExcludedImage("C:/WindowsApps/x.exe","C:\\Windows",own));   // Prefix only on a folder boundary.
         QVERIFY(!isExcludedImage({},"C:\\Windows",own));                        // Unknown image is shown, not trusted.
+        // Only a sustained writer competes with our ~26 frames/s. USB captures 2026-11-26: Synapse sent
+        // 1 frame per 5 s ("Static") or a handful of reports on resume, which blocked the mouse for a minute.
+        QVERIFY(!sustainedWriter(5,5000)); QVERIFY(!sustainedWriter(9,5000));
+        QVERIFY(sustainedWriter(10,5000)); QVERIFY(sustainedWriter(130,5000));   // SignalRGB-like effect stream.
+        QVERIFY(!sustainedWriter(10,0));
         QCOMPARE(endpointLabel("\\\\?\\HID#VID_1038&PID_161A&MI_03#9&174f911&0&0000#{4d1e55b2}"),QString("VID_1038&PID_161A&MI_03"));
         // Setup packets seen in the USB trace 2026-11-16: SignalRGB's 90-byte SET_REPORT to interface 3, a GET_REPORT.
         const unsigned char setReport[]{0x21,0x09,0x00,0x03,0x03,0x00,0x5A,0x00}, getReport[]{0xA1,0x01,0x00,0x03,0x00,0x00,0x40,0x00};
@@ -373,6 +387,30 @@ private slots:
         ConflictDialog empty(processes);
         QTimer::singleShot(1000, &empty, &QDialog::reject);
         QCOMPARE(empty.exec(), int(QDialog::Accepted));
+    }
+    // One row per program, and a stop still reaches all of its processes (owner review 2026-11-26:
+    // Razer Synapse showed ten identical rows). The text recommends switching lighting off first.
+    void groupsProcessesOfOneProgram() {
+        FakeProcesses processes;
+        processes.running={{31,"RazerAppEngine.exe","C:/Razer/RazerAppEngine.exe","Same program as RazerAppEngine.exe; may start it again",300,false},
+            {32,"RazerAppEngine.exe","C:/Razer/RazerAppEngine.exe","Sends lighting commands to VID_1532&PID_0099&MI_03",301,false},
+            {33,"razerappengine.exe","c:/razer/razerappengine.exe","Same program as RazerAppEngine.exe; may start it again",302,false},
+            {22,"OpenRGB.exe","C:/rgb/OpenRGB.exe","Potential writer",200,false}};
+        ConflictDialog dialog(processes);
+        dialog.show();
+        auto* table = dialog.findChild<QTableWidget*>("conflictTable");
+        QCOMPARE(table->rowCount(), 2);
+        QCOMPARE(table->item(0,1)->text(), QString("3 processes"));
+        QVERIFY(table->item(0,3)->text().startsWith("Sends lighting commands"));
+        bool recommends=false;
+        for(auto* label:dialog.findChildren<QLabel*>()) recommends|=label->text().contains("switch off their lighting");
+        QVERIFY(recommends);
+        table->selectRow(0);
+        button(dialog, "terminateSelected")->click();
+        QCOMPARE(processes.graceful, (QVector<quint32>{31,32,33}));
+        QTRY_COMPARE_WITH_TIMEOUT(processes.forced.size(), 3, 2500);
+        QCOMPARE(table->rowCount(), 1);
+        button(dialog, "cancel")->click();
     }
     void selectionAndAll() {
         FakeProcesses processes;

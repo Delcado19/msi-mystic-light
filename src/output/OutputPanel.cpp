@@ -65,8 +65,11 @@ OutputPanel::OutputPanel(LightingWindow& window, Authorize authorize, QWidget* p
         row->setData(0,Qt::UserRole+2,QString{}); updateControls();
     });
     const auto followInventory=[this,inventory] {
-        const auto* current=inventory->currentItem(); if(!current) return;
-        const auto data=(current->parent() ? current->parent() : current)->data(0,Qt::UserRole+1).toMap();
+        // Walk up to the connector row; a board row (Devices grouped by board, plan 2026-11-27) has none.
+        const auto* current=inventory->currentItem();
+        while(current && current->data(0,Qt::UserRole+1).toMap().isEmpty()) current=current->parent();
+        if(!current) return;
+        const auto data=current->data(0,Qt::UserRole+1).toMap();
         for(int i=0;i<endpoints_->topLevelItemCount();++i) {
             auto* row=endpoints_->topLevelItem(i);
             if(data.value("path")==row->data(0,Qt::UserRole) && data.value("profileId")==row->data(0,Qt::UserRole+1)) {

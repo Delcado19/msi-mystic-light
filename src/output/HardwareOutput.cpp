@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "HardwareOutput.h"
 #include "hid/HidApiDevice.h"
 #include "backends/AuxiliaryHardware.h"
@@ -14,6 +15,15 @@ public:
     bool sendFeatureReport(const std::uint8_t* bytes,std::size_t count) override {
         if(!open_) return false;
         reports_->append(QByteArray(reinterpret_cast<const char*>(bytes),qsizetype(count))); return true;
+    }
+    // Dry-run acknowledgement so drivers that read ACKs (AJAZZ AK35I V4) can be serialized for the review
+    // gate: echoes the last recorded report with status byte 4 = 0x01. Real devices are never answered this
+    // way; the reads themselves are not recorded.
+    std::size_t getFeatureReport(std::uint8_t* buffer,std::size_t length) override {
+        if(!open_ || !buffer || reports_->isEmpty()) return 0;
+        auto reply=reports_->last(); if(reply.size()>4) reply[4]=char(0x01);
+        const auto size=std::min<std::size_t>(length,std::size_t(reply.size()));
+        std::copy_n(reply.constData(),size,reinterpret_cast<char*>(buffer)); return size;
     }
 private:
     bool open_=true;

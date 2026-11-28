@@ -8,9 +8,10 @@ cold boot, standby and a clean-install UAC count remain to be qualified.
 Extract the complete Release archive and run **installer/Install.cmd**.
 The entry point requests elevation once, installs into
 `%ProgramFiles%/Lighting Studio`, creates the automatic LocalSystem service
-`LightingStudio`, and registers a Limited interactive logon task for the installing
-user. A Start-menu shortcut opens the editor after installation. The editor starts in the tray with `--background`. `-NoEditorAutostart`
-omits the editor task; background lighting is independent of that task.
+`LightingStudio` and a Start-menu shortcut for the editor. The service plays the saved project
+alone after boot; the editor runs only while its window is open. Since GS-06-R38 there is no editor
+logon task and no tray mode (a hidden tray editor kept one CPU core busy, owner report 2026-11-25);
+an update removes the `Lighting Studio Editor` task that older versions registered.
 Microsoft Visual C++ x64 runtime remains a prerequisite.
 
 ```powershell
@@ -47,6 +48,11 @@ an administrator process.
 The service reuses LightingDocument, the renderer and output schedulers, validates
 a complete replacement before atomically saving
 `%ProgramData%/LightingStudio/playback.json`, and advances its own animation clock.
+For referenced projects, the private playback bundle stores `componentDefinitions`
+alongside `project`. The service validates these definitions with the project
+and restores them from the bundle after restart, independently of the logged-in
+user's custom component library. Use the matching editor and service
+build for projects that use schemas 25 or 26.
 No project means no color writes. Closing the editor leaves the last confirmed
 project running. The bounded one-day animation clock wraps for continuous operation.
 
@@ -154,7 +160,7 @@ still stop all workers; they do not bypass the output guard.
 
 The installed editor shows the conflict dialog whenever its window is opened while
 another program writes to one of the configured devices: on a start from the Start
-menu and on **Show editor** from the tray, not on the silent logon start. While the
+menu. While the
 editor is open, **Resolve conflicts...** in Devices opens the same dialog and then
 rescans; Hardware names the writers and points to that button. Each row names a
 writer and the devices it writes to, followed by the processes of the same program:
@@ -203,7 +209,7 @@ Administrators can inspect Get-Service LightingStudio and sc.exe qc LightingStud
 
 Remove Lighting Studio in Windows Settings > Apps, or run `installer/Uninstall.cmd` from the
 package. Both start `Uninstall-LightingStudio.ps1`, which requests elevation once and removes the
-LightingStudio service, the `Lighting Studio Editor` logon task, the Start menu shortcut,
+LightingStudio service, the `Lighting Studio Editor` logon task of pre-R38 installs, the Start menu shortcut,
 `%ProgramFiles%/Lighting Studio`, `%ProgramData%/LightingStudio` and the Apps entry.
 
 It always deletes the editor settings in the registry (`HKCU/Software/Lighting Studio/Editor`), in the

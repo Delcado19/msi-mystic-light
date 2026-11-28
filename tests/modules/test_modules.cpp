@@ -89,6 +89,35 @@ private slots:
         QVERIFY(board.matches(device));
     }
 
+    void channelLabelAndKind()
+    {
+        auto json = profileJson();
+        auto channels = json["channels"].toArray();
+        auto channel = channels[0].toObject();
+        channel.insert("label", "JARGB_V2_1");
+        channel.insert("kind", "argb-5v");
+        channels[0] = channel;
+        json.insert("channels", channels);
+        const auto labelled = DeviceProfile::fromJson(json).channels.first();
+        QCOMPARE(channelDisplayName(labelled), QString("JARGB_V2_1"));
+        QCOMPARE(channelKindText(labelled), QString("5 V ARGB"));
+        channel.remove("label");
+        channel.remove("kind");
+        channels[0] = channel;
+        json.insert("channels", channels);
+        const auto plain = DeviceProfile::fromJson(json).channels.first();
+        QCOMPARE(channelDisplayName(plain), plain.id);
+        QVERIFY(channelKindText(plain).isEmpty());
+        channel.insert("kind", "rgb-12v");
+        channels[0] = channel;
+        json.insert("channels", channels);
+        QCOMPARE(channelKindText(DeviceProfile::fromJson(json).channels.first()), QString("12 V RGB"));
+        channel.insert("kind", "argb-12v");
+        channels[0] = channel;
+        json.insert("channels", channels);
+        QVERIFY_EXCEPTION_THROWN(DeviceProfile::fromJson(json), std::invalid_argument);
+    }
+
     void invalidProfiles()
     {
         auto json = profileJson();

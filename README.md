@@ -90,8 +90,12 @@ runtime; see `third_party/pawnio/README.md`.
 every push; see [`CONTINUE.md`](CONTINUE.md) for current implementation status and the
 hardware-qualification log, which stays separate from automated CI.
 
-To package a portable release archive: `python scripts/package_release.py` (see
-[release notes](docs/RELEASE_NOTES_0.1.0.md)).
+Use `python scripts/package_release.py --runtime <release-directory> --archive <zip-path>`
+to package the Windows build. The ZIP includes the portable editor, Windows
+service, installer, uninstaller, and runtime dependencies. The script also writes
+a `.zip.sha256` sidecar. For local test builds, deliver both files in Downloads
+as `LightingStudio-local-r<revision>.zip` and `LightingStudio-local-r<revision>.zip.sha256`.
+See the [release notes](docs/RELEASE_NOTES_0.1.0.md) for the public release format.
 
 ## Documentation
 

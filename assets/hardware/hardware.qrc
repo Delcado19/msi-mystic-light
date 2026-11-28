@@ -1,1 +1,30 @@
-<RCC><qresource prefix="/hardware"><file>fan.svg</file><file>ram.svg</file><file>gpu.svg</file><file>keyboard.svg</file><file>mouse.svg</file><file>pump.svg</file><file>aio.svg</file><file>strip.svg</file><file>strip-led.svg</file><file>cable.svg</file><file>motherboard.svg</file><file>other.svg</file></qresource></RCC>
+<RCC>
+  <qresource prefix="/hardware">
+    <file>fan.svg</file>
+    <file>ram.svg</file>
+    <file>gpu.svg</file>
+    <file>keyboard.svg</file>
+    <file>mouse.svg</file>
+    <file>pump.svg</file>
+    <file>aio.svg</file>
+    <file>strip.svg</file>
+    <file>strip-led.svg</file>
+    <file>cable.svg</file>
+    <file>motherboard.svg</file>
+    <file>other.svg</file>
+    <file>photos/pc_light_cable_fv.png</file>
+    <file>photos/led_strip_tile_fv.png</file>
+    <file>photos/led_strip_band_fv.png</file>
+    <file>photos/led_strip_connector_fv.png</file>
+    <file>photos/aio_120_rgb_fv.png</file>
+    <file>photos/aio_240_rgb_fv.png</file>
+    <file>photos/aio_360_rgb_fv.png</file>
+    <file>photos/fan_120_rgb_fv.png</file>
+    <file>photos/gpu_rgb_fv.png</file>
+    <file>photos/io_shield_rgb_fv.png</file>
+    <file>photos/keyboard_rgb_fv.png</file>
+    <file>photos/led_strip_rgb_fv.png</file>
+    <file>photos/mouse_rgb_fv.png</file>
+    <file>photos/ram_rgb_fv.png</file>
+  </qresource>
+</RCC>

@@ -1,12 +1,20 @@
 #include "HardwarePicker.h"
 #include "HardwareIdentity.h"
 #include "HardwareArtwork.h"
+#include "StudioWidgets.h"
+#include "ComponentDraft.h"
+#include <QButtonGroup>
+#include <QToolButton>
 #include <QComboBox>
 #include <QCryptographicHash>
 #include <QDialogButtonBox>
 #include <QDirIterator>
 #include <QFile>
 #include <QFormLayout>
+#include <QStyle>
+#include <QStandardItemModel>
+#include <QHBoxLayout>
+#include <QFrame>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
@@ -33,12 +41,17 @@ ComponentDefinition generic(const QString& id,const QString& name,int count,bool
     }
     return c;
 }
-bool isFan(const ComponentDefinition& c) { return hardwareCategory(c)=="Fans"; }
 QIcon productIcon(const ComponentDefinition& c)
 {
     QPixmap pixmap(112,88);pixmap.fill(Qt::transparent);QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
     const auto category=hardwareArtworkCategory(c);
+    const auto photo=hardwarePreviewPhoto(c);
+    if (!photo.isNull()) {
+        const auto thumbnail=photo.scaled(104,80,Qt::KeepAspectRatio,Qt::SmoothTransformation);
+        painter.drawPixmap((112-thumbnail.width())/2,(88-thumbnail.height())/2,thumbnail);
+        return QIcon(pixmap);
+    }
     static const QMap<QString,QSizeF> sizes{{"Fans",{72,72}},{"Pumps",{72,72}},
         {"Strips",{100,14}},{"RAM",{100,30}},{"Graphics cards",{100,46}},
         {"Keyboards",{100,43}},{"Mice",{44,72}},{"AiO",{100,57}},{"Motherboards",{58,72}},{"Cables",{100,24}}};
@@ -95,6 +108,13 @@ void installedProducts(ComponentCatalog& products)
                 if(c.category=="Strips" && hardwareArtworkCategory(c)!="Cables") {
                     for(int i=0;i<c.positions.size();++i) c.positions[i]={3.0*i/std::max(1,int(c.positions.size())-1),0};
                 }
+                // LEDs on an identical coordinate sit behind each other (SWAFAN and Freezer 36 rings, CoreLiquid
+                // LED 4/5, Vertagear SL5000): keep positions for sampling, separate them by layer. Computed after
+                // the D30/strip templates, which make every position distinct.
+                // More than 16 LEDs on one point exceed the 0..15 layer range: keep the product without layers
+                // instead of dropping it in the catch below (CodeRabbit PR #10).
+                const auto layers=overlapLayers(c.positions);
+                if(std::all_of(layers.cbegin(),layers.cend(),[](int layer){return layer<=15;})) c.layers=layers;
                 products.insert(c.id,ComponentDefinition::fromJson(c.toJson()));
             } catch(const std::exception&) { /* Malformed local metadata is not a usable hardware definition. */ }
         }
@@ -102,79 +122,220 @@ void installedProducts(ComponentCatalog& products)
     }
 }
 }
-HardwarePicker::HardwarePicker(const ComponentCatalog& catalog,const QVector<HeaderChoice>& headers,const QVariantMap& selected,QWidget* parent)
-    :QDialog(parent),products_(catalog),headers_(headers)
+ComponentCatalog hardwareProducts(const ComponentCatalog& catalog)
 {
-    setObjectName("hardwarePicker"); setWindowTitle("Add hardware"); resize(760,640);
-    for(int count:{6,8,12,16}) { auto c=generic(QString("generic.fan.%1").arg(count),QString("Generic fan / %1 addresses").arg(count),count,true); if(!products_.contains(c.id)) products_.insert(c.id,c); }
-    for(int count:{8,30,60}) { auto c=generic(QString("generic.strip.%1").arg(count),QString("Generic strip / %1 LEDs").arg(count),count,false); if(!products_.contains(c.id)) products_.insert(c.id,c); }
-    // Restore the original user's installed M25 models: six addresses for paired physical LEDs.
-    { auto c=generic("phanteks.m25","Phanteks M25 Gen2 120 White",6,true); products_.insert(c.id,c); }
-    installedProducts(products_);
+    // Built-in definitions are shipped files in components/ only (plan 2026-11-27 Task 4); the code adds
+    // just the validated imports of locally installed vendor metadata ("hardware.*").
+    auto products=catalog;
+    installedProducts(products);
+    for(auto it=products.begin();it!=products.end();) {
+        if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products.erase(it); else ++it;
+    }
+    return products;
+}
+namespace {
+constexpr int sectionRole = Qt::UserRole + 1; // "section" header rows, "create" row
+QListWidgetItem* sectionRow(QListWidget* list, const QString& text) // list may be null: insert it yourself
+{
+    auto* item = new QListWidgetItem(text, list);
+    item->setFlags(Qt::NoItemFlags); item->setData(sectionRole, "section");
+    auto font = item->font(); font.setBold(true); item->setFont(font);
+    return item;
+}
+}
+HardwarePicker::HardwarePicker(const ComponentCatalog& builtIn,const ComponentCatalog& user,const QVector<HeaderChoice>& headers,const QVariantMap& selected,QWidget* parent)
+    :QDialog(parent),headers_(headers)
+{
+    setObjectName("hardwarePicker"); setWindowTitle("Attach component"); resize(720,680);
+    products_=hardwareProducts(builtIn);
+    for(const auto& definition:user) { products_.insert(definition.id,definition); user_.insert(definition.id); }
+    // Per-placement copies (instance.*, restored.*) are variants of placed parts, not products to add;
+    // they showed one AiO twice in Add hardware (owner finding 2026-11-26). They stay in the Component Editor.
     for(auto it=products_.begin();it!=products_.end();) {
-        if(hardwareCategory(*it)=="Fans" && it->name.contains("Reverse",Qt::CaseInsensitive)) it=products_.erase(it); else ++it;
+        if(it.key().startsWith("instance.") || it.key().startsWith("restored.")) it=products_.erase(it); else ++it;
     }
     auto* root=new QVBoxLayout(this); root->setContentsMargins(20,20,20,20); root->setSpacing(12);
-    auto* heading=new QLabel("Choose your hardware"); heading->setProperty("heading",true); root->addWidget(heading);
-    header_=new QComboBox; header_->setObjectName("hardwareHeader"); header_->setPlaceholderText("No supported header detected - connect your controller and refresh headers"); root->addWidget(header_);
-    for(const auto& choice:headers_) { header_->addItem(choice.name,choice.identity); if(choice.identity==selected) header_->setCurrentIndex(header_->count()-1); }
-    auto* search=new QLineEdit; search->setObjectName("hardwareSearch"); search->setPlaceholderText("Search fans, strips, brands or custom hardware"); search->setClearButtonEnabled(true); root->addWidget(search);
-    auto* category=new QComboBox; category->setObjectName("hardwareCategory"); category->addItems({"All hardware","Fans","Strips","Mice","Keyboards","AiO","Pumps","RAM","Graphics cards","Motherboards","Other"}); root->addWidget(category);
-    auto* manufacturer=new QComboBox; manufacturer->setObjectName("hardwareManufacturer"); manufacturer->addItem("All manufacturers");
+    // Header row: which header, left; what is left on it, right (owner design 2026-11-27).
+    auto* headerRow=new QHBoxLayout; root->addLayout(headerRow);
+    header_=new QComboBox; header_->setObjectName("hardwareHeader"); header_->setAccessibleName("Header");
+    header_->setPlaceholderText("No supported header detected - connect your controller and refresh headers");
+    remaining_=new QLabel; remaining_->setObjectName("attachRemaining"); remaining_->setAlignment(Qt::AlignRight|Qt::AlignVCenter);
+    headerRow->addWidget(header_,1); headerRow->addWidget(remaining_);
+    for(const auto& choice:headers_) {
+        header_->addItem(choice.kind.isEmpty() ? choice.name : choice.name+"  ·  "+choice.kind,choice.identity);
+        if(auto* model=qobject_cast<QStandardItemModel*>(header_->model()); model && !choice.supported) {
+            auto* item=model->item(header_->count()-1); item->setFlags(item->flags() & ~Qt::ItemIsEnabled); item->setToolTip(choice.reason);
+        }
+        if(choice.identity==selected && choice.supported) header_->setCurrentIndex(header_->count()-1);
+    }
+    if(header_->currentIndex()<0) for(int i=0;i<headers_.size();++i) if(headers_[i].supported) { header_->setCurrentIndex(i); break; }
+    // Segmented search: type and manufacturer are their own criteria, combined with the text.
+    auto* searchBar=new QFrame; searchBar->setObjectName("attachSearchBar"); searchBar->setFrameShape(QFrame::StyledPanel);
+    auto* searchLayout=new QHBoxLayout(searchBar); searchLayout->setContentsMargins(4,4,4,4); searchLayout->setSpacing(4);
+    category_=new QComboBox; category_->setObjectName("hardwareCategory"); category_->setAccessibleName("Component type");
+    category_->addItems({"All types","Fans","Strips","Mice","Keyboards","AiO","Pumps","RAM","Graphics cards","Motherboards","Other"});
+    manufacturer_=new QComboBox; manufacturer_->setObjectName("hardwareManufacturer"); manufacturer_->setAccessibleName("Manufacturer"); manufacturer_->addItem("All manufacturers");
     QStringList brands; for(const auto& c:products_) if(!brands.contains(hardwareManufacturer(c))) brands.append(hardwareManufacturer(c));
-    brands.sort(Qt::CaseInsensitive); manufacturer->addItems(brands); root->addWidget(manufacturer);
-    productsList_=new QListWidget; productsList_->setObjectName("hardwareProducts"); productsList_->setViewMode(QListView::IconMode);
-    productsList_->setResizeMode(QListView::Adjust); productsList_->setMovement(QListView::Static); productsList_->setWordWrap(true);
-    productsList_->setGridSize({210,134}); productsList_->setIconSize({96,76}); root->addWidget(productsList_,1);
-    auto productIds=products_.keys();
-    const auto priority=[](const QString& id) { return id.startsWith("phanteks.") ? 0 : id.startsWith("generic.") ? 3 : id.startsWith("hardware.") ? 2 : 1; };
-    std::stable_sort(productIds.begin(),productIds.end(),[&](const QString& a,const QString& b) { return priority(a)<priority(b); });
+    brands.sort(Qt::CaseInsensitive); manufacturer_->addItems(brands);
+    search_=new QLineEdit; search_->setObjectName("hardwareSearch"); search_->setPlaceholderText("Search components"); search_->setClearButtonEnabled(true);
+    search_->addAction(studioToolIcon("search"),QLineEdit::LeadingPosition);
+    searchLayout->addWidget(category_); searchLayout->addWidget(manufacturer_); searchLayout->addWidget(search_,1);
+    root->addWidget(searchBar);
+    productsList_=new QListWidget; productsList_->setObjectName("hardwareProducts"); productsList_->setIconSize({64,48});
+    productsList_->setUniformItemSizes(false); productsList_->setSpacing(2); root->addWidget(productsList_,1);
+    // My components first, then Built-in; each sorted by manufacturer, then name.
+    QStringList mine, shipped;
+    for(const auto& id:products_.keys()) (user_.contains(id) ? mine : shipped).append(id);
+    const auto byMaker=[this](const QString& a,const QString& b) {
+        const auto& x=products_[a]; const auto& y=products_[b];
+        const int maker=QString::compare(hardwareManufacturer(x),hardwareManufacturer(y),Qt::CaseInsensitive);
+        return maker!=0 ? maker<0 : QString::compare(hardwareName(x),hardwareName(y),Qt::CaseInsensitive)<0;
+    };
+    std::stable_sort(mine.begin(),mine.end(),byMaker); std::stable_sort(shipped.begin(),shipped.end(),byMaker);
     QSet<QByteArray> models;
-    for(const auto& id:productIds) { const auto& c=products_[id];
-        auto identity=c.toJson();identity.remove("id");identity.insert("name",hardwareName(c).toCaseFolded());
-        const auto key=QJsonDocument(identity).toJson(QJsonDocument::Compact);
-        // Merge cosmetic variants only when LED geometry and wire mapping also match; saved IDs remain valid.
-        if(models.contains(key)) continue;
-        models.insert(key);
-        auto* item=new QListWidgetItem(productIcon(c),hardwareName(c),productsList_); item->setData(Qt::UserRole,c.id); item->setToolTip(QString("%1 / %2 addressable LEDs").arg(c.name).arg(c.positions.size())); }
-    auto* details=new QLabel; details->setWordWrap(true); details->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); details->setMinimumHeight(details->fontMetrics().lineSpacing()*2); root->addWidget(details);
+    const auto addSection=[&](const QString& title,const QStringList& ids) {
+        if(ids.isEmpty()) return;
+        sectionRow(productsList_,title);
+        for(const auto& id:ids) { const auto& c=products_[id];
+            auto identity=c.toJson();identity.remove("id");identity.insert("name",hardwareName(c).toCaseFolded());
+            const auto key=QJsonDocument(identity).toJson(QJsonDocument::Compact);
+            // Merge cosmetic variants only when LED geometry and wire mapping also match; saved IDs remain valid.
+            if(models.contains(key)) continue;
+            models.insert(key);
+            auto* item=new QListWidgetItem(productIcon(c),hardwareName(c),productsList_); item->setData(Qt::UserRole,c.id);
+            item->setToolTip(QString("%1 · %2 addresses").arg(c.name).arg(c.addresses()));
+        }
+    };
+    addSection("My components",mine); addSection("Built-in",shipped);
+    // Empty result: offer to create it, the search text becomes the name (Task 7 opens the form).
+    create_=new QListWidgetItem(productsList_); create_->setData(sectionRole,"create"); create_->setHidden(true);
+    newRow_=new QListWidgetItem("+ New component",productsList_); newRow_->setData(sectionRole,"create");
+    // Quick-create form (Option A, owner 2026-11-27): type, manufacturer, name, addresses; the editor is
+    // one click away for anything more complex.
+    quickForm_=new QFrame; quickForm_->setObjectName("quickForm"); static_cast<QFrame*>(quickForm_)->setFrameShape(QFrame::StyledPanel);
+    auto* quickLayout=new QFormLayout(quickForm_);
+    auto* types=new QWidget; types->setObjectName("quickType"); auto* typeRow=new QHBoxLayout(types); typeRow->setContentsMargins(0,0,0,0);
+    auto* typeGroup=new QButtonGroup(types);
+    for(const auto* type:{"Fans","Strips","Ring","RAM","Other"}) {
+        auto* tile=new QToolButton; tile->setText(type); tile->setObjectName(QString("quickType_%1").arg(type)); tile->setCheckable(true);
+        tile->setChecked(quickType_==type); typeGroup->addButton(tile); typeRow->addWidget(tile);
+        connect(tile,&QToolButton::clicked,this,[this,type] { quickType_=type; });
+    }
+    typeRow->addStretch(1); quickLayout->addRow("Type",types);
+    quickManufacturer_=new QComboBox; quickManufacturer_->setObjectName("quickManufacturer"); quickManufacturer_->setEditable(true);
+    quickManufacturer_->addItems(brands); quickManufacturer_->setCurrentText(QString()); quickLayout->addRow("Manufacturer",quickManufacturer_);
+    quickName_=new QLineEdit; quickName_->setObjectName("quickName"); quickLayout->addRow("Name",quickName_);
+    quickAddresses_=new QSpinBox; quickAddresses_->setObjectName("quickAddresses"); quickAddresses_->setRange(1,1024); quickAddresses_->setValue(12);
+    quickLayout->addRow("Addresses",quickAddresses_);
+    quickError_=new QLabel; quickError_->setObjectName("quickError"); quickError_->setWordWrap(true); quickLayout->addRow(quickError_);
+    auto* quickButtons=new QHBoxLayout;
+    auto* editor=new QPushButton("Open in editor…"); editor->setObjectName("quickOpenEditor");
+    auto* createAttach=new QPushButton("Create && attach"); createAttach->setObjectName("quickCreateAttach"); createAttach->setProperty("primary",true);
+    quickButtons->addWidget(editor); quickButtons->addStretch(1); quickButtons->addWidget(createAttach); quickLayout->addRow(quickButtons);
+    root->addWidget(quickForm_); quickForm_->hide();
+    connect(createAttach,&QPushButton::clicked,this,[this] { quickCreate(); });
+    connect(editor,&QPushButton::clicked,this,[this] { done(OpenEditor); });
+    // Selected component: name left, its addresses right.
+    auto* selectionRow=new QHBoxLayout; root->addLayout(selectionRow);
+    selectionName_=new QLabel; selectionName_->setObjectName("attachSelectionName");
+    selectionAddresses_=new QLabel; selectionAddresses_->setObjectName("attachSelectionAddresses"); selectionAddresses_->setAlignment(Qt::AlignRight|Qt::AlignVCenter);
+    selectionRow->addWidget(selectionName_,1); selectionRow->addWidget(selectionAddresses_);
     auto* form=new QFormLayout; root->addLayout(form);
     quantity_=new QSpinBox; quantity_->setObjectName("hardwareQuantity"); quantity_->setRange(1,64); form->addRow("Quantity",quantity_);
-    leds_=new QSpinBox; leds_->setObjectName("hardwareLedCount"); leds_->setRange(1,120); form->addRow("LEDs per component",leds_);
-    leds_->setToolTip("Generic geometry only: set the actual addressable LED count. Product mappings retain their verified count.");
-    auto* buttons=new QDialogButtonBox(QDialogButtonBox::Cancel); auto* add=buttons->addButton("Add to header",QDialogButtonBox::AcceptRole); add->setObjectName("confirmAddHardware"); root->addWidget(buttons);
-    const auto update=[this,details,add] {
-        const auto* item=productsList_->currentItem(); const bool selected=item && !item->isHidden();
-        const auto c=selected ? products_[item->data(Qt::UserRole).toString()] : ComponentDefinition{};
-        const bool generic=c.id.startsWith("generic."); leds_->setEnabled(generic);
-        const int count=generic ? leds_->value() : int(c.positions.size()), index=header_->currentIndex();
-        const int remaining=index>=0 ? headers_[index].remaining : 0;
-        add->setEnabled(selected && count*quantity_->value()<=remaining && (index<0 || headers_[index].required==0 || count*quantity_->value()==headers_[index].required));
-        details->setText(selected ? QString("%1 / %2 LEDs in this chain / %3 addresses available").arg(c.name).arg(count*quantity_->value()).arg(remaining) : "Choose a product to add to this header.");
-    };
-    connect(productsList_,&QListWidget::currentItemChanged,this,[this,update](QListWidgetItem* item) {
-        if(item) { const QSignalBlocker block(leds_); leds_->setValue(int(products_[item->data(Qt::UserRole).toString()].positions.size())); } update();
+    auto* buttons=new QDialogButtonBox(QDialogButtonBox::Cancel);
+    attach_=buttons->addButton("Attach",QDialogButtonBox::AcceptRole); attach_->setObjectName("confirmAddHardware"); root->addWidget(buttons);
+    connect(productsList_,&QListWidget::currentItemChanged,this,[this](QListWidgetItem* item) {
+        if(item==create_) showQuickForm(search_->text().trimmed());
+        else if(item==newRow_) showQuickForm(QString());
+        else quickForm_->hide();
+        update();
     });
-    connect(header_,&QComboBox::currentIndexChanged,this,[update] { update(); });
-    connect(quantity_,&QSpinBox::valueChanged,this,[update] { update(); }); connect(leds_,&QSpinBox::valueChanged,this,[update] { update(); });
-    const auto filter=[this,search,category,manufacturer,update] {
-        QListWidgetItem* first=nullptr;
-        for(int i=0;i<productsList_->count();++i) { auto* item=productsList_->item(i); const auto c=products_[item->data(Qt::UserRole).toString()];
-            const bool visible=hardwareName(c).contains(search->text(),Qt::CaseInsensitive) && (category->currentIndex()==0 || category->currentText()==hardwareCategory(c)) && (manufacturer->currentIndex()==0 || manufacturer->currentText()==hardwareManufacturer(c));
-            item->setHidden(!visible); if(visible && !first) first=item;
-        }
-        if(!productsList_->currentItem() || productsList_->currentItem()->isHidden()) productsList_->setCurrentItem(first); update();
-    };
-    connect(search,&QLineEdit::textChanged,this,[filter] { filter(); }); connect(category,&QComboBox::currentIndexChanged,this,[filter] { filter(); }); connect(manufacturer,&QComboBox::currentIndexChanged,this,[filter] { filter(); });
+    connect(header_,&QComboBox::currentIndexChanged,this,[this] { update(); });
+    connect(quantity_,&QSpinBox::valueChanged,this,[this] { update(); });
+    connect(search_,&QLineEdit::textChanged,this,[this] { filter(); });
+    connect(category_,&QComboBox::currentIndexChanged,this,[this] { filter(); });
+    connect(manufacturer_,&QComboBox::currentIndexChanged,this,[this] { filter(); });
     connect(buttons,&QDialogButtonBox::accepted,this,&QDialog::accept); connect(buttons,&QDialogButtonBox::rejected,this,&QDialog::reject);
-    if(productsList_->count()) productsList_->setCurrentRow(0); update();
+    update();
+}
+void HardwarePicker::update()
+{
+    const auto* item=productsList_->currentItem();
+    const bool selected=item && !item->isHidden() && !item->data(Qt::UserRole).toString().isEmpty();
+    const auto c=selected ? products_[item->data(Qt::UserRole).toString()] : ComponentDefinition{};
+    const int index=header_->currentIndex();
+    const int remaining=index>=0 ? headers_[index].remaining : 0, needed=selected ? c.addresses()*quantity_->value() : 0;
+    const int required=index>=0 ? headers_[index].required : 0;
+    selectionName_->setText(selected ? hardwareName(c) : QString("Choose a component"));
+    selectionAddresses_->setText(selected ? QString("%1 addresses").arg(c.addresses()) : QString());
+    if(index<0) remaining_->clear();
+    else if(!selected) remaining_->setText(QString("%1 addresses remaining").arg(remaining));
+    else if(needed>remaining) remaining_->setText(QString("%1 addresses remaining · exceeds by %2").arg(remaining).arg(needed-remaining));
+    else if(required>0 && needed!=required) remaining_->setText(QString("needs exactly %1 addresses").arg(required));
+    else remaining_->setText(QString("%1 → %2 addresses remaining").arg(remaining).arg(remaining-needed));
+    attach_->setEnabled(selected && index>=0 && headers_[index].supported && needed<=remaining && (required==0 || needed==required));
+}
+void HardwarePicker::filter()
+{
+    QListWidgetItem* first=nullptr; QListWidgetItem* section=nullptr; bool sectionUsed=false;
+    for(int i=0;i<productsList_->count();++i) { auto* item=productsList_->item(i);
+        const auto role=item->data(sectionRole).toString();
+        if(role=="create") continue;
+        if(role=="section") { if(section) section->setHidden(!sectionUsed); section=item; sectionUsed=false; continue; }
+        const auto c=products_[item->data(Qt::UserRole).toString()];
+        const bool visible=(hardwareName(c).contains(search_->text(),Qt::CaseInsensitive) || c.name.contains(search_->text(),Qt::CaseInsensitive))
+            && (category_->currentIndex()==0 || category_->currentText()==hardwareCategory(c))
+            && (manufacturer_->currentIndex()==0 || manufacturer_->currentText()==hardwareManufacturer(c));
+        item->setHidden(!visible); if(visible && !first) first=item; sectionUsed=sectionUsed || visible;
+    }
+    if(section) section->setHidden(!sectionUsed);
+    const auto text=search_->text().trimmed();
+    create_->setText(QString("+ Create \"%1\"").arg(text)); create_->setHidden(first || text.isEmpty());
+    newRow_->setHidden(!create_->isHidden());
+    if(!productsList_->currentItem() || productsList_->currentItem()->isHidden() || productsList_->currentItem()->data(Qt::UserRole).toString().isEmpty()) productsList_->setCurrentItem(first);
+    update();
+}
+void HardwarePicker::showQuickForm(const QString& name)
+{
+    quickName_->setText(name); quickError_->clear(); quickForm_->show(); quickName_->setFocus();
+}
+void HardwarePicker::quickCreate()
+{
+    try {
+        if(quickName_->text().trimmed().isEmpty()) throw std::invalid_argument("Enter a name.");
+        if(!saveComponent) throw std::invalid_argument("Saving components is not available here.");
+        // Same shapes the Component Editor's shape buttons use: fans and rings as a circle, the rest as a line.
+        ComponentDraft draft; draft.name=quickName_->text().trimmed(); draft.manufacturer=quickManufacturer_->currentText().trimmed();
+        const auto shape=quickType_=="Fans" ? DraftShape::Fan : quickType_=="Ring" ? DraftShape::Ring : DraftShape::Strip;
+        draft=withShape(draft,shape,quickAddresses_->value());
+        draft.category=quickType_=="Ring" ? QString("Other") : quickType_;
+        draft.id="custom.new"; // saveComponent assigns the real ID
+        auto definition=draft.toDefinition();
+        definition.id=saveComponent(definition);
+        products_.insert(definition.id,definition); user_.insert(definition.id);
+        // Into "My components": after its header, which is created on top when it did not exist yet.
+        int row=0;
+        if(productsList_->count()==0 || productsList_->item(0)->text()!="My components") productsList_->insertItem(0,sectionRow(nullptr,"My components"));
+        row=1;
+        auto* item=new QListWidgetItem(productIcon(definition),hardwareName(definition)); item->setData(Qt::UserRole,definition.id);
+        item->setToolTip(QString("%1 · %2 addresses").arg(definition.name).arg(definition.addresses()));
+        productsList_->insertItem(row,item); productsList_->item(0)->setHidden(false);
+        quickForm_->hide(); quantity_->setValue(1); productsList_->setCurrentItem(item);
+        if(attach_->isEnabled()) accept();
+        // quickForm_ (and quickError_ in it) is hidden now: report on the visible selection line (CodeRabbit PR #10).
+        else selectionAddresses_->setText(selectionAddresses_->text()+" · Saved to your components, but it does not fit this header.");
+    } catch(const std::exception& error) { quickError_->setText(QString::fromUtf8(error.what())); quickForm_->show(); }
+}
+QString HardwarePicker::editorName() const { return quickName_->text().trimmed(); }
+void HardwarePicker::selectComponent(const QString& id)
+{
+    for(int i=0;i<productsList_->count();++i) if(productsList_->item(i)->data(Qt::UserRole).toString()==id) { productsList_->setCurrentRow(i); return; }
 }
 ComponentDefinition HardwarePicker::component() const
 {
     const auto* item=productsList_->currentItem(); if(!item) throw std::invalid_argument("Choose hardware first");
-    auto c=products_[item->data(Qt::UserRole).toString()];
-    if(c.id.startsWith("generic.") && c.positions.size()!=leds_->value()) c=generic(QString("generic.%1.%2").arg(isFan(c) ? "fan" : "strip").arg(leds_->value()),QString("Generic %1 / %2 LEDs").arg(isFan(c) ? "fan" : "strip").arg(leds_->value()),leds_->value(),isFan(c));
-    return ComponentDefinition::fromJson(c.toJson());
+    if(item->data(Qt::UserRole).toString().isEmpty()) throw std::invalid_argument("Choose hardware first");
+    return ComponentDefinition::fromJson(products_[item->data(Qt::UserRole).toString()].toJson());
 }
 int HardwarePicker::quantity() const { return quantity_->value(); }
 QVariantMap HardwarePicker::header() const { return header_->currentData().toMap(); }

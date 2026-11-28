@@ -132,19 +132,18 @@ void applyStudioStyle(QWidget* window)
         QTabWidget::pane { border: 0; }
         QTabBar::tab { padding: 5px 10px; color: @secondary; background: @chrome; border-bottom: 2px solid transparent; }
         QTabBar::tab:selected { color: @accent; border-bottom-color: @accent; background: @selected; }
-        QWidget#editorTargetGroup { background: transparent; border: 0; }
-        QLabel#editorTargetLabel { background: transparent; color: @secondary; border: 0; font-size: 9pt; font-weight: 600; }
-        QTabBar#editorTarget { background: transparent; border: 0; }
-        QTabBar#editorTarget::tab { min-width: 82px; min-height: 20px; padding: 4px 10px; margin: 0 2px; border: 1px solid @separator; border-radius: 4px; color: @text; background: @panel; font-weight: 600; }
-        QTabBar#editorTarget::tab:selected { color: @text; background: @selected; border-color: @accent; }
-        QTabBar#editorTarget::tab:hover { background: @hover; border-color: @border; }
-        QTabBar#editorTarget::tab:disabled { color: @secondary; background: @panel; border-color: @separator; }
         QScrollArea { border: 0; }
         QPushButton, QToolButton { background: @panel; border: 1px solid @border; border-radius: 4px; padding: 4px 8px; min-height: 1.3em; }
         QPushButton:hover, QToolButton:hover { background: @hover; border-color: @border; }
         QPushButton:pressed, QToolButton:pressed, QToolButton:checked, QPushButton:checked { background: @selected; border-color: @accent; }
-        QPushButton:disabled, QToolButton:disabled { color: @secondary; background: @panel; border-color: @separator; }
+        QPushButton:disabled, QToolButton:disabled { color: @disabled; background: transparent; border-color: @separator; }
+        QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled { color: @disabled; background: @chrome; border-color: @separator; }
+        QLineEdit[readOnly="true"] { color: @disabled; background: @chrome; border-color: @separator; }
+        QCheckBox:disabled, QRadioButton:disabled, QLabel:disabled { color: @disabled; }
         QPushButton[primary="true"] { background: @selected; border-color: @accent; color: @text; font-weight: 600; }
+        QPushButton[danger="true"] { color: @danger; border-color: @danger; }
+        QPushButton[danger="true"]:disabled { color: @disabled; border-color: @separator; }
+        QPushButton[primary="true"]:disabled { background: transparent; border-color: @separator; color: @disabled; font-weight: 400; }
         QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { border: 1px solid @border; border-radius: 4px; background: @input; padding: 3px 4px; min-height: 1.3em; }
         QComboBox { padding-right: 24px; }
         QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 20px; border: 0; border-top-right-radius: 4px; border-bottom-right-radius: 4px; background: transparent; }
@@ -200,6 +199,9 @@ void applyStudioStyle(QWidget* window)
         QLabel[emptyState="true"] { padding: 24px; border: 1px solid @border; border-radius: 6px; background: @chrome; }
         QToolButton#workspacePanels { border-color: @border; }
         QToolTip { color: @text; background: @hover; border: 1px solid @border; padding: 6px; }
+        /* Overlays drawn over a canvas need an opaque surface; the global transparent QWidget rule made the */
+        /* Component Editor help unreadable over the LED artwork (owner review 2026-11-26). */
+        QFrame[popup="true"] { background: @panel; border: 1px solid @border; border-radius: 6px; }
     )");
     for(const auto& token:studioThemeColors)sheet.replace(QString::fromLatin1(token.name),QString::fromLatin1(token.value));
     window->setStyleSheet(sheet);
@@ -303,6 +305,7 @@ QIcon studioToolIcon(const QString& name)
     } else if(name=="preview-stop") {
         painter.setPen(Qt::NoPen);painter.setBrush(QColor("#ff5c68"));painter.drawRect(QRectF(4,4,16,16));
     }
+    else if(name=="search") { painter.drawEllipse(QRectF(4,4,11,11)); painter.drawLine(QPointF(13.5,13.5),QPointF(20,20)); }
     else if(name=="pan") {
         QPainterPath hand;hand.moveTo(7,21);hand.lineTo(3,13);hand.quadTo(2,10,5,11);hand.lineTo(8,14);hand.lineTo(8,5);hand.quadTo(8,2,10,4);hand.lineTo(10,11);hand.lineTo(10,3);hand.quadTo(11,1,12,3);hand.lineTo(12,11);hand.lineTo(12,4);hand.quadTo(14,2,14,5);hand.lineTo(14,12);hand.lineTo(14,7);hand.quadTo(16,5,16,8);hand.lineTo(17,14);hand.quadTo(18,18,15,21);hand.closeSubpath();painter.drawPath(hand);
     }
@@ -325,6 +328,34 @@ QIcon studioToolIcon(const QString& name)
             painter.drawLine(corner,corner+QPointF(0,corner.y()<12 ? 5 : -5));
         }
     }
+    // Component Editor tool rail.
+    else if(name=="select") { painter.setBrush(QColor("#e0e8fc")); painter.drawPolygon(QPolygonF{QPointF(6,3),QPointF(6,19),QPointF(10,15),QPointF(13,21),QPointF(15,20),QPointF(12,14),QPointF(18,14)}); }
+    else if(name=="wire") { painter.drawLine(QPointF(5,18),QPointF(12,7)); painter.drawLine(QPointF(12,7),QPointF(19,16)); for(const auto p:{QPointF(5,18),QPointF(12,7),QPointF(19,16)}) painter.drawEllipse(p,2.5,2.5); }
+    else if(name=="duplicate") { painter.drawRoundedRect(QRectF(3,7,12,13),2,2); painter.drawRoundedRect(QRectF(9,3,12,13),2,2); }
+    else if(name=="mirror-h") { painter.drawLine(12,3,12,21); painter.drawPolygon(QPolygonF{QPointF(9,7),QPointF(3,17),QPointF(9,17)}); painter.drawPolygon(QPolygonF{QPointF(15,7),QPointF(21,17),QPointF(15,17)}); }
+    else if(name=="mirror-v") { painter.drawLine(3,12,21,12); painter.drawPolygon(QPolygonF{QPointF(7,9),QPointF(17,3),QPointF(17,9)}); painter.drawPolygon(QPolygonF{QPointF(7,15),QPointF(17,21),QPointF(17,15)}); }
+    else if(name=="rotate") { painter.drawArc(QRectF(4,4,16,16),60*16,280*16); painter.drawLine(QPointF(16,5),QPointF(19,8)); painter.drawLine(QPointF(19,8),QPointF(15,10)); }
+    else if(name=="delete") { painter.drawLine(4,6,20,6); painter.drawLine(9,6,10,3); painter.drawLine(10,3,14,3); painter.drawLine(14,3,15,6); painter.drawPolygon(QPolygonF{QPointF(6,6),QPointF(7,21),QPointF(17,21),QPointF(18,6)}); }
+    else if(name=="grid") { for(int i:{8,16}) {painter.drawLine(i,3,i,21); painter.drawLine(3,i,21,i);} }
+    // Component Editor "Add shapes" buttons: LED dots in the shape's footprint (owner request 2026-11-25).
+    else if(name.startsWith("shape-")) {
+        QList<QPointF> dots;
+        if(name=="shape-matrix") { for(int y:{5,12,19}) for(int x:{5,12,19}) dots<<QPointF(x,y); }
+        else if(name=="shape-strip") { for(int x:{3,9,15,21}) dots<<QPointF(x,12); }
+        else if(name=="shape-ring" || name=="shape-fan") { for(int i=0;i<8;++i) dots<<QPointF(12+8*std::cos(i*3.14159265358979/4),12+8*std::sin(i*3.14159265358979/4)); if(name=="shape-fan") painter.drawEllipse(QPointF(12,12),3,3); }
+        else if(name=="shape-lshape") { for(int y:{4,10,16}) dots<<QPointF(5,y); for(int x:{5,11,17}) dots<<QPointF(x,20); }
+        else if(name=="shape-ushape") { for(int y:{4,10,16}) { dots<<QPointF(4,y); dots<<QPointF(20,y); } dots<<QPointF(12,20); }
+        painter.setPen(Qt::NoPen); painter.setBrush(QColor("#e0e8fc"));
+        for(const auto& dot:dots) painter.drawEllipse(dot,2.2,2.2);
+    }
+    // Component Editor layer box (owner sketch 2026-11-25).
+    else if(name=="layers") { for(int y:{9,14}) painter.drawPolygon(QPolygonF{QPointF(7,y-4),QPointF(22,y-4),QPointF(17,y+4),QPointF(2,y+4)}); }
+    else if(name=="layer-back" || name=="layer-front") {
+        painter.setPen(Qt::NoPen); painter.setBrush(QColor("#e0e8fc"));
+        painter.drawPolygon(name=="layer-back" ? QPolygonF{QPointF(12,6),QPointF(20,17),QPointF(4,17)} : QPolygonF{QPointF(12,18),QPointF(20,7),QPointF(4,7)});
+    }
+    else if(name=="path") { QPainterPath curve; curve.moveTo(4,19); curve.cubicTo(8,4,16,20,20,5); painter.drawPath(curve); }
+    else if(name=="help") { painter.drawEllipse(QRectF(3,3,18,18)); QFont font=painter.font(); font.setPixelSize(13); font.setBold(true); painter.setFont(font); painter.drawText(QRectF(3,3,18,18),Qt::AlignCenter,"?"); }
     else if(name=="open") { QPolygonF folder; folder<<QPointF(3,7)<<QPointF(10,7)<<QPointF(12,10)<<QPointF(21,10)<<QPointF(19,20)<<QPointF(3,20); painter.drawPolygon(folder); painter.drawLine(3,7,3,4); painter.drawLine(3,4,10,4); }
     else if(name=="save") { painter.drawRect(4,3,16,18); painter.drawRect(7,3,10,6); painter.drawRect(7,14,10,7); }
     else if(name=="save-as") {
@@ -539,6 +570,9 @@ void installParameterTooltips(QWidget* root)
         {"patternContrast","Color-field contrast around the palette midpoint as a percentage. 100 preserves the original field."},
         {"patternWarp","Distorts Plasma waves or twists Kaleidoscope sectors. Zero preserves the original shape."},
         {"patternWavelength","Horizontal width of DNA turns as a percentage. 200 doubles the spacing; amplitude controls height separately."},
+        {"chaseSpeed","Addresses travelled per second. Zero holds the initial address."},
+        {"chaseLength","Number of consecutive LED addresses lit at once."},
+        {"chaseReverse","Start at the last address and travel toward the first."},
         {"patternSpeed","Pattern animation speed. Negative values reverse motion; zero freezes the pattern."},
         {"patternWidth","Soft band width as a percentage of the effect's local dimensions."},
         {"patternAmplitude","Wave height as a percentage of the effect height."},

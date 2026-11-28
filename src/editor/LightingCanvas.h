@@ -44,6 +44,9 @@ public:
     void setSmartGuides(bool enabled) { smartGuides_=enabled;guides_.clear();update(); }
     void setActiveLayer(const QUuid& id) { activeLayer_=id; }
     QVector<ComponentPlacement> previewPlacements() const;
+    // Placements whose controller the last scan did not find: hidden (or dimmed) and not selectable.
+    // Display only; the document, previews and output keep them (owner request 2026-11-24).
+    void setDisconnectedPlacements(QSet<QUuid> ids, bool dim);
     void setMaskTarget(bool enabled);
     void setMaskTool(MaskTool tool) { cancelGesture(); tool_ = tool; }
     void setBrush(double radius, double hardness, double opacity, int gray);
@@ -109,6 +112,10 @@ private:
     void selectAt(QPointF point);
     QVector<QUuid> hitsAt(QPointF point) const;
     bool editable(const QUuid& id) const;
+    bool disconnectedObject(const QUuid& id) const;
+    bool hiddenPlacement(const QUuid& id) const { return !dimDisconnected_ && disconnected_.contains(id); }
+    QSet<QUuid> disconnected_;
+    bool dimDisconnected_=false;
     QRectF effectBounds(const EffectLayer& layer) const;
     EffectLayer transformedSelection(const EffectLayer& layer) const;
     void updateDrawing(QPointF point);

@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QPushButton>
+#include <QStatusBar>
 #include <QMessageBox>
 #include <QHeaderView>
 #include <QSaveFile>
@@ -127,7 +128,7 @@ ServicePanel::ServicePanel(LightingWindow& window,Rpc rpc):QWidget(&window),rpc_
         auto c=command("channels");c["keys"]=keys;c["paused"]=pause;send(c);
     });
     status_=new QLabel;status_->setObjectName("outputStatus");status_->setTextFormat(Qt::PlainText);status_->setWordWrap(true);layout->addWidget(status_);
-    outputs_=new QTreeWidget;outputs_->setObjectName("outputEndpoints");outputs_->setHeaderLabels({"Endpoint / channel","Profile","State"});
+    outputs_=new QTreeWidget;outputs_->setObjectName("outputEndpoints");outputs_->setHeaderLabels({"Output","Device","State"});
     outputs_->setSelectionMode(QAbstractItemView::ExtendedSelection);outputs_->setTextElideMode(Qt::ElideMiddle);
     outputs_->header()->setSectionResizeMode(0,QHeaderView::Stretch);
     outputs_->header()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
@@ -159,9 +160,10 @@ QJsonObject ServicePanel::project() {
     QTemporaryDir folder;if(!folder.isValid())throw std::runtime_error("Cannot stage editor project");
     std::optional<LightingState> live;
     for(auto* canvas:window_.findChildren<LightingCanvas*>())if(!live)live=canvas->workingState();
-    const auto path=folder.path()+"/project.json";window_.document().save(path,false,live ? &*live : nullptr);
+    QJsonArray definitions;
+    const auto path=folder.path()+"/project.json";window_.document().save(path,false,live ? &*live : nullptr,&definitions);
     QFile input(path);if(!input.open(QIODevice::ReadOnly))throw std::runtime_error("Cannot read staged editor project");
-    auto result=command("project");result["project"]=StudioService::decode(input.readAll());
+    auto result=command("project");result["project"]=StudioService::decode(input.readAll());result["componentDefinitions"]=definitions;
     // The service applies the snapshot's enabled flag, so an unconfirmed Stop/Resume must win over the
     // last reported state; otherwise a project sent after Stop re-enables output (CodeRabbit review 2026-11-15).
     bool enabled=enabled_;
@@ -175,13 +177,23 @@ void ServicePanel::display(const QJsonObject& reply) {
     outputs_->clear();int running=0,errors=0;
     QStringList messages;const auto discovery=reply.value("discoveryError").toString();if(!discovery.isEmpty())messages.append("RAM discovery: "+discovery);const auto error=reply.value("error").toString();if(!error.isEmpty())messages.append(error);
     for(const auto& entry:reply.value("outputs").toArray()) {
-        const auto item=entry.toObject();auto* row=new QTreeWidgetItem(outputs_,{item.value("endpoint").toString()+" / "+item.value("channel").toString(),item.value("profileId").toString(),item.value("state").toString()});
-        row->setToolTip(0,row->text(0));row->setData(0,Qt::UserRole,item.value("key").toString());row->setSelected(selected.contains(item.value("key").toString()));
+        const auto item=entry.toObject();
+        // Beginners read connector and device names; the USB path and profile ID are details (critique 2026-11-26).
+        QString device=item.value("profileId").toString();
+        for(const auto& profile:window_.document().profiles())if(profile.id==device && !profile.name.isEmpty())device=profile.name;
+        auto* row=new QTreeWidgetItem(outputs_,{item.value("channel").toString(),device,item.value("state").toString()});
+        row->setToolTip(0,item.value("endpoint").toString()+" / "+item.value("channel").toString());row->setToolTip(1,item.value("profileId").toString());row->setData(0,Qt::UserRole,item.value("key").toString());row->setSelected(selected.contains(item.value("key").toString()));
         if(item.value("state").toString()=="Running")++running;
         const auto failure=item.value("error").toString();if(!failure.isEmpty()){++errors;messages.append(failure);row->setToolTip(2,failure);}
     }
     messages.removeDuplicates();
     status_->setText(messages.isEmpty()?"Service connected. Playback continues when the editor closes.":messages.join("\n"));
+    // A blocked device used to stay dark with the reason only in Devices and a tooltip (owner report
+    // 2026-11-26: mouse dark after standby). A permanent status-bar notice shows a service-wide error for
+    // as long as it lasts; transient status messages would overwrite it.
+    auto* notice=window_.statusBar()->findChild<QLabel*>("serviceNotice");
+    if(!notice){notice=new QLabel;notice->setObjectName("serviceNotice");notice->setTextFormat(Qt::PlainText);window_.statusBar()->addPermanentWidget(notice,1);}
+    notice->setText(error);notice->setToolTip(error);notice->setVisible(!error.isEmpty());
     // A service-wide error counts as an error but is no faulted channel: idle channels stay idle (CodeRabbit review 2026-11-18).
     window_.setOutputState(QString("%1 active / %2 configured / %3 errors / %4 faulted").arg(running).arg(outputs_->topLevelItemCount()).arg(errors+(!error.isEmpty()?1:0)).arg(errors));
 }
@@ -198,7 +210,7 @@ void ServicePanel::poll() {
                     QTemporaryFile file;if(!file.open())throw std::runtime_error("Cannot restore service snapshot");
                     const auto bytes=QJsonDocument(reply.value("project").toObject()).toJson();
                     if(file.write(bytes)!=bytes.size() || !file.flush())throw std::runtime_error("Cannot stage service snapshot");
-                    window_.loadProject(file.fileName(),true,{});window_.document().history()->setClean();
+                    window_.loadProject(file.fileName(),true,{},reply.value("componentDefinitions").toArray());window_.document().history()->setClean();
                     window_.findChild<QDoubleSpinBox*>("previewTime")->setValue(reply.value("seconds").toDouble());
                     window_.findChild<QPushButton*>("playPreview")->setChecked(reply.value("playing").toBool());
                 } else if(!window_.document().state().assignments.isEmpty())dirty_=true;

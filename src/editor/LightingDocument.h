@@ -1,16 +1,19 @@
 #pragma once
 
 #include "components/ComponentCatalog.h"
+#include <optional>
 #include "EffectRenderer.h"
 #include "ChannelAssignment.h"
 #include <QColor>
 #include <QImage>
+#include <QJsonArray>
 #include <QObject>
 #include <QUndoStack>
 #include <QUuid>
 #include <functional>
 #include <optional>
 #include <limits>
+#include <stdexcept>
 
 enum class LayerBlend { Normal, Multiply, Screen, Overlay };
 struct EffectLayer {
@@ -43,6 +46,7 @@ struct EffectLayer {
     double patternDetail=4, patternHeight=.8; // Schema 17: seeded sites, distance metric and flame shaping.
     // Schema 22: independent spatial controls; defaults preserve the earlier procedural formulas.
     double patternFrequency=1, patternContrast=1, patternWarp=0, patternWavelength=1;
+    double chaseSpeed=12, chaseLength=4, chaseReverse=0; // Addresses per second, lit addresses, and 0/1 direction.
     QRectF crop{0, 0, 1, 1}; // Normalized, non-destructive source-image selection.
     bool maskLinked = false;
     // Opt-in: procedural sources normally fill the whole canvas so rotation never shows edges.
@@ -72,11 +76,17 @@ struct LightingState {
     QVector<EffectLayer> layers; // Roots and their objects compose bottom to top; parentId defines ownership.
 };
 
+class MissingComponents : public std::invalid_argument {
+public:
+    explicit MissingComponents(QStringList ids);
+    const QStringList ids;
+};
+
 // Offline document only. Catalog geometry is never inferred as attached hardware.
 class LightingDocument : public QObject {
     Q_OBJECT
 public:
-    explicit LightingDocument(ComponentCatalog catalog, QObject* parent = nullptr, QVector<DeviceProfile> profiles = {});
+    explicit LightingDocument(ComponentCatalog catalog, QObject* parent = nullptr, QVector<DeviceProfile> profiles = {}, QString libraryPath = {});
     static QSize canvasSize() { return {640, 400}; }
     const ComponentCatalog& catalog() const { return state_.components; }
     const ComponentCatalog& installedCatalog() const { return initialCatalog_; }
@@ -98,8 +108,30 @@ public:
     QUuid importImage(const QString& fileName, const QUuid& parent = {});
     void defineComponent(const ComponentDefinition& component, bool replace = false);
     // Isolates geometry for one placement; physical LED count and wire order stay unchanged.
-    void setComponentGeometry(const QUuid& placement, const QVector<QPointF>& positions);
+    // Display layers (Component Editor) are replaced when given, otherwise kept.
+    void setComponentGeometry(const QUuid& placement, const QVector<QPointF>& positions,
+                              const std::optional<QVector<int>>& layers = std::nullopt);
     void importComponent(const QString& fileName);
+    ComponentCatalog customComponents() const;
+    bool hasComponentLibrary() const { return !libraryPath_.isEmpty(); }
+    // The user component folder (plan 2026-11-27 Task 5); chosen at the first save, changed in Settings.
+    QString componentLibrary() const { return libraryPath_; }
+    void setComponentLibrary(const QString& folder) { libraryPath_ = folder; }
+    QString registerComponent(const ComponentDefinition& definition);
+    void applyComponentVariant(const QUuid& placement, const ComponentDefinition& definition);
+    // Placements of the open document that reference the definition, in placement order.
+    QVector<QUuid> componentUsers(const QString& id) const;
+    // Removes a library entry; throws std::invalid_argument for built-ins or definitions the open document uses.
+    void removeCustomComponent(const QString& id);
+    // Overwrites the library entry with the same ID (no variant fork). The open document's copy changes in
+    // one undoable edit; nothing is written when channel validation fails.
+    void updateCustomComponent(const ComponentDefinition& definition);
+    // Registers a copy under "custom.<slug>.<8 hex>" and returns the new ID.
+    QString saveComponentCopy(const ComponentDefinition& definition);
+    QUuid duplicateComponent(const QUuid& placement);
+    void removeComponents(const QSet<QUuid>& placements);
+    void moveComponent(const QUuid& placement, ChannelAssignment destination);
+    int availableAddresses(const ChannelAssignment& assignment) const;
     QUuid addComponent(const QString& componentId);
     QString componentName(const ComponentPlacement& placement) const;
     QVector<QPointF> componentPoints(const ComponentPlacement& placement) const;
@@ -115,8 +147,8 @@ public:
     QMap<QUuid, QVector<QColor>> previewComponentColors(const QImage& frame, double seconds = 0, const QVector<ComponentPlacement>* placements = nullptr, const QImage* channelFrame = nullptr) const;
     // Zero-based output position of each software-assigned component's first LED in its chain.
     QMap<QUuid, int> componentLedOffsets() const;
-    // Identify flash: the software chain holding this placement shows white over its LEDs and every
-    // other software chain goes dark. Transient: not in undo history, revision or saved files.
+    // Identify overlays only the selected addresses, including every component sharing them.
+    // Transient: not in undo history, revision or saved files.
     void setIdentifyPlacement(const QUuid& placement);
     QUuid identifyPlacement() const { return identify_; }
     bool hasSoftwareChannel(const QUuid& placement) const;
@@ -132,8 +164,11 @@ public:
     static QImage whiteMask();
     // state: write this state instead of the document's (the service streams an uncommitted drag);
     // such a save never marks the document clean.
-    void save(const QString& fileName, bool markClean = true, const LightingState* state = nullptr);
-    void load(const QString& fileName);
+    void save(const QString& fileName, bool markClean = true, const LightingState* state = nullptr, QJsonArray* playbackDefinitions = nullptr);
+    void load(const QString& fileName, const QJsonArray& playbackDefinitions = {});
+    void saveCustomEffect(const QUuid& selection, const QString& fileName);
+    QUuid insertCustomEffect(const QString& fileName);
+    static EffectLayer effectDefaults(EffectKind effect);
     static void paintMask(QImage& mask, QPointF from, QPointF to,
         double radius, double hardness, double opacity, int gray);
     static void gradientMask(QImage& mask, QPointF from, QPointF to);
@@ -147,6 +182,7 @@ private:
     QVector<QColor> sampleComponent(const ComponentPlacement& placement, const QImage& premultiplied, const QRectF& bounds) const;
     const QVector<DeviceProfile> profiles_;
     const ComponentCatalog initialCatalog_;
+    QString libraryPath_;
     LightingState state_;
     std::optional<LightingState> colorPreviewBefore_;
     QUuid identify_;

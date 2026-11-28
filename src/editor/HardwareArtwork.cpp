@@ -1,17 +1,25 @@
 #include "HardwareArtwork.h"
+#include "ComponentDraft.h"
+#include <QHash>
 #include "HardwareIdentity.h"
 #include <QPainter>
 #include <QSvgRenderer>
 #include <QMap>
 #include <QSharedPointer>
 #include <QPixmapCache>
+#include <QPixmap>
 #include <QLineF>
+#include <QtMath>
 #include <cmath>
 #include <algorithm>
 #include <set>
 #include <limits>
 
-static void initializeHardwareArtwork() { Q_INIT_RESOURCE(hardware); }
+static void initializeHardwareArtwork()
+{
+    static const bool initialized=[] { Q_INIT_RESOURCE(hardware); return true; }();
+    Q_UNUSED(initialized);
+}
 
 QString hardwareArtworkCategory(const ComponentDefinition& component)
 {
@@ -32,8 +40,50 @@ QString hardwareArtworkCategory(const ComponentDefinition& component)
     return "Strips";
 }
 
+QPixmap hardwarePreviewPhoto(const ComponentDefinition& component)
+{
+    initializeHardwareArtwork();
+    // Straight front views (owner-provided placeholders, 2026-11-26), named <part>_rgb_fv.
+    static const QMap<QString,QString> photos{{"Fans","fan_120_rgb_fv"},{"Strips","led_strip_rgb_fv"},{"Cables","pc_light_cable_fv"},
+        {"RAM","ram_rgb_fv"},{"Graphics cards","gpu_rgb_fv"},{"Keyboards","keyboard_rgb_fv"},
+        {"Mice","mouse_rgb_fv"},{"AiO","aio_240_rgb_fv"},{"Motherboards","io_shield_rgb_fv"}};
+    const auto category=hardwareArtworkCategory(component);
+    auto name=photos.value(category);
+    if (category=="AiO") for (const auto* length:{"120","360"})
+        if (component.name.contains(length)) name=QString("aio_%1_rgb_fv").arg(length);
+    if (name.isEmpty()) return {};
+    // Devices redraws its thumbnail every preview frame; decode the ~2 MB source once and keep a
+    // copy small enough (512x512 px budget, still 176 px at 200 % DPI) for the shared pixmap cache budget.
+    const auto key="hardware-photo:"+name;
+    QPixmap photo;
+    if (!QPixmapCache::find(key,&photo)) {
+        auto image=QImage(":/hardware/photos/"+name+".png").convertToFormat(QImage::Format_ARGB32);
+        // The _fv sources sit on a square transparent canvas; crop to the visible part so wide parts
+        // (keyboard, strip) fill their housing instead of shrinking to its height.
+        int left=image.width(),top=image.height(),right=-1,bottom=-1;
+        for (int y=0;y<image.height();++y) { const auto* line=reinterpret_cast<const QRgb*>(image.constScanLine(y));
+            for (int x=0;x<image.width();++x) if (qAlpha(line[x])>8) {
+                left=std::min(left,x);right=std::max(right,x);top=std::min(top,y);bottom=std::max(bottom,y); } }
+        if (right>=left) image=image.copy(QRect(QPoint(left,top),QPoint(right,bottom)));
+        photo=QPixmap::fromImage(image);
+        // Budget by pixel count, not side length: the cropped strip (1246x91) stays sharp when zoomed.
+        const double area=double(photo.width())*photo.height();
+        if (area>512.*512.) photo=photo.scaled((photo.size()*std::sqrt(512.*512./area)).expandedTo({1,1}),
+                                               Qt::KeepAspectRatio,Qt::SmoothTransformation);
+        QPixmapCache::insert(key,photo);
+    }
+    return photo;
+}
+
+bool hardwareHousingFixed(const ComponentDefinition& component)
+{
+    const auto category=hardwareArtworkCategory(component);
+    return category!="Strips" && category!="Cables";
+}
+
 QRectF hardwareBodyBounds(const ComponentDefinition& component)
 {
+    if(component.housing.isValid() && hardwareHousingFixed(component))return component.housing;
     QRectF bounds;bool first=true;
     for(int i=0;i<component.positions.size();++i) {
         if(component.nonPhysicalSlots.contains(component.mapping.value(i)))continue;
@@ -99,7 +149,7 @@ double hardwarePreviewLedRadius(const ComponentDefinition& component,QSizeF scal
 void drawHardwareArtwork(QPainter& painter,const QString& category,const QRectF& bounds)
 {
     if(!bounds.isValid() || !std::isfinite(bounds.width()) || !std::isfinite(bounds.height()))return;
-    static const bool initialized=[] {initializeHardwareArtwork();return true;}();Q_UNUSED(initialized);
+    initializeHardwareArtwork();
     static const QMap<QString,QString> files{{"Fans","fan"},{"Strips","strip"},{"RAM","ram"},
         {"Graphics cards","gpu"},{"Keyboards","keyboard"},{"Mice","mouse"},{"Pumps","pump"},
         {"AiO","aio"},{"Motherboards","motherboard"},{"Cables","cable"},{"Strip LED","strip-led"}};
@@ -147,5 +197,93 @@ void drawHardwareComponentArtwork(QPainter& painter,const ComponentDefinition& c
         painter.translate(bounds.center());painter.rotate(90);
         drawHardwareArtwork(painter,category,QRectF(-bounds.height()/2,-bounds.width()/2,bounds.height(),bounds.width()));
     } else drawHardwareArtwork(painter,category,bounds);
+    painter.restore();
+}
+
+namespace {
+// Editor artwork is slightly desaturated so LED markers and colors stay the focus.
+QPixmap desaturated(const QPixmap& photo)
+{
+    static QHash<qint64,QPixmap> cache;
+    if(auto it=cache.constFind(photo.cacheKey()); it!=cache.cend()) return *it;
+    auto image=photo.toImage().convertToFormat(QImage::Format_ARGB32);
+    for(int y=0;y<image.height();++y) { auto* line=reinterpret_cast<QRgb*>(image.scanLine(y));
+        for(int x=0;x<image.width();++x) { const auto c=line[x]; const int g=qGray(c);
+            line[x]=qRgba((qRed(c)+g)/2,(qGreen(c)+g)/2,(qBlue(c)+g)/2,qAlpha(c)); } }
+    const auto result=QPixmap::fromImage(image);
+    if(cache.size()>16) cache.clear(); // a handful of editor photos; never grows with use
+    cache.insert(photo.cacheKey(),result);
+    return result;
+}
+// The strip tiles are drawn edge to edge, so they are loaded as they are (no alpha crop).
+QPixmap stripPart(const QString& name)
+{
+    initializeHardwareArtwork();
+    QPixmap pixmap;
+    const auto key="hardware-strip:"+name;
+    if(!QPixmapCache::find(key,&pixmap)) { pixmap=QPixmap(":/hardware/photos/"+name+".png"); QPixmapCache::insert(key,pixmap); }
+    return desaturated(pixmap);
+}
+// Owner idea 2026-11-27 (plan Task 8): connector + one fixed square tile per LED; a gap wider than a tile
+// is filled with plain band. Tiles never scale with the LED distance. The images' outer 2 px are a soft
+// edge, so only [2, 254) is drawn and neighbouring tiles meet without a seam.
+void drawStripTiles(QPainter& painter,const QVector<QPointF>& leds)
+{
+    const auto tile=stripPart("led_strip_tile_fv"), band=stripPart("led_strip_band_fv"), plug=stripPart("led_strip_connector_fv");
+    const double t=kStripTile, inner=252;
+    const QRectF source(2,2,inner,inner);
+    for(int i=0;i<leds.size();++i) {
+        const bool last=i+1==leds.size();
+        const auto direction=last ? leds[i]-leds[i-1] : leds[i+1]-leds[i];
+        const double length=std::hypot(direction.x(),direction.y());
+        painter.save(); painter.translate(leds[i]);
+        if(length>1e-9) painter.rotate(qRadiansToDegrees(std::atan2(direction.y(),direction.x())));
+        painter.drawPixmap(QRectF(-t/2,-t/2,t,t),tile,source);
+        if(i==0) { const double width=t*(plug.width()-2)/inner; painter.drawPixmap(QRectF(-t/2-width,-t/2,width,t),plug,QRectF(0,2,plug.width()-2,inner)); }
+        if(!last) for(double at=t/2;at<length-t/2-1e-9;at+=t) {
+            const double piece=std::min(t,length-t/2-at);
+            painter.drawPixmap(QRectF(at,-t/2,piece,t),band,QRectF(2,2,inner*piece/t,inner));
+        }
+        painter.restore();
+    }
+}
+}
+
+void drawHardwareEditorArtwork(QPainter& painter,const ComponentDefinition& component)
+{
+    // Owner decision 2026-11-26/27: dimmed straight-view photo for every fixed housing, keyboards included
+    // (its keys need not line up exactly with the LED positions). Strips are built from fixed tiles,
+    // cables stretch only their sleeve between the connectors (below).
+    const auto category=hardwareArtworkCategory(component);
+    QVector<QPointF> leds;
+    for(int i=0;i<component.positions.size();++i)
+        if(!component.nonPhysicalSlots.contains(component.mapping.value(i)))leds.append(component.positions[i]);
+    const bool strip=category=="Strips" && leds.size()>=2;
+    if(strip) {
+        painter.save(); painter.setOpacity(.4); painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        drawStripTiles(painter,leds); painter.restore(); return;
+    }
+    const auto photo=hardwareHousingFixed(component) || category=="Cables" ? hardwarePreviewPhoto(component) : QPixmap();
+    if(photo.isNull()) { drawHardwareComponentArtwork(painter,component); return; }
+    const auto dimmed=desaturated(photo);
+    painter.save(); painter.setOpacity(.4); painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    if(category=="Cables") {
+        // Owner photo 2026-11-27: connectors keep their proportions, only the uniform sleeve between them
+        // stretches to the cable length. Fractions measured on the cropped pc_light_cable_fv (1219 px wide).
+        auto body=hardwareBodyBounds(component);
+        if(body.height()>body.width()) {
+            painter.translate(body.center()); painter.rotate(90);
+            body=QRectF(-body.height()/2,-body.width()/2,body.height(),body.width());
+        }
+        const double w=dimmed.width(),h=dimmed.height(),head=.195*w,tail=.87*w,scale=body.height()/h;
+        const double headWidth=head*scale,tailWidth=(w-tail)*scale,sleeve=std::max(0.,body.width()-headWidth-tailWidth);
+        painter.drawPixmap(QRectF(body.left(),body.top(),headWidth,body.height()),dimmed,QRectF(0,0,head,h));
+        painter.drawPixmap(QRectF(body.left()+headWidth,body.top(),sleeve,body.height()),dimmed,QRectF(head,0,tail-head,h));
+        painter.drawPixmap(QRectF(body.left()+headWidth+sleeve,body.top(),tailWidth,body.height()),dimmed,QRectF(tail,0,w-tail,h));
+    } else {
+        const auto housing=hardwareBodyBounds(component);
+        auto size=QSizeF(photo.size()); size.scale(housing.size(),Qt::KeepAspectRatio); // never stretched
+        painter.drawPixmap(QRectF(housing.center()-QPointF(size.width()/2,size.height()/2),size),dimmed,dimmed.rect());
+    }
     painter.restore();
 }

@@ -10,6 +10,88 @@ Evidence labels: VERIFIED = actual AK35I V4 response or source configuration dir
 
 This is the proprietary (non-QMK) ISO keyboard, sold as AK35I V4 / AK35I V4 Tri-Mode. Vendor installer mislabels it AK45I V4; do not infer hardware identity from installer name. Owner tested wired USB and 2.4 GHz typing after update. Vendor firmware changed USB bcdDevice 0102 to 0109; the owner recovered the wireless pairing after update. No further flash is necessary or authorized. RGB capture fixtures were acquired before the firmware update unless independently proven otherwise; repeat RGB validation on 0109. OpenKey USB handshake was obtained after update. No native Lighting Studio output has yet been hardware-tested.
 
+Implementation status (2026-11-26): Phase A done offline. Encoder and ACK check
+(`src/protocol/AjazzAk35iV4Protocol.*`, test `ajazz_ak35i_v4_protocol`), scripted fake HID, driver branch in
+`lighting.peripherals` (API 3), profile `profiles/experimental/ajazz-ak35i-v4.json`, 105-key component,
+dry-run review gate. Model selection (D1): Edit > Settings "AJAZZ AK35I V4 keyboard (experimental, I own
+this exact model)", default off, takes effect after a restart; the editor loads the experimental profile
+only then. The service always loads it (it runs as LocalSystem and cannot read the editor setting) and
+drives only channels a project assigns (test `experimentalProfileInactiveByDefault`).
+
+Phase B hardware test 2026-11-26 (owner present, wired USB, firmware 0109, one step at a time, hidapi
+x64 from a probe script): exactly one FF13:0001 collection (interface 3). START `04 18` -> 65-byte GET
+`04 18 00 01` + zeros (65-byte GET verified on Windows hidapi; the reply carries no model identity, so
+START cannot tell V4 from AK820 / V3 MAX). One Direct RGB frame (header `04 20 .. 08`, eight chunks,
+`04 02`): both ACKs as documented; owner confirmed Esc red, F1 green, F2 blue (~25 %), other keys dark.
+Output through Lighting Studio works (owner, wired). Stress test (probe script, service channel paused):
+a full transaction takes ~36 ms (about 27 frames/s at most); the keyboard periodically answers ACKs with
+status 00 (re-reading after a few ms often clears it) or FF for up to ~2 s, then recovers by itself. The
+driver skips busy frames instead of failing them (fault only after 150 in a row); before, each busy
+answer faulted the output and the reconnect left the keys black for ~3 s.
+Not yet tested: full key map on 0109, 2.4 GHz dongle
+(0C45:FEFE, needs its own capture) and Bluetooth (no data).
+
+Wireless findings 2026-11-26 (owner present; raw captures stay local because they contain keystrokes):
+- Bluetooth: the keyboard pairs as BLE HID "AK35i BT-1", 0C45:FEFE rev 0138, with only standard
+  collections (keyboard, consumer, system, mouse). No vendor collection (FF13/FF68/FFFF), so the wired
+  path cannot work over Bluetooth. A vendor GATT service FEE0 exists; whether it accepts lighting is
+  unknown (would need a BLE capture of software that changes lighting over Bluetooth).
+  BLE test 2026-11-26 (WinRT via bleak's winrt packages, keyboard already connected): FEE0 holds one
+  characteristic FEE1 (read, write, write-without-response; no notify), read value empty. Controlled
+  test: keyboard set to static red over the dongle, switched to Bluetooth (stayed red), then the byte-exact
+  dongle "static green" packet written to FEE1 with response: write accepted, nothing readable, keyboard
+  STAYED RED. FEE1 does not accept the dongle command format. The vendor PC software has no Bluetooth
+  mode at all (`config.xml` lists USB and 2.4G only), so there is no reference to capture. Lighting
+  control over Bluetooth is unsupported; no further blind writes.
+- Keyboard firmware analysis (2026-11-26, for interoperability, nothing copied): the vendor updater
+  embeds the SN32F290 image unencrypted (RCDATA 4000, 256 KiB, Cortex-M vector table SP 0x20003188, reset
+  0x144ED; RCDATA 4011 is a ZIP with the same image as Intel HEX). Ghidra 12.1.3, ARM Cortex, vector table
+  seeded. The wireless command dispatcher (frames with header 0x81 and a byte-sum over 0x21 bytes) handles
+  opcodes 02, 03, 05 (mode/colour), 07, 09, 0b (music), 0c (clock, key byte 0x5a), 0d, 0f, 10, 12, 14,
+  1f, 20 (battery), 7f and 0x80-0x8f (TFT image data to external SPI flash at 0x6f0000). Opcode 14 (per-key
+  table) erases the internal flash page on every 1 KiB boundary and writes the table to flash: streaming
+  it would wear the flash. Opcode 0b (music) sets a 22 x 6 cell grid live without flash writes, but only
+  on/off per cell with a firmware colour scheme selected by one byte (no RGB). No other live per-key
+  colour path exists in the wireless dispatcher; per-key real-time RGB is a USB-only feature of this
+  firmware. Conclusion: the Lighting Studio canvas cannot be shown on this keyboard over 2.4 GHz or
+  Bluetooth without flash wear; at most a coarse on/off bar grid through opcode 0b.
+- 2.4 GHz dongle 0C45:FEFE rev 0138: vendor collections FF60:0061 (MI_03), FF59:0061 (MI_04), FFFF:0001.
+  USBPcap capture of the vendor software: 32-byte interrupt OUT reports on EP 0x05 (FF60), each answered
+  on EP 0x85; byte 31 = sum of bytes 0..30 mod 256 (165/165 packets). Commands seen:
+  `05 10 00 <mode> R G B .. 06 <speed?> .. aa 55` mode + one color for all keys; mode 0x80 = per-key, then
+  `14 1c <seq 0..19>` + 7 records [id r g b] from byte 3 (140 slots, absent LEDs id 0) and commit
+  `14 10 14 .. aa 55`; `0b 1c ..` music-mode levels every 30 ms (no colors); `20 01` battery (reply byte 3 =
+  percent, polled every 15 s); `0c 10 .. 1a 0b 1a 14 08 33` clock sync (yy mm dd hh mm ss); `02 00` info.
+- Replayed by us through the dongle: whole keyboard green (one packet) and one per-key table (Esc/F1/F2
+  green, rest dark), both confirmed by the owner. The per-key table SURVIVED a keyboard power cycle, so it
+  is stored persistently (flash or battery-backed; not distinguished). A per-key update takes 22 packets
+  at ~25 ms (~0.5 s). Do not stream effects this way: continuous persistent writes risk flash wear.
+- Built-in effects over the dongle (second capture, owner clicked Lighting Mode top to bottom, toggling
+  "Colorful" in each): `05 10 00 <mode> R G B 00 00 00 00 <colorful 0/1> <brightness> <speed> <dir?> ..
+  aa 55 .. <sum>`. Modes: 01 Static, 02 SingleOn, 03 SingleOff, 04 Glittering, 05 Fluttering, 06 Colourful,
+  07 Breath, 08 Spectrum, 09 Outward, 0a Scrolling, 0b Rolling, 0c Rotating, 0d Explode, 0e Launch,
+  0f Ripples, 10 Flowing, 11 Pulsating, 12 Tilt, 13 Shuttle; LED Off = mode 00 with all fields zero;
+  80 = per-key table. Default brightness byte 06 (UI "6"); speed byte 03-06 per mode (UI "4" = 04); byte 14
+  is 00/01/03 depending on mode (direction or variant, INFERRED). The vendor software sends each change
+  once; the keyboard animates by itself. Whether mode writes are persistent was not tested.
+- The vendor software has no live per-key mode (Lighting Mode, User Lighting = persistent table, Music
+  Rhythm = levels only, owner screenshots 2026-11-26), and no command to upload pre-computed LED
+  animations is known (`04 72` uploads to the TFT screen, not to the key LEDs). Live custom effects are
+  therefore wired-only.
+- Static analysis of the vendor `DeviceDriver.exe` (Beta 1.0.0.2, Ghidra 12.1.3 headless, 2026-11-26; for
+  interoperability, no code copied): `config.xml` lists USB = 0C45:8009 MI_00 and 2.4G = 0C45:FEFE MI_03
+  (FF60) only. Every live per-key path (music, custom-light preview, a third live page) builds `04 20` +
+  key table + `04 02` and sends it only when the connection mode is USB; in 2.4G mode the music path sends
+  `0b 1c` levels instead, and the other live paths have no 2.4G branch. Dongle sends found (one sender
+  that appends the byte-sum checksum): `05 10` mode, `05 10 .. 80` + `14 1c`/`14 18`/`14 10` per-key table,
+  `0b 1c` levels, `0c 10` clock, `09 1c` table writes, `7f 03`, `03`/`0d`, `1f`, `05 01` settings (exact
+  meaning of the last ones not traced). No non-persistent per-key colour command for 2.4G exists in this
+  software. FF59:0061 (MI_04, 64-byte in/out) is not referenced by `DeviceDriver.exe`; one START (`04 18`)
+  written to it returned `0f 01 01 11` (meaning unknown), so it is not the wired protocol. Its purpose is
+  unknown (pairing/firmware suspected, not proven); do not probe it further. A screen-capture routine
+  (`ScreenLight`, 480x270 every 33 ms into a colour grid) exists but has no visible UI entry; where its
+  output goes was not traced.
+
 ## 2. Identity, transport, exact matching
 
 | Property | Wired | Receiver |

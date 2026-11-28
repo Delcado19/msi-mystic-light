@@ -1,11 +1,16 @@
+#include "../OffscreenTestPlatform.h"
 #include "editor/ParameterSpinBox.h"
+#include <QPolygonF>
 #include <QDialogButtonBox>
 #include <QMenuBar>
 #include <QMenu>
 #include <QColorDialog>
 #include <QVariantAnimation>
 #include "editor/LightingWindow.h"
-#include "editor/ComponentEditor.h"
+#include "editor/ComponentDraft.h"
+#include "editor/ComponentCanvas.h"
+#include "editor/ComponentEditorPage.h"
+#include <QMessageBox>
 #include "editor/SnapGrid.h"
 #include "editor/HardwareIdentity.h"
 #include "editor/HardwareArtwork.h"
@@ -15,7 +20,11 @@
 #include "editor/StudioTheme.h"
 #include "editor/HardwarePicker.h"
 #include "editor/LegacyHardware.h"
+#include "components/ComponentLibrary.h"
 #include <QStackedWidget>
+#include <numeric>
+#include <QStandardItemModel>
+#include <QStandardPaths>
 #include <QToolButton>
 #include <QToolBar>
 #include <QListWidget>
@@ -43,6 +52,7 @@
 #include <QTreeWidgetItemIterator>
 #include <QTemporaryDir>
 #include <QFile>
+#include <QFileDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFontMetrics>
@@ -91,6 +101,13 @@ ComponentCatalog catalog()
     strip.mapping = {2, 1, 0};
     return {{strip.id, strip}};
 }
+// The test strip plus every shipped component file (built-ins are files only, plan 2026-11-27 Task 4).
+ComponentCatalog shippedCatalog()
+{
+    auto parts=catalog();
+    for(const auto& definition:loadComponentCatalog(TEST_COMPONENT_DIR)) parts.insert(definition.id,definition);
+    return parts;
+}
 DeviceProfile channelProfile()
 {
     DeviceProfile profile; profile.id="test.device"; profile.driverId="test.driver"; profile.name="Test device";
@@ -100,6 +117,12 @@ DeviceProfile channelProfile()
     profile.channels.append(native);
     auto fixed=direct; fixed.id="Fixed"; fixed.fixedLeds=6; profile.channels.append(fixed);
     return profile;
+}
+// A dialog the callback did not expect is rejected, so the click returns and the assertions name the
+// failed step instead of the test hanging in the modal loop (CodeRabbit PR #10).
+void rejectModal()
+{
+    if (auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget())) dialog->reject();
 }
 void addEffect(LightingWindow& window,EffectKind kind=EffectKind::StaticColor)
 {
@@ -156,6 +179,11 @@ private slots:
     void fixedDeviceSettings();
     void sharedOutputsLayout();
     void identifyFlash();
+    void componentLibraryMigration();
+    void connectorEditsAndChase();
+    void customEffectRoundTrip();
+    void phanteksSharedAddresses();
+    void offlineDevicesWorkflow();
     void outputLedCount();
     void layoutAutoFitKeepsComponentsVisible();
     void sliderWheelStepsOneUnit();
@@ -193,6 +221,7 @@ private slots:
     void pickerApplyKeepsEveryInputPath();
     void menusFollowWorkspace();
     void effectLibraryCategorized();
+    void chaseInspector();
     void projectSuffixEnforced();
     void hueTrackRetainsSpectrum();
     void screenEyedropperGeometry();
@@ -216,10 +245,48 @@ private slots:
     void recoveryTimerFailureAndCleanState();
     void channelAssignments();
     void channelControls();
+    void devicesTreeGroupsByBoard();
     void componentSampling();
     void componentAuthoring();
     void deviceLedArrangement();
     void componentEditor();
+    void componentDraftOperations();
+    void componentDraftLayers();
+    void componentLibraryEditing();
+    void componentLibraryFolder();
+    void componentFilesHaveReadableNames();
+    void builtInCatalogFromFiles();
+    void componentFolderSetup();
+    void attachComponentDialog();
+    void attachQuickCreate();
+    void stripFixedTiles();
+    void componentEditorCleanup();
+    void libraryReviewFixes();
+    void chaseProjectWithoutLibrary();
+    void switchComponentAfterSave();
+    void undoKeepsIdAndShapeCountFollows();
+    void failedLibraryWriteLeavesHistory();
+    void offlinePlanStaysVisible();
+    void componentFileLimitAndHandleUndo();
+    void typedCountStaysWithItsPart();
+    void componentFitFramesFarLeds();
+    void proportionalResizeKeepsAspectAtLimit();
+    void hiddenPlacementLeavesFit();
+    void quickCreateShowsSavedButNotFitting();
+    void chaseDisablesUnusedMotion();
+    void identifyWithoutSoftwareStaysLocal();
+    void stackedVendorLedsStayAvailable();
+    void importAndMoveKeepData();
+    void componentCanvasInteractions();
+    void componentCanvasLayers();
+    void componentEditorPageLibrary();
+    void componentEditorPageEditing();
+    void componentEditorBuiltInReadOnly();
+    void glacierOneProduct();
+    void componentHousingFrame();
+    void componentEditorPageLayers();
+    void componentEditorInstanceMode();
+    void disabledControlsLookDisabled();
     void keyboardLedPresentation();
     void placementTransforms();
     void rgbaAndMask();
@@ -240,10 +307,14 @@ private slots:
     void proceduralSourceControls();
     void legacyArtworkToolbarRestore();
     void firstRunArtworkStartup();
+    void sessionRestoresWorkspaceTab();
+    void panelsSurviveMinimizeAndClose();
+    void disconnectedDevicesHidden();
     void recordedWindowArtworkStartup();
     void headerArtworkFits_data();
     void headerArtworkFits();
     void windowBackgroundResizes();
+    void minimizedPreviewIdle();
     void cropImageEditorContract();
     void maskInspectorMakesScopeExplicit();
     void maskBrushPresetsAndEraser();
@@ -326,7 +397,6 @@ void EditorTest::hardwareLibrary()
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Fixture fan"); QVERIFY(list->currentItem());
     const auto component=picker.component(); QCOMPARE(component.mapping,QVector<int>({2,0,1})); QCOMPARE(component.positions.size(),3);
     for(const auto& point:component.positions) QVERIFY(point.x()>=0 && point.x()<=3 && point.y()>=0 && point.y()<=3);
-    QVERIFY(!picker.findChild<QSpinBox*>("hardwareLedCount")->isEnabled());
     picker.findChild<QSpinBox*>("hardwareQuantity")->setValue(5); QVERIFY(!picker.findChild<QPushButton*>("confirmAddHardware")->isEnabled());
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Malformed mapping"); QVERIFY(!list->currentItem());
     picker.findChild<QLineEdit*>("hardwareSearch")->setText("Dedicated RAM"); QVERIFY(!list->currentItem());
@@ -403,7 +473,7 @@ void EditorTest::drawingAndAnimationRegressions()
     window.findChild<QAction*>("workspaceHardware")->trigger();
     auto* layoutTree=window.findChild<QTreeWidget*>("layoutComponents");
     for(QTreeWidgetItemIterator it(layoutTree);*it;++it) if((*it)->data(0,Qt::UserRole).toUuid()==component) tree->setCurrentIndex(layoutTree->indexFromItem(*it));
-    QVERIFY(window.findChild<QPushButton*>("removeHardwareComponent")->isEnabled()); window.findChild<QPushButton*>("removeHardwareComponent")->click();
+    QVERIFY(window.findChild<QPushButton*>("removeHardwareComponent")->isEnabled()); window.findChild<QAction*>("removeDeviceComponent")->trigger();
     QVERIFY(window.document().state().placements.isEmpty()); window.document().history()->undo(); QCOMPARE(window.document().state().placements.size(),1);
     window.document().history()->setClean();
 }
@@ -791,6 +861,32 @@ void EditorTest::headerArtworkFits()
     QVERIFY(grab.save(artifactDirectory()+"/header-fit-"+QString::fromLatin1(QTest::currentDataTag())+".png"));
 }
 
+// A minimized editor beside the installed service rendered its preview every 16 ms and kept one core
+// busy (owner report 2026-11-25, fans spinning up); the service renders the lights itself.
+void EditorTest::minimizedPreviewIdle()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    window.setRenderWhenMinimized(false);
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QPushButton*>("playPreview")->setChecked(false); // Exact frame counts, no 16 ms ticks.
+    auto* time=window.findChild<QDoubleSpinBox*>("previewTime");QVERIFY(time);
+    QSignalSpy frames(&window,&LightingWindow::previewFrameChanged);
+    window.showMinimized();QCoreApplication::processEvents();QVERIFY(window.isMinimized());
+    frames.clear();
+    time->setValue(time->value()+1.5);
+    QCOMPARE(frames.size(),0);
+    QCOMPARE(window.previewSeconds(),time->value()); // The clock still advances for the service sync.
+    window.showNormal();QCoreApplication::processEvents();QVERIFY(!window.isMinimized());
+    QCOMPARE(frames.size(),1); // One catch-up frame on restore.
+    // Portable mode drives hardware from these frames, so the default keeps rendering while minimized.
+    LightingWindow portable(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    portable.show();QVERIFY(QTest::qWaitForWindowExposed(&portable));
+    portable.findChild<QPushButton*>("playPreview")->setChecked(false);portable.showMinimized();QCoreApplication::processEvents();
+    QSignalSpy portableFrames(&portable,&LightingWindow::previewFrameChanged);
+    auto* portableTime=portable.findChild<QDoubleSpinBox*>("previewTime");portableTime->setValue(portableTime->value()+1.5);
+    QCOMPARE(portableFrames.size(),1);
+}
+
 void EditorTest::cropImageEditorContract()
 {
     LightingDocument doc(catalog());const auto id=doc.addLayer(EffectKind::Image);
@@ -841,8 +937,8 @@ void EditorTest::windowBackgroundResizes()
         window.resize(size);QCoreApplication::processEvents();
         auto* logo=window.findChild<QLabel*>("studioBrand");QVERIFY(logo && logo->isVisible());
         QVERIFY(logo->width()>=logo->pixmap().width());
-        QCOMPARE(logo->pixmap().height(),140); // Transparent margins trimmed, visible logo fills its row.
-        QVERIFY(logo->height()>=140);
+        QCOMPARE(logo->pixmap().height(),56); // Slim header (2026-11-26); transparent margins trimmed.
+        QVERIFY(logo->height()>=56);
         // The logo sits at the right end of its row.
         auto* row=window.findChild<QToolBar*>("workspaceNavigation");
         QVERIFY(logo->mapTo(row,QPoint(logo->width(),0)).x()>row->width()-80);
@@ -854,7 +950,7 @@ void EditorTest::windowBackgroundResizes()
         QPixmap expected(window.size());QPainter paint(&expected);
         paint.setRenderHint(QPainter::SmoothPixmapTransform);
         paint.drawPixmap(QRectF(window.rect()),source,QRectF(QPointF((source.width()-crop.width())/2,(source.height()-crop.height())/2),crop));
-        paint.fillRect(window.rect(),QColor(4,12,22,60));paint.end();
+        paint.fillRect(window.rect(),QColor(4,12,22,205));paint.end();
         QCOMPARE(actual.toImage(),expected.toImage());
     }
     window.resize(1440,940);QCoreApplication::processEvents();
@@ -909,15 +1005,21 @@ void EditorTest::maskBrushPresetsAndEraser()
     auto* tabs=window.findChild<QTabWidget*>("layerInspectorTabs");tabs->setCurrentIndex(2);
     auto* value=window.findChild<QDoubleSpinBox*>("maskPaintValue");auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");
     auto* hint=window.findChild<QLabel*>("maskBrushSummary");QVERIFY(value);QVERIFY(hint);
-    window.findChild<QPushButton*>("maskRevealBrush")->click();QCOMPARE(value->value(),255.);QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    auto* reveal=window.findChild<QPushButton*>("maskRevealBrush");
+    auto* hide=window.findChild<QPushButton*>("maskHideBrush");
+    reveal->click();QCOMPARE(value->value(),255.);QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    QVERIFY(reveal->isChecked());QVERIFY(!hide->isChecked());
     QVERIFY(hint->text().contains("100%"));value->setValue(-1);QCOMPARE(value->value(),0.);
     value->setValue(256);QCOMPARE(value->value(),255.);value->setValue(127.5);QVERIFY(hint->text().contains("50%"));
-    window.findChild<QPushButton*>("maskRevealBrush")->click();
+    QVERIFY(!reveal->isChecked());QVERIFY(!hide->isChecked());
+    reveal->click();
     window.findChild<QPushButton*>("eraserTool")->click();QVERIFY(hint->text().contains("regardless"));
     QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,200}).toPoint());
     QVERIFY(window.document().state().layers.last().mask.constScanLine(200)[320]<32);
     window.document().history()->undo();QCOMPARE(window.document().state().layers.last().mask.constScanLine(200)[320],uchar(255));
-    window.findChild<QPushButton*>("maskHideBrush")->click();QCOMPARE(value->value(),0.);QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    QVERIFY(!reveal->isChecked());QVERIFY(!value->isEnabled());
+    hide->click();QCOMPARE(value->value(),0.);QCOMPARE(canvas->tool(),LightingCanvas::Tool::Pencil);
+    QVERIFY(hide->isChecked());QVERIFY(value->isEnabled());
     window.findChild<QCheckBox*>("maskPreview")->setChecked(true);
     QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/mask-inspector-clear.png"));
     window.document().history()->setClean();
@@ -1057,6 +1159,39 @@ void EditorTest::channelAssignments()
     QVERIFY_EXCEPTION_THROWN(parseChannelAssignment(bad),std::invalid_argument);
 }
 
+void EditorTest::devicesTreeGroupsByBoard()
+{
+    // Plan 2026-11-27 Task 2: connectors sit under their board and show the printed label and kind.
+    const auto profile=DeviceProfile::load(QString(TEST_COMPONENT_DIR)+"/../profiles/msi-mpg-b850-edge-ti-wifi.json");
+    LightingWindow window(loadComponentCatalog(TEST_COMPONENT_DIR),[profile] {
+        ProfileCandidate candidate; candidate.profileId=profile.id; candidate.device.path="fake://board";
+        return QVector<ProfileCandidate>{candidate};
+    },nullptr,{profile});
+    window.findChild<QPushButton*>("refreshHeaders")->click();
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents");
+    QCOMPARE(tree->topLevelItemCount(),1);
+    auto* board=tree->topLevelItem(0);
+    QCOMPARE(board->text(0),QString("MSI MPG B850 EDGE TI WIFI (MS-7E62)"));
+    QVERIFY(board->data(0,Qt::UserRole+1).toMap().isEmpty());
+    QTreeWidgetItem* first=nullptr; QTreeWidgetItem* jrgb=nullptr;
+    for(int i=0;i<board->childCount();++i) {
+        auto* child=board->child(i); const auto channel=child->data(0,Qt::UserRole+1).toMap().value("channelId").toString();
+        if(channel=="JARGB1") first=child;
+        if(channel=="JRGB1") jrgb=child;
+    }
+    QVERIFY(first && jrgb);
+    QVERIFY(first->text(0).startsWith("JARGB_V2_1"));
+    QVERIFY(first->text(1).contains("5 V ARGB"));
+    QVERIFY(!(jrgb->flags() & Qt::ItemIsEnabled));
+    QCOMPARE(jrgb->toolTip(0),QString("12 V RGB · not supported yet"));
+    tree->setCurrentItem(first);
+    auto* attach=window.findChild<QPushButton*>("addHeaderComponents");
+    QCOMPARE(attach->text(),QString("Attach component…"));
+    QVERIFY(attach->isEnabled());
+    tree->setCurrentItem(board);
+    QVERIFY(attach->isEnabled()); // the board row keeps the connector selection
+}
+
 void EditorTest::channelControls()
 {
     const auto profile=channelProfile();
@@ -1100,11 +1235,11 @@ void EditorTest::channelControls()
     buttons->button(QDialogButtonBox::Ok)->click(); QCOMPARE(editor.result(),int(QDialog::Accepted));
     window.document().assignChannel(editor.assignment());
     auto* tree=window.findChild<QTreeWidget*>("layoutComponents");
-    QCoreApplication::processEvents(); QCOMPARE(tree->topLevelItemCount(),3);
-    QCOMPARE(tree->topLevelItem(0)->childCount(),2);
-    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->childCount(),0);
-    window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->childCount(),2);
-    tree->setCurrentItem(tree->topLevelItem(0));
+    QCoreApplication::processEvents(); QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),2);
+    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),0);
+    window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),2);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0));
     bool modalSeen=false, keptSoftware=false;
     QTimer::singleShot(0,[&] {
         auto* dialog=dynamic_cast<ChannelEditor*>(QApplication::activeModalWidget());
@@ -1155,35 +1290,1485 @@ void EditorTest::deviceLedArrangement()
     QVERIFY_EXCEPTION_THROWN(document.setComponentGeometry(first,{}),std::invalid_argument);
     QVERIFY_EXCEPTION_THROWN(document.setComponentGeometry(QUuid::createUuid(),positions),std::invalid_argument);
     QCOMPARE(document.history()->index(),index);
+    // Arrangement-only edits carry display layers; omitting them keeps the current ones.
+    document.setComponentGeometry(first,positions,QVector<int>{0,1,1});
+    QCOMPARE(document.catalog()[document.state().placements[0].componentId].layers,(QVector<int>{0,1,1}));
+    document.setComponentGeometry(first,positions);
+    QCOMPARE(document.catalog()[document.state().placements[0].componentId].layers,(QVector<int>{0,1,1}));
+    document.history()->undo(); document.history()->undo();
     QTemporaryDir directory; const auto file=directory.filePath("geometry.json"); document.save(file);
     LightingDocument loaded({}); loaded.load(file);
     QCOMPARE(loaded.catalog()[local].positions,positions);
     QCOMPARE(loaded.state().placements[1].id,second);
-    ComponentEditor editor(definition,true,nullptr,true); editor.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&editor));
-    QVERIFY(!editor.findChild<QSpinBox*>("componentCount")->isEnabled());
-    for (const auto& shape:QStringList{"Line","Circle","Ellipse","Rectangle"}) {
-        auto* action=editor.findChild<QAction*>("arrange"+shape); QVERIFY(action); action->trigger();
-        const auto arranged=editor.component();
+    // Arranging a placed device keeps its LED count and wire order.
+    const auto draft=ComponentDraft::fromDefinition(definition);
+    for(const auto& arranged:{withMirror(draft,{},Qt::Horizontal),withRotation90(draft,{})}) {
         QCOMPARE(arranged.mapping,definition.mapping);
         QCOMPARE(arranged.positions.size(),definition.positions.size());
-        for(const auto& point:arranged.positions) QVERIFY(std::isfinite(point.x()) && std::isfinite(point.y()));
+        QVERIFY(arranged.positions!=draft.positions);
     }
-    editor.findChild<QPushButton*>("resetLedArrangement")->click();
-    QCOMPARE(editor.component().positions,definition.positions);
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
     const auto id=window.document().addComponent(definition.id);
     window.findChild<LightingCanvas*>("layoutCanvas")->select(id);
     QVERIFY(window.findChild<QPushButton*>("editLayoutLeds")->isEnabled());
-    QVERIFY(window.findChild<QPushButton*>("editHardwareLeds")->isEnabled());
-    QTimer::singleShot(0,&window,[&window] {
-        auto* dialog=window.findChild<QDialog*>();
-        QVERIFY(dialog);
-        dialog->findChild<QAction*>("arrangeCircle")->trigger();
-        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
-    });
+    QVERIFY(!window.findChild<QPushButton*>("editHardwareLeds")); // single entry: Layout only (2026-11-26)
     window.findChild<QPushButton*>("editLayoutLeds")->click();
+    auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page);
+    page->findChild<QToolButton*>("componentRotate")->click();
+    page->findChild<QPushButton*>("componentSave")->click();
     QVERIFY(window.document().state().placements[0].componentId!=definition.id);
+}
+
+void EditorTest::componentDraftOperations()
+{
+    ComponentDraft empty; empty.id="custom.t"; empty.name="T";
+    const auto ring=withShape(empty,DraftShape::Ring,12);
+    QCOMPARE(ring.positions.size(),12);
+    for(const auto& p:ring.positions) QVERIFY(qAbs(QLineF(p,QPointF(1.3,1.3)).length()-1.3)<1e-9);
+    QCOMPARE(ring.mapping,(QVector<int>{0,1,2,3,4,5,6,7,8,9,10,11}));
+    QCOMPARE(withShape(empty,DraftShape::Fan,12).category,QString("Fans"));
+    const auto strip=withShape(empty,DraftShape::Strip,16);
+    for(int i=1;i<16;++i) {QCOMPARE(strip.positions[i].y(),strip.positions[0].y());QVERIFY(strip.positions[i].x()>strip.positions[i-1].x());}
+    ComponentDraft matrix=empty; matrix.positions={{0,0},{1,0},{2,0},{0,1},{1,1},{2,1}}; matrix.mapping={5,4,3,2,1,0};
+    QCOMPARE(withPreset(matrix,WiringPreset::RowsSerpentine).mapping,(QVector<int>{0,1,2,5,4,3}));
+    QCOMPARE(withPreset(matrix,WiringPreset::RowsLeftToRight).mapping,(QVector<int>{0,1,2,3,4,5}));
+    const auto shared=withSharedAddress(ring,{0,11},0);
+    QCOMPARE(shared.mapping[0],0);QCOMPARE(shared.mapping[11],0);
+    QCOMPARE(*std::max_element(shared.mapping.begin(),shared.mapping.end()),10);
+    QCOMPARE(QSet<int>(shared.mapping.begin(),shared.mapping.end()).size(),11);
+    // Reshape keeps count, addresses, layers and slots of fixed parts; only positions move (2026-11-26).
+    for(const int n:{8,11}) {
+        ComponentDraft fixed=empty; fixed.nonPhysicalSlots={3};
+        for(int i=0;i<n;++i){fixed.positions.append({double(i),0.0});fixed.mapping.append(n-1-i);fixed.layers.append(i%2);}
+        QVERIFY(draftLocksCount(fixed));
+        for(const auto shape:{DraftShape::Matrix,DraftShape::Strip,DraftShape::Ring,DraftShape::Fan,DraftShape::LShape,DraftShape::UShape}) {
+            const auto reshaped=withReshaped(fixed,shape);
+            QCOMPARE(reshaped.positions.size(),n);QCOMPARE(reshaped.mapping,fixed.mapping);
+            QCOMPARE(reshaped.layers,fixed.layers);QCOMPARE(reshaped.nonPhysicalSlots,fixed.nonPhysicalSlots);
+            QCOMPARE(reshaped.category,fixed.category);
+            // Address order walks the template (address 0 on its first slot), scaled to the part's former
+            // extent (n-1 wide here) and centred where the LEDs were.
+            const auto templatePoints=withShape(empty,shape,n).positions;
+            const auto box=[](const QVector<QPointF>& points){
+                QPolygonF polygon(points); return polygon.boundingRect();
+            };
+            const auto before=box(fixed.positions),after=box(reshaped.positions),plain=box(templatePoints);
+            QVERIFY(QLineF(after.center(),before.center()).length()<1e-9);
+            QVERIFY(qAbs(std::max(after.width(),after.height())-(n-1))<1e-9);
+            const double scale=(n-1)/std::max(plain.width(),plain.height());
+            for(int row=0;row<n;++row)
+                QVERIFY(QLineF(reshaped.positions[row],before.center()+(templatePoints[fixed.mapping[row]]-plain.center())*scale).length()<1e-9);
+        }
+    }
+    QCOMPARE(shared.toDefinition().addresses(),11);
+    const auto removed=withRemoved(strip,{3});
+    QCOMPARE(removed.positions.size(),15);QCOMPARE(removed.mapping,(QVector<int>{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14}));
+    const auto added=withAdded(strip,{9,9});QCOMPARE(added.positions.last(),QPointF(9,9));QCOMPARE(added.mapping.last(),16);
+    auto turned=ring; for(int i=0;i<4;++i) turned=withRotation90(turned,{});
+    for(int i=0;i<12;++i) QVERIFY(QLineF(turned.positions[i],ring.positions[i]).length()<1e-9);
+    QVERIFY(QLineF(withRotation90(matrix,{}).positions[2],matrix.positions[2]).length()>.5);
+    QCOMPARE(withMirror(withMirror(ring,{},Qt::Horizontal),{},Qt::Horizontal).positions,ring.positions);
+    QCOMPARE(withMirror(matrix,{},Qt::Horizontal).positions[0],QPointF(2,0));
+    const auto copy=withDuplicated(strip,{0,1},{0,1});
+    QCOMPARE(copy.positions.size(),18);QCOMPARE(copy.positions[16],strip.positions[0]+QPointF(0,1));QCOMPARE(copy.mapping[17],17);
+    QCOMPARE(withWireOrder(strip,QVector<int>{15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0}).mapping.first(),15);
+    const auto original=catalog().first();
+    QCOMPARE(ComponentDraft::fromDefinition(original).toDefinition().toJson(),original.toJson());
+    const auto vulcan=ComponentDraft::fromDefinition(loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-vulcan.json"));
+    QVERIFY(draftLocksCount(vulcan));QVERIFY(!draftLocksCount(strip));
+    QVERIFY_EXCEPTION_THROWN(withRemoved(vulcan,{0}),std::invalid_argument);
+    QCOMPARE(ComponentDraft::fromDefinition(vulcan.toDefinition()).nonPhysicalSlots,vulcan.nonPhysicalSlots);
+    // Review Focus 4: value semantics make whole-draft undo snapshots exact, even for large drafts.
+    const auto big=withShape(empty,DraftShape::Matrix,1000); const auto snapshot=big;
+    const auto changed=withShape(big,DraftShape::Ring,1000);
+    QCOMPARE(big,snapshot);QVERIFY(!(changed==snapshot));QCOMPARE(big.positions.size(),1000);
+}
+
+void EditorTest::componentDraftLayers()
+{
+    // Display-only depth layers (owner request 2026-11-25): positions never move.
+    ComponentDraft empty; empty.id="custom.layers"; empty.name="L";
+    auto ring=withShape(empty,DraftShape::Ring,4);
+    QVERIFY(ring.layers.isEmpty()); QCOMPARE(ring.layerCount(),1);
+    auto back=withLayer(ring,{2,3},1);
+    QCOMPARE(back.layers,(QVector<int>{0,0,1,1})); QCOMPARE(back.layerCount(),2); QCOMPARE(back.positions,ring.positions);
+    QCOMPARE(withLayer(back,{0},2).layerCount(),3);
+    QVERIFY_EXCEPTION_THROWN(withLayer(back,{0},3),std::invalid_argument); // more than one new layer
+    QVERIFY_EXCEPTION_THROWN(withLayer(back,{0},-1),std::invalid_argument);
+    auto deep=ring; for(int layer=1;layer<16;++layer) deep=withLayer(deep,{0},layer);
+    QVERIFY_EXCEPTION_THROWN(withLayer(deep,{0},16),std::invalid_argument);
+    QCOMPARE(withAdded(back,{5,5},1).layers.last(),1);
+    QCOMPARE(withAdded(ring,{5,5}).layers.isEmpty(),true);
+    QCOMPARE(withAdded(ring,{5,5},1).layers,(QVector<int>{0,0,0,0,1}));
+    QCOMPARE(withRemoved(back,{0}).layers,(QVector<int>{0,1,1}));
+    QCOMPARE(withDuplicated(back,{3},{1,1}).layers.last(),1);
+    QCOMPARE(withMirror(back,{},Qt::Horizontal).layers,back.layers);
+    QCOMPARE(withRotation90(back,{}).layers,back.layers);
+    QCOMPARE(withPreset(back,WiringPreset::Clockwise).layers,back.layers);
+    QCOMPARE(withSharedAddress(back,{0,2},0).layers,back.layers);
+    QCOMPARE(withWireOrder(back,{3,2,1,0}).layers,back.layers);
+    QVERIFY(withShape(back,DraftShape::Strip,4).layers.isEmpty());
+    QVERIFY(!(back==ring));
+    // Saving drops empty layers and keeps their order.
+    auto gap=ring; gap.layers={0,2,2,0};
+    QCOMPARE(gap.toDefinition().layers,(QVector<int>{0,1,1,0}));
+    QCOMPARE(ComponentDraft::fromDefinition(back.toDefinition()).layers,back.layers);
+    QVERIFY(withLayer(back,{2,3},0).toDefinition().layers.isEmpty());
+}
+
+void EditorTest::componentLibraryEditing()
+{
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    const auto library=folder.filePath("components");
+    LightingDocument document(catalog(),nullptr,{},library);
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha";
+    auto b=catalog().first(); b.id="custom.b"; b.name="Bravo";
+    document.registerComponent(a); document.registerComponent(b);
+    document.removeCustomComponent("custom.a");
+    QVERIFY(!document.customComponents().contains("custom.a"));
+    QVERIFY_EXCEPTION_THROWN(document.removeCustomComponent("test.strip"),std::invalid_argument);
+    const auto placement=document.addComponent("custom.b");
+    QCOMPARE(document.componentUsers("custom.b"),QVector<QUuid>{placement});
+    try { document.removeCustomComponent("custom.b"); QFAIL("in-use definition was removed"); }
+    catch(const std::invalid_argument& error) { QVERIFY(QString::fromUtf8(error.what()).contains("Bravo")); }
+    QVERIFY(document.customComponents().contains("custom.b"));
+    auto moved=b; moved.positions[0]={0,5};
+    document.updateCustomComponent(moved);
+    QCOMPARE(document.customComponents().size(),1);
+    QCOMPARE(document.customComponents().value("custom.b").positions[0],QPointF(0,5));
+    QCOMPARE(document.catalog().value("custom.b").positions[0],QPointF(0,5));
+    document.history()->undo();
+    QCOMPARE(document.catalog().value("custom.b").positions[0],b.positions[0]);
+    // The service may still play the previous definition (e.g. after that undo). Reopening must not
+    // fail; the project keeps the playing geometry under a variant and the library keeps the edit.
+    {
+        LightingDocument service(catalog(),nullptr,{},library);
+        service.addComponent("custom.b");
+        const auto projectFile=folder.filePath("service.lighting.json");
+        QJsonArray playing; service.save(projectFile,false,nullptr,&playing);
+        LightingDocument reopened(catalog(),nullptr,{},library);
+        reopened.load(projectFile,QJsonArray{b.toJson()});
+        const auto shown=reopened.state().placements.first().componentId;
+        QVERIFY(shown!="custom.b");
+        QCOMPARE(reopened.catalog().value(shown).positions,b.positions);
+        QCOMPARE(reopened.customComponents().value("custom.b").positions[0],QPointF(0,5));
+    }
+    // Updating never writes built-in definitions; a copy gets a fresh custom ID.
+    QVERIFY_EXCEPTION_THROWN(document.updateCustomComponent(catalog().first()),std::invalid_argument);
+    const auto copy=document.saveComponentCopy(catalog().first());
+    QVERIFY(copy.startsWith("custom."));QVERIFY(document.customComponents().contains(copy));
+    QCOMPARE(document.installedCatalog().keys(),catalog().keys());
+    // Review Focus 1: deleting an entry a closed layout still references makes that layout report it missing.
+    LightingDocument other(catalog(),nullptr,{},library);
+    other.addComponent(copy);
+    const auto file=folder.filePath("other.lighting.json"); other.save(file);
+    document.removeCustomComponent(copy);
+    LightingDocument reopened(catalog(),nullptr,{},library);
+    QVERIFY_EXCEPTION_THROWN(reopened.load(file),MissingComponents);
+}
+
+void EditorTest::componentFilesHaveReadableNames()
+{
+    // Owner request 2026-11-28: "instance.<uuid>.json" said nothing about the part. Files are named
+    // "<name> - <tag>"; the library still finds them by the ID inside, so projects keep resolving.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Components"); QVERIFY(QDir().mkpath(folder));
+    const auto jsonFiles=[&]{ return QDir(folder).entryList({"*.json"},QDir::Files,QDir::Name); };
+    auto a=catalog().first(); a.id="instance.16d369dd-3687-4c85-98c9-25a7cec82122"; a.name="M25 Gen2 120 #4";
+    const auto first=QFileInfo(writeComponentFile(folder,a)).fileName();
+    QVERIFY2(QRegularExpression(R"(^M25 Gen2 120 #4 - [0-9a-f]{8}\.json$)").match(first).hasMatch(),qPrintable(first));
+    // Characters Windows forbids become '_'; a second part with the same name gets its own file.
+    auto odd=a; odd.id="custom.odd"; odd.name="Fan: 120/RGB?";
+    const auto oddName=QFileInfo(writeComponentFile(folder,odd)).fileName();
+    QVERIFY2(oddName.startsWith("Fan_ 120_RGB_ - "),qPrintable(oddName));
+    auto twin=a; twin.id="custom.twin";
+    QVERIFY(QFileInfo(writeComponentFile(folder,twin)).fileName()!=first);
+    // Renaming the part renames its file; the old one is gone and the ID still resolves.
+    a.name="Front fan";
+    const auto renamed=QFileInfo(writeComponentFile(folder,a)).fileName();
+    QVERIFY2(renamed.startsWith("Front fan - "),qPrintable(renamed)); QVERIFY(!QFileInfo::exists(folder+"/"+first));
+    QCOMPARE(readComponentFolder(folder,catalog()).components.value(a.id).name,QString("Front fan"));
+    QCOMPARE(jsonFiles().size(),3);
+    // Files of earlier builds get readable names once; skipped files (duplicate or built-in ID) stay as they are.
+    const auto put=[&](const QString& name,const ComponentDefinition& definition){QFile file(folder+"/"+name);QVERIFY(file.open(QIODevice::WriteOnly));file.write(QJsonDocument(definition.toJson()).toJson());};
+    auto old=a; old.id="restored.22ad495e-13b5-47f6-a051-2933d6a96bed"; old.name="Rear fan";
+    put("restored.22ad495e-13b5-47f6-a051-2933d6a96bed.json",old);
+    auto dup=a; dup.id="custom.dup"; dup.name="Dup"; put("dup1.json",dup); put("dup2.json",dup);
+    put("shadow.json",catalog().first());
+    QCOMPARE(renameComponentFiles(folder,catalog()),1);
+    QVERIFY(!QFileInfo::exists(folder+"/restored.22ad495e-13b5-47f6-a051-2933d6a96bed.json"));
+    QVERIFY(QFileInfo(componentFilePath(folder,old.id)).fileName().startsWith("Rear fan - "));
+    for(const auto* name:{"dup1.json","dup2.json","shadow.json"}) QVERIFY2(QFileInfo::exists(folder+"/"+name),name);
+    QCOMPARE(renameComponentFiles(folder,catalog()),0); // already tidy
+    QCOMPARE(readComponentFolder(folder,catalog()).components.value(old.id).toJson(),old.toJson());
+    // The editor tidies its folder at startup.
+    auto late=a; late.id="restored.late"; late.name="Late fan"; put("restored.late.json",late);
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,folder);
+    QTRY_VERIFY(!QFileInfo::exists(folder+"/restored.late.json"));
+    QVERIFY(QFileInfo(componentFilePath(folder,late.id)).fileName().startsWith("Late fan - "));
+}
+
+void EditorTest::componentLibraryFolder()
+{
+    // Plan 2026-11-27 Task 3: one JSON file per user component; bad files are reported, never fatal.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Components"); QVERIFY(QDir().mkpath(folder));
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha";
+    auto b=catalog().first(); b.id="custom.b/odd:name"; b.name="Bravo";
+    const auto pathA=writeComponentFile(folder,a), pathB=writeComponentFile(folder,b);
+    QVERIFY(QFileInfo(pathA).fileName().startsWith("Alpha - "));
+    QVERIFY(QFileInfo::exists(pathB)); QCOMPARE(QFileInfo(pathB).dir().absolutePath(),QDir(folder).absolutePath());
+    auto read=readComponentFolder(folder,catalog());
+    QVERIFY(read.issues.isEmpty());
+    QCOMPARE(read.components.value("custom.a").toJson(),a.toJson());
+    QCOMPARE(read.components.value("custom.b/odd:name").toJson(),b.toJson());
+    // Invalid JSON, a built-in ID and a second file with an existing ID: reported by file name, skipped.
+    const auto put=[&](const QString& name,const QByteArray& bytes){QFile file(folder+"/"+name);QVERIFY(file.open(QIODevice::WriteOnly));file.write(bytes);};
+    put("broken.json","{nope");
+    auto builtIn=catalog().first(); put("shadow.json",QJsonDocument(builtIn.toJson()).toJson());
+    auto twin=a; twin.name="Alpha twin"; put("zz-twin.json",QJsonDocument(twin.toJson()).toJson());
+    read=readComponentFolder(folder,catalog());
+    QCOMPARE(read.components.size(),2);
+    QCOMPARE(read.components.value("custom.a").name,QString("Alpha"));
+    QStringList files; for(const auto& issue:read.issues) { files.append(issue.file); QVERIFY(!issue.reason.isEmpty()); }
+    files.sort(); QCOMPARE(files,QStringList({"broken.json","shadow.json","zz-twin.json"}));
+    // A missing folder (USB stick removed) is one issue, not an exception.
+    read=readComponentFolder(temporary.filePath("gone"),catalog());
+    QVERIFY(read.components.isEmpty()); QCOMPARE(read.issues.size(),1); QCOMPARE(read.issues.first().reason,QString("folder not found"));
+    // Unwritable target: a clear runtime_error.
+    QVERIFY_EXCEPTION_THROWN(writeComponentFile(temporary.filePath("gone/deeper"),a),std::runtime_error);
+    // Migration of the old single-file library.
+    const auto legacy=temporary.filePath("custom-components.json"), migrated=temporary.filePath("Migrated");
+    auto c=a; c.id="custom.c";
+    { QFile file(legacy); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(QJsonArray{a.toJson(),b.toJson(),c.toJson()}).toJson()); }
+    QCOMPARE(migrateLibraryFile(legacy,migrated),3);
+    QVERIFY(!QFileInfo::exists(legacy)); QVERIFY(QFileInfo::exists(temporary.filePath("custom-components.migrated.json")));
+    QCOMPARE(readComponentFolder(migrated,catalog()).components.size(),3);
+    QCOMPARE(migrateLibraryFile(legacy,migrated),0); // already migrated
+    // The document reads and writes the folder; the service (built-ins only) still resolves the project.
+    LightingDocument document(catalog(),nullptr,{},migrated);
+    QCOMPARE(document.customComponents().size(),3);
+    const auto placement=document.addComponent("custom.c");
+    // Library projects reference definitions; the service gets them as playback definitions.
+    const auto project=temporary.filePath("service.lighting.json"); QJsonArray playing; document.save(project,false,nullptr,&playing);
+    LightingDocument service(catalog());
+    service.load(project,playing);
+    QVERIFY(service.componentName(service.state().placements.first()).endsWith("Alpha")); // "Generic Alpha": no manufacturer
+    document.removeCustomComponent("custom.a");
+    QVERIFY(componentFilePath(migrated,"custom.a").isEmpty());
+    QVERIFY(document.componentUsers("custom.c").contains(placement));
+}
+
+void EditorTest::builtInCatalogFromFiles()
+{
+    // Plan 2026-11-27 Task 4: every built-in component is a shipped file; the code adds none.
+    const auto files=loadComponentCatalog(TEST_COMPONENT_DIR);
+    QVERIFY(files.contains("phanteks.m25.paired"));
+    const auto m25=files.value("phanteks.m25.paired");
+    QCOMPARE(m25.positions.size(),12); QCOMPARE(m25.addresses(),6);
+    for(int k=0;k<6;++k) { QCOMPARE(m25.mapping[2*k],k); QCOMPARE(m25.mapping[2*k+1],k); QCOMPARE(m25.positions[2*k].y(),m25.positions[2*k+1].y()); }
+    QCOMPARE(m25.verification,QString("verified"));
+    QCOMPARE(files.value("phanteks.nv5mk2.internal-strip").verification,QString("verified"));
+    QCOMPARE(files.value("phanteks.glacier-one-360m25g2").verification,QString("verified"));
+    QCOMPARE(files.value("peripheral.ajazz-ak35i-v4").verification,QString("verified"));
+    for(const auto* id:{"generic.fan.6","generic.fan.8","generic.fan.12","generic.fan.16","generic.strip.8","generic.strip.30","generic.strip.60"})
+        QVERIFY2(files.contains(id),id);
+    QVERIFY(files.value("generic.fan.6").verification.isEmpty());
+    // Only imports of locally installed vendor metadata ("hardware.*") may be added on top.
+    for(const auto& id:hardwareProducts(files).keys()) QVERIFY2(files.contains(id) || id.startsWith("hardware."),qPrintable(id));
+    for(const auto& id:hardwareProducts(catalog()).keys()) QVERIFY2(id=="test.strip" || id.startsWith("hardware."),qPrintable(id));
+    // Round trip keeps the field, and an unknown value is rejected.
+    QCOMPARE(ComponentDefinition::fromJson(m25.toJson()).verification,QString("verified"));
+    auto json=m25.toJson(); json.insert("verification","maybe");
+    QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+}
+
+void EditorTest::componentFolderSetup()
+{
+    // Plan 2026-11-27 Task 5: the user folder is asked for at the first save, then read automatically.
+    QSettings().remove("components/userFolder");
+    const auto cleanup=qScopeGuard([]{QSettings().remove("components/userFolder");});
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto chosen=temporary.filePath("Mine");
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,QString());
+    QVERIFY(window.componentFolder().isEmpty());
+    int prompts=0; QString suggested;
+    window.chooseComponentFolder=[&](const QString& proposal){++prompts;suggested=proposal;return chosen;};
+    window.findChild<QPushButton*>("openComponentEditor")->click();
+    auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page);
+    auto* message=page->findChild<QLabel*>("componentMessage");
+    page->findChild<QPushButton*>("componentNew")->click();
+    page->findChild<QPushButton*>("componentShapeFan")->click();
+    page->findChild<QPushButton*>("componentSave")->click();
+    QCOMPARE(prompts,1);
+    QCOMPARE(suggested,QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).filePath("Lighting Studio/Components"));
+    QCOMPARE(window.componentFolder(),chosen);
+    QCOMPARE(QSettings().value("components/userFolder").toString(),chosen);
+    QVERIFY2(QDir(chosen).entryList({"*.json"},QDir::Files).size()==1,qPrintable(message->text()+" | "+QDir(chosen).entryList().join(",")));
+    QCOMPARE(message->text(),QString("\"New component\" saved to %1").arg(QDir::toNativeSeparators(chosen)));
+    QVERIFY(!page->isDirty());
+    // A second save does not ask again.
+    page->findChild<QPushButton*>("componentSave")->click(); QCOMPARE(prompts,1);
+    // A file copied into the folder appears without restart (watcher + reread).
+    auto extra=catalog().first(); extra.id="custom.dropped"; extra.name="Dropped in";
+    { QFile file(chosen+"/dropped.json"); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(extra.toJson()).toJson()); }
+    QTRY_VERIFY(window.document().customComponents().contains("custom.dropped"));
+    // Changing the folder in Settings with existing components offers to move them.
+    const auto moved=temporary.filePath("Moved"); int moveQuestions=0;
+    window.confirmMoveComponents=[&](const QString&){++moveQuestions;return true;};
+    QVERIFY(window.setComponentFolder(moved));
+    QCOMPARE(moveQuestions,1);
+    QCOMPARE(QDir(moved).entryList({"*.json"},QDir::Files).size(),2);
+    QCOMPARE(QDir(chosen).entryList({"*.json"},QDir::Files).size(),0);
+    QCOMPARE(window.document().customComponents().size(),2);
+    // Unwritable folder: the save fails visibly and the draft stays dirty.
+    { QFile blocker(temporary.filePath("blocked")); QVERIFY(blocker.open(QIODevice::WriteOnly)); }
+    window.confirmMoveComponents=[](const QString&){return false;};
+    QVERIFY(window.setComponentFolder(temporary.filePath("blocked"))); // a file, not a folder
+    page->findChild<QPushButton*>("componentNew")->click();
+    page->findChild<QPushButton*>("componentShapeStrip")->click();
+    page->findChild<QPushButton*>("componentSave")->click();
+    QVERIFY2(message->text().startsWith("Could not save \"New component\":"),qPrintable(message->text()));
+    QVERIFY(page->isDirty());
+    page->askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    // Add from file: an invalid file names file and reason; a duplicate ID asks Replace / Save as copy.
+    QVERIFY(window.setComponentFolder(moved));
+    page->findChild<QPushButton*>("componentNew")->click();
+    QVERIFY(page->findChild<QPushButton*>("componentShowInFolder"));
+    auto* add=page->findChild<QPushButton*>("componentAddFromFile"); QVERIFY(add);
+    const auto broken=temporary.filePath("broken.json"); { QFile file(broken); QVERIFY(file.open(QIODevice::WriteOnly)); file.write("{nope"); }
+    page->pickImportFile=[&]{return broken;};
+    add->click();
+    QVERIFY2(message->text().startsWith("Could not add broken.json:"),qPrintable(message->text()));
+    const auto twin=temporary.filePath("twin.json"); extra.name="Dropped twin";
+    { QFile file(twin); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(extra.toJson()).toJson()); }
+    int duplicateQuestions=0;
+    page->askDuplicate=[&](const QString&){++duplicateQuestions;return ComponentEditorPage::DuplicateChoice::Copy;};
+    page->pickImportFile=[&]{return twin;};
+    add->click();
+    QCOMPARE(duplicateQuestions,1);
+    QCOMPARE(window.document().customComponents().size(),3);
+    QCOMPARE(window.document().customComponents().value("custom.dropped").name,QString("Dropped in"));
+    page->askDuplicate=[&](const QString&){++duplicateQuestions;return ComponentEditorPage::DuplicateChoice::Replace;};
+    add->click();
+    QCOMPARE(window.document().customComponents().size(),3);
+    QCOMPARE(window.document().customComponents().value("custom.dropped").name,QString("Dropped twin"));
+    window.document().history()->setClean();
+}
+
+void EditorTest::attachComponentDialog()
+{
+    // Plan 2026-11-27 Task 6: header row with remaining addresses, two catalogs, segmented search.
+    auto builtIn=catalog();
+    auto ek=catalog().first(); ek.id="ek.nucleus"; ek.name="EK-Nucleus AIO CR360"; ek.manufacturer="EK"; ek.category="AiO"; builtIn.insert(ek.id,ek);
+    auto alpha=catalog().first(); alpha.id="zz.alpha"; alpha.name="Alpha strip"; alpha.manufacturer="Zeta"; builtIn.insert(alpha.id,alpha);
+    ComponentCatalog user;
+    auto mine=catalog().first(); mine.id="custom.mine"; mine.name="Six pack"; mine.manufacturer="Acme";
+    mine.positions={{0,0},{1,0},{2,0},{3,0},{4,0},{5,0}}; mine.mapping={0,1,2,3,4,5}; user.insert(mine.id,mine);
+    const QVariantMap jargb{{"channelId","JARGB1"}}, jrgb{{"channelId","JRGB1"}};
+    HeaderChoice first{"JARGB_V2_1",jargb,114,0}; first.kind="5 V ARGB";
+    HeaderChoice twelve{"JRGB1",jrgb,1,1}; twelve.kind="12 V RGB"; twelve.supported=false; twelve.reason="12 V RGB · not supported yet";
+    HardwarePicker picker(builtIn,user,{first,twelve},jargb);
+    QCOMPARE(picker.windowTitle(),QString("Attach component"));
+    auto* header=picker.findChild<QComboBox*>("hardwareHeader");
+    auto* model=qobject_cast<QStandardItemModel*>(header->model()); QVERIFY(model);
+    QVERIFY(!(model->item(1)->flags() & Qt::ItemIsEnabled));
+    QCOMPARE(model->item(1)->toolTip(),QString("12 V RGB · not supported yet"));
+    auto* remaining=picker.findChild<QLabel*>("attachRemaining");
+    QCOMPARE(remaining->text(),QString("114 addresses remaining"));
+    auto* list=picker.findChild<QListWidget*>("hardwareProducts");
+    QVERIFY(!list->currentItem());
+    QStringList order; for(int i=0;i<list->count();++i) order.append(list->item(i)->text());
+    QCOMPARE(order.first(),QString("My components"));
+    const int builtInRow=int(order.indexOf("Built-in")); QVERIFY(builtInRow>1);
+    QVERIFY(order.indexOf(hardwareName(ek))>builtInRow);
+    QVERIFY(order.indexOf(hardwareName(ek))<order.indexOf(hardwareName(alpha))); // EK before Zeta
+    QVERIFY(!(list->item(0)->flags() & Qt::ItemIsSelectable));
+    list->setCurrentItem(list->item(1));
+    QCOMPARE(picker.findChild<QLabel*>("attachSelectionAddresses")->text(),QString("6 addresses"));
+    QCOMPARE(picker.findChild<QLabel*>("attachSelectionName")->text(),hardwareName(mine));
+    auto* quantity=picker.findChild<QSpinBox*>("hardwareQuantity"); quantity->setValue(2);
+    QCOMPARE(remaining->text(),QString("114 → 102 addresses remaining"));
+    auto* attach=picker.findChild<QPushButton*>("confirmAddHardware"); QCOMPARE(attach->text(),QString("Attach")); QVERIFY(attach->isEnabled());
+    quantity->setValue(22); // 132 on 114
+    QVERIFY2(remaining->text().contains("exceeds by 18"),qPrintable(remaining->text())); QVERIFY(!attach->isEnabled());
+    quantity->setValue(1);
+    // Type and manufacturer are separate criteria combined with the search text, in both catalogs.
+    picker.findChild<QComboBox*>("hardwareCategory")->setCurrentText("AiO");
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("nucleus");
+    QVERIFY(list->currentItem()); QCOMPARE(list->currentItem()->data(Qt::UserRole).toString(),QString("ek.nucleus"));
+    picker.findChild<QComboBox*>("hardwareCategory")->setCurrentIndex(0);
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("zzz");
+    QStringList visible; for(int i=0;i<list->count();++i) if(!list->item(i)->isHidden()) visible.append(list->item(i)->text());
+    QCOMPARE(visible,QStringList({"+ Create \"zzz\""}));
+    QVERIFY(!attach->isEnabled());
+    QVERIFY(!picker.findChild<QSpinBox*>("hardwareLedCount"));
+}
+
+void EditorTest::attachQuickCreate()
+{
+    // Plan 2026-11-27 Task 7: create a component inside Attach component and attach it in one step.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Quick"); QVERIFY(QDir().mkpath(folder));
+    const QVariantMap jargb{{"channelId","JARGB1"}};
+    HeaderChoice first{"JARGB_V2_1",jargb,114,0};
+    {
+        HardwarePicker picker(catalog(),{},{first},jargb);
+        picker.saveComponent=[&](const ComponentDefinition& definition){ auto saved=definition; saved.id="custom.quick"; writeComponentFile(folder,saved); return saved.id; };
+        auto* list=picker.findChild<QListWidget*>("hardwareProducts");
+        const auto findRow=[&](const QString& text){ for(int i=0;i<list->count();++i) if(list->item(i)->text()==text) return i; return -1; };
+        QVERIFY(findRow("+ New component")>=0); // always offered
+        picker.findChild<QLineEdit*>("hardwareSearch")->setText("Test bar");
+        list->setCurrentRow(findRow("+ Create \"Test bar\""));
+        auto* quickName=picker.findChild<QLineEdit*>("quickName"); QVERIFY(quickName && quickName->isVisibleTo(&picker));
+        QCOMPARE(quickName->text(),QString("Test bar"));
+        picker.findChild<QToolButton*>("quickType_Strips")->click();
+        picker.findChild<QSpinBox*>("quickAddresses")->setValue(16);
+        picker.findChild<QPushButton*>("quickCreateAttach")->click();
+        QVERIFY(!componentFilePath(folder,"custom.quick").isEmpty());
+        QCOMPARE(picker.result(),int(QDialog::Accepted));
+        const auto created=picker.component();
+        QCOMPARE(created.id,QString("custom.quick")); QCOMPARE(created.addresses(),16); QCOMPARE(created.name,QString("Test bar"));
+        QCOMPARE(created.category,QString("Strips"));
+        QCOMPARE(picker.findChild<QLabel*>("attachRemaining")->text(),QString("114 → 98 addresses remaining"));
+        const int row=list->currentRow(); QVERIFY(row>findRow("My components")); QVERIFY(findRow("Built-in")<0 || row<findRow("Built-in"));
+    }
+    // "Open in editor…": the editor creates it, "Save & attach" brings the dialog back with it selected.
+    QSettings().remove("components/userFolder");
+    const auto cleanup=qScopeGuard([]{QSettings().remove("components/userFolder");});
+    auto profile=channelProfile(); profile.channels[0].maxLeds=40;
+    LightingWindow window(catalog(),[profile] {
+        ProfileCandidate candidate; candidate.profileId=profile.id; candidate.device.path="fake://one";
+        return QVector<ProfileCandidate>{candidate};
+    },nullptr,{profile},true,QString());
+    window.chooseComponentFolder=[&](const QString&){return folder;};
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents"); tree->setCurrentItem(tree->topLevelItem(0)->child(0));
+    QTimer::singleShot(0,[&] {
+        auto* dialog=dynamic_cast<HardwarePicker*>(QApplication::activeModalWidget()); QVERIFY(dialog);
+        auto* list=dialog->findChild<QListWidget*>("hardwareProducts");
+        dialog->findChild<QLineEdit*>("hardwareSearch")->setText("Edited bar");
+        for(int i=0;i<list->count();++i) if(list->item(i)->text()=="+ Create \"Edited bar\"") list->setCurrentRow(i);
+        dialog->findChild<QPushButton*>("quickOpenEditor")->click();
+    });
+    window.findChild<QPushButton*>("addHeaderComponents")->click();
+    auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page && page->isVisible());
+    auto* save=page->findChild<QPushButton*>("componentSave"); QCOMPARE(save->text(),QString("Save & attach"));
+    auto* banner=page->findChild<QLabel*>("componentAttachBanner"); QVERIFY(banner && banner->isVisible()); QVERIFY(banner->text().contains("Direct"));
+    QCOMPARE(page->findChild<QLineEdit*>("componentName")->text(),QString("Edited bar"));
+    page->findChild<QPushButton*>("componentShapeStrip")->click();
+    bool reopened=false; QString selected;
+    QTimer::singleShot(0,[&] {
+        auto* dialog=dynamic_cast<HardwarePicker*>(QApplication::activeModalWidget()); reopened=dialog!=nullptr;
+        if(dialog) { try { selected=dialog->component().name; } catch(...) {} dialog->reject(); }
+    });
+    save->click();
+    QVERIFY(reopened); QCOMPARE(selected,QString("Edited bar"));
+    QVERIFY(!page->isVisible());
+    window.document().history()->setClean();
+}
+
+void EditorTest::stripFixedTiles()
+{
+    // Plan 2026-11-27 Task 8 (owner idea): a strip is a connector plus one fixed square tile per LED;
+    // moving an LED away fills the gap with plain band, tiles never scale.
+    QCOMPARE(withShape({},DraftShape::Strip,16).positions[1].x()-withShape({},DraftShape::Strip,16).positions[0].x(),kStripTile);
+    QCOMPARE(withShape({},DraftShape::Strip,4).positions[3].x(),3*kStripTile);
+    ComponentDefinition strip; strip.id="test.tiles"; strip.name="Tiles"; strip.category="Strips";
+    for(int i=0;i<16;++i){strip.positions.append({i*kStripTile,0});strip.mapping.append(i);}
+    const double scale=100; // px per component unit: one tile = 40 px
+    const auto render=[&](const ComponentDefinition& c) {
+        QImage image(1200,120,QImage::Format_ARGB32_Premultiplied); image.fill(Qt::transparent);
+        QPainter painter(&image); painter.translate(80,60); painter.scale(scale,scale); drawHardwareEditorArtwork(painter,c);
+        return image;
+    };
+    const auto tile=[&](const QImage& image,int led){ return image.copy(QRect(80+qRound(led*kStripTile*scale)-20,40,40,40)); };
+    const auto even=render(strip);
+    QVERIFY(even.save(artifactDirectory()+"/editor-strip-tiles.png"));
+    // Identical tiles: every interior LED looks the same, so all tiles have the same width.
+    for(int led:{2,5,9,13}) QCOMPARE(tile(even,led),tile(even,3));
+    // No light seam: alpha on the strip's centre line stays the same across tile boundaries.
+    for(int led=1;led<15;++led) {
+        const int boundary=80+qRound((led+.5)*kStripTile*scale);
+        QVERIFY2(qAbs(qAlpha(even.pixel(boundary,60))-qAlpha(even.pixel(boundary-5,60)))<=8,qPrintable(QString("seam at LED %1").arg(led)));
+    }
+    // Move LED 9 (and the rest) three tiles further: tiles keep their size, the gap shows band.
+    auto moved=strip; for(int i=9;i<16;++i) moved.positions[i].rx()+=3*kStripTile;
+    const auto gapped=render(moved);
+    QVERIFY(gapped.save(artifactDirectory()+"/editor-strip-gap.png"));
+    QCOMPARE(tile(gapped,3),tile(even,3));
+    QCOMPARE(gapped.copy(QRect(80+qRound(12*kStripTile*scale)-20,40,40,40)),tile(even,9)); // LED 9 now at tile 12
+    for(double x=9.5;x<=11.5;x+=.5) QVERIFY2(qAlpha(gapped.pixel(80+qRound(x*kStripTile*scale),60))>0,qPrintable(QString::number(x)));
+    QCOMPARE(qAlpha(gapped.pixel(80+qRound(20*kStripTile*scale),60)),0); // nothing beyond the end
+    // Adding an LED to a strip continues it by one tile along its last direction, wherever you click.
+    ComponentDraft draft=ComponentDraft::fromDefinition(strip);
+    QCOMPARE(stripNextPosition(draft),std::optional<QPointF>(QPointF(16*kStripTile,0)));
+    auto bent=draft; bent.positions[15]=bent.positions[14]+QPointF(0,kStripTile);
+    QCOMPARE(stripNextPosition(bent),std::optional<QPointF>(bent.positions[15]+QPointF(0,kStripTile)));
+    auto fan=draft; fan.category="Fans"; QVERIFY(!stripNextPosition(fan));
+    ComponentCanvas canvas; canvas.resize(640,420);
+    connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString&){draft=after;canvas.setDraft(after);});
+    canvas.setDraft(draft); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas)); canvas.fit();
+    QTest::mouseClick(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(QPointF(2*kStripTile,1.5)*ComponentCanvas::unit));
+    QCOMPARE(draft.positions.size(),17);
+    QVERIFY(QLineF(draft.positions.last(),QPointF(16*kStripTile,0)).length()<1e-9);
+}
+
+void EditorTest::componentEditorCleanup()
+{
+    // Plan 2026-11-27 Task 9 (owner review): no coordinates in LED tooltips, no preview transport in the
+    // Component Editor, Align for LEDs, AK35i laid out on the Roccat Vulcan grid.
+    ComponentCanvas canvas; canvas.resize(640,420);
+    auto draft=ComponentDraft::fromDefinition(catalog().first()); draft.category="Other";
+    draft.positions={{0,0},{1,.5},{3,.2}}; draft.mapping={0,1,2};
+    canvas.setDraft(draft);
+    QStringList tips; for(auto* item:canvas.scene()->items()) if(item->toolTip().startsWith("LED")) tips.append(item->toolTip());
+    QVERIFY(tips.contains("LED 3"));
+    for(const auto& tip:tips) QVERIFY2(!tip.contains(','),qPrintable(tip));
+    // Align and distribute selected LEDs, one undoable edit each, same rules as the Layout.
+    QVector<ComponentDraft> edits;
+    connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString& label){QCOMPARE(label,QString("Align LEDs"));edits.append(after);draft=after;canvas.setDraft(after);});
+    canvas.selectRows({0,1});
+    QCOMPARE(canvas.alignSelection("distribute-horizontal"),QString("Select at least three objects to distribute."));
+    canvas.selectRows({0});
+    QCOMPARE(canvas.alignSelection("top"),QString("Select at least two objects to align."));
+    canvas.selectRows({0,1,2});
+    QVERIFY(canvas.alignSelection("top").isEmpty());
+    QCOMPARE(edits.size(),1);
+    for(const auto& point:draft.positions) QCOMPARE(point.y(),0.0);
+    QVERIFY(canvas.alignSelection("distribute-horizontal").isEmpty());
+    QCOMPARE(draft.positions[1].x(),1.5);
+    // The toolbar's Align menu acts on the Component Editor while it is open; Play/Stop is hidden there.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* play=window.findChild<QPushButton*>("playPreview"); QVERIFY(play->isVisible());
+    window.findChild<QPushButton*>("openComponentEditor")->click();
+    auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page->isVisible());
+    QTRY_VERIFY(!play->isVisible());
+    QVERIFY(window.findChild<QToolButton*>("alignSelection")->isEnabled());
+    page->findChild<QPushButton*>("componentNew")->click();
+    page->findChild<QPushButton*>("componentShapeFan")->click();
+    auto* editorCanvas=page->findChild<ComponentCanvas*>(); editorCanvas->selectRows({0,1,2});
+    const auto before=page->draft().positions;
+    const int undo=page->undoStack()->count();
+    window.findChild<QAction*>("align_left")->trigger();
+    QVERIFY2(page->undoStack()->count()==undo+1,qPrintable(page->findChild<QLabel*>("componentMessage")->text()+QString(" enabled=%1").arg(window.findChild<QAction*>("align_left")->isEnabled())));
+    QCOMPARE(page->draft().positions[1].x(),std::min({before[0].x(),before[1].x(),before[2].x()}));
+    page->askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    page->findChild<QPushButton*>("componentBack")->click();
+    QTRY_VERIFY(play->isVisible());
+    // AK35i: the Vulcan's even grid, row by row; wiring untouched.
+    const auto ajazz=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-ajazz-ak35i-v4.json");
+    const auto vulcan=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-vulcan.json");
+    QVector<QPointF> grid; for(int i=0;i<vulcan.positions.size();++i) if(!vulcan.nonPhysicalSlots.contains(vulcan.mapping[i])) grid.append(vulcan.positions[i]);
+    auto sorted=[](QVector<QPointF> points){ std::sort(points.begin(),points.end(),[](QPointF a,QPointF b){return a.y()!=b.y() ? a.y()<b.y() : a.x()<b.x();}); return points; };
+    QCOMPARE(sorted(ajazz.positions),sorted(grid));
+    QVector<int> wires(105); std::iota(wires.begin(),wires.end(),0); QCOMPARE(ajazz.mapping,wires);
+    window.document().history()->setClean();
+}
+
+void EditorTest::libraryReviewFixes()
+{
+    // Final review 2026-11-27: library writes never delete files they did not mean to (C1); projects that
+    // still carry former code-only components as playback definitions keep playing (C2); old library
+    // entries with now built-in IDs are not shadowed silently (C2); missing folders are reported with the
+    // way out (I1); a failed migration does not store the folder (I2).
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Lib"); QVERIFY(QDir().mkpath(folder));
+    auto shadow=catalog().first(); shadow.name="Old copy of a built-in";
+    { QFile file(folder+"/shadow.json"); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(shadow.toJson()).toJson()); }
+    {
+        LightingDocument document(catalog(),nullptr,{},folder);
+        auto mine=catalog().first(); mine.id="custom.mine"; mine.name="Mine";
+        document.registerComponent(mine);
+        QVERIFY2(QFileInfo::exists(folder+"/shadow.json"),"C1: a library write deleted a file it skipped");
+        document.removeCustomComponent("custom.mine");
+        QVERIFY(componentFilePath(folder,"custom.mine").isEmpty());
+        QVERIFY(QFileInfo::exists(folder+"/shadow.json"));
+    }
+    // C2: the playing project carries "custom.fan", which is now a built-in.
+    auto fan=catalog().first(); fan.id="custom.fan"; fan.name="Former code fan";
+    QJsonArray playing; QString project=temporary.filePath("service.lighting.json");
+    {
+        LightingDocument editor(catalog(),nullptr,{},temporary.filePath("Other"));
+        editor.registerComponent(fan); editor.addComponent("custom.fan");
+        editor.save(project,false,nullptr,&playing);
+    }
+    auto builtIn=catalog(); builtIn.insert(fan.id,fan);
+    { LightingDocument service(builtIn); service.load(project,playing); QCOMPARE(service.state().placements.first().componentId,QString("custom.fan")); }
+    auto changed=fan; changed.positions[0]={0,7}; auto shipped=catalog(); shipped.insert(changed.id,changed);
+    {
+        LightingDocument service(shipped); service.load(project,playing);
+        const auto id=service.state().placements.first().componentId;
+        QCOMPARE(service.catalog().value(id).positions,fan.positions); // keeps what was playing
+    }
+    // C2 migration: an equal entry needs no file; a different one is kept under its own ID and reported.
+    const auto legacy=temporary.filePath("custom-components.json"), target=temporary.filePath("Migrated");
+    auto edited=changed; edited.positions[0]={0,9}; edited.name="My edited fan";
+    { QFile file(legacy); QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(QJsonArray{changed.toJson(),edited.toJson()}).toJson()); }
+    QStringList kept;
+    QCOMPARE(migrateLibraryFile(legacy,target,shipped,&kept),1);
+    const auto read=readComponentFolder(target,shipped);
+    QVERIFY(read.issues.isEmpty()); QCOMPARE(read.components.size(),1);
+    QCOMPARE(read.components.first().positions[0],QPointF(0,9)); QVERIFY(read.components.first().id!="custom.fan");
+    QCOMPARE(kept,QStringList({"My edited fan"}));
+    // I1: a folder that is gone is named at startup with the way out.
+    QSettings().remove("components/userFolder");
+    const auto cleanup=qScopeGuard([]{QSettings().remove("components/userFolder");});
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,temporary.filePath("Unplugged"));
+    QTRY_VERIFY(window.statusBar()->currentMessage().contains("Edit > Settings"));
+    // I2: a migration that fails keeps the setting empty, so the next start tries again.
+    LightingWindow fresh(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,QString());
+    const auto broken=temporary.filePath("broken-legacy.json"); { QFile file(broken); QVERIFY(file.open(QIODevice::WriteOnly)); file.write("{nope"); }
+    fresh.setLegacyComponentLibrary(broken);
+    fresh.chooseComponentFolder=[&](const QString&){return temporary.filePath("Second");};
+    QVERIFY(!fresh.ensureComponentFolder());
+    QVERIFY(fresh.componentFolder().isEmpty()); QVERIFY(QSettings().value("components/userFolder").toString().isEmpty());
+    QVERIFY(fresh.statusBar()->currentMessage().contains("old component library"));
+}
+
+void EditorTest::chaseProjectWithoutLibrary()
+{
+    // CodeRabbit PR #10: a Chase project saved without a component folder must still carry the
+    // definitions of its own components, or it cannot be opened again.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    LightingDocument document(catalog());
+    auto own=catalog().first(); own.id="hardware.0123456789abcdef"; own.name="Imported fan";
+    document.registerComponent(own);
+    document.addComponent(own.id);
+    document.addLayer(EffectKind::Chase);
+    const auto file=temporary.filePath("chase.lighting.json"); document.save(file);
+    LightingDocument reopened(catalog());
+    reopened.load(file);
+    QCOMPARE(reopened.state().placements.first().componentId,own.id);
+    QCOMPARE(reopened.catalog().value(own.id).name,QString("Imported fan"));
+}
+
+void EditorTest::switchComponentAfterSave()
+{
+    // CodeRabbit PR #10: saving A while switching to B rebuilt the list and then read the deleted B item.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    LightingDocument document(catalog(),nullptr,{},temporary.filePath("Lib"));
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
+    auto b=catalog().first(); b.id="custom.b"; b.name="Bravo"; document.registerComponent(b);
+    ComponentEditorPage page(document,catalog()); page.openLibrary("custom.a");
+    page.askUnsaved=[](const QString&){return QMessageBox::Save;};
+    auto* name=page.findChild<QLineEdit*>("componentName"); name->setText("Alpha 2"); emit name->editingFinished();
+    QVERIFY(page.isDirty());
+    auto* list=page.findChild<QTreeWidget*>("componentList"); QTreeWidgetItem* target=nullptr;
+    for(QTreeWidgetItemIterator it(list);*it;++it) if((*it)->data(0,Qt::UserRole).toString()=="custom.b") target=*it;
+    QVERIFY(target); list->setCurrentItem(target);
+    QCOMPARE(page.draft().name,QString("Bravo"));
+    QCOMPARE(list->currentItem()->data(0,Qt::UserRole).toString(),QString("custom.b"));
+    QCOMPARE(document.customComponents().value("custom.a").name,QString("Alpha 2"));
+}
+
+void EditorTest::undoKeepsIdAndShapeCountFollows()
+{
+    // CodeRabbit PR #10 #19: undo after the first save keeps the assigned ID, so the next save updates it.
+    LightingDocument document(catalog());
+    ComponentEditorPage page(document,catalog()); page.openLibrary();
+    auto* message=page.findChild<QLabel*>("componentMessage");
+    page.findChild<QPushButton*>("componentNew")->click();
+    page.findChild<QPushButton*>("componentShapeFan")->click();
+    auto* name=page.findChild<QLineEdit*>("componentName"); name->setText("Renamed"); emit name->editingFinished();
+    page.findChild<QPushButton*>("componentSave")->click();
+    const auto saved=document.customComponents(); QCOMPARE(saved.size(),1);
+    page.undoStack()->undo(); QCOMPARE(page.draft().name,QString("New component"));
+    QCOMPARE(page.draft().id,saved.firstKey());
+    page.findChild<QPushButton*>("componentSave")->click();
+    QVERIFY2(!message->text().contains("Unknown"),qPrintable(message->text()));
+    QCOMPARE(document.customComponents().size(),1);
+    QCOMPARE(document.customComponents().first().name,QString("New component"));
+    // #20: after adding an LED the LEDs field follows the part, so a shape click rearranges instead of replacing.
+    auto* count=page.findChild<QSpinBox*>("componentShapeCount");
+    const int before=int(page.draft().positions.size());
+    auto* canvas=page.findChild<ComponentCanvas*>();
+    emit canvas->draftEdited(withAdded(page.draft(),{9,9},0),"Add LED");
+    QCOMPARE(count->value(),before+1);
+    const auto wiring=page.draft().mapping;
+    page.findChild<QPushButton*>("componentShapeLShape")->click();
+    QCOMPARE(int(page.draft().positions.size()),before+1);
+    QCOMPARE(page.draft().mapping,wiring);
+    // A count the user typed still replaces the LEDs.
+    count->setValue(5); page.findChild<QPushButton*>("componentShapeStrip")->click();
+    QCOMPARE(int(page.draft().positions.size()),5);
+}
+
+void EditorTest::failedLibraryWriteLeavesHistory()
+{
+    // CodeRabbit PR #10 #25: a library write that fails must leave the project and its undo history as they were.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Lib");
+    LightingDocument document(catalog(),nullptr,{},folder);
+    auto own=catalog().first(); own.id="custom.own"; own.name="Own"; document.registerComponent(own);
+    document.addComponent("custom.own");
+    const auto file=componentFilePath(folder,"custom.own"); QVERIFY(!file.isEmpty());
+    QVERIFY(QFile::setPermissions(file,QFileDevice::ReadOwner|QFileDevice::ReadUser));
+    const auto restore=qScopeGuard([&]{QFile::setPermissions(file,QFileDevice::ReadOwner|QFileDevice::WriteOwner|QFileDevice::ReadUser|QFileDevice::WriteUser);});
+    const int count=document.history()->count(), index=document.history()->index();
+    auto moved=own; moved.positions[0]={0,4};
+    QVERIFY_EXCEPTION_THROWN(document.updateCustomComponent(moved),std::runtime_error);
+    QCOMPARE(document.history()->count(),count); QCOMPARE(document.history()->index(),index);
+    QVERIFY(!document.history()->canRedo());
+    QCOMPARE(document.catalog().value("custom.own").positions[0],own.positions[0]);
+}
+
+void EditorTest::offlinePlanStaysVisible()
+{
+    // CodeRabbit PR #10 #27: components planned on an offline connector stay visible once a real
+    // controller is found; only real endpoints that the scan did not find count as disconnected.
+    QSettings().remove("editor/disconnectedDevices");
+    const auto profile=channelProfile();
+    LightingWindow window(catalog(),[profile] {
+        ProfileCandidate candidate;candidate.profileId=profile.id;candidate.device.path="fake://one";return QVector<ProfileCandidate>{candidate};
+    },nullptr,{profile});
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTRY_COMPARE(window.discoveredHardware().size(),1);
+    const auto planned=window.document().addComponent("test.strip");
+    window.document().edit("Plan",[&](LightingState& state) {
+        ChannelAssignment plan;plan.endpoint="offline:"+profile.id;plan.profileId=profile.id;plan.channelId="Direct";plan.placements={planned};
+        state.assignments={plan};
+    });
+    window.findChild<QPushButton*>("refreshHeaders")->click();
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->selectMany({planned},planned);
+    QCOMPARE(canvas->selections(),QSet<QUuid>({planned}));
+    window.document().history()->setClean();
+}
+
+void EditorTest::componentFileLimitAndHandleUndo()
+{
+    // CodeRabbit PR #10 #32: what can be written can be read back; a too large part is refused up front.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Lib"); QVERIFY(QDir().mkpath(folder));
+    ComponentDefinition huge; huge.id="custom.huge"; huge.name="Huge";
+    for(int i=0;i<60000;++i){huge.positions.append({i*0.123456789,i*0.987654321});huge.mapping.append(i);}
+    QVERIFY_EXCEPTION_THROWN(writeComponentFile(folder,huge),std::runtime_error);
+    QVERIFY(QDir(folder).entryList({"*.json"},QDir::Files).isEmpty());
+    ComponentDefinition keyboard=huge; keyboard.id="custom.keys"; keyboard.positions.resize(144); keyboard.mapping.resize(144);
+    writeComponentFile(folder,keyboard);
+    QCOMPARE(readComponentFolder(folder,{}).components.value("custom.keys").positions.size(),144);
+    // #33: undo (a new draft) while a housing handle is held; the release must neither crash nor edit.
+    // Not a proof: reading the deleted handle is undefined behaviour and passed here before the fix too.
+    ComponentCanvas canvas; canvas.resize(640,420);
+    ComponentDraft fan=ComponentDraft::fromDefinition(catalog().first()); fan.category="Fans"; fan.positions={{0,0},{1,1.5},{2,0}}; fan.housing=QRectF(-1,-1,4,4); // not collinear: a line counts as a strip
+    int edits=0; connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&]{++edits;});
+    canvas.setDraft(fan); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas)); canvas.fit();
+    QGraphicsItem* handle=nullptr; for(auto* item:canvas.scene()->items()) if(item->toolTip()=="Scale the housing (keeps its proportions)") handle=item;
+    QVERIFY(handle);
+    const auto at=canvas.mapFromScene(handle->pos());
+    QTest::mousePress(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,at);
+    QTest::mouseMove(canvas.viewport(),at+QPoint(30,30));
+    auto undone=fan; undone.name="Undone"; canvas.setDraft(undone);
+    QTest::mouseRelease(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,at+QPoint(30,30));
+    QCOMPARE(edits,0);
+}
+
+void EditorTest::importAndMoveKeepData()
+{
+    // CodeRabbit PR #10 #35/#36: "Add from file…" settles the open draft first and shows what it imported.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Lib");
+    LightingDocument document(catalog(),nullptr,{},folder);
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
+    ComponentEditorPage page(document,catalog()); page.openLibrary("custom.a");
+    auto* name=page.findChild<QLineEdit*>("componentName"); name->setText("Alpha draft"); emit name->editingFinished();
+    auto replacement=a; replacement.name="Alpha imported"; replacement.positions[0]={0,6};
+    const auto file=temporary.filePath("alpha.json"); { QFile out(file); QVERIFY(out.open(QIODevice::WriteOnly)); out.write(QJsonDocument(replacement.toJson()).toJson()); }
+    page.pickImportFile=[&]{return file;};
+    page.askDuplicate=[](const QString&){return ComponentEditorPage::DuplicateChoice::Replace;};
+    page.askUnsaved=[](const QString&){return QMessageBox::Cancel;};
+    page.findChild<QPushButton*>("componentAddFromFile")->click();
+    QCOMPARE(page.draft().name,QString("Alpha draft")); QCOMPARE(document.customComponents().value("custom.a").name,QString("Alpha"));
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    page.findChild<QPushButton*>("componentAddFromFile")->click();
+    QCOMPARE(document.customComponents().value("custom.a").name,QString("Alpha imported"));
+    QCOMPARE(page.draft().name,QString("Alpha imported")); QCOMPARE(page.draft().positions[0],QPointF(0,6)); QVERIFY(!page.isDirty());
+    // #38: a move that cannot complete keeps the old folder complete and active.
+    QSettings().remove("components/userFolder");
+    const auto cleanup=qScopeGuard([]{QSettings().remove("components/userFolder");});
+    const auto source=temporary.filePath("Source"), target=temporary.filePath("Target");
+    QVERIFY(QDir().mkpath(source)); QVERIFY(QDir().mkpath(target));
+    auto b=a; b.id="custom.b"; b.name="Bravo";
+    writeComponentFile(source,a); writeComponentFile(source,b);
+    const auto clashName=QFileInfo(componentFilePath(source,"custom.b")).fileName();
+    auto other=b; other.name="Someone else's b"; { QFile clash(target+"/"+clashName); QVERIFY(clash.open(QIODevice::WriteOnly)); clash.write(QJsonDocument(other.toJson()).toJson()); }
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,source);
+    window.confirmMoveComponents=[](const QString&){return true;};
+    QVERIFY(!window.setComponentFolder(target));
+    QCOMPARE(window.componentFolder(),source);
+    QCOMPARE(QDir(source).entryList({"*.json"},QDir::Files).size(),2);
+    QCOMPARE(QDir(target).entryList({"*.json"},QDir::Files),QStringList{clashName});
+    QVERIFY(window.statusBar()->currentMessage().contains(clashName));
+}
+
+void EditorTest::componentFitFramesFarLeds()
+{
+    // CodeRabbit PR #10 #16: Fit frames LEDs away from the origin instead of only centering on (0,0).
+    ComponentCanvas canvas; canvas.resize(640,420);
+    // Wider than the view: QGraphicsView clamps centerOn() to the scene, so only a large part shows the bug.
+    auto far=ComponentDraft::fromDefinition(catalog().first());
+    far.positions={{200,150},{250,150},{300,180}};
+    canvas.setDraft(far); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas)); canvas.fit();
+    int leds=0;
+    for(auto* item:canvas.scene()->items()) if(item->type()==QGraphicsEllipseItem::Type) {
+        ++leds; QVERIFY(canvas.viewport()->rect().contains(canvas.mapFromScene(item->pos())));
+    }
+    QVERIFY(leds>0);
+}
+
+void EditorTest::proportionalResizeKeepsAspectAtLimit()
+{
+    // CodeRabbit PR #10 #5: the shared factor is clamped once, so the 1 px floor cannot change the aspect ratio.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{});
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    addEffect(window,EffectKind::Triangle);
+    window.document().edit("Wide",[](LightingState& state){auto& shape=state.layers.last();shape.center={320,200};shape.extent={400,40};shape.rotation=0;});
+    auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");
+    const auto layer=window.document().state().layers.last();
+    const auto corner=effectTransform(layer).map(QPointF(.5,.5)), pinned=effectTransform(layer).map(QPointF(-.5,-.5));
+    const auto to=pinned+QPointF(2,.2);
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint(corner).toPoint());
+    QTest::mouseMove(canvas,canvas->viewportPoint(to).toPoint());
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint(to).toPoint());
+    const auto after=window.document().state().layers.last().extent;
+    QVERIFY2(std::abs(after.width()/after.height()-10)<.5,qPrintable(QString("%1 x %2").arg(after.width()).arg(after.height())));
+    window.document().history()->setClean();
+}
+
+void EditorTest::hiddenPlacementLeavesFit()
+{
+    // CodeRabbit PR #10 #22: Fit frames visible components only; an unplugged far device adds no empty area.
+    const auto pixelsPerUnit=[](bool withFar) {
+        LightingDocument document(catalog(),nullptr,{});
+        document.addComponent("test.strip");
+        if(withFar) {
+            const auto far=document.addComponent("test.strip");
+            document.edit("Far",[&](LightingState& state){for(auto& item:state.placements) if(item.id==far) item.origin={4000,3000};});
+        }
+        double result=0;
+        {
+            LightingCanvas canvas(document,LightingCanvas::Context::Layout); canvas.resize(640,420);
+            if(withFar) canvas.setDisconnectedPlacements({document.state().placements.last().id},false);
+            canvas.show(); if(QTest::qWaitForWindowExposed(&canvas)) { canvas.fitToView(); result=canvas.viewportPoint({100,0}).x()-canvas.viewportPoint({0,0}).x(); }
+        }
+        document.history()->setClean(); return result;
+    };
+    const double alone=pixelsPerUnit(false), hidden=pixelsPerUnit(true);
+    QVERIFY(alone>0);
+    QVERIFY2(std::abs(hidden-alone)<alone*.01,qPrintable(QString("%1 vs %2").arg(hidden).arg(alone)));
+}
+
+void EditorTest::quickCreateShowsSavedButNotFitting()
+{
+    // CodeRabbit PR #10 #37: a saved part that does not fit the header says so where the user can see it.
+    const QVariantMap header{{"channelId","JARGB1"}};
+    HardwarePicker picker(catalog(),{HeaderChoice{"JARGB_V2_1",header,8,0}},header);
+    picker.saveComponent=[](const ComponentDefinition&){return QString("custom.big");};
+    auto* list=picker.findChild<QListWidget*>("hardwareProducts");
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("Big bar");
+    for(int i=0;i<list->count();++i) if(list->item(i)->text()=="+ Create \"Big bar\"") list->setCurrentRow(i);
+    picker.findChild<QSpinBox*>("quickAddresses")->setValue(12);
+    picker.findChild<QPushButton*>("quickCreateAttach")->click();
+    QVERIFY(picker.result()!=QDialog::Accepted);
+    bool shown=false;
+    for(auto* label:picker.findChildren<QLabel*>()) shown=shown || (label->isVisibleTo(&picker) && label->text().contains("Saved to your components"));
+    QVERIFY(shown);
+}
+
+void EditorTest::chaseDisablesUnusedMotion()
+{
+    // CodeRabbit PR #10 #4: Chase output ignores pulse, hue rotation and the color cycle, so their controls are off.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{});
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    addEffect(window,EffectKind::Chase);
+    for(const auto* name:{"intensityMode","animationRate1","animationRate2","colorCycle"})
+        QVERIFY2(!window.findChild<QWidget*>(name)->isEnabled(),name);
+    addEffect(window,EffectKind::StaticColor);
+    QVERIFY(window.findChild<QWidget*>("intensityMode")->isEnabled());
+    QVERIFY(window.findChild<QWidget*>("colorCycle")->isEnabled());
+    window.document().history()->setClean();
+}
+
+void EditorTest::identifyWithoutSoftwareStaysLocal()
+{
+    // CodeRabbit PR #10 #9: Identify on a component without software output flashes the preview only.
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{});
+    window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    const auto id=window.document().addComponent("test.strip");
+    window.findChild<QAction*>("workspaceHardware")->trigger();
+    window.findChild<LightingCanvas*>("layoutCanvas")->select(id);
+    QSignalSpy requests(&window,&LightingWindow::identifyRequested);
+    auto* identify=window.findChild<QPushButton*>("identifyDeviceComponent"); QVERIFY(identify->isEnabled());
+    identify->click();
+    QCOMPARE(window.document().identifyPlacement(),id);
+    QCOMPARE(requests.size(),0);
+    window.document().history()->setClean();
+}
+
+void EditorTest::stackedVendorLedsStayAvailable()
+{
+    // CodeRabbit PR #10 #21: 17+ LEDs on one coordinate exceed the 0..15 layer range; keep the product without layers.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("VortxEngine/app-1.0.0/Signal-x64/Components"); QVERIFY(QDir().mkpath(folder));
+    QJsonArray coordinates,mapping; for(int i=0;i<20;++i){coordinates.append(QJsonArray{0,0});mapping.append(i);}
+    { QFile out(folder+"/stack.json"); QVERIFY(out.open(QIODevice::WriteOnly));
+      out.write(QJsonDocument(QJsonObject{{"ProductName","Stack Ring"},{"Brand","Test"},{"Type","Fan"},{"LedCount",20},
+          {"LedCoordinates",coordinates},{"LedMapping",mapping}}).toJson()); }
+    const auto previous=qgetenv("LOCALAPPDATA");
+    const auto restore=qScopeGuard([previous]{qputenv("LOCALAPPDATA",previous);});
+    qputenv("LOCALAPPDATA",QDir::toNativeSeparators(temporary.path()).toLocal8Bit());
+    bool found=false; for(const auto& product:hardwareProducts(catalog())) found=found || product.name=="Test Stack Ring";
+    QVERIFY(found);
+}
+
+void EditorTest::componentCanvasInteractions()
+{
+    const auto savedGrid=SnapGrid::load(); auto noSnap=savedGrid; noSnap.enabled=false; noSnap.save();
+    const auto restoreGrid=qScopeGuard([savedGrid]{savedGrid.save();});
+    ComponentCanvas canvas; canvas.resize(640,420);
+    auto draft=ComponentDraft::fromDefinition(catalog().first()); // (0,0) (1,0) (2,0), addresses 2 1 0
+    draft.category="Other"; // free placement; strips continue by one tile instead (stripFixedTiles)
+    QVector<ComponentDraft> edits; QVector<QVector<int>> orders;
+    connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString&){edits.append(after);draft=after;canvas.setDraft(after);});
+    connect(&canvas,&ComponentCanvas::wireOrderFinished,&canvas,[&](const QVector<int>& order){orders.append(order);});
+    canvas.setDraft(draft); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas));
+    canvas.fit(); canvas.zoomBy(1.0/canvas.zoom()); QVERIFY(qAbs(canvas.zoom()-1)<1e-9);
+    const auto at=[&](QPointF unit){return canvas.mapFromScene(unit*ComponentCanvas::unit);};
+    auto* viewport=canvas.viewport();
+    QTest::mouseClick(viewport,Qt::LeftButton,Qt::NoModifier,at({1,3}));
+    QCOMPARE(edits.size(),1); QCOMPARE(draft.positions.size(),4); QVERIFY(QLineF(draft.positions.last(),QPointF(1,3)).length()<.05);
+    QTest::mouseClick(viewport,Qt::RightButton,Qt::NoModifier,at({0,0}));
+    QCOMPARE(draft.positions.size(),3); QCOMPARE(draft.positions.first(),QPointF(1,0));
+    edits.clear();
+    const auto from=at({1,0}),to=from+QPoint(0,24);
+    QTest::mousePress(viewport,Qt::LeftButton,Qt::NoModifier,from);
+    for(int step=1;step<=4;++step) {QMouseEvent move(QEvent::MouseMove,QPointF(from+QPoint(0,6*step)),viewport->mapToGlobal(QPointF(from+QPoint(0,6*step))),Qt::NoButton,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(viewport,&move);}
+    QTest::mouseRelease(viewport,Qt::LeftButton,Qt::NoModifier,to);
+    QCOMPARE(edits.size(),1); QVERIFY(qAbs(draft.positions[0].y()-1)<.05); QVERIFY(qAbs(draft.positions[0].x()-1)<.05);
+    // Box selection over everything.
+    QTest::mousePress(viewport,Qt::LeftButton,Qt::NoModifier,at({-1,-1}));
+    for(int step=1;step<=4;++step) {const auto p=at(QPointF(-1+step,-1+step*1.25));QMouseEvent move(QEvent::MouseMove,QPointF(p),viewport->mapToGlobal(QPointF(p)),Qt::NoButton,Qt::LeftButton,Qt::NoModifier);QApplication::sendEvent(viewport,&move);}
+    QTest::mouseRelease(viewport,Qt::LeftButton,Qt::NoModifier,at({3,4}));
+    QCOMPARE(canvas.selectedRows().size(),3); QCOMPARE(edits.size(),1);
+    // Zoom at the cursor keeps the scene point under it.
+    const QPoint cursor=at({1,0}); const auto before=canvas.mapToScene(cursor);
+    QWheelEvent wheel(QPointF(cursor),viewport->mapToGlobal(QPointF(cursor)),QPoint(),QPoint(0,120),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
+    QApplication::sendEvent(viewport,&wheel);
+    QVERIFY(canvas.zoom()>1); QVERIFY(QLineF(canvas.mapToScene(cursor),before).length()<=1.0/canvas.zoom()+1e-6);
+    // Middle-drag pans without editing.
+    const int scroll=canvas.horizontalScrollBar()->value();
+    QTest::mousePress(viewport,Qt::MiddleButton,Qt::NoModifier,QPoint(300,200));
+    {QMouseEvent move(QEvent::MouseMove,QPointF(200,200),viewport->mapToGlobal(QPointF(200,200)),Qt::NoButton,Qt::MiddleButton,Qt::NoModifier);QApplication::sendEvent(viewport,&move);}
+    QTest::mouseRelease(viewport,Qt::MiddleButton,Qt::NoModifier,QPoint(200,200));
+    QVERIFY(canvas.horizontalScrollBar()->value()!=scroll); QCOMPARE(edits.size(),1);
+    // Wire tool: clicking LEDs reports their addresses in data order.
+    canvas.fit(); canvas.setTool(ComponentCanvas::Tool::Wire);
+    for(int row:{2,1,0}) QTest::mouseClick(viewport,Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(draft.positions[row]*ComponentCanvas::unit));
+    QCOMPARE(orders.size(),1); QCOMPARE(orders.first(),(QVector<int>{draft.mapping[2],draft.mapping[1],draft.mapping[0]}));
+    // Hover text names the LED number and position.
+    canvas.setTool(ComponentCanvas::Tool::Select);
+    QString tip; for(auto* item:canvas.scene()->items()) if(item->data(0).toInt()==2 && item->type()==QGraphicsEllipseItem::Type) tip=item->toolTip();
+    QCOMPARE(tip,QString("LED %1").arg(draft.mapping[2]+1)); // no coordinates (owner review 2026-11-27)
+    // Locked instances cannot add, delete or rewire.
+    canvas.setLocked(true); canvas.setTool(ComponentCanvas::Tool::Wire); QCOMPARE(canvas.tool(),ComponentCanvas::Tool::Select);
+    const int count=edits.size();
+    QTest::mouseClick(viewport,Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(QPointF(9,9)*ComponentCanvas::unit));
+    QTest::mouseClick(viewport,Qt::RightButton,Qt::NoModifier,canvas.mapFromScene(draft.positions[0]*ComponentCanvas::unit));
+    QCOMPARE(edits.size(),count); QCOMPARE(draft.positions.size(),3);
+}
+
+namespace {
+// SWAFAN-like: front ring (layer 0), back ring on the same points (layer 1), centre ring (layer 0).
+ComponentDraft layeredFan()
+{
+    ComponentDraft fan; fan.id="custom.swafan"; fan.name="Layered fan";
+    for(int ring=0;ring<2;++ring) for(int i=0;i<12;++i) fan.positions.append({6+6*std::cos(i*3.141592653589793/6),6+6*std::sin(i*3.141592653589793/6)});
+    for(int i=0;i<6;++i) fan.positions.append({6+2*std::cos(i*3.141592653589793/3),6+2*std::sin(i*3.141592653589793/3)});
+    for(int row=0;row<30;++row) { fan.mapping.append(row); fan.layers.append(row>=12 && row<24 ? 1 : 0); }
+    return fan;
+}
+int ledItems(ComponentCanvas& canvas,bool selectableOnly=false)
+{
+    int count=0;
+    for(auto* item:canvas.scene()->items()) if(item->type()==QGraphicsEllipseItem::Type && (!selectableOnly || (item->flags() & QGraphicsItem::ItemIsSelectable))) ++count;
+    return count;
+}
+}
+
+void EditorTest::componentCanvasLayers()
+{
+    const auto savedGrid=SnapGrid::load(); auto noSnap=savedGrid; noSnap.enabled=false; noSnap.save();
+    const auto restoreGrid=qScopeGuard([savedGrid]{savedGrid.save();});
+    ComponentCanvas canvas; canvas.resize(640,420);
+    auto draft=layeredFan();
+    connect(&canvas,&ComponentCanvas::draftEdited,&canvas,[&](const ComponentDraft& after,const QString&){draft=after;canvas.setDraft(after);});
+    canvas.setDraft(draft); canvas.show(); QVERIFY(QTest::qWaitForWindowExposed(&canvas));
+    QCOMPARE(canvas.activeLayer(),0); QVERIFY(!canvas.allLayersVisible());
+    QCOMPARE(ledItems(canvas),18);
+    canvas.setActiveLayer(1); QCOMPARE(ledItems(canvas),12);
+    canvas.setAllLayersVisible(true); QCOMPARE(ledItems(canvas),30); QCOMPARE(ledItems(canvas,true),12);
+    // Select all reaches only the active layer.
+    QSet<int> all; for(int row=0;row<30;++row) all.insert(row);
+    canvas.selectRows(all); QCOMPARE(canvas.selectedRows().size(),12);
+    for(int row:canvas.selectedRows()) QCOMPARE(draft.layers[row],1);
+    // A click on empty canvas adds the LED on the active layer.
+    canvas.fit(); canvas.zoomBy(1.0/canvas.zoom());
+    QTest::mouseClick(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(QPointF(20,20)*ComponentCanvas::unit));
+    QCOMPARE(draft.positions.size(),31); QCOMPARE(draft.layers.last(),1);
+    // Right-click delete never reaches a dimmed LED of another layer.
+    canvas.setActiveLayer(0);
+    QTest::mouseClick(canvas.viewport(),Qt::RightButton,Qt::NoModifier,canvas.mapFromScene(QPointF(20,20)*ComponentCanvas::unit));
+    QCOMPARE(draft.positions.size(),31);
+    // Wiring path: one run per ring, dashed jumps 12->13 and 24->25.
+    const auto fan=layeredFan();
+    QVector<int> expected; for(int edge=0;edge<29;++edge) expected.append(edge<11 ? 0 : edge==11 ? -1 : edge<23 ? 1 : edge==23 ? -1 : 2);
+    QCOMPARE(pathRuns(fan.positions,fan.layers),expected);
+    QCOMPARE(pathRuns({{0,0},{1,0},{2,0},{9,0}},{}),(QVector<int>{0,0,-1}));
+    QCOMPARE(pathRuns({{0,0},{1,0},{9,0}},{}),(QVector<int>{0,0})); // too few edges for a length jump
+    // Path edges are drawn only between visible LEDs: no false 12 -> 25 jump while layer 2 is hidden.
+    {
+        const auto lines=[&](bool dashedOnly){int count=0; for(auto* item:canvas.scene()->items()) if(auto* line=qgraphicsitem_cast<QGraphicsLineItem*>(item)) if(!dashedOnly || line->pen().style()==Qt::DashLine) ++count; return count;};
+        draft=layeredFan(); canvas.setDraft(draft); canvas.setTool(ComponentCanvas::Tool::Select);
+        canvas.setAllLayersVisible(false); canvas.setActiveLayer(0);
+        QCOMPARE(lines(false),16); QCOMPARE(lines(true),0); // 11 front-ring + 5 centre edges
+        canvas.setActiveLayer(1); QCOMPARE(lines(false),11); QCOMPARE(lines(true),0);
+        canvas.setAllLayersVisible(true); QCOMPARE(lines(false),29); QCOMPARE(lines(true),2);
+    }
+    // Wire tool across layers: the pending order survives a layer switch and completes with every address.
+    QVector<QVector<int>> orders;
+    connect(&canvas,&ComponentCanvas::wireOrderFinished,&canvas,[&](const QVector<int>& order){orders.append(order);});
+    draft=layeredFan(); canvas.setDraft(draft); canvas.setAllLayersVisible(false); canvas.setActiveLayer(0); canvas.fit();
+    canvas.setTool(ComponentCanvas::Tool::Wire);
+    const auto click=[&](int row){QTest::mouseClick(canvas.viewport(),Qt::LeftButton,Qt::NoModifier,canvas.mapFromScene(draft.positions[row]*ComponentCanvas::unit));};
+    for(int row=0;row<12;++row) click(row);
+    for(int row=24;row<30;++row) click(row);
+    QVERIFY(orders.isEmpty());
+    canvas.setActiveLayer(1);
+    for(int row=12;row<24;++row) click(row);
+    QCOMPARE(orders.size(),1); QCOMPARE(orders.first().size(),30);
+    QCOMPARE(orders.first().mid(18),(QVector<int>{12,13,14,15,16,17,18,19,20,21,22,23}));
+}
+
+void EditorTest::componentEditorPageLibrary()
+{
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
+    for(const auto& [id,label]:{qMakePair(QString("custom.a"),QString("Alpha")),qMakePair(QString("instance.x"),QString("Copy")),qMakePair(QString("custom.used"),QString("Used"))}) {
+        auto definition=catalog().first(); definition.id=id; definition.name=label; document.registerComponent(definition);
+    }
+    document.addComponent("custom.used");
+    ComponentEditorPage page(document,document.installedCatalog());
+    QStringList confirmations; page.confirm=[&](const QString& text){confirmations.append(text);return true;};
+    page.resize(1400,800); page.openLibrary(); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
+    auto* list=page.findChild<QTreeWidget*>("componentList"); QVERIFY(list);
+    const auto find=[list](const QString& id)->QTreeWidgetItem* {
+        for(QTreeWidgetItemIterator it(list);*it;++it) if((*it)->data(0,Qt::UserRole).toString()==id) return *it;
+        return nullptr;
+    };
+    QCOMPARE(list->topLevelItemCount(),3);
+    QCOMPARE(list->topLevelItem(0)->text(0),QString("My components"));
+    QCOMPARE(list->topLevelItem(1)->text(0),QString("Device copies (1)"));
+    QCOMPARE(list->topLevelItem(2)->text(0),QString("Built-in"));
+    QCOMPARE(find("instance.x")->parent(),list->topLevelItem(1));
+    QCOMPARE(find("custom.a")->parent(),list->topLevelItem(0));
+    QCOMPARE(find("test.strip")->parent(),list->topLevelItem(2));
+    auto* save=page.findChild<QPushButton*>("componentSave"); auto* remove=page.findChild<QPushButton*>("componentDelete");
+    list->setCurrentItem(find("test.strip"));
+    QCOMPARE(save->text(),QString("Make a copy")); QVERIFY(!remove->isEnabled());
+    list->setCurrentItem(find("custom.a"));
+    QCOMPARE(save->text(),QString("Save")); QVERIFY(remove->isEnabled());
+    auto* name=page.findChild<QLineEdit*>("componentName");
+    name->setText("Alpha 2"); emit name->editingFinished();
+    QVERIFY(page.isDirty());
+    save->click();
+    QVERIFY(!page.isDirty());
+    QCOMPARE(document.customComponents().value("custom.a").name,QString("Alpha 2"));
+    QCOMPARE(document.customComponents().size(),3);
+    remove->click();
+    QCOMPARE(confirmations.size(),1);
+    QVERIFY(!document.customComponents().contains("custom.a")); QVERIFY(!find("custom.a"));
+    list->setCurrentItem(find("custom.used")); remove->click();
+    QVERIFY(document.customComponents().contains("custom.used"));
+    QVERIFY(page.findChild<QLabel*>("componentMessage")->text().contains("is used by"));
+    QCOMPARE(confirmations.size(),1);
+    // A cancelled switch keeps the unsaved draft and the selection.
+    name->setText("Changed"); emit name->editingFinished();
+    page.askUnsaved=[](const QString&){return QMessageBox::Cancel;};
+    list->setCurrentItem(find("instance.x"));
+    QCOMPARE(list->currentItem()->data(0,Qt::UserRole).toString(),QString("custom.used"));
+    QCOMPARE(name->text(),QString("Changed")); QVERIFY(page.isDirty()); QVERIFY(!page.confirmLeave());
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    QVERIFY(page.confirmLeave()); QVERIFY(!page.isDirty());
+}
+
+void EditorTest::componentHousingFrame()
+{
+    // Option A (owner decision 2026-11-26): stored housing, LEDs kept inside it, proportional scaling.
+    auto fan=catalog().first(); fan.category="Fans"; fan.positions={{0,0},{1,0},{1,1}}; fan.mapping={0,1,2};
+    QVERIFY(!fan.toJson().contains("housing"));
+    fan.housing=QRectF(-1,-1,3,3);
+    const auto restored=ComponentDefinition::fromJson(fan.toJson());
+    QCOMPARE(restored.housing,QRectF(-1,-1,3,3));
+    QCOMPARE(hardwareBodyBounds(restored),QRectF(-1,-1,3,3));
+    for(const auto& bad:{QJsonValue(QJsonArray{0,0,0,1}),QJsonValue(QJsonArray{0,0,1}),QJsonValue("x")}) {
+        auto json=fan.toJson(); json["housing"]=bad; QVERIFY_EXCEPTION_THROWN(ComponentDefinition::fromJson(json),std::invalid_argument);
+    }
+    // Strips keep growing with their LEDs: a stored frame is ignored for them.
+    auto strip=fan; strip.category="Strips"; strip.positions={{0,0},{1,0},{2,0}};
+    QVERIFY(hardwareBodyBounds(strip)!=strip.housing); QVERIFY(!hardwareHousingFixed(strip));
+
+    ComponentCanvas view; view.resize(640,400); auto draft=ComponentDraft::fromDefinition(fan); view.setDraft(draft);
+    connect(&view,&ComponentCanvas::draftEdited,&view,[&](const ComponentDraft& after,const QString&){draft=after;view.setDraft(after);});
+    view.show(); QVERIFY(QTest::qWaitForWindowExposed(&view)); view.fit(); view.zoomBy(1.0/view.zoom());
+    SnapGrid{false,10}.save();
+    const auto drag=[&](QPointF from,QPointF to,Qt::KeyboardModifiers modifiers) {
+        const auto a=view.mapFromScene(from*ComponentCanvas::unit),b=view.mapFromScene(to*ComponentCanvas::unit);
+        QTest::mousePress(view.viewport(),Qt::LeftButton,modifiers,a); QTest::mouseMove(view.viewport(),b);
+        QTest::mouseRelease(view.viewport(),Qt::LeftButton,modifiers,b);
+    };
+    // Strict: dragging LED 2 far right stops at the housing edge (x = 2).
+    drag({1,1},{5,1},Qt::NoModifier);
+    QVERIFY(qAbs(draft.positions[2].x()-2)<1e-6); QVERIFY(qAbs(draft.positions[2].y()-1)<.1);
+    // Alt places it freely.
+    drag({2,1},{4,1},Qt::AltModifier);
+    QVERIFY(draft.positions[2].x()>3.5);
+    // Scale handle at the bottom-right corner: proportional, the larger change wins.
+    drag({2,2},{3,2.5},Qt::NoModifier);
+    QCOMPARE(draft.housing.topLeft(),QPointF(-1,-1));
+    QVERIFY(qAbs(draft.housing.width()-draft.housing.height())<1e-6); QVERIFY(qAbs(draft.housing.width()-4)<.05);
+    // Move handle at the top-left corner shifts the frame without resizing it.
+    const auto size=draft.housing.size();
+    drag(draft.housing.topLeft(),draft.housing.topLeft()+QPointF(1,0),Qt::NoModifier);
+    QCOMPARE(draft.housing.size(),size); QVERIFY(qAbs(draft.housing.left()-0)<.05);
+}
+
+void EditorTest::glacierOneProduct()
+{
+    // Owner hardware test 2026-11-26: 8 addresses; three fan rings share 1-6, the pump ring uses 1-8.
+    auto parts=shippedCatalog(); auto copy=parts.first(); copy.id="instance.glacier"; parts.insert(copy.id,copy);
+    const auto products=hardwareProducts(parts);
+    QVERIFY(products.contains("phanteks.glacier-one-360m25g2"));
+    const auto aio=products.value("phanteks.glacier-one-360m25g2");
+    QCOMPARE(aio.addresses(),8); QCOMPARE(aio.positions.size(),26); QCOMPARE(aio.category,QString("AiO"));
+    for(int fan=0;fan<3;++fan) for(int i=0;i<6;++i) QCOMPARE(aio.mapping[fan*6+i],i);
+    for(int i=0;i<8;++i) QCOMPARE(aio.mapping[18+i],i);
+    // Address 1 at 3 o'clock, address 2 counterclockwise above it (screen y grows downwards).
+    QVERIFY(aio.positions[0].x()>1.5 && qAbs(aio.positions[0].y()-1.5)<1e-9); QVERIFY(aio.positions[1].y()<1.5);
+    HardwarePicker picker(parts,{},{});
+    auto* list=picker.findChild<QListWidget*>("hardwareProducts");
+    for(int row=0;row<list->count();++row) QVERIFY(!list->item(row)->data(Qt::UserRole).toString().startsWith("instance."));
+}
+
+void EditorTest::componentEditorBuiltInReadOnly()
+{
+    // Owner review 2026-11-26: built-ins looked editable, the LEDs field kept another part's count, and
+    // L-Shape then replaced a 16-LED strip with one LED.
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
+    auto single=catalog().first(); single.id="custom.single"; single.name="Single";
+    single.positions={QPointF(0,0)}; single.mapping={0}; document.registerComponent(single);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1400,800); page.openLibrary("custom.single"); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
+    auto* list=page.findChild<QTreeWidget*>("componentList"); auto* count=page.findChild<QSpinBox*>("componentShapeCount");
+    const auto find=[list](const QString& id)->QTreeWidgetItem* {
+        for(QTreeWidgetItemIterator it(list);*it;++it) if((*it)->data(0,Qt::UserRole).toString()==id) return *it;
+        return nullptr;
+    };
+    QCOMPARE(count->value(),1);
+    list->setCurrentItem(find("test.strip"));
+    const auto builtIn=page.draft(); QVERIFY(builtIn.positions.size()>1);
+    QCOMPARE(count->value(),int(builtIn.positions.size()));
+    for(const auto* name:{"componentName","componentShapeLShape","componentShapeCount","componentMirrorH","componentRotate","componentToolWire","componentDeleteLeds"})
+        QVERIFY2(!page.findChild<QWidget*>(name)->isEnabled(),name);
+    auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas");
+    QTest::mouseClick(canvas->viewport(),Qt::LeftButton,Qt::NoModifier,QPoint(8,8));
+    QVERIFY(page.draft()==builtIn); QVERIFY(!page.isDirty());
+    auto* save=page.findChild<QPushButton*>("componentSave"); QCOMPARE(save->text(),QString("Make a copy"));
+    save->click();
+    QCOMPARE(save->text(),QString("Save")); QVERIFY(page.findChild<QWidget*>("componentShapeLShape")->isEnabled());
+    QVERIFY(page.draft().id!=QString("test.strip")); QVERIFY(document.customComponents().contains(page.draft().id));
+    // The same count arranges the existing LEDs and keeps their wiring; it no longer replaces them.
+    const auto before=page.draft();
+    page.findChild<QPushButton*>("componentShapeLShape")->click();
+    QCOMPARE(page.draft().positions.size(),before.positions.size()); QCOMPARE(page.draft().mapping,before.mapping);
+    QVERIFY(page.draft().positions!=before.positions);
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+}
+
+void EditorTest::typedCountStaysWithItsPart()
+{
+    // CodeRabbit PR #10: a count typed for part A kept the field from following part B, so a shape click
+    // after a canvas edit replaced B's LEDs and wiring with A's leftover count.
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
+    auto b=catalog().first(); b.id="custom.b"; b.name="Beta"; document.registerComponent(b);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1400,800); page.openLibrary("custom.a"); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
+    auto* list=page.findChild<QTreeWidget*>("componentList"); auto* count=page.findChild<QSpinBox*>("componentShapeCount");
+    count->setValue(7);
+    // Selecting rebuilds the list and deletes its items, so find the row first and stop iterating.
+    QTreeWidgetItem* beta=nullptr;
+    for(QTreeWidgetItemIterator it(list);*it && !beta;++it) if((*it)->data(0,Qt::UserRole).toString()=="custom.b") beta=*it;
+    QVERIFY(beta); list->setCurrentItem(beta);
+    QCOMPARE(page.draft().id,QString("custom.b"));
+    auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas"); canvas->setFocus();
+    canvas->selectRows({0}); QTest::keyClick(canvas,Qt::Key_Delete);
+    const auto edited=page.draft(); QCOMPARE(edited.positions.size(),b.positions.size()-1);
+    QCOMPARE(count->value(),int(edited.positions.size()));
+    page.findChild<QPushButton*>("componentShapeLShape")->click();
+    QCOMPARE(page.draft().positions.size(),edited.positions.size()); QCOMPARE(page.draft().mapping,edited.mapping);
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+}
+
+void EditorTest::componentEditorPageEditing()
+{
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
+    auto a=catalog().first(); a.id="custom.a"; a.name="Alpha"; document.registerComponent(a);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1400,800); page.openLibrary("custom.a"); page.show();
+    QVERIFY(QTest::qWaitForWindowActive(&page));
+    auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas"); canvas->setFocus();
+    const auto key=[&](Qt::Key k,Qt::KeyboardModifiers m=Qt::NoModifier){QTest::keyClick(canvas,k,m);};
+    QCOMPARE(page.draft().positions.size(),3);
+    page.findChild<QSpinBox*>("componentShapeCount")->setValue(12);
+    page.findChild<QPushButton*>("componentShapeRing")->click();
+    QCOMPARE(page.draft().positions.size(),12);
+    key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().positions.size(),3);
+    key(Qt::Key_Y,Qt::ControlModifier); QCOMPARE(page.draft().positions.size(),12);
+    const auto ring=page.draft().mapping;
+    page.findChild<QPushButton*>("componentPresetClockwise")->click();
+    QVERIFY(page.draft().mapping!=ring);
+    key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().mapping,ring);
+    // The address field mirrors the selection (owner review 2026-11-26).
+    auto* addressField=page.findChild<QSpinBox*>("componentAddress"); auto* assignAddress=page.findChild<QPushButton*>("componentAssignAddress");
+    canvas->selectRows({}); QVERIFY(!addressField->isEnabled()); QVERIFY(!assignAddress->isEnabled());
+    canvas->selectRows({4}); QCOMPARE(addressField->value(),page.draft().mapping[4]+1); QVERIFY(assignAddress->isEnabled());
+    canvas->selectRows({0,1});
+    QCOMPARE(addressField->value(),0); QCOMPARE(addressField->text(),QString("mixed")); QVERIFY(!assignAddress->isEnabled());
+    // Typed like a user: the selection must survive typing, or Assign hits the wrong LEDs (double ring).
+    addressField->setFocus(); QTest::keyClick(addressField,Qt::Key_A,Qt::ControlModifier); QTest::keyClicks(addressField,"1");
+    QCOMPARE(addressField->value(),1); QVERIFY(assignAddress->isEnabled()); QCOMPARE(canvas->selectedRows(),(QSet<int>{0,1}));
+    assignAddress->click();
+    QCOMPARE(page.draft().mapping[0],0); QCOMPARE(page.draft().mapping[1],0);
+    QCOMPARE(page.findChild<QLabel*>("componentStatusLeds")->text(),QString("12 LEDs · 11 addresses"));
+    key(Qt::Key_A,Qt::ControlModifier); key(Qt::Key_Delete);
+    QCOMPARE(page.draft().positions.size(),0);
+    key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().positions.size(),12);
+    canvas->selectRows({0}); const auto first=page.draft().positions[0];
+    key(Qt::Key_M); QVERIFY(page.draft().positions[0]==first); // mirroring one point about itself changes nothing
+    canvas->selectRows({}); key(Qt::Key_M); QVERIFY(page.draft().positions[0]!=first);
+    key(Qt::Key_D); QCOMPARE(page.draft().positions.size(),12); // nothing selected, nothing duplicated
+    canvas->selectRows({0}); key(Qt::Key_D); QCOMPARE(page.draft().positions.size(),13);
+    key(Qt::Key_W); QVERIFY(page.findChild<QToolButton*>("componentToolWire")->isChecked()); QCOMPARE(canvas->tool(),ComponentCanvas::Tool::Wire);
+    key(Qt::Key_Escape); QVERIFY(page.findChild<QToolButton*>("componentToolSelect")->isChecked());
+    auto* grid=page.findChild<QToolButton*>("componentGridToggle"); const bool gridOn=grid->isChecked();
+    key(Qt::Key_G); QCOMPARE(grid->isChecked(),!gridOn);
+    const double zoom=canvas->zoom(); key(Qt::Key_Plus); QVERIFY(canvas->zoom()>zoom);
+    QVERIFY(page.findChild<QLabel*>("componentStatusZoom")->text().startsWith("zoom "));
+    QVERIFY(!page.findChild<QLabel*>("componentStatusHint")->text().isEmpty());
+    page.findChild<QPushButton*>("componentClearAll")->click();
+    QCOMPARE(page.draft().positions.size(),0);
+    page.findChild<QToolButton*>("componentHelp")->click();
+    auto* help=page.findChild<QWidget*>("componentHelpOverlay"); QVERIFY(help); QVERIFY(help->isVisible());
+    const auto helpText=help->findChild<QLabel*>()->text();
+    for(const auto* shortcut:{"Ctrl+Z","Ctrl+Y","Ctrl+A","Del","Esc","Middle-drag","Right-click"}) QVERIFY2(helpText.contains(shortcut),shortcut);
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+}
+
+void EditorTest::componentEditorPageLayers()
+{
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
+    auto fan=layeredFan().toDefinition(); fan.id="custom.fan"; document.registerComponent(fan);
+    auto single=catalog().first(); single.id="custom.single"; single.name="Single"; document.registerComponent(single);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1400,800); page.openLibrary("custom.fan"); page.show();
+    QVERIFY(QTest::qWaitForWindowActive(&page));
+    auto* canvas=page.findChild<ComponentCanvas*>("componentCanvas"); canvas->setFocus();
+    const auto key=[&](Qt::Key k,Qt::KeyboardModifiers m=Qt::NoModifier){QTest::keyClick(canvas,k,m);};
+    auto* label=page.findChild<QLabel*>("componentLayerLabel"); QVERIFY(label);
+    auto* back=page.findChild<QToolButton*>("componentLayerBack"); auto* front=page.findChild<QToolButton*>("componentLayerFront");
+    auto* view=page.findChild<QToolButton*>("componentLayerView"); QVERIFY(back && front && view);
+    QCOMPARE(label->text(),QString("1/2")); QVERIFY(back->isEnabled()); QVERIFY(!front->isEnabled());
+    key(Qt::Key_PageUp); QCOMPARE(label->text(),QString("2/2")); QCOMPARE(canvas->activeLayer(),1); QVERIFY(!back->isEnabled());
+    key(Qt::Key_PageDown); QCOMPARE(canvas->activeLayer(),0); front->click(); QCOMPARE(canvas->activeLayer(),0);
+    back->click(); QCOMPARE(canvas->activeLayer(),1);
+    view->click(); QVERIFY(canvas->allLayersVisible()); view->click(); QVERIFY(!canvas->allLayersVisible());
+    // Moving LEDs between layers is an edit; changing the visible layer is not.
+    canvas->selectRows({12});
+    key(Qt::Key_PageUp,Qt::ControlModifier);
+    QCOMPARE(page.draft().layers[12],2); QCOMPARE(label->text(),QString("3/3")); QCOMPARE(canvas->activeLayer(),2);
+    key(Qt::Key_Z,Qt::ControlModifier); QCOMPARE(page.draft().layers[12],1); QCOMPARE(label->text(),QString("2/2"));
+    canvas->setActiveLayer(1); canvas->selectRows({13});
+    key(Qt::Key_PageDown,Qt::ControlModifier); QCOMPARE(page.draft().layers[13],0); QCOMPARE(canvas->activeLayer(),0);
+    // LAYERS section moves the selection to a chosen (or new) layer.
+    canvas->selectRows({0,1});
+    auto* target=page.findChild<QSpinBox*>("componentMoveLayer"); QVERIFY(target); QCOMPARE(target->maximum(),3);
+    target->setValue(3); page.findChild<QPushButton*>("componentMoveLayerApply")->click();
+    QCOMPARE(page.draft().layers[0],2); QCOMPARE(page.draft().layers[1],2); QCOMPARE(label->text(),QString("3/3"));
+    // Deleting every LED of the active layer clamps the view to an existing layer.
+    canvas->selectRows({0,1}); key(Qt::Key_Delete);
+    QCOMPARE(page.draft().layerCount(),2); QCOMPARE(label->text(),QString("2/2")); QCOMPARE(canvas->activeLayer(),1);
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    page.openLibrary("custom.single");
+    QCOMPARE(label->text(),QString("1/1")); QVERIFY(!back->isEnabled()); QVERIFY(!front->isEnabled()); QVERIFY(!view->isEnabled());
+    QCOMPARE(canvas->activeLayer(),0);
+    page.findChild<QToolButton*>("componentHelp")->click();
+    const auto helpText=page.findChild<QWidget*>("componentHelpOverlay")->findChild<QLabel*>()->text();
+    for(const auto* shortcut:{"PgUp","PgDn","Ctrl+PgUp","Ctrl+PgDn"}) QVERIFY2(helpText.contains(shortcut),shortcut);
+    // Wire mode tells how to reach LEDs behind the active layer.
+    page.openLibrary("custom.fan"); canvas->setFocus(); key(Qt::Key_W);
+    QVERIFY(page.findChild<QLabel*>("componentStatusHint")->text().contains("PgUp"));
+    key(Qt::Key_Escape);
+    // Saving drops empty layers in the open draft too.
+    canvas->setActiveLayer(0); canvas->selectRows({0}); target->setValue(3); page.findChild<QPushButton*>("componentMoveLayerApply")->click();
+    canvas->setActiveLayer(1); {QSet<int> back; for(int row=12;row<24;++row) back.insert(row); canvas->selectRows(back);}
+    target->setValue(1); page.findChild<QPushButton*>("componentMoveLayerApply")->click();
+    QCOMPARE(page.draft().layerCount(),3); // layer 2 is empty now
+    page.findChild<QPushButton*>("componentSave")->click();
+    QCOMPARE(page.draft().layerCount(),2); QCOMPARE(page.draft().layers[0],1); QVERIFY(!page.isDirty());
+    QCOMPARE(label->text().section('/',1),QString("2"));
+    // Review Focus 5: arrangement-only placements keep layer moves on Apply (library-backed document).
+    const auto placement=document.addComponent("custom.fan");
+    page.openInstance(placement,true); canvas->setFocus();
+    for(auto* item:canvas->scene()->items()) QVERIFY(item->toolTip()!="Scale the housing (keeps its proportions)"); // CodeRabbit PR #10 #34
+    canvas->setActiveLayer(0); canvas->selectRows({1});
+    key(Qt::Key_PageUp,Qt::ControlModifier); QCOMPARE(page.draft().layers[1],1);
+    page.findChild<QPushButton*>("componentSave")->click();
+    QString placed; for(const auto& item:document.state().placements) if(item.id==placement) placed=item.componentId;
+    QCOMPARE(document.catalog().value(placed).layers.value(1),1);
+}
+
+void EditorTest::componentEditorInstanceMode()
+{
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};});
+    window.resize(1400,900); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* pages=window.findChild<QStackedWidget*>("applicationPages");
+    auto* open=window.findChild<QPushButton*>("openComponentEditor"); QVERIFY(open);
+    QCOMPARE(open->text(),QString("Component Editor"));
+    open->click();
+    auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage"); QVERIFY(page);
+    QCOMPARE(pages->currentWidget(),page);
+    QVERIFY(page->findChild<QTreeWidget*>("componentList")->isVisible());
+    page->findChild<QPushButton*>("componentBack")->click();
+    QVERIFY(pages->currentWidget()!=page);
+    // Instance mode: editing a placed component applies a variant to that placement only.
+    const auto id=window.document().addComponent("test.strip");
+    auto* layout=window.findChild<LightingCanvas*>("layoutCanvas");
+    window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(0);
+    auto* navigatorDock=window.findChild<QDockWidget*>("layersDock"); auto* inspectorDock=window.findChild<QDockWidget*>("propertiesDock");
+    auto* drawingTools=window.findChild<QToolBar*>("effectTools");
+    QVERIFY(navigatorDock->isVisible() && inspectorDock->isVisible() && drawingTools->isVisible());
+    layout->select(id);
+    window.findChild<QPushButton*>("editLayoutLeds")->click();
+    QCOMPARE(pages->currentWidget(),page);
+    QVERIFY(!page->findChild<QTreeWidget*>("componentList")->isVisible());
+    // The editor takes the full window whatever area opened it (owner review 2026-11-26), and no area
+    // reads as current while it is open (it showed Devices when opened from Layout).
+    QVERIFY(!window.findChild<QAction*>("workspaceHardware")->isChecked());
+    QVERIFY(!window.findChild<QAction*>("workspaceLayout")->isChecked());
+    QVERIFY(!navigatorDock->isVisible()); QVERIFY(!inspectorDock->isVisible()); QVERIFY(!drawingTools->isVisible());
+    QVERIFY(!window.findChild<QToolBar*>("drawingOptions")->isVisible());
+    {   // Full window and a properties column that fits its content: no sideways scrolling.
+        QCoreApplication::processEvents(); QCOMPARE(page->width(),window.width());
+        auto* properties=page->findChild<QScrollArea*>("componentProperties");
+        QVERIFY(!properties->horizontalScrollBar()->isVisible());
+        QVERIFY2(properties->widget()->width()<=properties->viewport()->width(),"properties content is clipped");
+    }
+    page->findChild<QPushButton*>("componentBack")->click();
+    QVERIFY(navigatorDock->isVisible() && inspectorDock->isVisible() && drawingTools->isVisible()); // choices kept
+    window.findChild<QPushButton*>("editLayoutLeds")->click(); QCOMPARE(pages->currentWidget(),page);
+    {   // The help overlay is opaque over the canvas (it was unreadable, owner review 2026-11-26).
+        page->findChild<QToolButton*>("componentHelp")->click();
+        auto* help=page->findChild<QWidget*>("componentHelpOverlay"); QVERIFY(help->isVisible());
+        const auto pixel=help->grab().toImage().pixelColor(10,help->height()-10);
+        QCOMPARE(pixel.name(),studioThemeColor("@panel").name());
+        page->findChild<QToolButton*>("componentHelp")->click(); QVERIFY(!help->isVisible());
+    }
+    // Moving the mouse must not resize the status labels: a wider "grid" text squeezed the
+    // word-wrapped message onto two lines and the whole canvas jumped (owner report R38).
+    {
+        auto* pageCanvas=page->findChild<ComponentCanvas*>("componentCanvas");
+        auto* grid=page->findChild<QLabel*>("componentStatusGrid"); auto* zoom=page->findChild<QLabel*>("componentStatusZoom");
+        emit pageCanvas->cursorMoved(QPointF(1.9,0.7)); emit pageCanvas->zoomChanged(8.14); QCoreApplication::processEvents();
+        const auto gridWidth=grid->width(), zoomWidth=zoom->width();
+        emit pageCanvas->cursorMoved(QPointF(-123.4,-567.8)); emit pageCanvas->zoomChanged(12.5); QCoreApplication::processEvents();
+        QCOMPARE(grid->width(),gridWidth); QCOMPARE(zoom->width(),zoomWidth);
+    }
+    auto* apply=page->findChild<QPushButton*>("componentSave");
+    QCOMPARE(apply->text(),QString("Apply"));
+    QVERIFY(page->findChild<QPushButton*>("componentShapeRing")->isEnabled());
+    page->findChild<QToolButton*>("componentRotate")->click(); QVERIFY(page->isDirty());
+    apply->click();
+    const auto placed=window.document().state().placements.first();
+    QVERIFY(placed.componentId!="test.strip");
+    QCOMPARE(window.document().catalog().value(placed.componentId).mapping,catalog().first().mapping);
+    QVERIFY(!page->isDirty());
+    // Inside the main window the page's keys win over menu shortcuts (Undo, Redo, Select all, Delete).
+    {
+        auto* pageCanvas=page->findChild<ComponentCanvas*>("componentCanvas");
+        window.activateWindow(); QVERIFY(QTest::qWaitForWindowActive(&window)); pageCanvas->setFocus();
+        const auto historyIndex=window.document().history()->index();
+        page->findChild<QToolButton*>("componentRotate")->click(); QVERIFY(page->isDirty());
+        QTest::keyClick(pageCanvas,Qt::Key_Z,Qt::ControlModifier);
+        QVERIFY(!page->isDirty()); QCOMPARE(window.document().history()->index(),historyIndex);
+        QTest::keyClick(pageCanvas,Qt::Key_Y,Qt::ControlModifier); QVERIFY(page->isDirty());
+        QTest::keyClick(pageCanvas,Qt::Key_Z,Qt::ControlModifier); QVERIFY(!page->isDirty());
+        QTest::keyClick(pageCanvas,Qt::Key_A,Qt::ControlModifier);
+        QCOMPARE(pageCanvas->selectedRows().size(),int(page->draft().positions.size()));
+        QTest::keyClick(pageCanvas,Qt::Key_Delete); QVERIFY(page->draft().positions.isEmpty());
+        QTest::keyClick(pageCanvas,Qt::Key_Z,Qt::ControlModifier); QVERIFY(!page->isDirty());
+        QCOMPARE(window.document().history()->index(),historyIndex);
+    }
+    // Review Focus 5: leaving through the workspace navigation asks about unsaved edits first.
+    page->findChild<QToolButton*>("componentRotate")->click(); QVERIFY(page->isDirty());
+    page->askUnsaved=[](const QString&){return QMessageBox::Cancel;};
+    window.findChild<QAction*>("workspaceEffects")->trigger(); QCOMPARE(pages->currentWidget(),page);
+    window.findChild<QAction*>("workspaceHardware")->trigger(); QCOMPARE(pages->currentWidget(),page);
+    page->askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    window.findChild<QAction*>("workspaceEffects")->trigger(); QVERIFY(pages->currentWidget()!=page);
+    // Review Focus 3: protocol slots lock count and wiring; Apply keeps mapping and reserved slots.
+    const auto vulcan=loadComponentDefinition(QString(TEST_COMPONENT_DIR)+"/peripheral-vulcan.json");
+    window.document().defineComponent(vulcan);
+    const auto keyboard=window.document().addComponent(vulcan.id);
+    layout->select(keyboard);
+    window.findChild<QPushButton*>("editLayoutLeds")->click();
+    QCOMPARE(pages->currentWidget(),page);
+    for(const auto* name:{"componentShapeCount","componentAssignAddress","componentClearAll","componentToolWire","componentDeleteLeds","componentDuplicate"})
+        QVERIFY2(!page->findChild<QWidget*>(name)->isEnabled(),name);
+    // Shapes rearrange locked parts; the count field shows the real LED count (owner request 2026-11-26).
+    QVERIFY(page->findChild<QPushButton*>("componentShapeRing")->isEnabled());
+    QCOMPARE(page->findChild<QSpinBox*>("componentShapeCount")->value(),int(page->draft().positions.size()));
+    page->findChild<QToolButton*>("componentMirrorH")->click(); QVERIFY(page->isDirty());
+    apply->click();
+    QString keyboardId;
+    for(const auto& placement:window.document().state().placements) if(placement.id==keyboard) keyboardId=placement.componentId;
+    QVERIFY(keyboardId!=vulcan.id);
+    QCOMPARE(window.document().catalog().value(keyboardId).mapping,vulcan.mapping);
+    QCOMPARE(window.document().catalog().value(keyboardId).nonPhysicalSlots,vulcan.nonPhysicalSlots);
+    // Fixed connectors only allow arranging the existing LEDs.
+    page->openInstance(id,true);
+    {
+        const auto before=page->draft();
+        page->findChild<QPushButton*>("componentShapeRing")->click();
+        QCOMPARE(page->draft().positions.size(),before.positions.size()); QCOMPARE(page->draft().mapping,before.mapping);
+        QVERIFY(page->draft().positions!=before.positions); QVERIFY(page->isDirty());
+        // The window's Undo/Redo act on the open draft, not on the project (owner review 2026-11-26).
+        QCOMPARE(pages->currentWidget(),page);
+        auto* history=window.document().history(); const int index=history->index(); const auto shaped=page->draft();
+        window.findChild<QAction*>("editUndo")->trigger();
+        QVERIFY(page->draft()==before); QCOMPARE(history->index(),index);
+        window.findChild<QAction*>("editRedo")->trigger(); QVERIFY(page->draft()==shaped);
+    }
+    QVERIFY(page->findChild<QToolButton*>("componentRotate")->isEnabled());
+    QVERIFY(!window.findChild<QWidget*>("customComponentLibrary"));
+    QVERIFY(!window.findChild<QWidget*>("componentLab"));
+    QCoreApplication::processEvents(); // grab after the main window relayout, or hidden docks still leave gaps
+    QVERIFY(window.grab().save(artifactDirectory()+"/component-editor-instance.png"));
+    page->askUnsaved=[](const QString&){return QMessageBox::Discard;};
+    window.document().history()->setClean();
 }
 
 void EditorTest::componentAuthoring()
@@ -1243,34 +2828,22 @@ void EditorTest::keyboardLedPresentation()
     QCOMPARE(definition.nonPhysicalSlots.size(),39); QVERIFY(!definition.nonPhysicalSlots.contains(0));
     auto legacy=definition.toJson(); legacy.remove("nonPhysicalSlots");
     QCOMPARE(ComponentDefinition::fromJson(legacy).nonPhysicalSlots,definition.nonPhysicalSlots);
-    ComponentEditor editor(definition,true,nullptr,true); editor.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&editor)); QCoreApplication::processEvents();
-    auto* view=editor.findChild<QGraphicsView*>("componentGeometry");
+    ComponentCanvas view; view.resize(1000,620); view.setDraft(ComponentDraft::fromDefinition(definition)); view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view)); view.fit(); QCoreApplication::processEvents();
     QVector<QGraphicsEllipseItem*> dots;
-    for (auto* item:view->scene()->items()) if (item->type()==QGraphicsEllipseItem::Type) {
+    for (auto* item:view.scene()->items()) if (item->type()==QGraphicsEllipseItem::Type) {
         auto* dot=static_cast<QGraphicsEllipseItem*>(item); dots.append(dot);
-        QCOMPARE(dot->rect().width(),32.0);
-        QCOMPARE(dot->brush().color(),QColor("#243b53"));
         QCOMPARE(dot->childItems().size(),1);
-        auto* label=static_cast<QGraphicsSimpleTextItem*>(dot->childItems().first());
-        QCOMPARE(label->font().pixelSize(),12);QCOMPARE(label->brush().color(),QColor(Qt::white));
         auto* text=dot->childItems().first();
         QVERIFY(QLineF(text->mapRectToParent(text->boundingRect()).center(),QPointF()).length()<.001);
         QVERIFY(dot->rect().contains(text->mapRectToParent(text->boundingRect())));
     }
     QCOMPARE(dots.size(),105);
     for(int i=0;i<dots.size();++i) for(int j=i+1;j<dots.size();++j)
-        QVERIFY(!dots[i]->deviceTransform(view->viewportTransform()).mapRect(dots[i]->boundingRect()).intersects(
-            dots[j]->deviceTransform(view->viewportTransform()).mapRect(dots[j]->boundingRect())));
-    QCOMPARE(editor.component().positions,definition.positions);
-    QCOMPARE(editor.component().mapping,definition.mapping);
-    editor.findChild<QAction*>("arrangeCircle")->trigger();
-    const auto arranged=editor.component();
-    QCOMPARE(arranged.nonPhysicalSlots,definition.nonPhysicalSlots);
-    for(int i=0;i<definition.positions.size();++i) if(definition.nonPhysicalSlots.contains(definition.mapping[i]))
-        QCOMPARE(arranged.positions[i],definition.positions[i]);
-    editor.findChild<QPushButton*>("resetLedArrangement")->click();
-    QVERIFY(editor.grab().save(artifactDirectory()+"/vulcan-led-arrangement.png"));
+        QVERIFY(!dots[i]->deviceTransform(view.viewportTransform()).mapRect(dots[i]->boundingRect()).intersects(
+            dots[j]->deviceTransform(view.viewportTransform()).mapRect(dots[j]->boundingRect())));
+    QCOMPARE(view.draft().positions,definition.positions);
+    QVERIFY(view.grab().save(artifactDirectory()+"/vulcan-led-arrangement.png"));
     auto fan=catalog().first(); fan.positions.clear();fan.mapping.clear();
     for(int i=0;i<6;++i) {
         const double angle=i*2*3.141592653589793/6;
@@ -1278,63 +2851,32 @@ void EditorTest::keyboardLedPresentation()
     }
     // Almost equal axis values in circular layouts must not shrink all markers to subpixels.
     fan.positions[2].rx()+=.000001;
-    ComponentEditor fanEditor(fan,true,nullptr,true);fanEditor.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&fanEditor));QCoreApplication::processEvents();
-    auto* fanView=fanEditor.findChild<QGraphicsView*>("componentGeometry");int visible=0;
-    for(auto* item:fanView->scene()->items())if(item->type()==QGraphicsEllipseItem::Type) {
-        const auto rect=item->deviceTransform(fanView->viewportTransform()).mapRect(item->boundingRect());
-        QVERIFY(rect.width()>=32);QVERIFY(rect.width()<=36);++visible;
+    ComponentCanvas fanView; fanView.resize(640,420); fanView.setDraft(ComponentDraft::fromDefinition(fan)); fanView.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&fanView)); fanView.fit(); QCoreApplication::processEvents();
+    int visible=0;
+    for(auto* item:fanView.scene()->items())if(item->type()==QGraphicsEllipseItem::Type) {
+        const auto rect=item->deviceTransform(fanView.viewportTransform()).mapRect(item->boundingRect());
+        QVERIFY(rect.width()>=24);QVERIFY(rect.width()<=28);++visible;
     }
-    QCOMPARE(visible,6);QCOMPARE(fanEditor.component().positions,fan.positions);
-    QVERIFY(fanEditor.grab().save(artifactDirectory()+"/fan-led-arrangement.png"));
+    QCOMPARE(visible,6);
+    QVERIFY(fanView.grab().save(artifactDirectory()+"/fan-led-arrangement.png"));
 }
 
 void EditorTest::componentEditor()
 {
-    ComponentEditor editor(catalog().first(), true);
-    editor.show(); QVERIFY(QTest::qWaitForWindowExposed(&editor));
-    auto* table = editor.findChild<QTableWidget*>("componentLeds");
-    auto* geometry=editor.findChild<QGraphicsView*>("componentGeometry"); QVERIFY(geometry->isVisible());
-    const auto oldPoint=editor.component().positions[0];
-    const auto from=geometry->mapFromScene(oldPoint*24),to=from+QPoint(24,12);
-    QTest::mousePress(geometry->viewport(),Qt::LeftButton,Qt::NoModifier,from);
-    QTest::mouseMove(geometry->viewport(),to);
-    QTest::mouseRelease(geometry->viewport(),Qt::LeftButton,Qt::NoModifier,to);
-    QVERIFY(editor.component().positions[0]!=oldPoint);
-
-    QVERIFY(editor.findChild<QLineEdit*>("componentId")->isReadOnly());
-    table->item(1, 0)->setText("4.25");
-    QCOMPARE(editor.component().positions[1], QPointF(4.25, 0));
-    table->item(1, 2)->setText("2");
-    QVERIFY_EXCEPTION_THROWN(editor.component(), std::invalid_argument);
-    auto* buttons = editor.findChild<QDialogButtonBox*>();
-    buttons->button(QDialogButtonBox::Ok)->click();
-    QVERIFY(editor.grab().save(artifactDirectory() + "/editor-component.png"));
-    QVERIFY(!editor.findChild<QLabel*>("componentError")->text().isEmpty());
-    QCOMPARE(editor.result(), int(QDialog::Rejected));
-    table->item(1, 2)->setText("1");
-    editor.findChild<QSpinBox*>("componentCount")->setValue(4);
-    QCOMPARE(editor.component().mapping, QVector<int>({2, 1, 0, 3}));
-    editor.findChild<QTabWidget*>("componentViews")->setCurrentIndex(1);
-    table->setCurrentCell(1, 0); table->editItem(table->item(1, 0));
-    QLineEdit* cell = nullptr;
-    for (auto* candidate : table->findChildren<QLineEdit*>()) if (candidate->isVisible()) cell = candidate;
-    QVERIFY(cell); cell->setText("6.5");
-    QTest::mouseClick(buttons->button(QDialogButtonBox::Ok), Qt::LeftButton);
-    QCOMPARE(editor.result(), int(QDialog::Accepted));
-    QCOMPARE(editor.component().positions[1].x(), 6.5);
-
-    LightingWindow window({}, [] { return QVector<ProfileCandidate>{}; });
-    auto* choices = window.findChild<QComboBox*>("componentCatalog");
-    auto* add = window.findChild<QPushButton*>("addComponent");
-    QVERIFY(!add->isEnabled());
-    window.document().defineComponent(catalog().first());
-    QCOMPARE(choices->count(), 1); QVERIFY(add->isEnabled()); add->click();
-    QCOMPARE(window.document().state().placements.size(), 1);
-    window.document().history()->undo(); window.document().history()->undo();
-    QCOMPARE(choices->count(), 0); QVERIFY(!add->isEnabled());
-    window.document().history()->redo(); QCOMPARE(choices->count(), 1);
-    window.document().history()->setClean();
+    // Documentation screenshots; behavior is covered by componentDraft/Canvas/EditorPage tests.
+    QTemporaryDir folder; QVERIFY(folder.isValid());
+    LightingDocument document(catalog(),nullptr,{},folder.filePath("components"));
+    auto fan=catalog().first(); fan.id="custom.fan"; fan.name="My fan"; document.registerComponent(fan);
+    ComponentEditorPage page(document,document.installedCatalog());
+    page.resize(1500,860); page.openLibrary("custom.fan"); page.show(); QVERIFY(QTest::qWaitForWindowExposed(&page));
+    page.findChild<QSpinBox*>("componentShapeCount")->setValue(12);
+    page.findChild<QPushButton*>("componentShapeFan")->click();
+    QCOMPARE(page.draft().positions.size(),12);
+    QVERIFY(page.grab().save(artifactDirectory()+"/component-editor.png"));
+    page.findChild<QToolButton*>("componentToolWire")->click();
+    QVERIFY(page.grab().save(artifactDirectory()+"/component-editor-wiring.png"));
+    page.askUnsaved=[](const QString&){return QMessageBox::Discard;};
 }
 
 void EditorTest::placementTransforms()
@@ -1593,14 +3135,14 @@ void EditorTest::separateEditingContexts()
 void EditorTest::explicitDiscovery()
 {
     int scans=0; bool connected=true; auto profile=channelProfile(); profile.channels[0].maxLeds=64;
-    LightingWindow window(catalog(),[&] {
+    LightingWindow window(shippedCatalog(),[&] {
         ++scans; if(!connected) return QVector<ProfileCandidate>{};
         ProfileCandidate candidate; candidate.profileId=profile.id; candidate.device.path="exact-test-path";
         return QVector<ProfileCandidate>{candidate,candidate};
     },nullptr,{profile});
     window.show(); QCoreApplication::processEvents(); QCOMPARE(scans,1);
-    auto* tree=window.findChild<QTreeWidget*>("layoutComponents"); QCOMPARE(tree->topLevelItemCount(),3);
-    tree->setCurrentItem(tree->topLevelItem(0));
+    auto* tree=window.findChild<QTreeWidget*>("layoutComponents"); QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0));
     auto attach=[&](const QString& query,int quantity) {
         bool attached=false;
         QTimer::singleShot(0,[&] {
@@ -1622,14 +3164,14 @@ void EditorTest::explicitDiscovery()
     QCOMPARE(window.document().state().assignments[0].endpoint,QString("exact-test-path"));
     for(const auto& placement:window.document().state().placements)
         for(const auto& point:window.document().componentPoints(placement)) QVERIFY(QRectF(0,0,640,400).contains(point));
-    QCOMPARE(tree->topLevelItem(0)->childCount(),3);
-    tree->setCurrentItem(tree->topLevelItem(0)->child(2));
+    QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0)->child(2));
     window.findChild<QPushButton*>("removeComponent")->click();
     QCOMPARE(window.document().state().placements.size(),2);
     QCOMPARE(window.document().state().assignments[0].placements.size(),2);
-    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    window.document().history()->undo(); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),3);
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0)->child(0));
     tree->setCurrentItem(tree->topLevelItem(0)->child(0));
-    tree->setCurrentItem(tree->topLevelItem(0));
     auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");
     const auto old=window.document().state().placements; QTest::keyClick(canvas,Qt::Key_Right);
     for(int i=0;i<3;++i) QCOMPARE(window.document().state().placements[i].origin,old[i].origin+QPointF(1,0));
@@ -1644,7 +3186,7 @@ void EditorTest::explicitDiscovery()
     for(int i=1;i<3;++i) QCOMPARE(moved[i].origin,old[i].origin);
     window.document().history()->undo(); window.document().history()->undo(); window.document().history()->undo();
     QVERIFY(window.document().state().placements.isEmpty()); QVERIFY(window.document().state().assignments.isEmpty());
-    window.document().history()->redo(); window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
+    window.document().history()->redo(); window.document().history()->redo(); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),3);
     QCoreApplication::processEvents();
     QVERIFY(window.grab().save(artifactDirectory()+"/header-layout.png"));
     window.resize(1440,900);
@@ -1672,8 +3214,8 @@ void EditorTest::explicitDiscovery()
     play->setChecked(false);
     connected=false;
     window.findChild<QPushButton*>("refreshHeaders")->click(); QCOMPARE(scans,2);
-    QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->childCount(),3);
-    QVERIFY(tree->topLevelItem(0)->text(0).contains("offline"));
+    QCOMPARE(tree->topLevelItemCount(),1); QCOMPARE(tree->topLevelItem(0)->child(0)->childCount(),3);
+    QCOMPARE(tree->topLevelItem(0)->child(0)->text(1),QString("Offline"));
     window.document().history()->setClean();
 }
 
@@ -1991,6 +3533,87 @@ void EditorTest::firstRunArtworkStartup()
     QVERIFY(window.findChild<LightingCanvas*>("layoutCanvas")->isVisible());
 }
 
+void EditorTest::sessionRestoresWorkspaceTab()
+{
+    // First start keeps the window's default tab; a later start returns to the tab open at close.
+    QTemporaryDir dir;QSettings settings(dir.filePath("tab.ini"),QSettings::IniFormat);
+    {
+        LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+        auto* tabs=window.findChild<QTabWidget*>("lightingViews");const int initial=tabs->currentIndex();
+        AppSession session(window,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+        QCOMPARE(tabs->currentIndex(),initial);
+        tabs->setCurrentIndex(1);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QVERIFY(window.close());
+    }
+    QCOMPARE(settings.value("window/workspace").toInt(),1);
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    AppSession session(window,settings,dir.filePath("recovery.json"));session.restore([]{return false;});
+    QCOMPARE(window.findChild<QTabWidget*>("lightingViews")->currentIndex(),1);
+    settings.setValue("window/workspace",99);
+    LightingWindow invalid(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
+    const int fallback=invalid.findChild<QTabWidget*>("lightingViews")->currentIndex();
+    AppSession guarded(invalid,settings,dir.filePath("recovery.json"));guarded.restore([]{return false;});
+    QCOMPARE(invalid.findChild<QTabWidget*>("lightingViews")->currentIndex(),fallback);
+}
+
+void EditorTest::disconnectedDevicesHidden()
+{
+    QSettings().remove("editor/disconnectedDevices");
+    const auto profile=channelProfile();bool found=true;
+    LightingWindow window(catalog(),[&found,profile] {
+        QVector<ProfileCandidate> result;if(!found)return result;
+        ProfileCandidate candidate;candidate.profileId=profile.id;candidate.device.path="fake://one";result.append(candidate);return result;
+    },nullptr,{profile});
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTRY_COMPARE(window.discoveredHardware().size(),1);
+    const auto present=window.document().addComponent("test.strip"),absent=window.document().addComponent("test.strip");
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->selectMany({present,absent},absent);
+    window.document().edit("Attach",[&](LightingState& state) {
+        ChannelAssignment online;online.endpoint="fake://one";online.profileId=profile.id;online.channelId="Direct";online.placements={present};
+        auto offline=online;offline.id=QUuid::createUuid();offline.endpoint="fake://unplugged";offline.placements={absent};
+        state.assignments={online,offline};
+    });
+    // Default: hidden, and the selection made while it was still present drops it.
+    QCOMPARE(canvas->selections(),QSet<QUuid>({present}));QCOMPARE(canvas->selection(),present);
+    canvas->selectMany({present,absent},present);QCOMPARE(canvas->selections(),QSet<QUuid>({present}));
+    // Dim: still drawn, still not selectable.
+    QSettings().setValue("editor/disconnectedDevices","dim");window.findChild<QPushButton*>("refreshHeaders")->click();
+    canvas->selectMany({present,absent},present);QCOMPARE(canvas->selections(),QSet<QUuid>({present}));
+    // No scan result (offline planning): everything shows and is selectable again.
+    found=false;window.findChild<QPushButton*>("refreshHeaders")->click();QVERIFY(window.discoveredHardware().isEmpty());
+    canvas->selectMany({present,absent},present);QCOMPARE(canvas->selections(),QSet<QUuid>({present,absent}));
+    // The project keeps both devices whatever the canvas shows.
+    QCOMPARE(window.document().state().placements.size(),2);
+    QSettings().remove("editor/disconnectedDevices");window.document().history()->setClean();
+}
+
+void EditorTest::panelsSurviveMinimizeAndClose()
+{
+    // Owner report 2026-11-24: navigator and inspector were saved as hidden without a user action.
+    // Minimizing hid the docks and was recorded as the user's choice; window and tab changes must not be.
+    QTemporaryDir dir;QSettings settings(dir.filePath("panels.ini"),QSettings::IniFormat);
+    const QVariantMap shown{{"navigator",true},{"inspector",true}};
+    {
+        LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);window.resize(1400,900);
+        AppSession restore(window,settings,dir.filePath("recovery.json"));restore.restore([]{return false;});
+        window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto* tabs=window.findChild<QTabWidget*>("lightingViews");
+        const auto unchanged=[&]{QCoreApplication::processEvents();return window.workspacePanelPreferences()==shown;};
+        tabs->setCurrentIndex(1);QVERIFY(unchanged());
+        window.hide();QVERIFY(unchanged());window.show();QVERIFY(unchanged());
+        window.showMinimized();QVERIFY(unchanged());window.showNormal();QVERIFY(unchanged());
+        tabs->setCurrentIndex(2);QVERIFY(unchanged());window.showMaximized();QVERIFY(unchanged());
+        tabs->setCurrentIndex(1);window.showMinimized();QVERIFY(unchanged());
+        QVERIFY(window.close()); // Closing while minimized, as from the tray or the taskbar.
+    }
+    QCOMPARE(settings.value("window/panels").toMap(),shown);
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);window.resize(1400,900);
+    AppSession restore(window,settings,dir.filePath("recovery.json"));restore.restore([]{return false;});
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QCOMPARE(window.findChild<QTabWidget*>("lightingViews")->currentIndex(),1);
+    // The offscreen screen is 800 px wide; a restored maximized window would enter compact mode.
+    window.showNormal();window.resize(1400,900);QCoreApplication::processEvents();
+    QVERIFY(window.findChild<QDockWidget*>("layersDock")->isVisible());QVERIFY(window.findChild<QDockWidget*>("propertiesDock")->isVisible());
+}
+
 void EditorTest::legacyArtworkToolbarRestore()
 {
     LightingWindow previous(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false);
@@ -2208,7 +3831,7 @@ void EditorTest::effectPersistenceAndLegacy()
     QTemporaryDir directory;
     const auto path = directory.filePath("effects.json");
     LightingDocument document(catalog());
-    for (const auto& definition : effectDefinitions()) if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Rectangle && !isPattern(definition.kind)) document.addLayer(definition.kind);
+    for (const auto& definition : effectDefinitions()) if(definition.kind!=EffectKind::Paint && definition.kind!=EffectKind::Rectangle && definition.kind!=EffectKind::Chase && !isPattern(definition.kind)) document.addLayer(definition.kind);
     document.edit("Set gradient colors", [](LightingState& state) {
         state.layers[1].color = Qt::red; state.layers[1].secondaryColor = Qt::blue;
         for (auto& layer : state.layers) if (isParticle(layer.effect)) layer.visible = false;
@@ -2555,8 +4178,8 @@ void EditorTest::expandingLayoutAndFullscreen()
     QTemporaryDir directory;const auto file=directory.filePath("layout.json");window.document().save(file);
     LightingDocument restored(catalog(),nullptr,{channelProfile()});restored.load(file);QCOMPARE(restored.layoutBounds(),bounds);
     window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
-    auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(false);QVERIFY(play->text().isEmpty());QCOMPARE(play->accessibleName(),QString("Play preview"));
-    QTest::mouseClick(play,Qt::LeftButton);QVERIFY(play->text().isEmpty());QCOMPARE(play->accessibleName(),QString("Stop preview"));play->setChecked(false);
+    auto* play=window.findChild<QPushButton*>("playPreview");play->setChecked(false);QCOMPARE(play->text(),QString("Play"));QCOMPARE(play->accessibleName(),QString("Play preview"));
+    QTest::mouseClick(play,Qt::LeftButton);QCOMPARE(play->text(),QString("Stop"));QCOMPARE(play->accessibleName(),QString("Stop preview"));play->setChecked(false);
     QVERIFY(window.findChild<QLabel*>("toolbarOutputStatus")->isVisible());
     auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");canvas->fitToView();
     auto* originalParent=canvas->parentWidget();auto* fullscreen=canvas->findChild<QPushButton*>("canvasFullscreenButton");
@@ -2743,6 +4366,26 @@ void EditorTest::triangleAfterCrop()
     const auto corner=effectTransform(before).map(QPointF(.5,.5));drag(corner,corner+QPointF(30,30));
     QVERIFY(window.document().state().layers.last().extent.width()>before.extent.width());
     window.document().history()->undo();QCOMPARE(window.document().state().layers.last().extent,before.extent);
+    // Corner resize: the opposite corner stays fixed and the aspect ratio is kept; Shift frees the
+    // aspect, Alt scales about the center. The release event carries the modifier of the final step.
+    const auto resize=[&](QPointF to,Qt::KeyboardModifiers modifiers) {
+        QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint(corner).toPoint());
+        QTest::mouseMove(canvas,canvas->viewportPoint(to).toPoint());
+        QTest::mouseRelease(canvas,Qt::LeftButton,modifiers,canvas->viewportPoint(to).toPoint());
+        const auto after=window.document().state().layers.last();window.document().history()->undo();return after;
+    };
+    const auto pinned=effectTransform(before).map(QPointF(-.5,-.5));const double aspect=before.extent.width()/before.extent.height();
+    auto after=resize(corner+QPointF(40,10),Qt::NoModifier);
+    QVERIFY(QLineF(effectTransform(after).map(QPointF(-.5,-.5)),pinned).length()<1.5);
+    QVERIFY(std::abs(after.extent.width()/after.extent.height()-aspect)<.02);QVERIFY(after.extent.width()>before.extent.width());
+    after=resize(corner+QPointF(40,0),Qt::ShiftModifier);
+    QVERIFY(QLineF(effectTransform(after).map(QPointF(-.5,-.5)),pinned).length()<1.5);
+    QVERIFY(after.extent.width()>before.extent.width()+30);QVERIFY(std::abs(after.extent.height()-before.extent.height())<1.5);
+    after=resize(corner+QPointF(20,20),Qt::AltModifier);
+    QVERIFY(QLineF(after.center,before.center).length()<1.5);QVERIFY(after.extent.width()>before.extent.width()+30);
+    // CodeRabbit PR #10: crossing only the pinned corner's x while the height drives the scale must not flip the box.
+    after=resize(QPointF(pinned.x()-2,corner.y()),Qt::NoModifier);
+    QVERIFY2(after.center.x()>pinned.x(),qPrintable(QString("center %1 left of the pinned corner %2").arg(after.center.x()).arg(pinned.x())));
     window.document().edit("Animated triangle",[](auto& state){auto& shape=state.layers.last();shape.driftX=180;shape.spin=20;shape.zoom=10;});
     window.findChild<QDoubleSpinBox*>("previewTime")->setValue(1.0);
     const auto animated=window.document().state().layers.last();
@@ -2777,8 +4420,11 @@ void EditorTest::canvasTransformsAndCrop()
     QVERIFY(std::abs(window.document().state().layers[0].rotation-90)<1); window.document().history()->undo();
     const auto corner=canvas->viewportPoint({440,320}).toPoint();
     QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,corner);
+    const auto pinned=effectTransform(window.document().state().layers[0]).map(QPointF(-.5,-.5));
     QTest::mouseMove(canvas,corner+QPoint(30,30)); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,corner+QPoint(30,30));
-    QVERIFY(window.document().state().layers[0].extent.width()>290); window.document().history()->undo();
+    // Corner resize keeps the opposite corner fixed instead of growing symmetrically about the center.
+    QVERIFY(window.document().state().layers[0].extent.width()>260);
+    QVERIFY(QLineF(effectTransform(window.document().state().layers[0]).map(QPointF(-.5,-.5)),pinned).length()<1.5); window.document().history()->undo();
     QTemporaryDir dir; const auto imagePath=dir.filePath("crop.png");
     QImage pixels(200,100,QImage::Format_ARGB32); pixels.fill(Qt::red);
     for (int y=0;y<100;++y) for (int x=100;x<200;++x) pixels.setPixelColor(x,y,Qt::blue);
@@ -2908,8 +4554,9 @@ void EditorTest::snapEffectAndGradient()
     from=canvas.viewportPoint({253,153}).toPoint();to=canvas.viewportPoint({247,147}).toPoint();
     QTest::mousePress(&canvas,Qt::LeftButton,Qt::NoModifier,from);
     QTest::mouseRelease(&canvas,Qt::LeftButton,Qt::NoModifier,to);
-    QCOMPARE(document.state().layers[0].center,QPointF(303,203));
-    QCOMPARE(document.state().layers[0].extent,QSizeF(106,106));
+    // The dragged corner snaps to (250,150) while the opposite corner stays at (353,253).
+    QCOMPARE(document.state().layers[0].center,QPointF(301.5,201.5));
+    QCOMPARE(document.state().layers[0].extent,QSizeF(103,103));
     document.history()->undo();
     canvas.setTool(LightingCanvas::Tool::Gradient);
     from=canvas.viewportPoint({253,154}).toPoint();to=canvas.viewportPoint({347,247}).toPoint();
@@ -2955,17 +4602,19 @@ void EditorTest::snapLedArrangement()
 {
     SnapGrid{true,10}.save();
     auto component=catalog().first();component.positions={{0,0},{3.25,0},{7,0}};
-    ComponentEditor editor(component,true);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
-    auto* view=editor.findChild<QGraphicsView*>("componentGeometry");
-    QTest::mouseClick(view->viewport(),Qt::LeftButton,Qt::NoModifier,view->mapFromScene({78,0}));
-    QCOMPARE(editor.component().positions,component.positions); // Selecting an off-grid LED must not move it.
-    auto from=view->mapFromScene({0,0}),to=view->mapFromScene({19,17});
-    QTest::mousePress(view->viewport(),Qt::LeftButton,Qt::NoModifier,from);
-    QTest::mouseMove(view->viewport(),to);QTest::mouseRelease(view->viewport(),Qt::LeftButton,Qt::NoModifier,to);
-    // 24 scene units = one component unit = 20 Layout pixels; 10 px snaps to half units.
-    QCOMPARE(editor.component().positions[0],QPointF(1,.5));
-    QCOMPARE(editor.component().positions[1],QPointF(3.25,0));
-    QCOMPARE(editor.component().mapping,component.mapping);
+    ComponentCanvas view; view.resize(640,400); auto draft=ComponentDraft::fromDefinition(component); view.setDraft(draft);
+    connect(&view,&ComponentCanvas::draftEdited,&view,[&](const ComponentDraft& after,const QString&){draft=after;view.setDraft(after);});
+    view.show();QVERIFY(QTest::qWaitForWindowExposed(&view)); view.fit(); view.zoomBy(1.0/view.zoom());
+    QTest::mouseClick(view.viewport(),Qt::LeftButton,Qt::NoModifier,view.mapFromScene({78,0}));
+    QCOMPARE(draft.positions,component.positions); // Selecting an off-grid LED must not move it.
+    auto from=view.mapFromScene({0,0}),to=view.mapFromScene({19,17});
+    QTest::mousePress(view.viewport(),Qt::LeftButton,Qt::NoModifier,from);
+    QTest::mouseMove(view.viewport(),to);QTest::mouseRelease(view.viewport(),Qt::LeftButton,Qt::NoModifier,to);
+    // 24 scene units = one component unit. The editor snaps to quarter units whatever the Layout
+    // spacing (owner review 2026-11-26: half units were coarser than strip LED pitch).
+    QCOMPARE(draft.positions[0],QPointF(.75,.75));
+    QCOMPARE(draft.positions[1],QPointF(3.25,0));
+    QCOMPARE(draft.mapping,component.mapping);
 }
 
 void EditorTest::dragCycleColors()
@@ -3027,12 +4676,9 @@ void EditorTest::snapControls()
     window.findChild<QPushButton*>("playPreview")->setChecked(false);
     window.resize(1600,960);window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));
     QVERIFY(window.grab().save(artifactDirectory()+"/snap-grid-workspace.png"));
-    ComponentEditor editor(catalog().first(),true,&window);
-    auto* ledSize=editor.findChild<QSpinBox*>("ledGridSpacing");QCOMPARE(ledSize->value(),20);
-    ledSize->setValue(5);QCOMPARE(size->value(),5);QCOMPARE(SnapGrid::load().spacing,5.);
-    size->setValue(25);QCOMPARE(ledSize->value(),25);
-    editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));
-    QVERIFY(editor.grab().save(artifactDirectory()+"/snap-grid-leds.png"));
+    ComponentCanvas leds; leds.resize(640,400); leds.setDraft(ComponentDraft::fromDefinition(catalog().first())); leds.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&leds)); leds.fit();
+    QVERIFY(leds.grab().save(artifactDirectory()+"/snap-grid-leds.png"));
     action->setChecked(false);QVERIFY(!SnapGrid::load().enabled);
     window.document().history()->setClean();
 }
@@ -3057,12 +4703,16 @@ void EditorTest::hardwareIdentityAndSave()
     const auto ring=ComponentDefinition::fromJson(d30.toJson());QCOMPARE(ring.mapping,d30.mapping);
     for(const auto& point:ring.positions) QVERIFY(qAbs(QLineF(point,QPointF(1.3,1.3)).length()-1.3)<.0001);
     d30.positions[0]+={.01,0};QCOMPARE(ComponentDefinition::fromJson(d30.toJson()).positions,d30.positions);
-    HardwarePicker picker(catalog(),{},{});
+    HardwarePicker picker(shippedCatalog(),{},{});
     auto* category=picker.findChild<QComboBox*>("hardwareCategory");
     for(const auto* text:{"Fans","Strips","Mice","Keyboards","AiO","Pumps","RAM","Graphics cards"}) QVERIFY(category->findText(text)>=0);
     QVERIFY(picker.findChild<QComboBox*>("hardwareManufacturer")->findText("Phanteks")>=0);
     auto* products=picker.findChild<QListWidget*>("hardwareProducts");
     for(int i=0;i<products->count();++i) QVERIFY(!products->item(i)->text().contains("Reverse",Qt::CaseInsensitive));
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("NV5 MKII");
+    QVERIFY(products->currentItem() && !products->currentItem()->isHidden());
+    const auto nv5=picker.component();
+    QCOMPARE(nv5.addresses(),16);QCOMPARE(hardwareCategory(nv5),QString("Strips"));QCOMPARE(hardwareManufacturer(nv5),QString("Phanteks"));
     QTemporaryDir directory;LightingWindow window(catalog(),[] {return QVector<ProfileCandidate>{};});
     window.document().addComponent("test.strip");
     const auto first=directory.filePath("first.lighting.json"), second=directory.filePath("second.lighting.json");
@@ -3255,7 +4905,7 @@ void EditorTest::deleteSelections()
     layout->select(assignment.id);const int index=window.document().history()->index();QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().history()->index(),index+1);QVERIFY(window.document().state().placements.isEmpty());QVERIFY(window.document().state().assignments.isEmpty());QVERIFY(window.document().state().layers[0].channelTargets.isEmpty());
     window.document().history()->undo();QCOMPARE(window.document().state().placements.size(),2);QCOMPARE(window.document().state().layers[0].channelTargets,QVector<QUuid>({assignment.id}));
     window.findChild<QAction*>("workspaceHardware")->trigger();auto* hardware=window.findChild<QTreeView*>("hardwareComponents");
-    const auto componentIndex=hardware->model()->index(0,0,hardware->model()->index(0,0));QVERIFY(componentIndex.isValid());hardware->setCurrentIndex(componentIndex);hardware->setFocus();QTest::keyClick(hardware,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);window.document().history()->undo();
+    const auto componentIndex=hardware->model()->index(0,0,hardware->model()->index(0,0,hardware->model()->index(0,0)));QVERIFY(componentIndex.isValid());hardware->setCurrentIndex(componentIndex);hardware->setFocus();QTest::keyClick(hardware,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);window.document().history()->undo();
     window.findChild<QAction*>("workspaceLayout")->trigger();layout->setFocus();
     layout->select({});const auto noSelection=window.document().history()->index();QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().history()->index(),noSelection);
     layout->select(second);QTest::mouseClick(layout->findChild<QPushButton*>("canvasFullscreenButton"),Qt::LeftButton);QTest::keyClick(layout,Qt::Key_Delete);QCOMPARE(window.document().state().placements.size(),1);QTest::keyClick(layout,Qt::Key_Escape);
@@ -3271,6 +4921,28 @@ void EditorTest::initialMaskBrushSize()
     auto* canvas=window.findChild<LightingCanvas*>("effectsCanvas");QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,canvas->viewportPoint({320,200}).toPoint());
     const auto mask=window.document().state().layers.last().mask;QVERIFY(mask.constScanLine(200)[320]<32);QCOMPARE(mask.constScanLine(200)[330],uchar(255));
     window.document().history()->setClean();
+}
+
+void EditorTest::disabledControlsLookDisabled()
+{
+    // Disabled controls looked active, so the owner took locked editor sections for a defect (2026-11-26).
+    // Compare the brightest text pixel of an enabled and a disabled control of each kind.
+    QWidget window;applyStudioStyle(&window);window.resize(420,200);
+    QPushButton on("Matrix",&window),off("Matrix",&window),primaryOn("Apply",&window),primaryOff("Apply",&window);
+    primaryOn.setProperty("primary",true);primaryOff.setProperty("primary",true);
+    QLineEdit fieldOn("12",&window),fieldOff("12",&window);
+    on.setGeometry(10,10,120,32);off.setGeometry(150,10,120,32);primaryOn.setGeometry(10,60,120,32);primaryOff.setGeometry(150,60,120,32);
+    fieldOn.setGeometry(10,110,120,30);fieldOff.setGeometry(150,110,120,30);
+    for(auto* control:std::initializer_list<QWidget*>{&off,&primaryOff,&fieldOff})control->setEnabled(false);
+    window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));QTest::mouseMove(&window,{410,190});QCoreApplication::processEvents();
+    const auto brightest=[](QWidget& widget){
+        // Inside the frame only: the enabled primary border alone could otherwise pass (CodeRabbit PR #10).
+        const auto image=widget.grab().toImage();int best=0;const auto inner=image.rect().adjusted(4,4,-4,-4);
+        for(int y=inner.top();y<=inner.bottom();++y)for(int x=inner.left();x<=inner.right();++x)best=std::max(best,qGray(image.pixel(x,y)));
+        return best;
+    };
+    for(auto pair:{std::pair<QWidget*,QWidget*>{&on,&off},{&primaryOn,&primaryOff},{&fieldOn,&fieldOff}})
+        QVERIFY2(brightest(*pair.first)-brightest(*pair.second)>=60,qPrintable(pair.first->metaObject()->className()));
 }
 
 void EditorTest::scrollbarAppearance()
@@ -3394,6 +5066,28 @@ void EditorTest::detailedHardwareArtwork()
     auto fan=catalog().first();fan.category="Fans";fan.positions={{0,0},{3,0},{1.5,2.7},{999,999}};fan.mapping={0,1,2,3};fan.nonPhysicalSlots={3};
     const auto original=fan.toJson();const auto body=hardwareBodyBounds(fan);
     QCOMPARE(body.width(),body.height());QVERIFY(body.contains({0,0}));QVERIFY(body.contains({3,0}));QVERIFY(body.right()<10);QCOMPARE(fan.toJson(),original);
+    // Devices redraws the photo every preview frame: one bounded decode, then cache hits.
+    const auto photo=hardwarePreviewPhoto(fan);
+    QVERIFY(!photo.isNull());QVERIFY(photo.width()*photo.height()<=512*512);
+    QCOMPARE(hardwarePreviewPhoto(fan).cacheKey(),photo.cacheKey());
+    // The square transparent canvas of the _fv sources is cropped, so a wide keyboard stays wide.
+    auto keyboard=fan;keyboard.category="Keyboards";const auto keys=hardwarePreviewPhoto(keyboard);
+    QVERIFY(!keys.isNull());QVERIFY2(keys.width()>2*keys.height(),"keyboard photo must be cropped to its visible part");
+    // Strips are stitched from the photo per LED: a 30-LED strip spans its LEDs, not the photo's 11.
+    auto strip=fan;strip.category="Strips";strip.positions.clear();strip.mapping.clear();strip.nonPhysicalSlots.clear();
+    for(int i=0;i<30;++i){strip.positions.append({double(i),0});strip.mapping.append(i);}
+    {QImage image(1000,100,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);
+     {QPainter painter(&image);painter.translate(20,50);painter.scale(30,30);drawHardwareEditorArtwork(painter,strip);}
+     QVERIFY(image.pixelColor(20+29*30,50).alpha()>0);QVERIFY(image.pixelColor(20+15*30,50).alpha()>0);
+     QCOMPARE(image.pixelColor(20+29*30+60,50).alpha(),0);QVERIFY(image.save(artifactDirectory()+"/editor-photo-strip.png"));}
+    // Cables: photo spans the whole body, connectors included.
+    auto cable=strip;cable.category="Cables";QVERIFY(!hardwarePreviewPhoto(cable).isNull());
+    {const auto body=hardwareBodyBounds(cable);QImage image(1000,100,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);
+     {QPainter painter(&image);painter.translate(20,50);painter.scale(30,30);drawHardwareEditorArtwork(painter,cable);}
+     for(const double x:{body.left()+.05,body.center().x(),body.right()-.05})
+     {int alpha=0;for(int y=0;y<100;++y)alpha=qMax(alpha,image.pixelColor(int(20+x*30),y).alpha());
+         QVERIFY2(alpha>0,"cable photo must cover connectors and sleeve");}
+     QVERIFY(image.save(artifactDirectory()+"/editor-photo-cable.png"));}
     QSet<QByteArray> images;
     for(const auto& category:QStringList{"Fans","Strips","RAM","Graphics cards","Keyboards","Mice","Pumps","AiO","Motherboards","Other"}) {
         QImage image(240,180,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::transparent);
@@ -3407,10 +5101,11 @@ void EditorTest::detailedHardwareArtwork()
     LightingDocument document({{fan.id,fan}});document.addComponent(fan.id);const auto before=document.componentPoints(document.state().placements[0]);
     LightingCanvas layout(document,LightingCanvas::Context::Layout);layout.resize(900,650);layout.show();QVERIFY(QTest::qWaitForWindowExposed(&layout));layout.grab();
     QCOMPARE(document.componentPoints(document.state().placements[0]),before);QCOMPARE(document.catalog()[fan.id].toJson(),original);
-    ComponentEditor editor(fan,true);editor.show();QVERIFY(QTest::qWaitForWindowExposed(&editor));QCoreApplication::processEvents();
-    auto* scene=editor.findChild<QGraphicsView*>("componentGeometry")->scene();int leds=0;
+    ComponentCanvas editor; editor.resize(640,420); editor.setDraft(ComponentDraft::fromDefinition(fan)); editor.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&editor)); editor.fit(); QCoreApplication::processEvents();
+    auto* scene=editor.scene();int leds=0;
     for(auto* item:scene->items())if(item->type()==QGraphicsEllipseItem::Type) {++leds;QVERIFY(!item->childItems().isEmpty());}
-    QCOMPARE(leds,3);QCOMPARE(editor.component().mapping,fan.mapping);QCOMPARE(editor.component().positions,fan.positions);
+    QCOMPARE(leds,3);QCOMPARE(editor.draft().mapping,fan.mapping);QCOMPARE(editor.draft().positions,fan.positions);
     QVERIFY(editor.grab().save(artifactDirectory()+"/detailed-fan-led-editor.png"));document.history()->setClean();
 }
 
@@ -3862,7 +5557,7 @@ void EditorTest::dedicatedDeviceIsNotAChain()
     QTest::mouseClick(tree->viewport(),Qt::LeftButton,Qt::NoModifier,tree->visualItemRect(device).center());QTRY_COMPARE(window.findChild<LightingCanvas*>("layoutCanvas")->selection(),window.document().state().placements[0].id);
     bool rotation=false,oldName=false;for(auto* label:window.findChildren<QLabel*>()){rotation|=label->text()=="Rotation";oldName|=label->text()=="Rotation deg";}
     QVERIFY(rotation);QVERIFY(!oldName);
-    auto* settings=window.findChild<QPushButton*>("headerSettings");QCOMPARE(settings->text(),QString("Device settings"));
+    auto* settings=window.findChild<QPushButton*>("headerSettings");QCOMPARE(settings->text(),QString("Connector settings..."));
     bool seen=false,appendVisible=true,removeEnabled=true;QTimer::singleShot(0,[&] {
         if(auto* dialog=dynamic_cast<ChannelEditor*>(QApplication::activeModalWidget())) {
             seen=true;appendVisible=dialog->findChild<QPushButton*>("appendInstance")->isVisible();
@@ -3937,6 +5632,338 @@ void EditorTest::outputLedCount()
     QCOMPARE(document.outputLedsUsed(assignment),6);
 }
 
+void EditorTest::componentLibraryMigration()
+{
+    QTemporaryDir folder;
+    QVERIFY(folder.isValid());
+    const auto library=folder.filePath("components");
+    auto builtins=catalog();
+    auto custom=builtins.first();
+    custom.id="custom.strip";
+    custom.name="Strip";
+    LightingDocument editor(builtins,nullptr,{},library);
+    QCOMPARE(editor.registerComponent(custom),custom.id);
+
+    LightingDocument legacy(builtins);
+    const auto original=custom;
+    custom.positions[1]={4,2};
+    legacy.defineComponent(custom);
+    const auto id=legacy.addComponent(custom.id);
+    QFile old(folder.filePath("legacy.lighting.json"));
+    legacy.save(old.fileName());
+    QVERIFY(old.open(QIODevice::ReadOnly));
+    const auto bytes=old.readAll();
+    old.close();
+    editor.load(old.fileName());
+    const auto variant=editor.state().placements.first().componentId;
+    QVERIFY(variant!=original.id);
+    QCOMPARE(editor.catalog().value(variant).positions,custom.positions);
+    QCOMPARE(editor.customComponents().value(original.id).positions,original.positions);
+    editor.load(old.fileName());
+    QCOMPARE(editor.state().placements.first().componentId,variant);
+    QCOMPARE(editor.customComponents().size(),2);
+    QVERIFY(old.open(QIODevice::ReadOnly));
+    QCOMPARE(old.readAll(),bytes);
+
+    QFile saved(folder.filePath("references.lighting.json"));
+    editor.save(saved.fileName());
+    QVERIFY(saved.open(QIODevice::ReadOnly));
+    const auto project=QJsonDocument::fromJson(saved.readAll()).object();
+    QCOMPARE(project.value("schemaVersion").toInt(),25);
+    QVERIFY(!project.contains("components"));
+    QCOMPARE(project.value("placements").toArray().first().toObject().value("componentId").toString(),variant);
+    LightingDocument reopened(builtins,nullptr,{},library);
+    reopened.load(saved.fileName());
+    QCOMPARE(reopened.state().placements.first().id,id);
+    QCOMPARE(reopened.catalog().value(variant).positions,custom.positions);
+    LightingDocument missing(builtins);
+    try { missing.load(saved.fileName()); QFAIL("Missing component accepted"); }
+    catch (const MissingComponents& error) { QCOMPARE(error.ids,QStringList{variant}); }
+    QVERIFY(missing.state().placements.isEmpty());
+}
+
+void EditorTest::connectorEditsAndChase()
+{
+    auto profile=channelProfile();
+    profile.channels[0].maxLeds=9;
+    auto other=profile.channels[0];
+    other.id="Other";
+    profile.channels.append(other);
+    LightingDocument doc(catalog(),nullptr,{profile});
+    const auto instance=doc.addComponent("test.strip");
+    ChannelAssignment a;
+    a.profileId=profile.id;
+    a.channelId=profile.channels[0].id;
+    a.endpoint="fake";
+    a.software=true;
+    a.placements={instance};
+    doc.assignChannel(a);
+    const auto copy=doc.duplicateComponent(instance);
+    const auto third=doc.duplicateComponent(instance);
+    QVERIFY(copy!=instance);
+    QCOMPARE(doc.availableAddresses(doc.state().assignments.first()),0);
+    QVERIFY_EXCEPTION_THROWN(doc.duplicateComponent(instance),std::invalid_argument);
+    QCOMPARE(doc.state().placements.size(),3);
+    auto b=a;
+    b.id=QUuid::createUuid();
+    b.channelId=other.id;
+    b.placements.clear();
+    doc.moveComponent(copy,b);
+    QCOMPARE(doc.state().assignments.last().placements,QVector<QUuid>{copy});
+    doc.history()->undo();
+    QCOMPARE(doc.state().assignments.size(),1);
+    QCOMPARE(doc.state().assignments.first().placements.size(),3);
+    doc.removeComponents({third});
+    QCOMPARE(doc.state().placements.size(),2);
+    doc.history()->undo();
+    QCOMPARE(doc.state().placements.size(),3);
+
+    doc.addLayer(EffectKind::StaticColor);
+    doc.addLayer(EffectKind::Chase);
+    doc.edit("Configure chase",[](auto& state) {
+        state.layers[0].color=Qt::blue;
+        auto& chase=state.layers[1];
+        chase.color=Qt::red;
+        chase.chaseSpeed=1;
+        chase.chaseLength=1;
+    });
+    auto frame=doc.render(1.0);
+    auto colors=doc.sampleChannels(frame,1.0).value(a.id);
+    QCOMPARE(colors.size(),9);
+    for (int i=0;i<colors.size();++i) QCOMPARE(colors[i],QColor(i==1 ? Qt::red : Qt::blue));
+    doc.edit("Reverse chase",[](auto& state){state.layers.last().chaseReverse=1;});
+    frame=doc.render(1.0);
+    colors=doc.sampleChannels(frame,1.0).value(a.id);
+    for (int i=0;i<colors.size();++i) QCOMPARE(colors[i],QColor(i==7 ? Qt::red : Qt::blue));
+    doc.setIdentifyPlacement(copy);
+    colors=doc.sampleChannels(frame,1.0).value(a.id);
+    for (int i=0;i<colors.size();++i) QCOMPARE(colors[i],QColor(i>=3 && i<=5 ? Qt::white : i==7 ? Qt::red : Qt::blue));
+}
+
+void EditorTest::customEffectRoundTrip()
+{
+    LightingDocument document(catalog());
+    const auto group=document.addEmptyLayer();
+    const auto child=document.addLayer(EffectKind::Chase,group);
+    document.edit("Customize",[](auto& state) {
+        auto& layer=state.layers.last();
+        layer.blend=LayerBlend::Screen;
+        layer.chaseSpeed=7;
+        layer.mask.fill(113);
+    });
+    QTemporaryDir folder;
+    const auto path=folder.filePath("preset.effect.json");
+    document.saveCustomEffect(group,path);
+    LightingDocument destination(catalog());
+    const auto inserted=destination.insertCustomEffect(path);
+    QVERIFY(inserted!=group);
+    QCOMPARE(destination.state().layers.size(),2);
+    const auto& layer=destination.state().layers.last();
+    QVERIFY(layer.id!=child);
+    QCOMPARE(layer.parentId,inserted);
+    QCOMPARE(layer.effect,EffectKind::Chase);
+    QCOMPARE(layer.chaseSpeed,7.0);
+    QCOMPARE(layer.blend,LayerBlend::Screen);
+    QCOMPARE(layer.mask.constScanLine(0)[0],uchar(113));
+    destination.edit("Paint inserted mask",[](auto& state){state.layers.last().mask.fill(0);});
+    QCOMPARE(document.state().layers.last().mask.constScanLine(0)[0],uchar(113));
+}
+
+void EditorTest::phanteksSharedAddresses()
+{
+    auto profile=channelProfile();
+    profile.channels[0].maxLeds=30;
+    const QVariantMap identity{{"profileId",profile.id},{"channelId",profile.channels[0].id},{"path","fake"}};
+    HardwarePicker picker(shippedCatalog(),{{"Direct",identity,30,0}},identity);
+    picker.findChild<QLineEdit*>("hardwareSearch")->setText("Phanteks M25");
+    const auto fan=picker.component();
+    QCOMPARE(fan.positions.size(),12);
+    QCOMPARE(fan.addresses(),6);
+    QCOMPARE(fan.mapping,QVector<int>({0,0,1,1,2,2,3,3,4,4,5,5}));
+    QVERIFY(fan.positions[0].y()>fan.positions[2].y());
+    QVERIFY(fan.positions[0].y()>fan.positions[10].y());
+    QVERIFY(fan.positions[0].x()>fan.positions[1].x());
+    QCOMPARE(ComponentDefinition::fromJson(fan.toJson()).mapping,fan.mapping);
+
+    auto parts=catalog();
+    parts.insert(fan.id,fan);
+    auto strip=parts.value("test.strip");
+    strip.id="test.strip.eight";
+    strip.positions.clear();
+    strip.mapping.clear();
+    for (int i=0;i<8;++i) { strip.positions.append(QPointF(i,0)); strip.mapping.append(i); }
+    parts.insert(strip.id,strip);
+    LightingDocument doc(parts,nullptr,{profile});
+    ChannelAssignment chain;
+    chain.profileId=profile.id;
+    chain.channelId=profile.channels[0].id;
+    chain.endpoint="fake";
+    chain.software=true;
+    for (int i=0;i<4;++i) chain.placements.append(doc.addComponent(fan.id));
+    chain.placements.append(doc.addComponent(strip.id));
+    for (const auto& id : chain.placements) chain.starts[id]=1;
+    doc.assignChannel(chain);
+    QCOMPARE(doc.outputLedsUsed(chain),8);
+    QImage frame(LightingDocument::canvasSize(),QImage::Format_ARGB32_Premultiplied);
+    frame.fill(Qt::black);
+    const auto bounds=doc.layoutBounds();
+    const auto pointToRaster=[bounds](QPointF point) {
+        return QPoint(int((point.x()-bounds.left())/bounds.width()*640),int((point.y()-bounds.top())/bounds.height()*400));
+    };
+    const auto fanPoints=doc.componentPoints(doc.state().placements.first());
+    for (int i=0;i<6;++i) frame.setPixelColor(pointToRaster(fanPoints[2*i]),QColor(240-20*i,40,80));
+    const auto stripPoints=doc.componentPoints(doc.state().placements.last());
+    frame.setPixelColor(pointToRaster(stripPoints[6]),Qt::green);
+    frame.setPixelColor(pointToRaster(stripPoints[7]),Qt::cyan);
+    const auto colors=doc.previewComponentColors(frame);
+    const auto first=colors.value(chain.placements.first());
+    for (int i=0;i<6;++i) QCOMPARE(first[i],QColor(240-20*i,40,80));
+    for (int i=0;i<4;++i) QCOMPARE(colors.value(chain.placements[i]),first);
+    const auto stripColors=colors.value(chain.placements.last());
+    QCOMPARE(stripColors.mid(0,6),first);
+    QCOMPARE(stripColors[6],QColor(Qt::green));
+    QCOMPARE(stripColors[7],QColor(Qt::cyan));
+}
+
+void EditorTest::offlineDevicesWorkflow()
+{
+    QTemporaryDir folder;
+    auto profile=channelProfile();
+    LightingWindow window(catalog(),[]{ return QVector<ProfileCandidate>{}; },nullptr,{profile},false,
+        folder.filePath("components"));
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto* devices=window.findChild<QTreeView*>("hardwareComponents");
+    QVERIFY(devices->isVisible());
+    auto* offline=window.findChild<QComboBox*>("offlineController");
+    offline->setFocus();
+    QTest::keyClick(offline,Qt::Key_Down);
+    QCOMPARE(offline->currentData().toString(),profile.id);
+    auto* add=window.findChild<QPushButton*>("addHeaderComponents");
+    QVERIFY(add->isEnabled());
+    bool picked=false;
+    QTimer::singleShot(0,&window,[&] {
+        auto* picker=dynamic_cast<HardwarePicker*>(QApplication::activeModalWidget());
+        if (!picker) { rejectModal(); return; }
+        auto* search=picker->findChild<QLineEdit*>("hardwareSearch");
+        search->setFocus();
+        QTest::keyClicks(search,"test strip");
+        auto* quantity=picker->findChild<QSpinBox*>("hardwareQuantity");
+        quantity->setFocus();
+        QTest::keyClick(quantity,Qt::Key_Up);
+        auto* confirm=picker->findChild<QPushButton*>("confirmAddHardware");
+        if (confirm->isEnabled()) { picked=true; QTest::mouseClick(confirm,Qt::LeftButton); }
+        else picker->reject();
+    });
+    QTest::mouseClick(add,Qt::LeftButton);
+    QVERIFY(picked);
+    QCOMPARE(window.document().state().placements.size(),2);
+    const auto assignment=window.document().state().assignments.first();
+    QVERIFY(assignment.endpoint.startsWith("offline:"));
+    const auto id=assignment.placements.first();
+    window.findChild<QAction*>("workspaceLayout")->trigger();
+    auto* canvas=window.findChild<LightingCanvas*>("layoutCanvas");
+    canvas->select(id);
+    QCoreApplication::processEvents();
+    const auto before=window.document().state().placements.first().origin;
+    const auto point=canvas->viewportPoint(before+QPointF(20,0)).toPoint();
+    QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,point);
+    QTest::mouseMove(canvas,point+QPoint(30,15));
+    QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,point+QPoint(30,15));
+    QVERIFY(window.document().state().placements.first().origin!=before);
+    const auto opensWiring=[&window](const char* actionName) {
+        QTest::mouseClick(window.findChild<QPushButton*>(actionName),Qt::LeftButton);
+        auto* page=window.findChild<ComponentEditorPage*>("componentEditorPage");
+        const bool available=page && window.findChild<QStackedWidget*>("applicationPages")->currentWidget()==page
+            && page->findChild<QToolButton*>("componentToolWire")->isEnabled();
+        if (page) page->findChild<QPushButton*>("componentBack")->click();
+        return available;
+    };
+    canvas->select(id);
+    QVERIFY(opensWiring("editLayoutLeds"));
+    window.findChild<QAction*>("workspaceHardware")->trigger();
+    canvas->select(id);
+    const auto actionRows=[&window] {
+        QVector<int> rows;
+        for(const auto* name:{"identifyDeviceComponent","removeHardwareComponent","headerSettings"})
+            rows.append(window.findChild<QAbstractButton*>(name)->mapToGlobal(QPoint()).y());
+        return rows;
+    };
+    QCoreApplication::processEvents();
+    const auto componentRows=actionRows();
+    canvas->select(assignment.id);
+    QCoreApplication::processEvents();
+    QCOMPARE(actionRows(),componentRows);
+    canvas->select(id);
+    auto* wiring=window.findChild<QPushButton*>("headerSettings");
+    QVERIFY(wiring->isEnabled());
+    bool changedOrder=false;
+    int chainRows=-1, selectedRow=-1;
+    QTimer::singleShot(0,&window,[&] {
+        auto* dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        if (!dialog) { rejectModal(); return; }
+        auto* chain=dialog->findChild<QListWidget*>("channelChain");
+        auto* up=dialog->findChild<QPushButton*>("instanceUp");
+        if (!chain || !up) { dialog->reject(); return; }
+        chainRows=chain->count();
+        if (chainRows!=2) { dialog->reject(); return; }
+        chain->setFocus();
+        QTest::keyClick(chain,Qt::Key_Down);
+        selectedRow=chain->currentRow();
+        up->setFocus();
+        QTest::keyClick(up,Qt::Key_Space);
+        changedOrder=chain->item(0)->data(Qt::UserRole).toUuid()==assignment.placements.last();
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+    });
+    QTest::mouseClick(wiring,Qt::LeftButton);
+    QVERIFY2(changedOrder,qPrintable(QString("Wiring rows: %1, selected row after Down: %2").arg(chainRows).arg(selectedRow)));
+    QCOMPARE(window.document().state().assignments.first().placements.last(),id);
+    QVERIFY(window.grab().save(artifactDirectory()+"/redesign-devices.png"));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QAction*>("create_chase")->trigger();
+    auto* inspector=window.findChild<QTabWidget*>("layerInspectorTabs");
+    inspector->setCurrentIndex(2);
+    QTest::mouseClick(window.findChild<QPushButton*>("maskHideBrush"),Qt::LeftButton);
+    auto* effects=window.findChild<LightingCanvas*>("effectsCanvas");
+    const auto brush=effects->viewportPoint({320,200}).toPoint();
+    QTest::mouseClick(effects,Qt::LeftButton,Qt::NoModifier,brush);
+    QVERIFY(window.document().state().layers.last().mask.constScanLine(200)[320]<255);
+    const auto brushFields=inspector->widget(2)->findChildren<QDoubleSpinBox*>();
+    const auto* brushHint=window.findChild<QLabel*>("maskBrushSummary");
+    QCOMPARE(brushFields.size(),3);
+    const auto spacingIsValid=[&] {
+        int previousBottom=-1;
+        for (auto* field:brushFields) {
+            const QRect bounds(field->mapTo(inspector,QPoint()),field->size());
+            if (bounds.top()<=previousBottom) return false;
+            previousBottom=bounds.bottom();
+        }
+        return brushHint->mapTo(inspector,QPoint()).y()>previousBottom;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(spacingIsValid(),1000); // Scroll area layout requests are queued after switching tabs.
+    QVERIFY(window.grab().save(artifactDirectory()+"/redesign-mask.png"));
+    inspector->setCurrentIndex(0);
+    const auto path=folder.filePath("Custom effects/offline.effect.json");
+    const auto useNative=!QCoreApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+    const auto restore=qScopeGuard([useNative] { QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs,!useNative); });
+    QTimer::singleShot(0,&window,[&] {
+        auto* dialog=qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+        if (!dialog) { rejectModal(); return; }
+        dialog->selectFile(path);
+        auto* buttons=dialog->findChild<QDialogButtonBox*>();
+        for (auto* button:buttons->buttons()) if (buttons->buttonRole(button)==QDialogButtonBox::AcceptRole) {
+            QTest::mouseClick(button,Qt::LeftButton);
+            // Bounded fallback if Accept leaves the dialog open; the timer dies with the dialog.
+            QTimer::singleShot(2000,dialog,[dialog] { if (dialog->isVisible()) dialog->reject(); });
+            return;
+        }
+        dialog->reject();
+    });
+    QTest::mouseClick(window.findChild<QPushButton*>("saveCustomEffect"),Qt::LeftButton);
+    QVERIFY(QFileInfo::exists(path));
+}
+
 void EditorTest::identifyFlash()
 {
     // Identify lights one placement's outputs; shared outputs light with it. Document-level only, no hardware.
@@ -3950,8 +5977,12 @@ void EditorTest::identifyFlash()
     document.assignChannel(assignment);
     QVERIFY(document.hasSoftwareChannel(fans[0]));
     QVERIFY(!document.hasSoftwareChannel(QUuid::createUuid()));
+    const auto base=document.addLayer(EffectKind::StaticColor);
+    document.edit("Identify background",[&](auto& state){state.layers.last().color=Qt::blue;});
     const auto frame=document.render(.4);
     const auto before=document.sampleChannels(frame,.4)[assignment.id];
+    QCOMPARE(before.first(),QColor(Qt::blue));
+    QVERIFY(!base.isNull());
     const auto revision=document.revision(); const auto undo=document.history()->count();
     // Serial chain: fan 2 owns outputs 7-12 (1-based), so only indexes 6-11 turn white.
     document.setIdentifyPlacement(fans[1]);
@@ -3959,7 +5990,7 @@ void EditorTest::identifyFlash()
     QCOMPARE(document.revision(),revision); QCOMPARE(document.history()->count(),undo);
     const auto serial=document.sampleChannels(frame,.4)[assignment.id];
     QCOMPARE(serial.size(),18);
-    for(int led=0;led<18;++led) QCOMPARE(serial[led],QColor(led>=6 && led<12 ? Qt::white : Qt::black));
+    for(int led=0;led<18;++led) QCOMPARE(serial[led],(led>=6 && led<12 ? QColor(Qt::white) : before[led]));
     // Shared outputs: every fan starts at LED 1, so identifying one lights all three.
     for(const auto& id:fans) assignment.starts.insert(id,1);
     document.assignChannel(assignment);
@@ -4139,7 +6170,7 @@ void EditorTest::panControlsSurviveRefresh()
     window.show();QVERIFY(QTest::qWaitForWindowExposed(&window));window.findChild<QAction*>("workspaceEffects")->trigger();
     auto* pan=window.findChild<QToolButton*>("panCanvasTool");pan->click();QVERIFY(pan->isChecked());QVERIFY(!window.findChild<QPushButton*>("moveEffectTool")->isChecked());
     window.document().edit("Refresh while panning",[](auto& state){state.layers.last().transparency=10;});
-    QVERIFY(window.findChild<QLabel*>("toolHint")->text().contains("Pan"));QVERIFY(window.findChild<QAction*>("strokeSizeAction")->isVisible());QVERIFY(!window.findChild<QAction*>("strokeSizeAction")->isEnabled());
+    QVERIFY(window.findChild<QLabel*>("toolHint")->text().contains("Pan"));QVERIFY(!window.findChild<QWidget*>("brushWidthField")->isVisible());
     window.findChild<QPushButton*>("moveEffectTool")->click();QVERIFY(!pan->isChecked());
     window.document().history()->setClean();
 }
@@ -4228,6 +6259,7 @@ void EditorTest::authoringControlsRegression()
 void EditorTest::effectLibraryCategorized()
 {
     LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; },nullptr,{channelProfile()}); window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
     auto* button=window.findChild<QToolButton*>("sourcesTool");QVERIFY(button);
     QCOMPARE(button->text(),QString("Add effect"));QVERIFY(button->styleSheet().contains("menu-indicator{image:none"));
     QVERIFY(button->icon().pixmap(24,24).toImage()!=studioToolIcon("add").pixmap(24,24).toImage());
@@ -4243,10 +6275,21 @@ void EditorTest::effectLibraryCategorized()
     }
     auto* results=window.findChild<QListWidget*>("effectLibraryResults");QVERIFY(results);
     auto* menu=window.findChild<QMenu*>("effectLibraryMenu");menu->popup(button->mapToGlobal(QPoint(32,0)));QCoreApplication::processEvents();
-    QVERIFY(!results->isVisible()); // No search: browse the submenus.
-    const int browsing=menu->height();
+    QVERIFY(!results->isVisible());
+    auto* category=library.first();
+    auto* firstEffect=category->actions().first();
+    menu->setActiveAction(category->menuAction());
+    QTRY_VERIFY(category->isVisible());
+    const auto target=category->actionGeometry(firstEffect).center();
+    QTest::mouseMove(category->windowHandle(),target);
+    QTRY_COMPARE(category->activeAction(),firstEffect);
+    auto* preview=window.findChild<QLabel*>("effectLibraryPreview");
+    QTRY_VERIFY(preview->isVisible() && !preview->pixmap().isNull());
+    QVERIFY(!preview->geometry().intersects(category->geometry()));
+    category->close();
+    QTRY_VERIFY(!preview->isVisible());
     window.findChild<QLineEdit*>("effectLibrarySearch")->setText("a");QCoreApplication::processEvents();
-    QVERIFY(results->isVisible());QVERIFY(menu->height()>browsing); // The open menu grows to show the hits.
+    QVERIFY(results->isVisible());
     for(int i=0;i<results->count();++i)QVERIFY(!results->item(i)->data(Qt::UserRole).toString().isEmpty()); // No headings.
     // The hits are exactly the matching effects (CodeRabbit review 2026-11-18).
     window.findChild<QLineEdit*>("effectLibrarySearch")->setText("plasma");QCoreApplication::processEvents();
@@ -4254,7 +6297,41 @@ void EditorTest::effectLibraryCategorized()
     for(int i=0;i<results->count();++i){auto* item=results->item(i);
         QCOMPARE(item->isHidden(),!item->text().contains("plasma",Qt::CaseInsensitive));item->isHidden() ? ++hidden : ++shown;}
     QCOMPARE(shown,1);QVERIFY(hidden>0);QCOMPARE(results->currentItem()->text(),QString("Plasma"));
+    QVERIFY(preview->isVisible());
+    QVERIFY(preview->grab().save(artifactDirectory()+"/r32-effect-preview.png"));
+    QTest::mouseMove(results->viewport(),results->visualItemRect(results->currentItem()).center());
+    QVERIFY(preview->isVisible());
     menu->close();
+    QVERIFY(!preview->isVisible());
+}
+
+void EditorTest::chaseInspector()
+{
+    LightingWindow window(catalog(),[] { return QVector<ProfileCandidate>{}; });
+    window.resize(1450,900);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.findChild<QAction*>("workspaceEffects")->trigger();
+    window.findChild<QAction*>("create_chase")->trigger();
+    auto* field=window.findChild<QDoubleSpinBox*>("chaseReverse");
+    auto* toggle=window.findChild<QCheckBox*>("chaseReverseToggle");
+    auto* speed=window.findChild<QDoubleSpinBox*>("chaseSpeed");
+    auto* length=window.findChild<QDoubleSpinBox*>("chaseLength");
+    QVERIFY(toggle && speed && length && field);
+    QTRY_VERIFY(toggle->isVisible() && speed->isVisible() && length->isVisible());
+    QCoreApplication::processEvents();
+    QVERIFY(window.grab().save(artifactDirectory()+"/r32-chase-inspector.png"));
+    QVERIFY(field->isHidden());
+    QTRY_VERIFY(!toggle->geometry().intersects(speed->geometry()));
+    QTRY_VERIFY(!toggle->geometry().intersects(length->geometry()));
+    toggle->click();
+    QCOMPARE(window.document().state().layers.last().chaseReverse,1.0);
+    window.document().history()->undo();
+    QVERIFY(!toggle->isChecked());
+    window.document().history()->redo();
+    QVERIFY(toggle->isChecked());
+    QVERIFY(field->isHidden());
+    window.document().history()->setClean();
 }
 
 void EditorTest::menusFollowWorkspace()
@@ -4270,12 +6347,22 @@ void EditorTest::menusFollowWorkspace()
         auto* action=window.findChild<QAction*>(name);QVERIFY2(action->isVisible() && action->isEnabled(),name);
     }
     for(const auto& name:canvasEdits)QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
-    auto* toolsMenu=window.findChild<QMenu*>("drawingToolsMenu");QVERIFY(!toolsMenu->menuAction()->isVisible());
-    // Devices has no canvas, so canvas-only entries leave the menus (owner review 2026-11-18).
-    QVERIFY(!window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
-    for(const auto& name:canvasEdits+QStringList{"splitHardwarePreview","resetWorkspace","toggleNavigator"})QVERIFY2(!window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
-    window.findChild<QAction*>("workspaceEditor")->trigger();QCoreApplication::processEvents();
-    QVERIFY(toolsMenu->menuAction()->isVisible());QVERIFY(window.findChild<QMenu*>("previewMenu")->menuAction()->isVisible());
+    // Devices has no canvas: canvas-only menus stay in place but are disabled, so the menu bar is the
+    // same in every area (workspace brief 2026-11-26; replaces hiding them, owner review 2026-11-18).
+    auto* toolsMenu=window.findChild<QMenu*>("drawingToolsMenu");
+    QVERIFY(toolsMenu->menuAction()->isVisible());QVERIFY(!toolsMenu->menuAction()->isEnabled());
+    auto* previewMenu=window.findChild<QMenu*>("previewMenu");
+    QVERIFY(previewMenu->menuAction()->isVisible());QVERIFY(!previewMenu->menuAction()->isEnabled());
+    for(const auto& name:canvasEdits+QStringList{"resetWorkspace","toggleNavigator"})QVERIFY2(!window.findChild<QAction*>(name)->isEnabled(),qPrintable(name));
+    // The canvas toolbar is greyed, not hidden, as well (owner review 2026-11-26).
+    auto* fitCanvas=window.findChild<QAction*>("fitCanvas");auto* scope=window.findChild<QComboBox*>("previewChannel");
+    auto* zoomButton=window.findChild<QToolButton*>("zoomMenuButton");
+    QVERIFY(fitCanvas->isVisible());QVERIFY(!fitCanvas->isEnabled());
+    QVERIFY(scope->isVisible());QVERIFY(!scope->isEnabled());QVERIFY(zoomButton->isVisible());QVERIFY(!zoomButton->isEnabled());
+    QVERIFY(window.findChild<QAction*>("saveProject")->isEnabled());
+    window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();
+    QVERIFY(fitCanvas->isEnabled());QVERIFY(scope->isEnabled());QVERIFY(zoomButton->isEnabled());
+    QVERIFY(toolsMenu->menuAction()->isEnabled());QVERIFY(previewMenu->menuAction()->isEnabled());
     for(const auto& name:canvasEdits)QVERIFY2(window.findChild<QAction*>(name)->isVisible(),qPrintable(name));
     // Components: the strip offers only Move and Pan, so the Tools menu lists only those.
     window.findChild<QTabWidget*>("lightingViews")->setCurrentIndex(0);QCoreApplication::processEvents();emit toolsMenu->aboutToShow();
@@ -4480,17 +6567,16 @@ void EditorTest::unifiedEditorWorkflow()
     const auto primary=canvas->selection();canvas->selectMany({document.state().layers[1].id,document.state().layers[2].id},primary);
     QCOMPARE(window.findChild<QTreeWidget*>("effectLayers")->selectedItems().size(),2);canvas->selectMany({primary},primary);
     const auto selected=canvas->selection();canvas->zoomBy(1.2);const auto bounds=document.layoutBounds();const auto anchor=canvas->mapToGlobal(canvas->viewportPoint({0,0}).toPoint());
-    auto* target=window.findChild<QTabBar*>("editorTarget");
-    auto* targetGroup=window.findChild<QWidget*>("editorTargetGroup");QVERIFY(targetGroup);QVERIFY(targetGroup->isVisible());
-    QCOMPARE(window.findChild<QLabel*>("editorTargetLabel")->text(),QString("EDIT MODE"));
-    QVERIFY(!target->tabIcon(0).isNull());QVERIFY(!target->tabIcon(1).isNull());QVERIFY(target->tabRect(0).height()>=28);
-    target->setCurrentIndex(0);QCoreApplication::processEvents();
+    QVERIFY(!window.findChild<QWidget*>("editorTargetGroup"));
+    window.findChild<QAction*>("workspaceLayout")->trigger();QCoreApplication::processEvents();
     QVERIFY(layout->isVisible());QVERIFY(!canvas->isVisible());QVERIFY(QLineF(layout->mapToGlobal(layout->viewportPoint(bounds.topLeft()).toPoint()),anchor).length()<2);
     layout->select(first);
     for(int i=0;i<5;++i){auto* field=window.findChild<QDoubleSpinBox*>(QString("placement%1").arg(i));QVERIFY(field);QTRY_VERIFY(field->height()>=field->minimumSizeHint().height());if(i>0){auto* above=window.findChild<QDoubleSpinBox*>(QString("placement%1").arg(i-1));QVERIFY(field->geometry().top()>above->geometry().bottom());}}
     QCoreApplication::processEvents();QVERIFY(window.grab().save(artifactDirectory()+"/unified-components.png"));const auto origin=document.state().placements[0].origin;QTest::keyClick(layout,Qt::Key_Right,Qt::AltModifier);QCOMPARE(document.state().placements[0].origin,origin+QPointF(1,0));
-    target->setCurrentIndex(1);QCoreApplication::processEvents();QVERIFY(canvas->isVisible());QCOMPARE(canvas->selection(),selected);QVERIFY(play->isChecked());QCOMPARE(scope->currentData().toUuid(),a.id);
-    auto* view=window.findChild<QComboBox*>("editorView");window.findChild<QAction*>("canvasView2")->trigger();QCOMPARE(view->currentIndex(),2);QCOMPARE(target->currentIndex(),0);QVERIFY(!target->isTabEnabled(1));view->setCurrentIndex(0);QVERIFY(target->isTabEnabled(1));
+    window.findChild<QAction*>("workspaceEffects")->trigger();QCoreApplication::processEvents();QVERIFY(canvas->isVisible());QCOMPARE(canvas->selection(),selected);QVERIFY(play->isChecked());QCOMPARE(scope->currentData().toUuid(),a.id);
+    auto* overlay=window.findChild<QAction*>("showEffectComponents");QVERIFY(overlay->isVisible());overlay->trigger();
+    QVERIFY(canvas->isVisible());QVERIFY(!overlay->isChecked());
+    window.findChild<QAction*>("workspaceLayout")->trigger();QVERIFY(layout->isVisible());QVERIFY(!overlay->isVisible());
     window.findChild<QAction*>("workspaceEffects")->trigger();play->setChecked(false);
     QVERIFY(!window.findChild<QWidget*>("hardwarePreviewPanel")->isVisible());
     auto* navigation=window.findChild<QToolBar*>("workspaceNavigation");QVERIFY(window.findChild<QLabel*>("studioBrand")->isVisible());
@@ -4640,7 +6726,7 @@ void EditorTest::activeLayerPickingAndCanvasControls()
     const auto fixed=componentEye->pos();components->zoomBy(4);components->repaint();QCOMPARE(componentEye->pos(),fixed);
     QTest::mouseClick(componentEye,Qt::LeftButton);QVERIFY(!canvas->showLabels());QVERIFY(!components->showLabels());
     const auto iconColor=[&]{auto image=play->icon().pixmap(QSize(24,24)).toImage();return image.pixelColor(image.width()/2,image.height()/2);};
-    QVERIFY(play->text().isEmpty());QVERIFY(iconColor().green()>iconColor().red());QCOMPARE(play->accessibleName(),QString("Play preview"));
+    QCOMPARE(play->text(),QString("Play"));QVERIFY(iconColor().green()>iconColor().red());QCOMPARE(play->accessibleName(),QString("Play preview"));
     QTest::mouseClick(play,Qt::LeftButton);QVERIFY(play->isChecked());QVERIFY(iconColor().red()>iconColor().green());QCOMPARE(play->accessibleName(),QString("Stop preview"));
     QTest::mouseClick(play,Qt::LeftButton);const auto held=window.previewSeconds();QTest::qWait(60);QCOMPARE(window.previewSeconds(),held);
     QVERIFY(window.grab().save(artifactDirectory()+"/canvas-header-controls.png"));doc.history()->setClean();
@@ -4714,7 +6800,7 @@ void EditorTest::compactInteractionContracts()
     const int before=window.document().state().layers.size();QTest::keyClick(search,Qt::Key_Return);QCOMPARE(window.document().state().layers.size(),before);
     search->setText("Plasma");QVERIFY(results->currentItem());QCOMPARE(results->currentItem()->text(),QString("Plasma"));QTest::keyClick(search,Qt::Key_Down);QCOMPARE(QApplication::focusWidget(),results);QTest::keyClick(results,Qt::Key_Return);QCOMPARE(window.document().state().layers.size(),before+1);QVERIFY(!menu->isVisible());
     window.resize(1440,940);QCoreApplication::processEvents();
-QVERIFY(window.findChild<QComboBox*>("editorView")->isVisible());QVERIFY(window.findChild<QToolButton*>("zoomMenuButton")->isVisible());
+    QVERIFY(window.findChild<QToolButton*>("zoomMenuButton")->isVisible());
     window.resize(1060,720);QCoreApplication::processEvents();QVERIFY(window.findChild<QToolButton*>("workspacePanels")->isVisible());
     window.document().history()->setClean();
 }

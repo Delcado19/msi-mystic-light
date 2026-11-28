@@ -50,7 +50,11 @@ bool ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
     QTemporaryFile file(directory_+"/validate-XXXXXX.json");if(!file.open())throw std::runtime_error("Cannot stage service project");
     const auto bytes=QJsonDocument(bundle.value("project").toObject()).toJson(QJsonDocument::Compact);
     if(bytes.size()>StudioService::maximumMessage || file.write(bytes)!=bytes.size() || !file.flush())throw std::runtime_error("Cannot stage bounded project");
-    auto candidate=std::make_unique<LightingDocument>(catalog_,nullptr,profiles_);candidate->load(file.fileName());
+    if (bundle.contains("componentDefinitions") && !bundle.value("componentDefinitions").isArray())
+        throw std::invalid_argument("Invalid playback definitions");
+    const auto definitions = bundle.value("componentDefinitions").toArray();
+    auto candidate=std::make_unique<LightingDocument>(catalog_,nullptr,profiles_);
+    candidate->load(file.fileName(),definitions);
     // Validate the complete project before replacing either the running or persisted session.
     const auto frames=prepareOutput(*candidate,candidate->render(time),time);
     QSet<QString> valid;for(const auto& frame:frames)for(const auto& channel:frame.channels)valid.insert(key(frame,channel));
@@ -63,13 +67,17 @@ bool ServiceRuntime::loadBundle(const QJsonObject& bundle,bool save) {
         }
     }
     auto saved=bundle;QJsonArray pausedJson;for(const auto& entry:paused)pausedJson.append(entry);saved["paused"]=pausedJson;
-    if(save)writeFile(directory_+"/playback.json",StudioService::encode(saved).mid(4));
+    // Every accepted project must stay restorable: the saved file and the snapshot reply (project,
+    // definitions and status) both fit maximumMessage; 1 MiB stays free for the status (CodeRabbit PR #10).
+    const auto encoded=StudioService::encode(saved);
+    if(encoded.size()-4>qsizetype(StudioService::maximumMessage)-1024*1024)throw std::invalid_argument("Project is too large for the service");
+    if(save)writeFile(directory_+"/playback.json",encoded.mid(4));
     // Running outputs whose scope is unchanged stay open: tick() matches frames to connections by
     // output scope. Closing all of them froze the lights for a whole scan on every drag (owner report
     // 2026-11-17). Changed scopes, and everything when output is disabled, are released right here.
     const auto keep=bundle.value("enabled").toBool() ? frames : QVector<OutputFrame>{}; // Same shape as scopes_.
     retireAndWait([&](int i){return std::none_of(keep.cbegin(),keep.cend(),[&](const OutputFrame& frame){return sameOutputScope(scopes_[i],frame);});});
-    document_=std::move(candidate);project_=bundle.value("project").toObject();
+    document_=std::move(candidate);project_=bundle.value("project").toObject();componentDefinitions_=definitions;
     enabled_=bundle.value("enabled").toBool();playing_=bundle.value("playing").toBool();offset_=time;clock_.restart();paused_=paused;error_.clear();
     // Only a worker that is opening or running makes discovery unnecessary; a Faulted one needs the
     // scan now, not at the next 5 s retry (CodeRabbit review 2026-11-18).
@@ -95,7 +103,7 @@ bool ServiceRuntime::outputsRunning() const {
 void ServiceRuntime::persist() {
     if(project_.isEmpty())return;
     QJsonArray paused;for(const auto& id:paused_)paused.append(id);
-    writeFile(directory_+"/playback.json",QJsonDocument(QJsonObject{{"project",project_},{"enabled",enabled_},{"playing",playing_},{"seconds",seconds()},{"paused",paused}}).toJson(QJsonDocument::Compact));
+    writeFile(directory_+"/playback.json",QJsonDocument(QJsonObject{{"project",project_},{"componentDefinitions",componentDefinitions_},{"enabled",enabled_},{"playing",playing_},{"seconds",seconds()},{"paused",paused}}).toJson(QJsonDocument::Compact));
 }
 void ServiceRuntime::retire(int index) {
     connections_[index]->stop();
@@ -342,7 +350,7 @@ void ServiceRuntime::command(const QJsonObject& request,const Reply& reply) {
             document_->setIdentifyPlacement(placement);identifyClock_.start();
         } else if(op=="reopen")reopenOutputs(); // Sent by the editor after an administrator (UAC) stop.
         else if(op!="status" && op!="snapshot")throw std::invalid_argument("Unknown service command");
-        const auto answer=[this,op,reply]{auto result=status();if(op=="snapshot" && !project_.isEmpty())result["project"]=project_;reply(result);};
+        const auto answer=[this,op,reply]{auto result=status();if(op=="snapshot" && !project_.isEmpty()){result["project"]=project_;result["componentDefinitions"]=componentDefinitions_;}reply(result);};
         if(rescan)reconnect(answer);else answer();
     } catch(const std::exception& e) {reply({{"ok",false},{"error",QString::fromUtf8(e.what())}});}
 }

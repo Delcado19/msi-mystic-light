@@ -1,3 +1,4 @@
+#include "../OffscreenTestPlatform.h"
 #include <QDialog>
 #include <QPainter>
 #include "output/HardwareOutput.h"
@@ -175,8 +176,8 @@ void OutputUiTest::headerControls()
     auto* start=panel.findChild<QPushButton*>("startOutput"); auto* stop=panel.findChild<QPushButton*>("stopOutput");
     QVERIFY(!start->isEnabled()); QVERIFY(!start->property("primary").toBool());
     auto* inventory=window.findChild<QTreeWidget*>("layoutComponents");
-    inventory->setCurrentItem(inventory->topLevelItem(1));
-    inventory->setCurrentItem(inventory->topLevelItem(0)); stop->click();
+    inventory->setCurrentItem(inventory->topLevelItem(0)->child(1));
+    inventory->setCurrentItem(inventory->topLevelItem(0)->child(0)); stop->click();
     QCOMPARE(tree->topLevelItem(0)->text(2),QString("1 active / 1 paused"));
     QVERIFY(panel.findChild<QLabel*>("outputChannelDetails")->text().contains("JARGB1: Paused"));
     QCOMPARE(tree->currentItem()->data(0,Qt::UserRole+2).toString(),QString("JARGB1"));
@@ -192,9 +193,9 @@ void OutputUiTest::headerControls()
     }
     start->click(); QTRY_COMPARE(tree->topLevelItem(0)->text(2),QString("Running"));
     QVERIFY(!start->isEnabled());
-    inventory->setCurrentItem(inventory->topLevelItem(2));
+    inventory->setCurrentItem(inventory->topLevelItem(0)->child(2));
     QVERIFY(!start->isEnabled()); QVERIFY(!stop->isEnabled());
-    auto* member=inventory->topLevelItem(1)->child(0); QVERIFY(member); inventory->setCurrentItem(member);
+    auto* member=inventory->topLevelItem(0)->child(1)->child(0); QVERIFY(member); inventory->setCurrentItem(member);
     QCOMPARE(tree->currentItem()->data(0,Qt::UserRole+2).toString(),QString("JARGB2"));
     QVERIFY(!start->isEnabled()); QVERIFY(stop->isEnabled());
     panel.stopOutput(); window.document().history()->setClean();
@@ -354,7 +355,7 @@ void OutputUiTest::applicationDevicePage()
     QCoreApplication::processEvents();
     QVERIFY(window.findChild<QToolBar*>("previewToolbar")->isVisible());
     QVERIFY(window.findChild<QAction*>("workspaceHardware")->isVisible());
-    QVERIFY(!window.findChild<QWidget*>("editorTargetGroup")->isVisible());
+    QVERIFY(!window.findChild<QAction*>("showLayoutEffect")->isVisible());
     QVERIFY(!window.findChild<QDockWidget*>("hardwareOutputDock")); QVERIFY(!window.findChild<LightingCanvas*>("effectsCanvas")->isVisible());
     QVERIFY(window.grab().save(QString(TEST_ARTIFACT_DIR)+"/application-devices.png"));
     panel->findChild<QPushButton*>("startOutput")->click(); QTRY_VERIFY(state(*panel,"Running")); QTRY_COMPARE(record->writes(),2);

@@ -64,8 +64,8 @@ if (!$Quiet -and !$Elevated) {
 # user closes it, so its own Save/Discard prompt runs. Removal never starts while it is open.
 if (!$Elevated) {
     while (Get-Editor) {
-        if ($Quiet) { throw 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit), then retry.' }
-        Write-Host 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit) so unsaved changes are not lost.' -ForegroundColor Yellow
+        if ($Quiet) { throw 'Lighting Studio is running. Close its window, then retry.' }
+        Write-Host 'Lighting Studio is running. Close its window so unsaved changes are not lost.' -ForegroundColor Yellow
         Read-Host 'Press Enter once it is closed' | Out-Null
     }
 }
@@ -132,11 +132,12 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
     try { & $Action; Write-Host ('[{0:mm\:ss}] Done: {1}' -f $clock.Elapsed, $Name) } catch { $problems.Add("$Name - $($_.Exception.Message)"); Write-Warning "$Name - $($_.Exception.Message)" }
 }
 if (Get-Editor) {
-    Write-Host 'Lighting Studio is running. Quit it from its tray icon (right-click > Quit), then retry. Nothing was removed.' -ForegroundColor Red
+    Write-Host 'Lighting Studio is running. Close its window, then retry. Nothing was removed.' -ForegroundColor Red
     if ($ResultFile) { Set-Content -LiteralPath $ResultFile -Encoding UTF8 -Value 'Lighting Studio is still running; nothing was removed' }
     if (!$Quiet) { Read-Host 'Press Enter to close' | Out-Null }
     exit 1
 }
+# Only versions before GS-06-R38 created this task; removal stays for those installs.
 Invoke-Step 'Remove the editor logon task' {
     if (Get-ScheduledTask -TaskName 'Lighting Studio Editor' -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName 'Lighting Studio Editor' -Confirm:$false }
 }
