@@ -254,6 +254,7 @@ private slots:
     void componentDraftLayers();
     void componentLibraryEditing();
     void componentLibraryFolder();
+    void componentFilesHaveReadableNames();
     void builtInCatalogFromFiles();
     void componentFolderSetup();
     void attachComponentDialog();
@@ -1466,6 +1467,47 @@ void EditorTest::componentLibraryEditing()
     QVERIFY_EXCEPTION_THROWN(reopened.load(file),MissingComponents);
 }
 
+void EditorTest::componentFilesHaveReadableNames()
+{
+    // Owner request 2026-11-28: "instance.<uuid>.json" said nothing about the part. Files are named
+    // "<name> - <tag>"; the library still finds them by the ID inside, so projects keep resolving.
+    QTemporaryDir temporary; QVERIFY(temporary.isValid());
+    const auto folder=temporary.filePath("Components"); QVERIFY(QDir().mkpath(folder));
+    const auto jsonFiles=[&]{ return QDir(folder).entryList({"*.json"},QDir::Files,QDir::Name); };
+    auto a=catalog().first(); a.id="instance.16d369dd-3687-4c85-98c9-25a7cec82122"; a.name="M25 Gen2 120 #4";
+    const auto first=QFileInfo(writeComponentFile(folder,a)).fileName();
+    QVERIFY2(QRegularExpression(R"(^M25 Gen2 120 #4 - [0-9a-f]{8}\.json$)").match(first).hasMatch(),qPrintable(first));
+    // Characters Windows forbids become '_'; a second part with the same name gets its own file.
+    auto odd=a; odd.id="custom.odd"; odd.name="Fan: 120/RGB?";
+    const auto oddName=QFileInfo(writeComponentFile(folder,odd)).fileName();
+    QVERIFY2(oddName.startsWith("Fan_ 120_RGB_ - "),qPrintable(oddName));
+    auto twin=a; twin.id="custom.twin";
+    QVERIFY(QFileInfo(writeComponentFile(folder,twin)).fileName()!=first);
+    // Renaming the part renames its file; the old one is gone and the ID still resolves.
+    a.name="Front fan";
+    const auto renamed=QFileInfo(writeComponentFile(folder,a)).fileName();
+    QVERIFY2(renamed.startsWith("Front fan - "),qPrintable(renamed)); QVERIFY(!QFileInfo::exists(folder+"/"+first));
+    QCOMPARE(readComponentFolder(folder,catalog()).components.value(a.id).name,QString("Front fan"));
+    QCOMPARE(jsonFiles().size(),3);
+    // Files of earlier builds get readable names once; skipped files (duplicate or built-in ID) stay as they are.
+    const auto put=[&](const QString& name,const ComponentDefinition& definition){QFile file(folder+"/"+name);QVERIFY(file.open(QIODevice::WriteOnly));file.write(QJsonDocument(definition.toJson()).toJson());};
+    auto old=a; old.id="restored.22ad495e-13b5-47f6-a051-2933d6a96bed"; old.name="Rear fan";
+    put("restored.22ad495e-13b5-47f6-a051-2933d6a96bed.json",old);
+    auto dup=a; dup.id="custom.dup"; dup.name="Dup"; put("dup1.json",dup); put("dup2.json",dup);
+    put("shadow.json",catalog().first());
+    QCOMPARE(renameComponentFiles(folder,catalog()),1);
+    QVERIFY(!QFileInfo::exists(folder+"/restored.22ad495e-13b5-47f6-a051-2933d6a96bed.json"));
+    QVERIFY(QFileInfo(componentFilePath(folder,old.id)).fileName().startsWith("Rear fan - "));
+    for(const auto* name:{"dup1.json","dup2.json","shadow.json"}) QVERIFY2(QFileInfo::exists(folder+"/"+name),name);
+    QCOMPARE(renameComponentFiles(folder,catalog()),0); // already tidy
+    QCOMPARE(readComponentFolder(folder,catalog()).components.value(old.id).toJson(),old.toJson());
+    // The editor tidies its folder at startup.
+    auto late=a; late.id="restored.late"; late.name="Late fan"; put("restored.late.json",late);
+    LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,folder);
+    QTRY_VERIFY(!QFileInfo::exists(folder+"/restored.late.json"));
+    QVERIFY(QFileInfo(componentFilePath(folder,late.id)).fileName().startsWith("Late fan - "));
+}
+
 void EditorTest::componentLibraryFolder()
 {
     // Plan 2026-11-27 Task 3: one JSON file per user component; bad files are reported, never fatal.
@@ -1474,7 +1516,7 @@ void EditorTest::componentLibraryFolder()
     auto a=catalog().first(); a.id="custom.a"; a.name="Alpha";
     auto b=catalog().first(); b.id="custom.b/odd:name"; b.name="Bravo";
     const auto pathA=writeComponentFile(folder,a), pathB=writeComponentFile(folder,b);
-    QCOMPARE(QFileInfo(pathA).fileName(),QString("custom.a.json"));
+    QVERIFY(QFileInfo(pathA).fileName().startsWith("Alpha - "));
     QVERIFY(QFileInfo::exists(pathB)); QCOMPARE(QFileInfo(pathB).dir().absolutePath(),QDir(folder).absolutePath());
     auto read=readComponentFolder(folder,catalog());
     QVERIFY(read.issues.isEmpty());
@@ -1513,7 +1555,7 @@ void EditorTest::componentLibraryFolder()
     service.load(project,playing);
     QVERIFY(service.componentName(service.state().placements.first()).endsWith("Alpha")); // "Generic Alpha": no manufacturer
     document.removeCustomComponent("custom.a");
-    QVERIFY(!QFileInfo::exists(migrated+"/custom.a.json"));
+    QVERIFY(componentFilePath(migrated,"custom.a").isEmpty());
     QVERIFY(document.componentUsers("custom.c").contains(placement));
 }
 
@@ -1683,7 +1725,7 @@ void EditorTest::attachQuickCreate()
         picker.findChild<QToolButton*>("quickType_Strips")->click();
         picker.findChild<QSpinBox*>("quickAddresses")->setValue(16);
         picker.findChild<QPushButton*>("quickCreateAttach")->click();
-        QVERIFY(QFileInfo::exists(folder+"/custom.quick.json"));
+        QVERIFY(!componentFilePath(folder,"custom.quick").isEmpty());
         QCOMPARE(picker.result(),int(QDialog::Accepted));
         const auto created=picker.component();
         QCOMPARE(created.id,QString("custom.quick")); QCOMPARE(created.addresses(),16); QCOMPARE(created.name,QString("Test bar"));
@@ -1841,7 +1883,7 @@ void EditorTest::libraryReviewFixes()
         document.registerComponent(mine);
         QVERIFY2(QFileInfo::exists(folder+"/shadow.json"),"C1: a library write deleted a file it skipped");
         document.removeCustomComponent("custom.mine");
-        QVERIFY(!QFileInfo::exists(folder+"/custom.mine.json"));
+        QVERIFY(componentFilePath(folder,"custom.mine").isEmpty());
         QVERIFY(QFileInfo::exists(folder+"/shadow.json"));
     }
     // C2: the playing project carries "custom.fan", which is now a built-in.
@@ -2048,14 +2090,15 @@ void EditorTest::importAndMoveKeepData()
     QVERIFY(QDir().mkpath(source)); QVERIFY(QDir().mkpath(target));
     auto b=a; b.id="custom.b"; b.name="Bravo";
     writeComponentFile(source,a); writeComponentFile(source,b);
-    auto other=b; other.name="Someone else's b"; { QFile clash(target+"/custom.b.json"); QVERIFY(clash.open(QIODevice::WriteOnly)); clash.write(QJsonDocument(other.toJson()).toJson()); }
+    const auto clashName=QFileInfo(componentFilePath(source,"custom.b")).fileName();
+    auto other=b; other.name="Someone else's b"; { QFile clash(target+"/"+clashName); QVERIFY(clash.open(QIODevice::WriteOnly)); clash.write(QJsonDocument(other.toJson()).toJson()); }
     LightingWindow window(catalog(),[]{return QVector<ProfileCandidate>{};},nullptr,{},false,source);
     window.confirmMoveComponents=[](const QString&){return true;};
     QVERIFY(!window.setComponentFolder(target));
     QCOMPARE(window.componentFolder(),source);
     QCOMPARE(QDir(source).entryList({"*.json"},QDir::Files).size(),2);
-    QVERIFY(!QFileInfo::exists(target+"/custom.a.json"));
-    QVERIFY(window.statusBar()->currentMessage().contains("custom.b.json"));
+    QCOMPARE(QDir(target).entryList({"*.json"},QDir::Files),QStringList{clashName});
+    QVERIFY(window.statusBar()->currentMessage().contains(clashName));
 }
 
 void EditorTest::componentFitFramesFarLeds()

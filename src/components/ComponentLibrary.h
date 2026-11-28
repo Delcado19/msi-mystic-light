@@ -12,9 +12,16 @@ struct LibraryRead { ComponentCatalog components; QVector<LibraryIssue> issues; 
 // name and skipped (the first file in name order keeps a duplicated ID; built-in IDs always win).
 // A missing folder gives one issue "folder not found".
 LibraryRead readComponentFolder(const QString& folder, const ComponentCatalog& builtIn);
-// Writes <id>.json (characters unsafe in file names become '_'); an existing file holding the same ID
-// is overwritten in place. Returns the path. Throws std::runtime_error("Cannot write <path>: <reason>").
+// Writes "<name> - <tag>.json": the part's name (characters Windows forbids become '_') and 8 hex digits
+// of the ID's SHA-256, so equal names do not collide (owner request 2026-11-28; was "<id>.json"). Files
+// are found by the ID inside, never by name. An existing file holding the same ID is overwritten and then
+// renamed to match the name; a failed rename keeps the old file name. Returns the path.
+// Throws std::runtime_error("Cannot write <path>: <reason>").
 QString writeComponentFile(const QString& folder, const ComponentDefinition& definition);
+// Gives every readable file whose name does not match its part the readable name above (files of earlier
+// builds). Files the library skips (duplicate or built-in ID, unreadable) keep their names, so the file
+// that wins a duplicate ID does not change. Returns the number of renamed files; failures are skipped.
+int renameComponentFiles(const QString& folder, const ComponentCatalog& builtIn);
 // The file holding this ID, or empty.
 QString componentFilePath(const QString& folder, const QString& id);
 // Removes the file holding this ID; returns false when none does.

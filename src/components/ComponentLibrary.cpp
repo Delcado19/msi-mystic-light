@@ -1,8 +1,10 @@
 #include "components/ComponentLibrary.h"
 
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QRegularExpression>
@@ -27,6 +29,27 @@ QMap<QString, QString> filesById(const QString& folder)
     }
     return result;
 }
+
+QString fileBase(const ComponentDefinition& definition)
+{
+    auto name = definition.name.trimmed().left(80);
+    name.replace(QRegularExpression(R"([<>:"/\\|?*\x00-\x1F])"), "_");
+    if (name.isEmpty()) name = "Component";
+    // The tag ends the name, so Windows' rules for trailing dots, spaces and device names never apply.
+    return name + " - " + QString::fromLatin1(QCryptographicHash::hash(definition.id.toUtf8(), QCryptographicHash::Sha256).toHex().left(8));
+}
+
+bool hasBase(const QString& fileName, const QString& base)
+{
+    return fileName == base + ".json" || QRegularExpression("^" + QRegularExpression::escape(base) + R"(-\d+\.json$)").match(fileName).hasMatch();
+}
+
+QString freePath(const QString& folder, const QString& base)
+{
+    auto path = QDir(folder).filePath(base + ".json");
+    for (int n = 2; QFileInfo::exists(path); ++n) path = QDir(folder).filePath(base + "-" + QString::number(n) + ".json");
+    return path;
+}
 }
 
 LibraryRead readComponentFolder(const QString& folder, const ComponentCatalog& builtIn)
@@ -50,18 +73,40 @@ LibraryRead readComponentFolder(const QString& folder, const ComponentCatalog& b
 QString writeComponentFile(const QString& folder, const ComponentDefinition& definition)
 {
     const auto bytes = QJsonDocument(definition.toJson()).toJson(QJsonDocument::Indented);
+    const auto base = fileBase(definition);
     auto path = filesById(folder).value(definition.id);
-    if (path.isEmpty()) {
-        auto base = definition.id;
-        base.replace(QRegularExpression(R"([^A-Za-z0-9._-])"), "_");
-        path = QDir(folder).filePath(base + ".json");
-        for (int n = 2; QFileInfo::exists(path); ++n) path = QDir(folder).filePath(base + "-" + QString::number(n) + ".json");
-    }
+    if (path.isEmpty()) path = freePath(folder, base);
     if (bytes.size() > componentLimit) throw std::runtime_error(("Cannot write " + QDir::toNativeSeparators(path) + ": the component is larger than 1 MiB").toStdString());
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
         throw std::runtime_error(("Cannot write " + QDir::toNativeSeparators(path) + ": " + file.errorString()).toStdString());
+    // Written in place first, renamed second: a failed rename only keeps the old name.
+    if (!hasBase(QFileInfo(path).fileName(), base)) {
+        const auto target = freePath(folder, base);
+        if (QFile::rename(path, target)) path = target;
+    }
     return path;
+}
+
+int renameComponentFiles(const QString& folder, const ComponentCatalog& builtIn)
+{
+    QHash<QString, int> holders; // ID -> readable files holding it
+    QVector<QPair<QString, ComponentDefinition>> found;
+    for (const auto& entry : QDir(folder).entryInfoList({"*.json"}, QDir::Files, QDir::Name)) {
+        try {
+            auto definition = loadComponentDefinition(entry.absoluteFilePath());
+            ++holders[definition.id];
+            found.append({entry.absoluteFilePath(), definition});
+        } catch (const std::exception&) {}
+    }
+    int renamed = 0;
+    for (const auto& [path, definition] : found) {
+        // The library skips these; a new name could change which duplicate wins its ID.
+        if (holders.value(definition.id) > 1 || builtIn.contains(definition.id)) continue;
+        const auto base = fileBase(definition);
+        if (!hasBase(QFileInfo(path).fileName(), base) && QFile::rename(path, freePath(folder, base))) ++renamed;
+    }
+    return renamed;
 }
 
 QString componentFilePath(const QString& folder, const QString& id)

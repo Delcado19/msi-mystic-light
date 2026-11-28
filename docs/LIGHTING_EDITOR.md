@@ -579,7 +579,11 @@ Own components are files: one JSON file per component in a folder the user choos
 `Documents/Lighting Studio/Components`, an existing folder can be picked) and stored in QSettings
 `components/userFolder`; **Edit > Settings > My components** changes it and offers to move the files.
 The folder is read on demand and watched, so files copied into it appear without a restart; unreadable
-files, files with a built-in ID and duplicate IDs are skipped and named in the status bar. Saving shows
+files, files with a built-in ID and duplicate IDs are skipped and named in the status bar. Files are
+named `<name> - <tag>.json` (the tag is 8 hex digits of the ID's SHA-256, so equal names do not collide)
+and follow a rename of the part; the library finds them by the ID inside, never by file name. Files of
+earlier builds, named after their ID, get the readable name once at startup (owner request 2026-11-28);
+skipped files keep their names. Saving shows
 `"<name>" saved to <folder>`, a failure `Could not save "<name>": <reason>` and keeps the draft.
 **Add from file…** checks a file and copies it into the folder (an existing ID asks Replace / Save as
 copy; built-ins always become a copy); **Show in folder** opens Explorer on the component's file.

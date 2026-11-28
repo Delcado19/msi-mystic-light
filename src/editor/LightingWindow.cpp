@@ -304,7 +304,9 @@ LightingWindow::LightingWindow(ComponentCatalog catalog,
     connect(componentWatcher_,&QFileSystemWatcher::directoryChanged,this,[this] { reportComponentIssues(); if(componentPage_) componentPage_->reloadLibrary(); });
     if(!libraryPath.isEmpty() && QFileInfo(libraryPath).isDir()) componentWatcher_->addPath(libraryPath);
     // A folder on a removed drive, or unreadable files in it, are named right at startup (final review 2026-11-27).
-    if(!libraryPath.isEmpty()) QTimer::singleShot(0,this,[this] { reportComponentIssues(); });
+    // Files of earlier builds were named after their ID; they get "<name> - <tag>.json" once (owner request
+    // 2026-11-28). The library finds files by the ID inside, so projects keep resolving.
+    if(!libraryPath.isEmpty()) QTimer::singleShot(0,this,[this] { renameComponentFiles(componentFolder(),document_.installedCatalog()); reportComponentIssues(); });
     resize(1440, 900);
     setMinimumSize(1060, 680);
     applyStudioStyle(this);
@@ -2201,6 +2203,7 @@ bool LightingWindow::setComponentFolder(const QString& folder)
     document_.setComponentLibrary(folder);
     QSettings().setValue("components/userFolder",folder);
     if(QFileInfo(folder).isDir()) componentWatcher_->addPath(folder);
+    renameComponentFiles(folder,document_.installedCatalog());
     reportComponentIssues();
     if(componentPage_) componentPage_->reloadLibrary();
     return true;
