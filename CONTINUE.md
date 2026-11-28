@@ -3,6 +3,14 @@
 Only current state and open points. Finished work lives in the git history (this file was cut down
 on 2026-11-19; earlier entries are in `git log -p -- CONTINUE.md`).
 
+## Build GS-06-R49 - 2026-11-28 - CodeRabbit rounds and readable component file names
+
+R48 plus the CodeRabbit PR #10 Major and Minor fixes (83f582b, a46159c, 09e38c1, c5d77c1) and
+readable component file names (a270e71): "<name> - <tag>.json", files of earlier builds are renamed
+once at startup. 23/23 CTest; one unexplained SEGFAULT of lighting_editor in 1 of 3 full runs on
+2026-11-27 (not reproduced since). Deferred CodeRabbit findings: #1, #2, #24; test-only #2/#3 of the
+09e38c1 round declined by the owner. Not checked in the real window by me; the owner checks R49.
+
 ## Build GS-06-R48 - 2026-11-27 (local, not pushed) - attach flow and component library
 
 Plan `docs/superpowers/plans/2026-11-27-attach-flow-and-component-library.md`, Tasks 1-10, all
